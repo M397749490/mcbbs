@@ -1,0 +1,197 @@
+<html>
+<head>
+<title>[已解决]方块实体渲染不同步 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[已解决]方块实体渲染不同步 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ckg1302&nbsp; &nbsp; <b>时间: </b>2020-8-3 23:19<br />
+<b>标题: </b>[已解决]方块实体渲染不同步<br /><i class="pstatus"> 本帖最后由 ckg1302 于 2020-8-4 17:41 编辑 </i><br />
+<br />
+想做一个能显示内部物品的罐子，现在方块的onBlockActivated方法是没有问题的，NBT数据也正常保存，但是渲染器却无法渲染<br />
+<br />
+我的方块实体定义了一个Inventory，有对外部开放的getItem和setItem方法（全部没有static修饰）（目前发现用static修饰方块实体的Inventory可以正常渲染但是所有的方块渲染的都是一个东西），方块的onBlockActivated方法使用没有任何问题，但渲染器啥都没有（渲染器我单独拿出来测过没有任何问题，就是指定物品那种）<br />
+现在推测是渲染方法和方块的onBlockActivated方法使用的不是同一个方块实体，想请教如何同步这两个方块实体<br />
+Forge 1.15.2-31.2.0<br />
+MCP snapshot-20200514-1.15.1<br />
+三个类的代码如下（部分隐私类名，变量名修改了）：<br />
+方块类<br />
+<div class="blockcode"><div id="code_T1p"><ol><li>package com.***.block;<br />
+<li><br />
+<li>import javax.annotation.Nullable;<br />
+<li><br />
+<li>import com.***.tilentity.ThisBlockTileEntity;<br />
+<li><br />
+<li>import net.minecraft.block.Block;<br />
+<li>import net.minecraft.block.BlockState;<br />
+<li>import net.minecraft.block.material.Material;<br />
+<li>import net.minecraft.entity.player.PlayerEntity;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraft.tileentity.TileEntity;<br />
+<li>import net.minecraft.util.ActionResultType;<br />
+<li>import net.minecraft.util.Hand;<br />
+<li>import net.minecraft.util.math.BlockPos;<br />
+<li>import net.minecraft.util.math.BlockRayTraceResult;<br />
+<li>import net.minecraft.util.math.shapes.ISelectionContext;<br />
+<li>import net.minecraft.util.math.shapes.VoxelShape;<br />
+<li>import net.minecraft.util.math.shapes.VoxelShapes;<br />
+<li>import net.minecraft.world.IBlockReader;<br />
+<li>import net.minecraft.world.World;<br />
+<li><br />
+<li>public class BlockClass extends Block{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static VoxelShape shape;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; VoxelShape *** = Block.makeCuboidShape(5, 0, 5, 11, 9, 11);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; VoxelShape *** = Block.makeCuboidShape(6, 9, 6, 10, 10, 10);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; VoxelShape *** = Block.makeCuboidShape(5, 10, 5, 11, 12, 11);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; shape = VoxelShapes.or(***, ***, ***);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public BlockClass() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(Properties.create(Material.GLASS).hardnessAndResistance(2).notSolid());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public VoxelShape getShape(BlockState state, IBlockReader worldIn, BlockPos pos, ISelectionContext context) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return shape;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public ActionResultType onBlockActivated(BlockState state, World worldIn, BlockPos pos, PlayerEntity player, Hand handIn, BlockRayTraceResult hit) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(!worldIn.isRemote() &amp;&amp; state.getBlock() instanceof BlockClass) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(worldIn.getTileEntity(pos) instanceof TileEntityClass) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TileEntityClass te = (TileEntityClass)worldIn.getTileEntity(pos);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemStack stack = player.getHeldItem(handIn);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(stack.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.addItemStackToInventory(te.getItem());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; te.setItem(ItemStack.EMPTY);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}else if (sjarte.getItem().isEmpty()){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; te.setItem(stack);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; stack.shrink(1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return ActionResultType.SUCCESS;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean hasTileEntity(BlockState state) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Nullable<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public TileEntity createTileEntity(BlockState state, IBlockReader world) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new TileEntityClass();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_T1p'));">复制代码</em></div>方块实体类<br />
+<div class="blockcode"><div id="code_O34"><ol><li>package com.***.tilentity;<br />
+<li><br />
+<li>import com.***.main.TEReg;<br />
+<li><br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraft.nbt.CompoundNBT;<br />
+<li>import net.minecraft.tileentity.TileEntity;<br />
+<li>import net.minecraft.util.Direction;<br />
+<li>import net.minecraftforge.common.util.LazyOptional;<br />
+<li>import net.minecraftforge.items.ItemStackHandler;<br />
+<li>import net.minecraft.inventory.Inventory;<br />
+<li><br />
+<li>public class TileEntityClass extends TileEntity{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private Inventory inventory = new Inventory(1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public TileEntityClass() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(TEReg.TileEntityClass.get());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public &lt;T&gt; net.minecraftforge.common.util.LazyOptional&lt;T&gt; getCapability(net.minecraftforge.common.capabilities.Capability&lt;T&gt; cap, Direction side) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (cap == net.minecraftforge.items.CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return LazyOptional.of(() -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new ItemStackHandler();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}).cast();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getCapability(cap);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void setItem(ItemStack newItem) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.inventory.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.inventory.addItem(newItem);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public ItemStack getItem() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return this.inventory.getStackInSlot(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Inventory getInventory() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return this.inventory;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void read(CompoundNBT compound) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.inventory.addItem(ItemStack.read(compound.getCompound(&quot;DisplayItem&quot;)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super.read(compound);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public CompoundNBT write(CompoundNBT compound) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ItemStack toStore = this.inventory.getStackInSlot(0).copy();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; compound.put(&quot;DisplayItem&quot;, toStore.serializeNBT());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return super.write(compound);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_O34'));">复制代码</em></div>渲染类<br />
+<div class="blockcode"><div id="code_a3p"><ol><li>package com.***.client.tileentityrender;<br />
+<li><br />
+<li>import javax.annotation.Nonnull;<br />
+<li><br />
+<li>import com.***.tilentity.TileEntityClass;<br />
+<li>import com.mojang.blaze3d.matrix.MatrixStack;<br />
+<li><br />
+<li>import net.minecraft.client.Minecraft;<br />
+<li>import net.minecraft.client.renderer.IRenderTypeBuffer;<br />
+<li>import net.minecraft.client.renderer.ItemRenderer;<br />
+<li>import net.minecraft.client.renderer.Vector3f;<br />
+<li>import net.minecraft.client.renderer.model.IBakedModel;<br />
+<li>import net.minecraft.client.renderer.model.ItemCameraTransforms;<br />
+<li>import net.minecraft.client.renderer.tileentity.TileEntityRenderer;<br />
+<li>import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li><br />
+<li>@SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>public class RendererClass extends TileEntityRenderer&lt;TileEntityClass&gt;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private int degree = 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private float height = 0.2F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private boolean isRising = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public RendererClass(TileEntityRendererDispatcher rendererDispatcherIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(rendererDispatcherIn);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void render(@Nonnull TileEntityClass tileEntityIn, float partialTicks, MatrixStack matrixStackIn, IRenderTypeBuffer bufferIn, int combinedLightIn, int combinedOverlayIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ItemStack stack = tileEntityIn.getInventory().getStackInSlot(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(degree == 360) { degree = 0; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; degree++;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(isRising) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;height = height + 0.001F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;height = height - 0.001F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(height &lt;= 0.5) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;isRising = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(height &gt;= 0.2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;isRising = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; matrixStackIn.push();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; matrixStackIn.translate(0.5,height,0.5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; matrixStackIn.scale(0.6F, 0.6F, 0.6F);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; matrixStackIn.rotate(Vector3f.YP.rotationDegrees(degree));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ItemRenderer renderer = Minecraft.getInstance().getItemRenderer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; IBakedModel model = renderer.getItemModelWithOverrides(stack, tileEntityIn.getWorld(), null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; renderer.renderItem(stack, ItemCameraTransforms.TransformType.FIXED, true, matrixStackIn, bufferIn, combinedLightIn, combinedOverlayIn, model);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; matrixStackIn.pop();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_a3p'));">复制代码</em></div>初次写模组，代码写的比较乱请见谅<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

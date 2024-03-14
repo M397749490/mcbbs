@@ -1,0 +1,140 @@
+<html>
+<head>
+<title>PVPIN教程RL--如何获取Bukkit插件的JavaPlugin主类实例 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>PVPIN教程RL--如何获取Bukkit插件的JavaPlugin主类实例 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-13 22:28<br />
+<b>标题: </b>PVPIN教程RL--如何获取Bukkit插件的JavaPlugin主类实例<br /><br />
+<font size="4">那些不会Java的新手们，你们是不是还在为<br />
+不在主类里就无法使用getConfig、不在主类里就无法使用getLogger<br />
+这样的问题而苦恼？那么你们应该看一看这篇教程！<br />
+<br />
+和我一样在编程开发区长期回复Bukkit开发相关问题的开发者们<br />
+有没有在看到各种获取不到主类实例问题时感到崩溃？<br />
+除了“去学Java！”无话可说？<br />
+<br />
+快来看看这篇教程！</font><br />
+<br />
+首先，请先理解一个基本知识点：<br />
+插件加载之后，主类有且仅有一个实例。<br />
+道理非常简单，如果有多个实例，势必导致onEnable多次被调用<br />
+那么任务调度、事件监听都会被重复注册<br />
+这会带来不可预知的非常非常非常严重的冲突！<br />
+我们所有通过ClassLoader强行创造主类实例的各种方法全部都是开玩笑！<br />
+除非你很有把握且经过深思熟虑，否则不要自己新建主类的实例！<br />
+而且我也不认为有什么常见的使用场景会需要多个主类实例的！<br />
+至于主类是如何只有一个实例的，JavaPlugin（也就是主类继承的那个类）<br />
+通过使用PluginClassLoader加载主类限制主类拥有多个实例<br />
+具体的单例化实现方法没什么太大必要去理解，懂的都会自己去看底层<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_sEe"><ol><li> <br />
+<li>&nbsp;&nbsp;public JavaPlugin() {<br />
+<li>&nbsp; &nbsp; ClassLoader classLoader = getClass().getClassLoader();<br />
+<li>&nbsp; &nbsp; if (!(classLoader instanceof PluginClassLoader))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(&quot;JavaPlugin requires &quot; + PluginClassLoader.class.getName()); <br />
+<li>&nbsp; &nbsp; ((PluginClassLoader)classLoader).initialize(this);<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;protected JavaPlugin(@NotNull JavaPluginLoader loader, @NotNull PluginDescriptionFile description, @NotNull File dataFolder, @NotNull File file) {<br />
+<li>&nbsp; &nbsp; ClassLoader classLoader = getClass().getClassLoader();<br />
+<li>&nbsp; &nbsp; if (classLoader instanceof PluginClassLoader)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(&quot;Cannot use initialization constructor at runtime&quot;); <br />
+<li>&nbsp; &nbsp; init(loader, loader.server, description, dataFolder, file, classLoader);<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;</ol></div><em onclick="copycode($('code_sEe'));">复制代码</em></div></td></table></div></div><br />
+就是里面的if (!(classLoader instanceof PluginClassLoader))这段逻辑进行了强制的判断<br />
+而且类加载器还有<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_PAr"><ol><li> <br />
+<li> if (this.plugin != null || this.pluginInit != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalArgumentException(&quot;Plugin already initialized!&quot;, this.pluginState); <br />
+<li></ol></div><em onclick="copycode($('code_PAr'));">复制代码</em></div></td></table></div></div><br />
+防止重复加载主类的实例<br />
+<br />
+重点知识总结如下：<br />
+1.同一个插件有且仅有一个主类的实例<br />
+2.自己不要新建主类实例（例如new Main() )<br />
+<br />
+正题：如何获取主类实例？<br />
+<br />
+第一种方法：静态变量储存主类实例<br />
+静态变量是什么？上网搜索你可以得到很多相关的解释<br />
+简单地认为，任何地方调用这个静态变量会得到同一个值，它独立于类的实例而存在<br />
+那么主类有且仅有一个实例<br />
+此时我们就可以在主类直接声明一个静态变量<br />
+那么这个静态变量储存了类的那一个唯一的实例<br />
+当在onEnable里把这唯一的实例赋值给这一变量的时候<br />
+这个变量就存储了那个实例且保持不变<br />
+<div class="blockcode"><div id="code_xuv"><ol><li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static JavaPlugin plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; plugin = this;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_xuv'));">复制代码</em></div><br />
+其他类里面通过 Main.plugin 就可以得到实例了（Main是主类名字，你可以改成自己的）<br />
+比如说Main.plugin.getLogger()<br />
+<br />
+第二种方法：PluginManager获取<br />
+既然Bukkit本身能知道你的插件是不是被重复加载<br />
+并且在你试着自己new一个主类实例时抛出异常<br />
+（其他还有大量例证不一一举出）<br />
+那么Bukkit一定存储了你的主类的实例<br />
+该怎么访问呢？<br />
+<a href="https://bukkit.windit.net/javadoc/org/bukkit/plugin/PluginManager.html" target="_blank">https://bukkit.windit.net/javado ... n-java.lang.String-</a><br />
+这样就可以通过你在plugin.yml里写的name，插件的名字来得到主类实例<br />
+比如说Bukkit.getPluginManager().getPlugin(&quot;PVPINDemoRL&quot;)<br />
+<br />
+第三种方法：JavaPlugin静态方法直接获取<br />
+<div class="blockcode"><div id="code_Rmm"><ol><li><br />
+<li>&nbsp;&nbsp;@NotNull<br />
+<li>&nbsp;&nbsp;public static &lt;T extends JavaPlugin&gt; T getPlugin(@NotNull Class&lt;T&gt; clazz) {<br />
+<li>&nbsp; &nbsp; Validate.notNull(clazz, &quot;Null class cannot have a plugin&quot;);<br />
+<li>&nbsp; &nbsp; if (!JavaPlugin.class.isAssignableFrom(clazz))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalArgumentException(clazz + &quot; does not extend &quot; + JavaPlugin.class); <br />
+<li>&nbsp; &nbsp; ClassLoader cl = clazz.getClassLoader();<br />
+<li>&nbsp; &nbsp; if (!(cl instanceof PluginClassLoader))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalArgumentException(clazz + &quot; is not initialized by &quot; + PluginClassLoader.class); <br />
+<li>&nbsp; &nbsp; JavaPlugin plugin = ((PluginClassLoader)cl).plugin;<br />
+<li>&nbsp; &nbsp; if (plugin == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(&quot;Cannot get plugin for &quot; + clazz + &quot; from a static initializer&quot;); <br />
+<li>&nbsp; &nbsp; return clazz.cast(plugin);<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Rmm'));">复制代码</em></div><br />
+对于新手可能难以理解，看不懂的没有关系<br />
+具体使用方法在<a href="https://bukkit.windit.net/javadoc/org/bukkit/plugin/java/JavaPlugin.html" target="_blank">https://bukkit.windit.net/javado ... in-java.lang.Class-</a><br />
+传入的参数是主类这个类本身<br />
+还有一个<a href="https://bukkit.windit.net/javadoc/org/bukkit/plugin/java/JavaPlugin.html" target="_blank">https://bukkit.windit.net/javado ... in-java.lang.Class-</a><br />
+但是要求这个类的类加载器必须是PluginClassLoader才可以访问到主类实例<br />
+<br />
+第四种方法：构造函数<br />
+构造函数法可能不是很方便，演示尤其麻烦，我很怕有人不会Java，改了改类名就和我说代码用不了<br />
+基本上来说就是你可以在某个类里写一个变量存储主类的实例<br />
+这个变量何处赋值？使用构造器<br />
+但是构造器的名称与类的名称相同，因此不同名的类有不同的构造器名<br />
+而且涉及到了实例变量，这就导致演示很麻烦<br />
+我比较建议采取前三种方法<br />
+<br />
+在这四种方法当中：<br />
+我最喜欢使用第二种<br />
+很多开发者使用第一种<br />
+有一些大佬喜欢使用第三种<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dousha0v0&nbsp; &nbsp; <b>时间: </b>2020-7-20 06:10<br />
+楼主很走心哈，给了我很多开发灵感，希望你能够坚持把pvpin教程出下去。<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-20 09:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19031784&amp;ptid=1077792" target="_blank"><font color="#999999">dousha0v0 发表于 2020-7-20 06:10</font></a></font><br />
+楼主很走心哈，给了我很多开发灵感，希望你能够坚持把pvpin教程出下去。 ...</blockquote></div><br />
+感谢支持，欢迎在索引里提出你想要看的教程主题哈，我教程分篇略多不一定一一看到，索引里回复我都看的，想让我写什么都可以说<img src="static/image/smiley/rabbit/60.gif" smilieid="710" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

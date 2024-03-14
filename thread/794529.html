@@ -1,0 +1,151 @@
+<html>
+<head>
+<title>scoreboard附加NBT检测时同时不能检测多个的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>scoreboard附加NBT检测时同时不能检测多个的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Namefind&nbsp; &nbsp; <b>时间: </b>2018-5-10 17:33<br />
+<b>标题: </b>scoreboard附加NBT检测时同时不能检测多个的问题<br /><i class="pstatus"> 本帖最后由 Namefind 于 2018-5-10 17:40 编辑 </i><br />
+<br />
+首先是想做一个 <strong>选中物品栏指定位置&nbsp; &nbsp;后延迟加入队伍的功能</strong>。<br />
+于是使用了CB检测玩家背包栏位置，当玩家背包栏位置选中时激活并在计分板上计入1分，通过不断计分来实现计时功能。<br />
+单个玩家使用@a或者@p这样的就可以了，但多个玩家会让计分板混乱，于是我想到了使用<strong><font color="#ff0000">{SelectedItemSlot:5}</font></strong>这样的tag来检测玩家符不符合这个要求。<br />
+但<font color="#ff0000">使用这个tag后只能在一秒中计入一个玩家分数，当两个及更多玩家手持相同格子位的物品后时间将会延长</font>。<font color="#ff0000">当我和朋友</font><font color="#ff00">手持相同格子位的物品</font><font color="#ff00">后，我的分数先增加了30，然后朋友的增加了30，然后我又增加了30，显示加入队伍成功。</font><br />
+<font color="#9932cc">希望能有大大提供一个好的思路_(:з」∠)_。（头发掉光了）</font><br />
+目前CB构造如图：<br />
+<img id="aimg_GL7lc" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/05/10/5af40d5cebfdd.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<font color="#ff0000"><strong>1.</strong></font><br />
+<font color="#483d8b"><strong>循环</strong></font> 不受制约 保持开启<br />
+/testfor @a {SelectedItemSlot:5}<br />
+检测当前地图玩家是否选中指定物品格子<br />
+<font color="#ff8c00"><strong>2.</strong></font><br />
+<font color="#556b2f"><strong>连锁</strong></font> 条件制约 保持开启<br />
+/scoreboard players add @p redtime 1 {SelectedItemSlot:5}<br />
+给附近选中指定物品格子的玩家增加选中时间<br />
+<br />
+循环旁边接了个比较器：<br />
+<font color="#ff0000"><strong>2.</strong></font><br />
+<font color="#a0522d"><strong>脉冲</strong></font> 不受制约 红石控制<br />
+tell @a 是否选中红队？如确认请保持选中3秒。<br />
+比较器<br />
+<font color="#ff0000"><strong>3.</strong></font><br />
+<strong><font color="#a0522d">脉冲</font></strong> 不受制约 红石控制<br />
+/scoreboard players reset @p redtime<br />
+当玩家重新选中时重置选中时间<br />
+<font color="#9932cc"><strong>1.</strong></font><br />
+<font color="#483d8b"><strong>循环</strong></font> 不受制约 保持开启<br />
+/execute @p[score_redtime_min=60] ~ ~ ~ /scoreboard teams join red @p<br />
+让选中时间足够的玩家加入红队<br />
+<font color="#9932cc"><strong>2.</strong></font><br />
+<font color="#556b2f"><strong>连锁</strong></font> 条件制约 保持开启<br />
+/scoreboard players reset @p[score_redtime_min=60]<br />
+加入红队成功后重置红队选中时间<br />
+<strong><font color="#9932cc">3.</font></strong><br />
+<font color="#556b2f"><strong>连锁</strong></font> 条件制约 保持开启<br />
+/testfor @a[team=!red]<br />
+检测玩家是否是红队<br />
+<font color="#9932cc"><strong>4.</strong></font><br />
+连锁 条件制约 保持开启<br />
+tell @a 选择红队成功<br />
+<br />
+不是的话输出选选择队伍成功<br />
+<font color="#ff0000">*这里是红队也会输出 不知道怎么回事emm</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SPGoding&nbsp; &nbsp; <b>时间: </b>2018-5-10 17:33<br />
+<i class="pstatus"> 本帖最后由 SPGoding 于 2018-5-10 18:36 编辑 </i><br />
+<br />
+首先我就不明白，让玩家右键物品就可以完成的事情，为什么要自找麻烦。你现在的做法问题很多：<br />
+1.如果玩家把格子里物品换了，检测第5格就错了<br />
+2.需要穷举其余8个格子，处理玩家后悔的情况<br />
+3.为了tellraw提示，需要引入不必要的tag(或其他处理等)<br />
+不过既然你非要这么做，并且兼容多人游戏，我就瞎写了这么一大坨命令。这些命令并没有解决上面的问题。<br />
+不制约 保持开启 连锁 顺序排下去<br />
+scoreboard players add @a[tag=!in] red_time 1 {SelectedItemSlot:5}<br />
+tellraw @a[score_red_time=1,score_red_time_min=1] &quot;是否选中红队？如确认请保持选中3秒。&quot;<br />
+scoreboard teams join red @a[score_red_time_min=60]<br />
+scoreboard players tag @a[score_red_time_min=60] add in<br />
+tellraw @a[score_red_time_min=60] &quot;成功加入红队&quot;<br />
+scoreboard players set @a[score_red_time_min=60] 0<br />
+<br />
+至于你的那一堆问题，我比较菜，一句没看懂…<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SPGoding&nbsp; &nbsp; <b>时间: </b>2018-5-10 18:43<br />
+<i class="pstatus"> 本帖最后由 SPGoding 于 2018-5-10 18:46 编辑 </i><br />
+<br />
+至于我所推荐的，使用右键物品加入队伍的方法：<br />
+首先建立一个判据为使用胡萝卜钓竿的记分项click_count<br />
+然后：<br />
+scoreboard players tag @a[score_click_count_min=1] add red {SelectedItem:{tag:{display:{Name:&quot;加入红队&quot;}}}}<br />
+scoreboard team join red @a[tag=red]<br />
+tell @a[tag=red] 已加入红队<br />
+scoreboard players tag @a remove red<br />
+scoreboard players set @a[score_click_count_min=1] 0<br />
+你只需要右键一个名称为“加入红队”的胡萝卜钓竿即可。5条命令！多么简便！想加新的队伍也毫无难度！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>极光战神伍&nbsp; &nbsp; <b>时间: </b>2018-5-10 19:12<br />
+<i class="pstatus"> 本帖最后由 极光战神伍 于 2018-5-10 21:21 编辑 </i><br />
+<br />
+无版本，1.12为例。思路有很大很多的问题<br />
+比如沙发的1，2俩点，从你想要达成的目的出发就没法避免，所以检测格子能不用就别用。<br />
+按照你的思路，做了一个这个系统。<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>首先保证你又一个叫red的team和有一个叫redtime的记分板<br />
+<img src="static/image/smiley/machine/rcb_side_1.png" smilieid="1418" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><br />
+均为不受制约&gt;保持开启<br />
+在循环命令方块的旁边接一个比较器，比较器接一个方块，方块上放一个红石火把，红石火把上方接一个<img src="static/image/smiley/machine/cb_side.png" smilieid="1367" border="0" alt="" />不受制约&gt;红石控制<br />
+<img src="static/image/smiley/machine/cb_side.png" smilieid="1367" border="0" alt="" />：/scoreboard players reset @a[tag=!redready] redtime<br />
+从左往右：<br />
+1./scoreboard players tag @a add redready {SelectedItemSlot:5}<br />
+为在5号快键栏的玩家增加tag<img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><br />
+2.tellraw @a[tag=redready,score_redtime=!1] {&quot;text&quot;:&quot;是否选中红队？如确认请保持选中3秒。&quot;,&quot;color&quot;:&quot;red&quot;}<br />
+提示信息<br />
+3./scoreboard players add @a[tag=redready] redtime 1<br />
+为有该tag的玩家加分<br />
+4./scoreboard teams join red @a[score_redtime_min=60,score_redtime=60,tag=redready]<br />
+分值达到60的玩家加入red队伍<br />
+5./tellraw @a[team=red,score_redtime_min=60] {&quot;text&quot;:&quot;加入红队成功&quot;,&quot;color&quot;:&quot;red&quot;}<br />
+提示消息<br />
+6./scoreboard players reset @a[team=red] redtime<br />
+重置已经加入red队伍玩家的记分板<br />
+7./scoreboard players tag @a remove redready<br />
+删除已经加入red队伍玩家的tag完成</td></table></div></div><br />
+*注：沙发的1，2俩个问题并没有在该系统中解决。<br />
+<br />
+至于新思路，我推F键加入队伍。<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>在保证你有一个叫red的队伍时：<br />
+<img src="static/image/smiley/machine/rcb_side_1.png" smilieid="1418" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><img src="static/image/smiley/machine/chain_cb_side_1.png" smilieid="1331" border="0" alt="" /><br />
+均为不受制约&gt;保持开启<br />
+从左往右：<br />
+1./scoreboard players tag @a[team=!red] add red {Inventory:[{Slot:-106b,id:&quot;minecraft:wool&quot;,Count:1b,Damage:14s}]}<br />
+为副手为红色羊毛的玩家添加tag<br />
+2./scoreboard teams join red @a[tag=red]<br />
+将该tag玩家加入队伍<br />
+3./tellraw @a[tag=red] {&quot;text&quot;:&quot;已加入红队&quot;,&quot;color&quot;:&quot;red&quot;}<br />
+提示信息<br />
+4./scoreboard players tag @a remove red<br />
+删除tag<br />
+↑拿着红色羊毛按下F键加入队伍↑<br />
+</td></table></div></div>XDD<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⊙v⊙&nbsp; &nbsp; <b>时间: </b>2018-5-11 02:31<br />
+凑热闹...算了<br />
+<br />
+你这样写的话<font color="Red">2</font>和<font color="Red">3</font>这里站位上会可能出错<br />
+<font color="Red">2</font>和<font color="DarkOrchid">4</font>tell的对象是所有玩家，<strong>所有</strong><br />
+<font color="Red">1</font>和<font color="DarkOrange">2</font>的<font color="Red">1</font>相对来说是多余的，<font color="DarkOrchid">3</font>和<font color="DarkOrchid">4</font>里的<font color="DarkOrchid">3</font>同理<br />
+<font color="DarkOrchid">1</font>前面就别套execute了，多余操作<br />
+<br />
+选择器请统一使用@a<br />
+用@p简直在给自己添麻烦<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,82 @@
+<html>
+<head>
+<title>调用EntityDamageByEntityEvent事件后应当如何造成伤害 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>调用EntityDamageByEntityEvent事件后应当如何造成伤害 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangmcptr&nbsp; &nbsp; <b>时间: </b>2019-9-19 01:26<br />
+<b>标题: </b>调用EntityDamageByEntityEvent事件后应当如何造成伤害<br />EntityDamageByEntityEvent e = new EntityDamageByEntityEvent()<br />
+getPluginManager().callEvent(e);<br />
+事情是这样的，我想对一个目标造成伤害，LivingEntity里有个damage方法，但是这个方法受攻击冷却影响，这其中可以把目标的受伤间隔调成0然后造成伤害后再改回来，但这个方法显得有些低端而且会扰乱普攻的冷却，所以想到了直接调用上面这个事件，但接下来如何造成伤害却不知道，我想反编译看看源码，但是试了几个反编译工具都反编译失败。<br />
+我能想到的是接下来用sethealth对目标造成伤害，但是正确的写法应该是什么，请大神指点，我用的是1.14.4版本。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-9-19 02:22<br />
+第一种方式,使用setHealth,但前提是必须自己触发事件保证对其他插件的兼容,以确保不会出现这个插件无法被控制,无论是不是能造成伤害都造成伤害:<br />
+setHealth不会触发事件,因此<br />
+setHealth时先触发一次EntityDamageEvent,这样能保证兼容99%的伤害控制等等的插件,假设EntityDamageEvent被setCancelled了,不setHealth即可<br />
+<br />
+<br />
+但我更推荐第二种方法:<br />
+<br />
+不需要你手动call EntityDamageByEntityEvent<br />
+可以被造成伤害的实体都会继承Damageable<br />
+先判断是否继承Damageable,如果是则强转<br />
+Damageable able=(Damageable)entity;<br />
+然后able.damage(你对这个实体造成的伤害值);<br />
+即可,该方法也会触发EntityDamageEvent等等事件,兼容性更好<br />
+假设你需要指定是谁对这个实体造成的伤害<br />
+则是:<br />
+able.damage(你对这个实体造成的伤害值,是哪个实体对这个实体造成伤害)<br />
+例如:<br />
+当一个玩家右键了一个僵尸<br />
+able=这个僵尸<br />
+player=这个玩家<br />
+able.damage(10,player);<br />
+则是玩家对这个僵尸造成了10伤害<br />
+有伤害来源时,这个方**额外触发EntityDamageByEntity等事件<br />
+但Damageable的damage方法造出的伤害不仅会被取消,还会被修改伤害<br />
+假设楼主需要写真实伤害等固定伤害不受任何加成,则推荐第一种方法,反之则第二种<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangmcptr&nbsp; &nbsp; <b>时间: </b>2019-9-19 13:36<br />
+<i class="pstatus"> 本帖最后由 wangmcptr 于 2019-9-19 15:58 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15627363&amp;ptid=914372" target="_blank"><font color="#999999">a8105 发表于 2019-9-19 02:22</font></a></font><br />
+第一种方式,使用setHealth,但前提是必须自己触发事件保证对其他插件的兼容,以确保不会出现这个插件无法被控 ...</blockquote></div><br />
+试了一下第二种方法，还是会受伤害间隔影响，我知道可以设置目标的setNoDamageTicks，但是经过测试，在连续普攻中夹杂这种方式的伤害会使普通次数明显高于正常的攻击次数，所以想问问有什么更好的方法吗，既能随时造成伤害，又不影响普攻给目标带来的短暂无敌时间。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wshycaa&nbsp; &nbsp; <b>时间: </b>2019-9-19 16:13<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15627960&amp;ptid=914372" target="_blank"><font color="#999999">wangmcptr 发表于 2019-9-19 13:36</font></a></font><br />
+试了一下第二种方法，还是会受伤害间隔影响，我知道可以设置目标的setNoDamageTicks，但是经过测试，在连 ...</blockquote></div><br />
+换个思路，这时候你就需要做一个针对于该玩家对单一实体造成伤害间隔的检测了<br />
+ 比如判断该实体收到攻击的事件，如果收到伤害的间隔距离上一次小于某个值且攻击者一样那么取消伤害<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-9-19 20:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15627960&amp;ptid=914372" target="_blank"><font color="#999999">wangmcptr 发表于 2019-9-19 13:36</font></a></font><br />
+试了一下第二种方法，还是会受伤害间隔影响，我知道可以设置目标的setNoDamageTicks，但是经过测试，在连 ...</blockquote></div><br />
+int a=entity.getNoDamageTicks();<br />
+entity.setNoDamageTicks(0);<br />
+<br />
+各种伤害代码,例如<br />
+able.damage(.........)<br />
+<br />
+entity.setNoDamageTicks(a);<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangmcptr&nbsp; &nbsp; <b>时间: </b>2019-9-19 22:16<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15628797&amp;ptid=914372" target="_blank"><font color="#999999">a8105 发表于 2019-9-19 20:38</font></a></font><br />
+int a=entity.getNoDamageTicks();<br />
+entity.setNoDamageTicks(0);</blockquote></div><br />
+就是这么写的，但就是会明显增加普攻次数，不管怎么测试都是这个结果，我开始也想的既然是线程同步不应该出现这种问题，最后也没想明白怎么回事。又试了下第一种方法，又发现了个难以解决的问题，getFinalDamage()本来能获取计算装备后的伤害，但是直接call这个事件再用getFinalDamage()却获取不了，而且给被攻击单位设置了lastDamageCause后死亡信息也只显示某某死了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-9-19 22:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15629152&amp;ptid=914372" target="_blank"><font color="#999999">wangmcptr 发表于 2019-9-19 22:16</font></a></font><br />
+就是这么写的，但就是会明显增加普攻次数，不管怎么测试都是这个结果，我开始也想的既然是线程同步不应该 ...</blockquote></div><br />
+如果你是监听EntityDamageByEntityEvent等事件的时候,额外able.damage,自然会这样,你都监听这些事件了,event.setDamage即可,或者采用第一种方式<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangmcptr&nbsp; &nbsp; <b>时间: </b>2019-9-19 22:24<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15629167&amp;ptid=914372" target="_blank"><font color="#999999">a8105 发表于 2019-9-19 22:20</font></a></font><br />
+如果你是监听EntityDamageByEntityEvent等事件的时候,额外able.damage,自然会这样,你都监听这些事件了,ev ...</blockquote></div><br />
+感谢大佬指点，我好好研究研究
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

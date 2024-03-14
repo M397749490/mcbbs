@@ -1,0 +1,109 @@
+<html>
+<head>
+<title>【Dev】 Nosik MCLauncher开发&amp;启动器开发思路 【半直播】 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【Dev】 Nosik MCLauncher开发&amp;启动器开发思路 【半直播】 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>v_sky&nbsp; &nbsp; <b>时间: </b>2014-2-15 20:28<br />
+<b>标题: </b>【Dev】 Nosik MCLauncher开发&amp;启动器开发思路 【半直播】<br />好吧，经过好长时间的弃坑，我的启动器项目改名为Nosik MCLauncher并正式开始开发。<br />
+本启动器由VB6写成，v_sky制造，全面开源，支持Optifine自动识别，创新DoubleLoad模式……<br />
+BAKA，这次绝对不会弃坑什么的了。<br />
+Github直播：<a href="https://github.com/lily-aita/nosik-mclauncher/tree/dev_region" target="_blank">https://github.com/lily-aita/nosik-mclauncher/tree/dev_region</a><br />
+目前开发进度：已经解决JSON读取问题，JSON之支持库为VBJSON（作者Michael Glaser），在GNU LGPL v3协议下发布下一步开发计划：使用vbRichClient这个极其NB的VB库来开发HTTP部分（下载及POST）<br />
+<br />
+Day1:<br />
+Nosik MCL项目开始开发。<br />
+第一天就实现了JSON的BaseItems的读取，但是卡在了libraries项的集合嵌套上……<br />
+VB6实现JSON初步读取的思路：通过VB6的CreateObject，来利用js的eval函数读取：<div class="blockcode"><div id="code_gB0"><ol><li>Dim ScriptControl As Object, Psw As Object, JsonOrigin As String, JscriptCode$<br />
+<li>&nbsp; &nbsp; JscriptCode = &quot;function toObject(json) {eval(&quot;&quot;var o=&quot;&quot;+json);return o;}&quot;<br />
+<li>&nbsp; &nbsp; Set ScriptControl = CreateObject(&quot;MSScriptControl.ScriptControl&quot;)<br />
+<li>&nbsp; &nbsp; With ScriptControl<br />
+<li>.Language = &quot;Javascript&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.Timeout = -1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.AddCode JscriptCode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Set Psw = .Run(&quot;toObject&quot;, JsonOrigin)<br />
+<li>&nbsp; &nbsp; End With</ol></div><em onclick="copycode($('code_gB0'));">复制代码</em></div>Day2：<br />
+通过VBJSON的转换，读取出libraries的集合，然后再利用DAY1所用方法来读取。<br />
+计划DAY3添加FOR循环读取，然后开始编写HTTP部分<br />
+思路：<div class="blockcode"><div id="code_s3x"><ol><li>'cUtils.cls<br />
+<li>Option Explicit<br />
+<li><br />
+<li>Public Function JsonRead() As String<br />
+<li>&nbsp; &nbsp; Dim JsonO As Object, JsonPath As String, LibText As String<br />
+<li>&nbsp; &nbsp; JsonPath = &quot;H:\minecraft\play\.minecraft\versions\1.7.2\1.7.2.json&quot;<br />
+<li>&nbsp; &nbsp; Set JsonO = JSON.parse(ReadTextFile(JsonPath))<br />
+<li>&nbsp; &nbsp; JsonRead = Chr(123) &amp; Chr(34) &amp; &quot;libraries&quot; &amp; Chr(34) &amp; Chr(58) &amp; Left(JSON.toString(JsonO(&quot;libraries&quot;)), 2000) &amp; Chr(125)<br />
+<li>End Function<br />
+<li><br />
+<li>Public Function LaunchGame() As Boolean<br />
+<li><br />
+<li>End Function<br />
+<li><br />
+<li>Public Function ReadTextFile(sFilePath As String) As String<br />
+<li>&nbsp; &nbsp;On Error Resume Next<br />
+<li>&nbsp; &nbsp;Dim handle As Integer<br />
+<li>&nbsp; &nbsp;If LenB(Dir$(sFilePath)) &gt; 0 Then<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;handle = FreeFile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Open sFilePath For Binary As #handle<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;ReadTextFile = Space$(LOF(handle))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Get #handle, , ReadTextFile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Close #handle<br />
+<li>&nbsp; &nbsp;End If<br />
+<li>End Function<br />
+<li><br />
+<li>Public Function LibCount() As Integer<br />
+<li>&nbsp; &nbsp; Dim JsonM As Object, JsonPath As String<br />
+<li>&nbsp; &nbsp; JsonPath = &quot;H:\minecraft\play\.minecraft\versions\1.7.2\1.7.2.json&quot;<br />
+<li>&nbsp; &nbsp; Set JsonM = JSON.parse(ReadTextFile(JsonPath))<br />
+<li>&nbsp; &nbsp; LibCount = JsonM(&quot;libraries&quot;).Count<br />
+<li>End Function<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_s3x'));">复制代码</em></div><div class="blockcode"><div id="code_Aq3"><ol><li>'frm_Main.frm<br />
+<li><br />
+<li>Option Explicit<br />
+<li>Private Sub Command1_Click()<br />
+<li>&nbsp; &nbsp; Dim utils As New cUtils, LibText As String<br />
+<li>&nbsp; &nbsp; Dim libs() As String, libsc As Integer<br />
+<li>&nbsp; &nbsp; libsc = utils.LibCount - 1<br />
+<li>&nbsp; &nbsp; ReDim libs(libsc)<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; LibText = utils.JsonRead<br />
+<li>&nbsp; &nbsp; Text1.Text = LibText<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; Dim ScriptControl As Object, Psw As String, Freqenci As Integer, JscriptCode$<br />
+<li>&nbsp; &nbsp; JscriptCode = &quot;function toObject(json,frq) {eval(&quot;&quot;var o=&quot;&quot;+json);return o.libraries[frq].name;}&quot;<br />
+<li>&nbsp; &nbsp; Set ScriptControl = CreateObject(&quot;MSScriptControl.ScriptControl&quot;)<br />
+<li>&nbsp; &nbsp; Freqenci = 0<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; With ScriptControl<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.Language = &quot;Javascript&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.Timeout = -1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.AddCode JscriptCode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Psw = .Run(&quot;toObject&quot;, LibText, Freqenci)<br />
+<li>&nbsp; &nbsp;End With<br />
+<li>&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;MsgBox Psw<br />
+<li>&nbsp; &nbsp;MsgBox utils.LibCount<br />
+<li>End Sub<br />
+<li></ol></div><em onclick="copycode($('code_Aq3'));">复制代码</em></div>未完待续……<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>754042967&nbsp; &nbsp; <b>时间: </b>2014-2-16 10:49<br />
+Java党飘过，就是不知道用Java怎么读取Json.<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gamerteam&nbsp; &nbsp; <b>时间: </b>2014-3-11 17:28<br />
+完全迷迷糊糊的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>officeyutong&nbsp; &nbsp; <b>时间: </b>2014-3-21 20:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=4645346&amp;ptid=240308" target="_blank"><font color="#999999">754042967 发表于 2014-2-16 10:49</font></a></font><br />
+Java党飘过，就是不知道用Java怎么读取Json.</blockquote></div><br />
+org.json很好用，也很简单
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

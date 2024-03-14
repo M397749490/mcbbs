@@ -1,0 +1,93 @@
+<html>
+<head>
+<title>关于Entity创建时的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于Entity创建时的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hendyzone&nbsp; &nbsp; <b>时间: </b>2012-10-15 23:16<br />
+<b>标题: </b>关于Entity创建时的问题<br /><i class="pstatus"> 本帖最后由 hendyzone 于 2012-10-15 23:31 编辑 </i><br />
+<br />
+<font color="#000"><font face="Tahoma"><font size="3">原文地址：<a href="http://www.minecraftforum.net/topic/1417041-mod-entity-problem/" target="_blank">http://www.minecraftforum.net/topic/1417041-mod-entity-problem/</a><br />
+<br />
+</font></font></font><br />
+<div class="quote"><blockquote>个人觉得有借鉴意义 =w= 就搬过来了</blockquote></div><br />
+<font color="#000"><font face="Tahoma"><font size="3"><font face="微软雅黑"><font size="3">许多人在创建新的怪物或者是其他形式的实体时都遇到过一些问题。在<a href="http://www.minecraftforum.net/" target="_blank">论坛</a>里我曾经见过许多像下面这样的错误报告。</font></font><br />
+<div class="blockcode"><div id="code_Uxe"><ol><li>Skipping Entity with id -72<br />
+<li>java.lang.NullPointerException<br />
+<li>at net.minecraft.src.NetClientHandler.handleMobSpawn(NetClientHandler.java:726)<br />
+<li>at net.minecraft.src.Packet24MobSpawn.processPacket(Packet24MobSpawn.java:131)<br />
+<li>at net.minecraft.src.MemoryConnection.processReadPackets(MemoryConnection.java:65)<br />
+<li>at net.minecraft.src.NetClientHandler.processReadPackets(NetClientHandler.java:91)<br />
+<li>at net.minecraft.src.WorldClient.tick(WorldClient.java:64)<br />
+<li>at net.minecraft.client.Minecraft.runTick(Minecraft.java:1614)<br />
+<li>at net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:775)<br />
+<li>at net.minecraft.client.Minecraft.run(Minecraft.java:723)<br />
+<li>at java.lang.Thread.run(Unknown Source)</ol></div><em onclick="copycode($('code_Uxe'));">复制代码</em></div></font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3">我找到了对应的报错的行数，就是handleMobSpawn方法所在的位置，这个方法通过EntityId来检索Entity。这个错误报告应该是在Entity被检索是显示为null时发生。所以我再次检查了我的代码，确认了我加了我确实是把Mob用Modloader方法添加EntityList中。<br />
+<br />
+<div class="blockcode"><div id="code_Tzg"><ol><li>ModLoader.registerEntityID(entityClass, entityClass.getSimpleName(),<br />
+<li>ModLoader.getUniqueEntityId());</ol></div><em onclick="copycode($('code_Tzg'));">复制代码</em></div><br />
+
+<br />
+</font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3">这个Entity确实已经注册了，但是我依然会收到错误报告。但是如果你仔细看错误报告的第一行，<br />
+<div class="blockcode"><div id="code_U00"><ol><li>Skipping Entity with id -72</ol></div><em onclick="copycode($('code_U00'));">复制代码</em></div><br />
+
+<br />
+</font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3">你可以发现你的Entity的Id看起来有些问题。在Modloader的方法调用中Modloader.getUniqueEntityId（）返回的EntityId应该为3000。所以每次你调用这个方法它都会为你的每个Entity的Id赋予独一无二的值。我的EntityId应该是3000但是为什么在Minecraft会变成-72呢？<br />
+<br />
+<br />
+</font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3">显然，这个问题出在<strong>Packet24MobSpawn</strong>类中。这是一个数据包（packet）类，它的功能是将数据传送给客户端；但是，我并不确定。我注意到在构造函数之前的这段代码。<br />
+<div class="blockcode"><div id="code_Sx5"><ol><li>this.type = (byte) EntityList.getEntityID(par1EntityLiving);</ol></div><em onclick="copycode($('code_Sx5'));">复制代码</em></div><br />
+<font color="Navy">this.type</font>为一个用来表示怪物种类的整数，<font color="Navy">EntityList.getEntityID(par1EntityLiving) </font>检索来自Entity object(par1EntityLiving)的Id信息. 很简单不是么? 所以我的EntityId为3000，那么 <font color="DarkSlateBlue">this.type， </font></font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3">也应该是3000，可是它并不是. 它实际上是-72. 原因就是java将它强制转换为byte型数据。在Java中, byte型数据的范围为-128 to 127 ，所以3000无法被正确的转换. 所以说-72为 窄化转换（Narrowing Primitive Conversion）产物。当然，我并不是这方面的专家，有人可以解释的更加详细。</font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3"><br />
+这就是说,任何超过127的值将无法被使用. 如果你查看<strong>EntityList.class</strong>你可以在它的静态块中找到所有的Entity和它们的Id，除了EntityEnderCrystal（末影水晶的实体状态）每一个都是小于127。EntityEnderCrystal使用<strong>Packet23VehicleSpawn</strong>它并不转换实体参数所以没问题</font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3"><br />
+<div class="blockcode"><div id="code_dL2"><ol><li>/**Entity ID. */<br />
+<li>public int entityId;<br />
+<li><br />
+<li>/** mob类型. */<br />
+<li>public int type;<br />
+<li><br />
+<li>....<br />
+<li><br />
+<li>public Packet24MobSpawn(EntityLiving par1EntityLiving) {<br />
+<li>this.entityId = par1EntityLiving.entityId;<br />
+<li>this.type = (byte) EntityList.getEntityID(par1EntityLiving);<br />
+<li>......<br />
+<li>}</ol></div><em onclick="copycode($('code_dL2'));">复制代码</em></div><br />
+
+<br />
+这是 <strong>Packet24MobSpawn</strong><strong>中的一段</strong>. </font></font></font><br />
+<font color="#000"><font face="Tahoma"><font size="3"><u>我不明白为什么他们（Mojang）要转换为byte型。tybe并不是byte型。我猜测这是为了减少数据的传输量，或者这是一个bug？现在我只要删除这个强制转换我自己制作的mob就能正常使用了：）（这段作者划掉了=。=）</u></font></font></font><br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hendyzone&nbsp; &nbsp; <b>时间: </b>2012-10-15 23:42<br />
+=A= 敢不敢有个回复的QAQ<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a626508372&nbsp; &nbsp; <b>时间: </b>2012-10-16 09:30<br />
+<img src="static/image/smiley/rabbit/44.gif" smilieid="694" border="0" alt="" />好像很厉害的样子<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>当风过时&nbsp; &nbsp; <b>时间: </b>2012-10-16 12:30<br />
+还没怎么接触Entity。。。如果是TileEntity的话我还可以帮忙<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hendyzone&nbsp; &nbsp; <b>时间: </b>2012-10-16 12:32<br />
+<div class="quote"><blockquote><font size="2"><font color="#999999">当风过时 发表于 2012-10-16 12:30</font> <a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=866411&amp;ptid=58293" target="_blank"><img id="aimg_XsjN2" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/common/back.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a></font><br />
+还没怎么接触Entity。。。如果是TileEntity的话我还可以帮忙</blockquote></div><br />
+{:10_502:}这是别人对某个问题的分析。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>当风过时&nbsp; &nbsp; <b>时间: </b>2012-10-16 12:39<br />
+<div class="quote"><blockquote><font size="2"><font color="#999999">hendyzone 发表于 2012-10-16 12:32</font> <a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=866415&amp;ptid=58293" target="_blank"><img id="aimg_C870B" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/common/back.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a></font><br />
+这是别人对某个问题的分析。。。</blockquote></div><br />
+好吧。。。<img src="static/image/smiley/rabbit/41.gif" smilieid="691" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

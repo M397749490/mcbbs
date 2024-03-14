@@ -1,0 +1,448 @@
+<html>
+<head>
+<title>Spigot自定义世界生成器 获取尚未生成位置Biome的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Spigot自定义世界生成器 获取尚未生成位置Biome的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-5-30 23:38<br />
+<b>标题: </b>Spigot自定义世界生成器 获取尚未生成位置Biome的问题<br />大佬们晚上好，我在尝试为 spigot1.14.4 编写一个自定义的世界生成器，但是在尝试平滑Biome连接时遇到了问题：<br />
+<br />
+我的逻辑是：每一个Biome有最低高度和额外高度上限。我使用了SpigotAPI的Octave生成器，就可生成高度在（0~1的随机数）*额外高度上限 + 最低高度 的地形。比如我设置沙漠的最低高度为80，额外高度上限为6，那么生成的地形即在高度80~86之间。这个高度我称之为&quot;当前高度&quot;<br />
+<br />
+这个方案会使相邻Biome之间的地形落差巨大，所以我需要将Biome之间的地形平整。<br />
+我自己的方案是：对于每一个XZ坐标，收集它附近某一范围（我设定的范围是XZ坐标差之和小于等于10）的Biome信息，并且将坐标信息不重复地记录为（Biome：最短距离distance）的格式。<br />
+<br />
+举个例子，假如一个方块处于沙漠Biome，但其附近10格内有河流（最短距离3），平原（最短距离4），则记录为：<br />
+沙漠：0（它距自身肯定是0格）<br />
+河流：3<br />
+平原：4<br />
+<br />
+之后，收集这些Biome的对应最低高度（我提前设定好了），并通过加权平均的算法，求出最终的&quot;当前高度&quot;<br />
+<br />
+<font color="#ff0000">问题</font>就出在这里：如果要使用我的方法，就势必要获取此区块之外的方块的Biome信息，（因为如果当前方块处于区块边缘，获取临近方块的Biome信息就一定要跨区块）所以不能使用基于此区块的getBiome()方法，而要使用基于全地图的getBiome()方法。 然而，当我确实使用了world.getBiome(x坐标，z坐标)时，服务器开服时卡在了Preparing chunk data 0%,并且进度不再增加，也没有报错，cpu利用率接近于零。我个人判断是world.getBiome在开服阶段还不可用，导致此问题的出现。<br />
+<br />
+所以我想请问各位大佬：<br />
+1、如果有可能的话，可否帮我指出一种更佳的平滑Biome的方法？我目前的方法就算能够运行，对算力也有不小的负荷，所以如果从根本逻辑上改变算法，那就谢天谢地了。<br />
+2、如果大佬们也不清楚更好的平滑Biome方法，那么请问该如何解决现在我无法获取当前区块外的方块的Biome的信息？<br />
+<br />
+万分感谢！！！！！（当然如果大佬有相关教程的传送门，我也十分感谢，我只在谷歌上搜索了相关教程，但是没有找到想要的东西。）<br />
+<br />
+以下是我生成器的代码部分：<br />
+<div class="blockcode"><div id="code_pnZ"><ol><li>package tech.yfshadaow;<br />
+<li><br />
+<li>import org.bukkit.generator.ChunkGenerator;<br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.World;<br />
+<li>import java.util.Random;<br />
+<li>import org.bukkit.util.noise.SimplexOctaveGenerator;<br />
+<li>import org.bukkit.Material;<br />
+<li>import org.bukkit.block.Biome;<br />
+<li>import java.util.List;<br />
+<li>import java.util.ArrayList;<br />
+<li>import java.lang.Math;<br />
+<li><br />
+<li>public class EasternCraftGenerator extends ChunkGenerator{<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int currentHeight = 80;//初始化高度<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public ChunkData generateChunkData(World world, Random random, int chunkX, int chunkZ, BiomeGrid biome) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SimplexOctaveGenerator generator = new SimplexOctaveGenerator(new Random(world.getSeed()), 8);//创建地形起伏生成器<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ChunkData chunk = createChunkData(world);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;generator.setScale(0.02D);//生成器设定参数<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int X = 0; X &lt; 16; X++)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (int Z = 0; Z &lt; 16; Z++) {//遍历区块的每一个X、Z坐标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int baseHeight = 80;//初始化最低高度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int extraHeight = 5;//初始化额外高度最大值<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material surfaceBlock = Material.GRASS_BLOCK;//设置顶部方块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material subSurfaceBLock = Material.DIRT;//设置顶部下方块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; if (biome.getBiome(X,Z).equals(Biome.DESERT)) {baseHeight = 80; extraHeight = 5; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.DESERT_HILLS)) {baseHeight = 80; extraHeight = 40; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.RIVER)) {baseHeight = 70; extraHeight = 2; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.OCEAN)) {baseHeight = 50; extraHeight = 6; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.MOUNTAINS)) {baseHeight = 64; extraHeight = 128; surfaceBlock = Material.GRASS_BLOCK; subSurfaceBLock = Material.DIRT;}//设置biome参数的暂时性代码，以后会改<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; currentHeight = (int) (generator.noise(chunkX*16+X, chunkZ*16+Z, 0.3D, 0.3D)*((extraHeight + 1)/2)+baseHeight);//高度=生成的(0~1)随机数 * 额外高度最大值 + 最低高度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; List&lt;Biome&gt; biomesInfo = new ArrayList&lt;Biome&gt;();//初始化平滑区块要用的区块列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; List&lt;Double&gt; distancesInfo = new ArrayList&lt;Double&gt;();//初始化平滑区块要用的距离列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; for (int p = 0; p &lt; 10; p++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int q = -p; q &lt;= p; q++) {//以上两行起到的作用是，以(|x坐标差值|+|z坐标差值|)从小到大为顺序，遍历当前方块周围的 正方形范围的所有方块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!(biomesInfo.contains(world.getBiome(chunkX*16+X + q, chunkZ*16+Z + (p - Math.abs(q)))))) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; biomesInfo.add(world.getBiome(chunkX*16+X + q, chunkZ*16+Z + (p - Math.abs(q))));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; distancesInfo.add(Math.sqrt((double)(q ^ 2 + (p - Math.abs(q)) ^ 2)));//计算直线距离<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!(biomesInfo.contains(world.getBiome(chunkX*16+X + q, chunkZ*16+Z - (p - Math.abs(q)))))) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; biomesInfo.add(world.getBiome(chunkX*16+X + q, chunkZ*16+Z - (p - Math.abs(q))));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; distancesInfo.add(Math.sqrt((double)(q ^ 2 + (p - Math.abs(q)) ^ 2)));//计算直线距离<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; currentHeight = getCurrentHeight(currentHeight, biomesInfo, distancesInfo);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //这一整段代码，会把这个方块附近一定范围内存在的biome不重复地记录下来，并且记录下该biome距离当前方块的最短距离（这个距离可能不是最短，但是离最短差不多，没有很大影响）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk.setBlock(X, currentHeight, Z, surfaceBlock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int c = 1; c &lt; 9; c++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunk.setBlock(X, currentHeight-c, Z, subSurfaceBLock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int i = currentHeight-9; i &gt; 0; i--)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunk.setBlock(X, i, Z, Material.STONE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk.setBlock(X, 0, Z, Material.BEDROCK);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (currentHeight &lt; 80) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for(int n = 80; n &gt; currentHeight; n--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; chunk.setBlock(X, n, Z, Material.WATER);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }//以上代码放置相应方块和水<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return chunk;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getCurrentHeight(int currentHeight, List&lt;Biome&gt; biomesInfo, List&lt;Double&gt; distancesInfo) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double weightSum = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double numerator = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; biomesInfo.size(); i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; weightSum += (10 - distancesInfo.get(i));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; numerator += (10 - distancesInfo.get(i)) * ((getBiomeBaseHeight(biomesInfo.get(i))) - (currentHeight));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return (int)(numerator / weightSum + currentHeight);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getBiomeBaseHeight(Biome biome) {//此方法用来获取biome的最低高度<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (biome.equals(Biome.DESERT)) {return 80;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (biome.equals(Biome.DESERT_HILLS)) {return 80;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (biome.equals(Biome.RIVER)) {return 70;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (biome.equals(Biome.OCEAN)) {return 50;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (biome.equals(Biome.MOUNTAINS)) {return 64;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else {return 80;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_pnZ'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-31 01:38<br />
+最好的方法是使用GenLayer，让MC自动分配生物群系<br />
+以1.15.2为例（不同版本略有不同）<br />
+<br />
+<div class="blockcode"><div id="code_qnt"><ol><li>public class CustomChunkProvider extends WorldChunkManager {<br />
+<li>&nbsp;&nbsp;private final GenLayer layer;<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;private static final Set&lt;BiomeBase&gt; e = (Set&lt;BiomeBase&gt;)ImmutableSet.of(Biomes.OCEAN, Biomes.PLAINS, Biomes.DESERT, Biomes.MOUNTAINS, Biomes.FOREST, Biomes.TAIGA, (Object[])new BiomeBase[] { <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.SWAMP, Biomes.RIVER, Biomes.FROZEN_OCEAN, Biomes.FROZEN_RIVER, Biomes.SNOWY_TUNDRA, Biomes.SNOWY_MOUNTAINS, Biomes.MUSHROOM_FIELDS, Biomes.MUSHROOM_FIELD_SHORE, Biomes.BEACH, Biomes.DESERT_HILLS, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.WOODED_HILLS, Biomes.TAIGA_HILLS, Biomes.MOUNTAIN_EDGE, Biomes.JUNGLE, Biomes.JUNGLE_HILLS, Biomes.JUNGLE_EDGE, Biomes.DEEP_OCEAN, Biomes.STONE_SHORE, Biomes.SNOWY_BEACH, Biomes.BIRCH_FOREST, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.BIRCH_FOREST_HILLS, Biomes.DARK_FOREST, Biomes.SNOWY_TAIGA, Biomes.SNOWY_TAIGA_HILLS, Biomes.GIANT_TREE_TAIGA, Biomes.GIANT_TREE_TAIGA_HILLS, Biomes.WOODED_MOUNTAINS, Biomes.SAVANNA, Biomes.SAVANNA_PLATEAU, Biomes.BADLANDS, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.WOODED_BADLANDS_PLATEAU, Biomes.BADLANDS_PLATEAU, Biomes.WARM_OCEAN, Biomes.LUKEWARM_OCEAN, Biomes.COLD_OCEAN, Biomes.DEEP_WARM_OCEAN, Biomes.DEEP_LUKEWARM_OCEAN, Biomes.DEEP_COLD_OCEAN, Biomes.DEEP_FROZEN_OCEAN, Biomes.SUNFLOWER_PLAINS, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.DESERT_LAKES, Biomes.GRAVELLY_MOUNTAINS, Biomes.FLOWER_FOREST, Biomes.TAIGA_MOUNTAINS, Biomes.SWAMP_HILLS, Biomes.ICE_SPIKES, Biomes.MODIFIED_JUNGLE, Biomes.MODIFIED_JUNGLE_EDGE, Biomes.TALL_BIRCH_FOREST, Biomes.TALL_BIRCH_HILLS, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Biomes.DARK_FOREST_HILLS, Biomes.SNOWY_TAIGA_MOUNTAINS, Biomes.GIANT_SPRUCE_TAIGA, Biomes.GIANT_SPRUCE_TAIGA_HILLS, Biomes.MODIFIED_GRAVELLY_MOUNTAINS, Biomes.SHATTERED_SAVANNA, Biomes.SHATTERED_SAVANNA_PLATEAU, Biomes.ERODED_BADLANDS, Biomes.MODIFIED_WOODED_BADLANDS_PLATEAU, Biomes.MODIFIED_BADLANDS_PLATEAU });<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//此处加入你想生成的群系<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;public CustomChunkProvider(long seed, net.minecraft.server.v1_15_R1.WorldType worldType) {<br />
+<li>&nbsp; &nbsp; super(e);<br />
+<li>&nbsp; &nbsp; this.layer = GenLayers.a(seed, worldType, new GeneratorSettingsOverworld());<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;public Biome getBiome(int var0, int var1, int var2) {<br />
+<li>&nbsp; &nbsp; BiomeBase base = this.layer.a(var0, var2);<br />
+<li>&nbsp; &nbsp; return CraftBlock.biomeBaseToBiome(base);<br />
+<li>&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_qnt'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-5-31 08:16<br />
+<div class="quote"><blockquote><font color="#999999">疾风暗影 发表于 2020-5-31 01:38</font><br />
+<font color="#999999">最好的方法是使用GenLayer，让MC自动分配生物群系<br />
+以1.15.2为例（不同版本略有不同）<br />
+<br />
+</font></blockquote></div><br />
+十分感谢！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-5-31 10:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18402614&amp;ptid=1054141" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-31 01:38</font></a></font><br />
+最好的方法是使用GenLayer，让MC自动分配生物群系<br />
+以1.15.2为例（不同版本略有不同）</blockquote></div><br />
+大佬你好，我仔细读了一下你提供的代码，然后对照了一下我自己的，发现我使用的是 org.bukkit.generator 包中的 ChunkGenerator 类，而你代码中好像需要用到 net.minecraft.server.v1_14_R1 包中的 ChunkGenerator 类。（org.bukkit.generator.ChunkGenerator 没有 WorldChunkManager 等相关内容）<br />
+<br />
+可否问一下您是建议我使用MC原版服务端完全重写一遍代码，还是保留现在的部分代码，通过某种方式调用原版当中的getBiome()方法呢？感谢！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-31 10:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18405701&amp;ptid=1054141" target="_blank"><font color="#999999">renzd2001 发表于 2020-5-31 10:26</font></a></font><br />
+大佬你好，我仔细读了一下你提供的代码，然后对照了一下我自己的，发现我使用的是 org.bukkit.generator&nbsp;&nbsp;...</blockquote></div><br />
+这是调用nms的方法，用mc自己的层级噪声生成优化的群系分布<br />
+<br />
+你可以地形生成用自己的代码，群系生成用这些<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-5-31 13:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18405782&amp;ptid=1054141" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-31 10:29</font></a></font><br />
+这是调用nms的方法，用mc自己的层级噪声生成优化的群系分布<br />
+<br />
+你可以地形生成用自己的代码，群系生成用这 ...</blockquote></div><br />
+大佬你好，我用了你给的代码，已经可以正常生成世界了，但是在判断生物群系时出了点小问题：<br />
+<br />
+我原本判断生物群系使用的是spigot自带的 BiomeGrid.getBiome()方法，因为这个方法限于当前区块，所以X和Z坐标参数都是 0~15<br />
+<br />
+现在我改用你给我的使用实例化的WorldChunkManager的方法，我认为这个方法应该是基于整个地图，所以我将原来的这部分判断代码<br />
+<div class="blockcode"><div id="code_cg3"><ol><li>if (biome.getBiome(X,Z).equals(Biome.DESERT)) {baseHeight = 80; extraHeight = 5; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.DESERT_HILLS)) {baseHeight = 80; extraHeight = 40; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.RIVER)) {baseHeight = 70; extraHeight = 2; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.OCEAN)) {baseHeight = 50; extraHeight = 6; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (biome.getBiome(X,Z).equals(Biome.MOUNTAINS)) {baseHeight = 64; extraHeight = 128; surfaceBlock = Material.GRASS_BLOCK; subSurfaceBLock = Material.DIRT;}</ol></div><em onclick="copycode($('code_cg3'));">复制代码</em></div>改成了现在这样（getBukkitBiome()是我自己重写的方法 完整代码在后面)<div class="blockcode"><div id="code_Ty8"><ol><li>if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.DESERT)) {baseHeight = 83; extraHeight = 3; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.DESERT_HILLS)) {baseHeight = 100; extraHeight = 20; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.RIVER)) {baseHeight = 70; extraHeight = 1; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.OCEAN)) {baseHeight = 50; extraHeight = 3; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.MOUNTAINS)) {baseHeight = 128; extraHeight = 64; surfaceBlock = Material.GRASS_BLOCK; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </ol></div><em onclick="copycode($('code_Ty8'));">复制代码</em></div>但是出现了意料之外的结果：生物群系的高度和生物群系不对应了，我在XZ判断为河流的地方，发现了沙漠的地形特征。<br />
+请问我该怎么解决这个问题？<br />
+我认为我可能犯的错误：<br />
+1、我在转换区块内坐标和世界内坐标时出错（但我记得确实应该是chunkX*16+X, chunkZ*16+Z）<br />
+2、mc原版生成的Biome分布和spigot根本就不一样（这个不应该发生啊，spigot应该用的就是原版的生成器）（然而这个可以通过使用spigot自带的setBiome来间接解决）<br />
+<br />
+以下为生成器部分代码：(我暂时删掉了平整地形的部分)<br />
+<div class="blockcode"><div id="code_Qj7"><ol><li>package tech.yfshadaow;<br />
+<li><br />
+<li>import org.bukkit.generator.ChunkGenerator;<br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.World;<br />
+<li>import java.util.Random;<br />
+<li>import org.bukkit.util.noise.SimplexOctaveGenerator;<br />
+<li>import org.bukkit.Material;<br />
+<li>import org.bukkit.block.Biome;<br />
+<li>import java.util.List;<br />
+<li>import java.util.ArrayList;<br />
+<li>import java.lang.Math;<br />
+<li>import net.minecraft.server.v1_15_R1.WorldType;;<br />
+<li><br />
+<li>public class EasternCraftGenerator extends ChunkGenerator{<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int currentHeight = 80;//Initialize currentHeight<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public ChunkData generateChunkData(World world, Random random, int chunkX, int chunkZ, BiomeGrid biome) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; EasternCraftChunkProvider provider = new EasternCraftChunkProvider(world.getSeed(),WorldType.NORMAL);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SimplexOctaveGenerator generator = new SimplexOctaveGenerator(new Random(world.getSeed()), 8);//instantiate the terrain generator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ChunkData chunk = createChunkData(world);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;generator.setScale(0.02D);//set generator parameter<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int X = 0; X &lt; 16; X++)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (int Z = 0; Z &lt; 16; Z++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int baseHeight = 83;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int extraHeight = 3;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material surfaceBlock = Material.GRASS_BLOCK;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material subSurfaceBLock = Material.DIRT;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.DESERT)) {baseHeight = 83; extraHeight = 3; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.DESERT_HILLS)) {baseHeight = 100; extraHeight = 20; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.RIVER)) {baseHeight = 70; extraHeight = 1; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.OCEAN)) {baseHeight = 50; extraHeight = 3; surfaceBlock = Material.DIRT; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; else if (provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z).equals(Biome.MOUNTAINS)) {baseHeight = 128; extraHeight = 64; surfaceBlock = Material.GRASS_BLOCK; subSurfaceBLock = Material.DIRT;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; currentHeight = (int) (generator.noise(chunkX*16+X, chunkZ*16+Z, 0.3D, 0.3D)* extraHeight + baseHeight);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk.setBlock(X, currentHeight, Z, surfaceBlock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int c = 1; c &lt; 9; c++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunk.setBlock(X, currentHeight-c, Z, subSurfaceBLock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int i = currentHeight-9; i &gt; 0; i--)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunk.setBlock(X, i, Z, Material.STONE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk.setBlock(X, 0, Z, Material.BEDROCK);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (currentHeight &lt; 80) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for(int n = 80; n &gt; currentHeight; n--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; chunk.setBlock(X, n, Z, Material.WATER);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }//以上代码放置相应方块和水<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return chunk;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Qj7'));">复制代码</em></div>以下为继承了WorldChunkManager的代码部分：<br />
+<div class="blockcode"><div id="code_WWV"><ol><li>package tech.yfshadaow;<br />
+<li><br />
+<li>import net.minecraft.server.v1_15_R1.WorldChunkManager;<br />
+<li>import net.minecraft.server.v1_15_R1.GenLayers;<br />
+<li>import net.minecraft.server.v1_15_R1.GenLayer;<br />
+<li>import net.minecraft.server.v1_15_R1.Biomes;<br />
+<li>import net.minecraft.server.v1_15_R1.BiomeBase;<br />
+<li>import java.util.Set;<br />
+<li>import com.google.common.collect.ImmutableSet; <br />
+<li>import net.minecraft.server.v1_15_R1.GeneratorSettingsOverworld;<br />
+<li>import org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock;<br />
+<li>import org.bukkit.block.Biome;<br />
+<li><br />
+<li>public class EasternCraftChunkProvider extends WorldChunkManager {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;private final GenLayer layer;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;private static final Set&lt;BiomeBase&gt; e = (Set&lt;BiomeBase&gt;)ImmutableSet.of(Biomes.OCEAN, Biomes.PLAINS, Biomes.DESERT, Biomes.MOUNTAINS, Biomes.FOREST, Biomes.TAIGA, new BiomeBase[] { <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.SWAMP, Biomes.RIVER, Biomes.FROZEN_OCEAN, Biomes.FROZEN_RIVER, Biomes.SNOWY_TUNDRA, Biomes.SNOWY_MOUNTAINS, Biomes.MUSHROOM_FIELDS, Biomes.MUSHROOM_FIELD_SHORE, Biomes.BEACH, Biomes.DESERT_HILLS, <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.WOODED_HILLS, Biomes.TAIGA_HILLS, Biomes.MOUNTAIN_EDGE, Biomes.JUNGLE, Biomes.JUNGLE_HILLS, Biomes.JUNGLE_EDGE, Biomes.DEEP_OCEAN, Biomes.STONE_SHORE, Biomes.SNOWY_BEACH, Biomes.BIRCH_FOREST, <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.BIRCH_FOREST_HILLS, Biomes.DARK_FOREST, Biomes.SNOWY_TAIGA, Biomes.SNOWY_TAIGA_HILLS, Biomes.GIANT_TREE_TAIGA, Biomes.GIANT_TREE_TAIGA_HILLS, Biomes.WOODED_MOUNTAINS, Biomes.SAVANNA, Biomes.SAVANNA_PLATEAU, Biomes.BADLANDS, <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.WOODED_BADLANDS_PLATEAU, Biomes.BADLANDS_PLATEAU, Biomes.WARM_OCEAN, Biomes.LUKEWARM_OCEAN, Biomes.COLD_OCEAN, Biomes.DEEP_WARM_OCEAN, Biomes.DEEP_LUKEWARM_OCEAN, Biomes.DEEP_COLD_OCEAN, Biomes.DEEP_FROZEN_OCEAN, Biomes.SUNFLOWER_PLAINS, <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.DESERT_LAKES, Biomes.GRAVELLY_MOUNTAINS, Biomes.FLOWER_FOREST, Biomes.TAIGA_MOUNTAINS, Biomes.SWAMP_HILLS, Biomes.ICE_SPIKES, Biomes.MODIFIED_JUNGLE, Biomes.MODIFIED_JUNGLE_EDGE, Biomes.TALL_BIRCH_FOREST, Biomes.TALL_BIRCH_HILLS, <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Biomes.DARK_FOREST_HILLS, Biomes.SNOWY_TAIGA_MOUNTAINS, Biomes.GIANT_SPRUCE_TAIGA, Biomes.GIANT_SPRUCE_TAIGA_HILLS, Biomes.MODIFIED_GRAVELLY_MOUNTAINS, Biomes.SHATTERED_SAVANNA, Biomes.SHATTERED_SAVANNA_PLATEAU, Biomes.ERODED_BADLANDS, Biomes.MODIFIED_WOODED_BADLANDS_PLATEAU, Biomes.MODIFIED_BADLANDS_PLATEAU });<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//此处加入你想生成的群系<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;public EasternCraftChunkProvider(long seed, net.minecraft.server.v1_15_R1.WorldType worldType) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(e);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.layer = GenLayers.a(seed, worldType, new GeneratorSettingsOverworld());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;public Biome getBukkitBiome(int var0, int var1) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BiomeBase base = this.layer.a(var0, var1);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return CraftBlock.biomeBaseToBiome(base);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;public BiomeBase getBiome(int var0, int var1, int var2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.layer.a(var0, var2);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_WWV'));">复制代码</em></div><br />
+
+<br />
+请问大佬是否愿意给点建议？感谢！<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-5-31 14:18<br />
+我刚刚在判断Biome的语句后添加了这段代码：<br />
+<div class="blockcode"><div id="code_eH2"><ol><li>biome.setBiome(X, Z, provider.getBukkitBiome(chunkX*16+X, chunkZ*16+Z));</ol></div><em onclick="copycode($('code_eH2'));">复制代码</em></div><br />
+强行将此位置的Biome设置成我用 getBukkitBiome()方法获取的Biome<br />
+结果很明显地得到了一个缩小版的地形：
+<ignore_js_op>
+
+<img id="aimg_1608058" aid="1608058" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/31/141736f9wvw9z1igkzvw15.jpg" file="https://attachment.mcbbs.net/forum/202005/31/141736f9wvw9z1igkzvw15.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1608058" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1608058_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1590905849000.jpg</strong> <em class="xg1">(129.48 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTYwODA1OHxiZmQ4NGM3N3wxNjE0MDM3NTA1fDI0MTk0ODZ8MTA1NDE0MQ%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>生成的地形</p>
+<p class="xg1 y">2020-5-31 14:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+明显的看到河流变得非常细，然后平原biome变得很小<br />
+所以我基本可以确定是坐标数字的问题。但是又是哪里出了问题呢...?<br />
+<script type="text/javascript" reload="1">
+aimgcount[18410536] = ['1608058'];
+attachimggroup(18410536);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-6-1 00:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18410536&amp;ptid=1054141" target="_blank"><font color="#999999">renzd2001 发表于 2020-5-31 14:18</font></a></font><br />
+我刚刚在判断Biome的语句后添加了这段代码：<br />
+<br />
+强行将此位置的Biome设置成我用 getBukkitBiome()方法获取的B ...</blockquote></div><br />
+MC在地形生成的时候群系代码为<br />
+<div class="blockcode"><div id="code_l8U"><ol><li>biome.getBiome(x &gt;&gt; 2, y &gt;&gt; 2, z &gt;&gt; 2)</ol></div><em onclick="copycode($('code_l8U'));">复制代码</em></div><br />
+
+<br />
+也就是这个坐标是缩小4倍的，你需要按比例扩大<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-6-1 08:19<br />
+<div class="quote"><blockquote><font color="#999999">疾风暗影 发表于 2020-6-1 00:38</font><br />
+<font color="#999999">MC在地形生成的时候群系代码为<br />
+<br />
+<br />
+</font></blockquote></div><br />
+谢谢！这样问题应该就可以解决啦！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-6-1 12:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18419388&amp;ptid=1054141" target="_blank"><font color="#999999">疾风暗影 发表于 2020-6-1 00:38</font></a></font><br />
+MC在地形生成的时候群系代码为</blockquote></div><br />
+你好大佬，抱歉再次打扰，我刚才试了一下你说的 通过&gt;&gt;2运算把 x和z坐标缩小到原来的四分之一，生物群系的大小确实正确了。<br />
+但是出现了现在这个情况：<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1608795" aid="1608795" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202006/01/115628rc7u7xf7afx6f7f5.jpg" file="https://attachment.mcbbs.net/forum/202006/01/115628rc7u7xf7afx6f7f5.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1608795" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1608795_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1590983776000.jpg</strong> <em class="xg1">(221.58 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTYwODc5NXw1NzM2MGRhNnwxNjE0MDM3NTA1fDI0MTk0ODZ8MTA1NDE0MQ%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-6-1 11:56 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+可以很明显看到，河流宽度正常了，而且河流和沙漠的分界也是正常平滑的。<br />
+但是图中显示，我正处在河流群系中，而地面特征却是沙漠应有的特征...<br />
+并且可以看出，地面特征是以4x4方块为基本单位的，而不是应有的1x1<br />
+然而，我的代码中，生物群系的生成和地面特征的设置是完全基于同一个生物群系：<br />
+<div class="blockcode"><div id="code_gJ3"><ol><li>Biome b = provider.getBukkitBiome(((chunkX*16+X) &gt;&gt; 2), ((chunkZ*16+Z) &gt;&gt; 2));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int baseHeight = 83;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; int extraHeight = 3;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material surfaceBlock = Material.GRASS_BLOCK;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material subSurfaceBLock = Material.DIRT;<br />
+<li>biome.setBiome(X, Z, b);<br />
+<li>if (b.equals(Biome.DESERT)) {baseHeight = 83; extraHeight = 3; surfaceBlock = Material.SAND; subSurfaceBLock = Material.SAND;}</ol></div><em onclick="copycode($('code_gJ3'));">复制代码</em></div>以上可以看到，我用了同一个参数： b 来进行 设置biome 和 设置地面特征 这两个操作，结果biome是正确的，地面特征确实错的？？？？<br />
+（p.s.我用1.14.4版本重新试了一下，是不会出这种错的，会不会是1.15.2的问题。。？）<br />
+谢谢！<br />
+<script type="text/javascript" reload="1">
+aimgcount[18422356] = ['1608795'];
+attachimggroup(18422356);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-6-2 00:46<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18422356&amp;ptid=1054141" target="_blank"><font color="#999999">renzd2001 发表于 2020-6-1 12:05</font></a></font><br />
+你好大佬，抱歉再次打扰，我刚才试了一下你说的 通过&gt;&gt;2运算把 x和z坐标缩小到原来的四分之一，生物群系 ...</blockquote></div><br />
+疑似是客户端区块表与服务端不一致，重启客户端试试<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>renzd2001&nbsp; &nbsp; <b>时间: </b>2020-6-2 21:34<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18430356&amp;ptid=1054141" target="_blank"><font color="#999999">疾风暗影 发表于 2020-6-2 00:46</font></a></font><br />
+疑似是客户端区块表与服务端不一致，重启客户端试试</blockquote></div><br />
+大佬晚上好，我把服务器版本换成1.14.4后就解决啦！<br />
+不过还是谢谢大佬的建议（我在1.15.2版本也试过重启客户端，但是问题依然存在。感觉是spigot的问题，或者是什么其他小问题）<br />
+<br />
+现在已经可以生成比较平滑且还能看的地形了（平滑算法我找不到比较好的，所以使用的是收集附近方块高度并求平均值的笨方法）<br />
+<br />
+现在的情况：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1609856" aid="1609856" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202006/02/213357t1y1dlajua1zdmcz.jpg" file="https://attachment.mcbbs.net/forum/202006/02/213357t1y1dlajua1zdmcz.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1609856" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1609856_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1591104828000.jpg</strong> <em class="xg1">(136.97 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTYwOTg1Nnw0MWUyZjljNHwxNjE0MDM3NTA1fDI0MTk0ODZ8MTA1NDE0MQ%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-6-2 21:33 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+真的是非常感谢！！！！<br />
+<script type="text/javascript" reload="1">
+aimgcount[18439256] = ['1609856'];
+attachimggroup(18439256);
+new lazyload();
+</script>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

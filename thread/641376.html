@@ -1,0 +1,104 @@
+<html>
+<head>
+<title>【图者】Hyper-V 部署以及服务器的管理 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【图者】Hyper-V 部署以及服务器的管理 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>八意史蒂夫&nbsp; &nbsp; <b>时间: </b>2016-10-13 23:25<br />
+<b>标题: </b>【图者】Hyper-V 部署以及服务器的管理<br /><i class="pstatus"> 本帖最后由 八意史蒂夫 于 2016-10-14 22:27 编辑 </i><br />
+<br />
+
+<br />
+<div align="left"><strong>　　先将一些常见的疑问放在这里。</strong></div><br />
+<br />
+<div align="left"><strong>．　为什么要部署 Hyper-V ？</strong></div><br />
+<br />
+　　一台服务器专跑一个应用，可以显著提高稳定性，减少攻击带来的损害，便于管理等。<br />
+　　但是，只有一台物理机的话：<br />
+　　业务全部在一个平台上，尽管对负载性能进行了足够鉴定可以跑这么多，但是仍然效率低下，错误百出。<br />
+　　业务多的情况下：<br />
+　　许多的物理服务器，提高了整体的维护和管理成本，且看起来完全没有这个必要搞这么多。服务器基本空载，无法得到合理利用。浪费钱，浪费人力等资源。<br />
+　　但是，有了虚拟化，一切都不同了。<br />
+　　性能被分割成了几个独立的区块，各个区块互不干扰地运作着自己的应用，避免了资源的冲突。降低整体拥有成本，无需再采购大量服务器。<br />
+<br />
+<strong>．　为什么不用 vShphere Hypervisor （ESXi）？</strong><br />
+　　个人认为 Hyper-V 部署速度和效率更高。个人有一台 380G6 ，用了 HPE 定制版 vShpere Hypervisor 6.0 镜像，那系统装得，慢吞吞的。兴许是机子太老负优化了阵列驱动（CHH上有一贴说过某个版本的镜像把 Gen8 的磁盘驱动黑出翔），但我并不觉得是这一回事，企业级的玩意敢负优化那是不要信誉的行为，还有就是直接读写数据存储跑得比香港记者还快。<br />
+<br />
+　　但是装上了 Windows 并安装了 Hyper-V 角色后，部署速度明显有了长进。Windows 服务器的部署十分钟左右就搞定了，而且用的是机械硬盘。Linux 咱缺镜像没试过。<br />
+<br />
+<strong>．　那么用别的虚拟化方案会不会更好呢？</strong><br />
+　　可以去试试，我没说过这是最好的。<br />
+<br />
+<strong>．　为什么我听不懂你在说什么就像我看不懂那些大神的帖子里的那些名词那样？</strong>　　习惯成自然，多用用百度。<br />
+<br />
+　　好了，具体应该怎样做呢？<br />
+<br />
+<br />
+<br />
+　　<strong>首先，我们确定一下这样做的目的何在：</strong><br />
+<br />
+1 .　便于管理（将计算力资源整合在少数的 Hypervisor 上统一管理，出事了，要什么什么的容易找到）<br />
+2 .　计算力的合理利用（这个是你们的主要目的是吧）<br />
+3 .　降低维护成本（只有一台或几台机子，不用买一大堆垃圾机子去搞什么群组服啦，托管也方便，相信大家都是这么想的）<br />
+4 .　如果你要开 VPS ，这就是你最基础的技能了（看，那个人居然连虚拟机都不会部署耶！）<br />
+5 .　这些经验不仅受用于 Hyper-V ，哪怕将来要用到 vShpere Hypervisor，XenServer，也会有一个关于虚拟机的基础概念。也会快速的上手。<br />
+<br />
+　　好吧，有点扯远了。<br />
+　　就不信只有我一个觉得标题拗口的。<br />
+<br />
+　　<strong>以及本贴的目录：</strong><br />
+<br />
+P3：要求<br />
+P4：Active Directory 域搭建（只部署 Hyper-V 的请跳过）P5：Hyper-V 部署<br />
+P6：远程管理套件（非必需）<br />
+P7：（持续更新中）<br />
+<br />
+<br />
+<br />
+　　<strong>残酷（屌丝）的先决条件：</strong><br />
+<br />
+　　这个屌丝是相对我而言的吧，挺正常的要求不是吗？<br />
+<br />
+　　你得先有一台物理机（击倒 85% 的腐竹）<br />
+　　CPU：支持 Intel VT/VT-x 或 AMD -v 虚拟化技术的 x64 处理器（个人建议至少八线程，四线程都显得少了。当然，基本空载的话可以多开几个没关系。），具有硬件 DEP 支持<br />
+　　内存：至少 2GB，想太多，要用至少 8GB，个人推荐 16GB 及以上<br />
+　　硬盘：看你开多少，少的话100G咯，多的话上T我都不会奇怪<br />
+<br />
+<br />
+<br />
+　　<strong>Active Directory 域环境部署</strong><br />
+<br />
+<br />
+　　<strong>常见问题：</strong><br />
+<br />
+1 .　为什么要部署 Active Directory？<br />
+　　为了服务器的集中管理方便，统一的验证机制使得服务器更难被入侵。<br />
+<br />
+2 .　为什么是 Active Directory？<br />
+　　Hyper-V 主要用于 Windows 的生产环境中，所以 Active Directory 是最好的选择。当然有 Linux 也可以。如果你有多台 Hyper-V 主机，那么搭建 Active Directory 是不可避免的了。<br />
+<br />
+　　<strong>先决条件：</strong><br />
+<br />
+<br />
+　　最好部署在物理机上（或不加域的物理机运行的虚拟机上）<br />
+　　操作系统为 Windows Server 2008 R2 或更高（建议）<br />
+　　需要在 DNS 服务器进行域名注册（可在同一台机上安装 DNS 服务）<br />
+　　稳定运行（验证机制没了可是很严重的事情，虽然服务器会缓存上一次得到的密码来登录）<br />
+<br />
+　　<strong>部署：</strong><br />
+<br />
+　　<strong><font color="#ff0000">注：以下教程均在 Windows Server 2008 R2 下进行</font></strong><br />
+<br />
+　　打开“服务器管理器”<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

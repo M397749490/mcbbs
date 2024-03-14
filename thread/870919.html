@@ -1,0 +1,309 @@
+<html>
+<head>
+<title>BedwarsRel小游戏插件的回档原理 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>BedwarsRel小游戏插件的回档原理 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hemp&nbsp; &nbsp; <b>时间: </b>2019-6-6 12:44<br />
+<b>标题: </b>BedwarsRel小游戏插件的回档原理<br /><i class="pstatus"> 本帖最后由 hemp 于 2019-6-6 12:43 编辑 </i><br />
+<br />
+<font size="3">起床战争小游戏大家应该都玩过(或听说过)，他最神奇的地方就是，开始一个新游戏后，上一次游戏中玩家放置的方块，以及其他打斗痕迹就会消失不见。很多小游戏都能够回档地图(当然，是那些可以操作方块的)。对于要开发小游戏插件的开发者来说，实现地图回档也许是一个重要部分。<br />
+值得庆幸的是，BedwarsRel是一个开源的插件，我们可以分析源代码来了解它的地图回档机制</font>。<br />
+<br />
+<div align="center"><img id="aimg_Qp5Kh" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/5.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></div><br />
+<font size="3">BedwarsRel的项目地址:<a href="https://github.com/BedwarsRel/BedwarsRel" target="_blank">https://github.com/BedwarsRel/BedwarsRel</a><br />
+<br />
+由于项目较大，我们一点点翻会比较浪费时间，所以用github强大的代码搜索功能。<br />
+那么，搜什么呢？我们先想想有关回档的插件，例如Coreprotect,他的原理是记录所有的存档变化，然后回档的时候进行一次反操作。BedwarsRel会不会也是如此呢？<br />
+我们假设是这个原理，那么方块破坏事件一定少不了。对！我们先找找它对方块破坏事件的处理！！！<br />
+搜索框输入&quot;BlockBreakEvent&quot;,然后自信的按下回车。<br />
+</font><br />
+<font size="3"><br />
+</font><div align="left"><font size="3">我们看到，这个插件里有两个关于此事件的处理器，那么哪个是呢？</font></div><br />
+<div align="left"><div class="blockcode"><div id="code_Iro"><ol><li>@EventHandler(priority = EventPriority.HIGH)</ol></div><em onclick="copycode($('code_Iro'));">复制代码</em></div><font size="3">这里说明他有很高优先级，回头想想，对于记录方块变化来说，这是不利的，因为他会被最先执行。这样的话如果后面事件被取消，那么记录与实际就矛盾了。再根据类名判断&quot;TrapListener&quot;，这应该是涉及游戏中的玩法的。所以，第一个不是我们要找的！</font></div><font size="3"><br />
+</font><div align="left"><font size="3">那么接下来，我们就要到下面那个类里面去找我们想要的了。</font></div><font size="3"><br />
+<br />
+在<a href="https://github.com/BedwarsRel/BedwarsRel/blob/6fd6c61895e2dbbc4f4a6782d3815672380e379f/common/src/main/java/io/github/bedwarsrel/listener/BlockListener.java#L102-L124" target="_blank">L102-124</a>的地方，我们发现这样一段代码</font><br />
+<div class="blockcode"><div id="code_m6o"><ol><li><br />
+<li>&nbsp; &nbsp; Material targetMaterial = g.getTargetMaterial();<br />
+<li>&nbsp; &nbsp; if (e.getBlock().getType() == targetMaterial) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;e.setCancelled(true);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;g.handleDestroyTargetMaterial(p, e.getBlock());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; Block breakedBlock = e.getBlock();<br />
+<li><br />
+<li>&nbsp; &nbsp; if (!g.getRegion().isPlacedBlock(breakedBlock)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (breakedBlock == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.setCancelled(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (BedwarsRel.getInstance().isBreakableType(breakedBlock.getType())) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;g.getRegion().addBreakedBlock(breakedBlock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.setCancelled(false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_m6o'));">复制代码</em></div><br />
+
+<br />
+<font size="3">这应该就是我们要找的东西了。为什么这样说呢？</font><br />
+<br />
+<div class="blockcode"><div id="code_Rfa"><ol><li>g.getRegion().addBreakedBlock(breakedBlock);</ol></div><em onclick="copycode($('code_Rfa'));">复制代码</em></div><font size="3">我们看这段代码，从字面意思上看是&quot;在游戏区域添加已破坏的的方块&quot;，这就很接近开头提到的记录方块变化了。我们再看看<a href="https://github.com/BedwarsRel/BedwarsRel/blob/master/common/src/main/java/io/github/bedwarsrel/game/Game.java" target="_blank">Game类</a>.<br />
+我们并不能找到getRegion()方法，因为它使用了&quot;<font color="#24292e"><font face="SFMono-Regular, Consolas, &amp;quot;">lombok</font></font>&quot;<br />
+我们直接找&quot;<font color="#24292e"><font face="SFMono-Regular, Consolas, &amp;quot;">region&quot;</font></font><font color="#24292e"><font face="Tahoma">这个变量就好了。</font></font></font><br />
+<div class="blockcode"><div id="code_Faz"><ol><li>private Region region = null;</ol></div><em onclick="copycode($('code_Faz'));">复制代码</em></div><br />
+
+<br />
+<font size="3">嗯....我们再看看<a href="https://github.com/BedwarsRel/BedwarsRel/blob/master/common/src/main/java/io/github/bedwarsrel/game/Region.java" target="_blank"><font style="background-color:rgb(247, 247, 247)">Region</font>类</a></font><font size="3"><br />
+</font><br />
+<font size="3"><a href="https://github.com/BedwarsRel/BedwarsRel/blob/master/common/src/main/java/io/github/bedwarsrel/game/Region.java#L27-L42" target="_blank">开头的</a>一堆HashMap和List,让我们感觉到我们的猜测很可能是对的。</font><br />
+<div class="blockcode"><div id="code_W98"><ol><li> public final static int CHUNK_SIZE = 16;<br />
+<li>&nbsp;&nbsp;private HashMap&lt;Block, Byte&gt; breakedBlockData = null;<br />
+<li>&nbsp;&nbsp;private HashMap&lt;Block, BlockFace&gt; breakedBlockFace = null;<br />
+<li>&nbsp;&nbsp;private HashMap&lt;Block, Boolean&gt; breakedBlockPower = null;<br />
+<li>&nbsp;&nbsp;private HashMap&lt;Block, Integer&gt; breakedBlockTypes = null;<br />
+<li>&nbsp;&nbsp;private List&lt;Block&gt; breakedBlocks = null;<br />
+<li>&nbsp;&nbsp;private List&lt;Inventory&gt; inventories = null;<br />
+<li>&nbsp;&nbsp;private Location maxCorner = null;<br />
+<li>&nbsp;&nbsp;private Location minCorner = null;<br />
+<li>&nbsp;&nbsp;private String name = null;<br />
+<li>&nbsp;&nbsp;private List&lt;Block&gt; placedBlocks = null;<br />
+<li>&nbsp;&nbsp;private List&lt;Block&gt; placedUnbreakableBlocks = null;<br />
+<li>&nbsp;&nbsp;private List&lt;Entity&gt; removingEntities = null;<br />
+<li>&nbsp;&nbsp;private World world = null;</ol></div><em onclick="copycode($('code_W98'));">复制代码</em></div><font size="3"><br />
+</font><br />
+<font size="3">但是我们不能妄下结论，我们应该看看这个类的方法。</font><br />
+<font size="3"><a href="https://github.com/BedwarsRel/BedwarsRel/blob/master/common/src/main/java/io/github/bedwarsrel/game/Region.java#L221-L363" target="_blank">reset()方法</a>引起了我们的注意，这会不会就是我们开头提到的回档？？</font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td> <br />
+<div class="blockcode"><div id="code_Eg6"><ol><li>&nbsp;&nbsp;public void reset(Game game) {<br />
+<li>&nbsp; &nbsp; this.loadChunks();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (Inventory inventory : this.inventories) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;inventory.clear();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (Block placed : this.placedBlocks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Block blockInWorld = this.world.getBlockAt(placed.getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (blockInWorld.getType() == Material.AIR) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (blockInWorld.equals(placed)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blockInWorld.setType(Material.AIR);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; this.placedBlocks.clear();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (Block placed : this.placedUnbreakableBlocks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Block blockInWorld = this.world.getBlockAt(placed.getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (blockInWorld.getType() == Material.AIR) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (blockInWorld.getLocation().equals(placed.getLocation())) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blockInWorld.setType(Material.AIR);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; this.placedUnbreakableBlocks.clear();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (Block block : this.breakedBlocks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Block theBlock = this.getWorld().getBlockAt(block.getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;theBlock.setTypeId(this.breakedBlockTypes.get(block));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;theBlock.setData(this.breakedBlockData.get(block));<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (this.breakedBlockFace.containsKey(theBlock)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MaterialData data = theBlock.getState().getData();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (data instanceof Directional) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ((Directional) data).setFacingDirection(this.breakedBlockFace.get(block));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; theBlock.getState().setData(data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (theBlock.getState().getData() instanceof Lever) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Lever attach = (Lever) theBlock.getState().getData();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockState supportState = theBlock.getState();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockState initalState = theBlock.getState();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;attach.setPowered(this.breakedBlockPower.get(block));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;theBlock.getState().setData(attach);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;supportState.setType(Material.AIR);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;supportState.update(true, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;initalState.update(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;theBlock.getState().update(true, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; this.breakedBlocks.clear();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; Material targetMaterial = game.getTargetMaterial();<br />
+<li>&nbsp; &nbsp; for (Team team : game.getTeams().values()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (team.getHeadTarget() == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if ((targetMaterial.equals(Material.BED_BLOCK) || targetMaterial.equals(Material.BED))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &amp;&amp; team.getFeetTarget() != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block blockHead = this.world.getBlockAt(team.getHeadTarget().getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block blockFeed = this.world.getBlockAt(team.getFeetTarget().getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockState headState = blockHead.getState();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockState feedState = blockFeed.getState();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.setType(Material.BED_BLOCK);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;feedState.setType(Material.BED_BLOCK);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.setRawData((byte) 0x0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;feedState.setRawData((byte) 0x8);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;feedState.update(true, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.update(true, false);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bed bedHead = (Bed) headState.getData();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bedHead.setHeadOfBed(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bedHead.setFacingDirection(blockHead.getFace(blockFeed).getOppositeFace());<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bed bedFeed = (Bed) feedState.getData();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bedFeed.setHeadOfBed(false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bedFeed.setFacingDirection(blockFeed.getFace(blockHead));<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;feedState.update(true, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.update(true, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block blockHead = this.world.getBlockAt(team.getHeadTarget().getLocation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockState headState = blockHead.getState();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.setType(targetMaterial);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;headState.update(true, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (ResourceSpawner spawner : game.getRessourceSpawner()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;spawner.getLocation().getChunk().load();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; for (Entity entity : this.removingEntities) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;entity.remove();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; Iterator&lt;Entity&gt; entityIterator = this.world.getEntities().iterator();<br />
+<li>&nbsp; &nbsp; while (entityIterator.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Entity e = entityIterator.next();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (this.removingEntities.contains(e)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (!this.isInRegion(e.getLocation())) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (e instanceof Item) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (e.getType().equals(EntityType.CREEPER) || e.getType().equals(EntityType.CAVE_SPIDER)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; || e.getType().equals(EntityType.SPIDER) || e.getType().equals(EntityType.ZOMBIE)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; || e.getType().equals(EntityType.SKELETON) || e.getType().equals(EntityType.SILVERFISH)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; || e.getType().equals(EntityType.ARROW)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (e instanceof LivingEntity) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LivingEntity le = (LivingEntity) e;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;le.setRemoveWhenFarAway(false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; this.removingEntities.clear();<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Eg6'));">复制代码</em></div></td></table></div></div><br />
+<br />
+<div class="blockcode"><div id="code_m8j"><ol><li>加载世界区块。<br />
+<li>清空容器物品。<br />
+<li>清理放置的方块(如果那个方块的位置不是空气的话就设置为空气)<br />
+<li>恢复被破坏的的方块，并还原其数据(如朝向，是否被充能等)<br />
+<li>恢复队伍的床。<br />
+<li>清除掉落物<br />
+<li>清除游戏玩法中生成的实体(比如TNT羊)<br />
+<li>清除的敌对生物(以及箭)<br />
+<li>其他生物设置离远后不会被刷掉。</ol></div><em onclick="copycode($('code_m8j'));">复制代码</em></div><br />
+
+<br />
+<font size="3">实锤！起床战争插件就是通过记录世界变化来实现回档的！！！我们也可以根据此实现类似的回档功能啦！！</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-6-7 06:33<br />
+emmmmmm<br />
+其实这种方法如果有其他插件通过setType改变了方块而且没与起床做兼容的话那个方块就永久消失了<br />
+我写过游戏插件,复原的方法是服主或其他人员要改变世界只能在Copy世界进行改变<br />
+Game世界改变后下次开服还是Copy世界的内容<br />
+说白了就是插件在开启服务器的时候<br />
+Copy世界的内容被复制到了Game世界<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hemp&nbsp; &nbsp; <b>时间: </b>2019-6-7 12:48<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14563671&amp;ptid=870919" target="_blank"><font color="#999999">810587921 发表于 2019-6-7 06:33</font></a></font><br />
+emmmmmm<br />
+其实这种方法如果有其他插件通过setType改变了方块而且没与起床做兼容的话那个方块就永久消失了<br />
+我 ...</blockquote></div><br />
+这是个不错的方法，几乎不会出现还原问题。<br />
+在运行过程中可以Copy吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-6-7 19:10<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14566717&amp;ptid=870919" target="_blank"><font color="#999999">hemp 发表于 2019-6-7 12:48</font></a></font><br />
+这是个不错的方法，几乎不会出现还原问题。<br />
+在运行过程中可以Copy吗？</blockquote></div><br />
+Copy=实时加载或卸载世界<br />
+参考mv多世界插件<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1915254255&nbsp; &nbsp; <b>时间: </b>2019-6-9 17:26<br />
+666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>481878616&nbsp; &nbsp; <b>时间: </b>2019-7-8 07:54<br />
+大佬分析的不错，感谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>子然君&nbsp; &nbsp; <b>时间: </b>2019-7-12 21:18<br />
+我之前写的小游戏插件，是通过卸载世界后，然后copy地图文件，在载入2333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>知白倾黑&nbsp; &nbsp; <b>时间: </b>2019-7-28 00:03<br />
+大佬，问一下，地图不重置怎么办<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-6 21:34<br />
+copy如果是多局游戏在一个世界就不能使用了（一个世界一个游戏资源消耗还是比较大的），所以状态记录也是有好处的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1478655928&nbsp; &nbsp; <b>时间: </b>2019-8-7 11:58<br />
+已明白谢谢作者
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

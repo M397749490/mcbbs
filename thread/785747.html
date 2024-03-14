@@ -1,0 +1,318 @@
+<html>
+<head>
+<title>稀里糊涂的commands.json全解析 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>稀里糊涂的commands.json全解析 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>土球球&nbsp; &nbsp; <b>时间: </b>2018-3-4 04:26<br />
+<b>标题: </b>稀里糊涂的commands.json全解析<br /><i class="pstatus"> 本帖最后由 ustc_zzzz 于 2018-3-4 14:47 编辑 </i><br />
+<br />
+<font size="5"><strong>稀里糊涂的commands.json全解析</strong></font><br />
+<br />
+<font size="3"><font style="background-color:Black"><font color="Black">作为一个萌新</font></font>第二次在游戏技巧版块发表主题。</font><br />
+<br />
+<font size="3">原作者：@ustc_zzzz。本文基于Minecraft 1.13快照：Minecraft 18w09a。</font><br />
+<br />
+<font size="4"><strong>引言</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font size="3">Minecraft 1.13，无疑是命令的一次革新。而本人作为一个开发者，1.13给我带来的最大的影响，或者说值得注意的一点就是，命令本身的解析方式发生了改变。通过<a href="thread.html?t=785724" target="_blank">1.13本身的Data Generator机制</a>我们可以从<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>里了解到1.13本身的命令解析是如何完成的。</font><br />
+<br />
+<font size="3">1.12.2及之前的Minecraft命令是怎么解析的？</font><br />
+<br />
+<font size="3"><ul><li><font size="3">首先把命令分割为字符串，比如说：把原命令<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc 233 33 333</font>分割为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">['tp', 'zzzz_ustc', '233', '33', '333']</font>。</font><li><font size="3">然后查找第一个字符串对应的命令，这里也就是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>。</font><li><font size="3">然后判断剩下内容的长度，长度为4，那说明第一个字符串代表实体，后三个代表坐标。</font><li><font size="3">解析完成后，再去执行相应的指令：把玩家<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">zzzz_ustc</font>传送到<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">233 33 333</font>的位置。</font><br />
+</ul></font><br />
+<font size="3">如果我们遇到了这样的情况呢？</font><br />
+<br />
+<font size="3"><ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc 233 33 333</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc xuan_su</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 233 33 333</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc</font><br />
+</ul></font><br />
+<font size="3">这四个命令都是合法的命令，而且其含义略有区别，在1.12.2及之前，区分的方式也仅仅是——判定一下命令的长度，长度分别是1 2 3 4的情况分开解析。</font><br />
+<br />
+<div class="quote"><blockquote><font size="3">这不科学！<br />
+——我也不知道谁说的。</font></blockquote></div><br />
+<font size="3">这当然不科学，命令判定居然要根据命令的长度判断，这容易出错，还不容易看懂。Minecraft明明应该告诉我们——我们有好多种<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp</font>，其中四种分别是什么什么什么，它们应该做什么什么什么，等等。</font><br />
+<br />
+<font size="3">从1.13开始，基于parser的命令解析机制使得这种清晰易懂的描述开始出现。</font><br />
+</td></table></div></div><br />
+<font size="4"><strong>预备知识</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font size="3">我们应该怎么看待<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc 233 33 333</font>这个命令呢？</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li><font size="3">先读入一个字符串，并发现它是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>，然后我们去找一找<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>接下来应该让我们做什么。</font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>告诉我们接下来先试着读进来一个实体，然后接着我们读取了一个实体，它是一个名为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">zzzz_ustc</font>的玩家，然后我们看看接下来还应该读取什么。</font><li><font size="3">接下来什么都不应该读取了——游戏告诉我们。哎呀那说明这个解析方式错了（但是对于诸如<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc</font>这样的命令，这种解析方式是成功的），我们回退一步，到第2步还没开始的时候。</font><li><font size="3">然后<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>告诉我们如果失败了，可以再试试着连着读进来三个数字当作坐标，然后我们读进了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;zzzz_ustc 233 33&quot;</font>。</font><li><font size="3">游戏发现<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;zzzz_ustc 233 33&quot;</font>根本不是一个坐标——该死，又解析错了（但是对于诸如<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 233 33 333</font>这样的命令，这种解析方式是成功的），我们回退一步，到第4步还没开始的时候。</font><li><font size="3">然后<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp&quot;</font>告诉我们如果失败了，可以再试试先读取一个或多个实体，然后我们接下来和第2步一样，读取了一个名为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">zzzz_ustc</font>的玩家。</font><li><font size="3">接下来游戏告诉我们，应该再读取一个实体，然后我们接下来读取了一个名为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">233</font>的实体——似乎没这个实体，不过我们先不管他，再接着看游戏怎么让我们解析的。</font><li><font size="3">游戏告诉我们不应该再有参数了——可是还剩着两个呢，所以又解析失败了（但是对于诸如<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc xuan_su</font>这样的命令，这种解析方式是成功的）<strike>（玄素：这口锅我不背）</strike>，我们回退到第7步还没开始的时候。</font><li><font size="3">现在已经解析的部分是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;tp zzzz_ustc&quot;</font>，游戏告诉我们再连着读进来三个数字当作坐标，很好，我们读取进来了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;2333 33 333&quot;</font>。</font><li><font size="3">游戏又告诉我们可以停止解析了——正好，我们也没多余的参数，解析大成功，可以开始执行了。</font><br />
+</ul></font><br />
+<font size="3">刚刚在解析的过程中，我们轮流匹配了以下四条规则：</font><br />
+<br />
+<font size="3"><ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 一个实体</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 一个由三个数字组成的坐标</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 一个或多个实体 一个实体</font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp 一个或多个实体 一个由三个数字组成的坐标</font><br />
+</ul></font><br />
+<font size="3">前三个规则都匹配失败了，而最后一个规则完成了匹配。</font><br />
+<br />
+<font size="3">我们还用到了两个parser：</font><br />
+<br />
+<font size="3"><ul><li>一个parser读取一个字符串当作实体。<li>一个parser读取连着的三个整数当作坐标。<br />
+</ul></font><br />
+<font size="3">整个1.13的命令解析机制，也就是如此。</font><br />
+</td></table></div></div><br />
+<font size="4"><strong>开始理解<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font></strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font size="3">整个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>的获取方式请参阅本人在<a href="thread.html?t=785724" target="_blank">帖子开头处给出的链接</a>。</font><br />
+<br />
+<font size="3">以下所有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">...</font>的形式代表内容太长且与本帖无关的内容，故本帖直接省略。</font><br />
+<br />
+<font size="3">整个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>本身长这样：</font><br />
+<br />
+<div class="blockcode"><div id="code_N5z"><ol><li>{<br />
+<li>&nbsp;&nbsp;&quot;type&quot;: &quot;root&quot;,<br />
+<li>&nbsp;&nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp; &quot;advancement&quot;: {...},<br />
+<li>&nbsp; &nbsp; &quot;ban&quot;: {...},<br />
+<li>&nbsp; &nbsp; ...<br />
+<li>&nbsp; &nbsp; &quot;xp&quot;: {...}<br />
+<li>&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_N5z'));">复制代码</em></div><br />
+<font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>本身共有三种：</font><br />
+<br />
+<font size="3"><ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">root</font>只会出现在JSON的根节点处，代表从<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>中选一个命令开始解析。<li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">literal</font>代表匹配字符串本身。<li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">argument</font>代表匹配某种特定类型的参数，匹配方式由特定parser决定。<br />
+</ul></font><br />
+<font size="3">我们在匹配<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">tp</font>命令时使用的JSON子节点如下：</font><br />
+<br />
+<div class="blockcode"><div id="code_ktN"><ol><li>&quot;tp&quot;: {<br />
+<li>&nbsp;&nbsp;&quot;type&quot;: &quot;literal&quot;,<br />
+<li>&nbsp;&nbsp;&quot;redirect&quot;: [<br />
+<li>&nbsp; &nbsp; &quot;teleport&quot;<br />
+<li>&nbsp;&nbsp;]<br />
+<li>}</ol></div><em onclick="copycode($('code_ktN'));">复制代码</em></div><br />
+<font size="3">这里的redirect看起来代表这个命令本身是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">teleport</font>的别名，但实际上<strong>redirect代表这个命令接下来的部分交由该命令解析，不总是代表一个命令是另一个的别名</strong>（很快我们就能看到反例）。也就是说<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/tp zzzz_ustc 233 33 333</font>中<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">&quot;zzzz_ustc 233 33 333&quot;</font>这一部分被当作<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/teleport zzzz_ustc 233 33 333</font>中的相应部分解析。</font><br />
+<br />
+<font size="3">然后我们切换到了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">teleport</font>命令：</font><br />
+<br />
+<div class="blockcode"><div id="code_BDb"><ol><li>&quot;teleport&quot;: {<br />
+<li>&nbsp;&nbsp;&quot;type&quot;: &quot;literal&quot;,<br />
+<li>&nbsp;&nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp; &quot;destination&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;parser&quot;: &quot;minecraft:entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;properties&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;amount&quot;: &quot;single&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;type&quot;: &quot;entities&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;location&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;parser&quot;: &quot;minecraft:vec3&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;targets&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;parser&quot;: &quot;minecraft:entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;properties&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;amount&quot;: &quot;multiple&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;type&quot;: &quot;entities&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;destination&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;parser&quot;: &quot;minecraft:entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;properties&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;amount&quot;: &quot;single&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;entities&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;location&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;parser&quot;: &quot;minecraft:vec3&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;children&quot;: {...},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_BDb'));">复制代码</em></div><br />
+<font size="3"><ul><li>我们解析<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/teleport zzzz_ustc 233 33 333</font>的时候，首先看到了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">literal</font>，所以我们先匹配一个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">teleport</font>字符串。<li>然后我们轮流匹配<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>中的内容，首先选取<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">destination</font>，它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">argument</font>，匹配方式由parser，也就是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity</font>决定。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">executable</font>为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">true</font>代表试图匹配后面没有参数的情况。刚刚我们得知，匹配失败了。<li>接下来是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">location</font>，它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>也为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">argument</font>，匹配方式由<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:vec3</font>这一parser决定，因此游戏试图读取三个连续的整数作为坐标。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">executable</font>为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">true</font>代表试图匹配后面没有参数的情况。刚刚我们也得知，匹配又失败了。<li>然后是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">targets</font>，它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>也为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">argument</font>，匹配方式由<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity</font>这一parser决定，所以游戏首先匹配了一个名为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">zzzz_ustc</font>的实体，然后游戏接着从它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>里匹配内容。<font size="3"><ul><li>第一个试图匹配的是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">destination</font>，情况和上面的类似，不作赘述。不过这次也是失败的。<li>第二个试图匹配的是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">location</font>，这次成功了。由于它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">executable</font>为<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">true</font>，所以我们可以匹配后面没有参数的情况。如果它的后面还有参数，那就再接着匹配<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">location</font>的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>，感兴趣的读者可以自己打开JSON查看分析。<br />
+</ul></font><br />
+</ul></font><br />
+<font size="3">我们再来看一个相对复杂的，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font>的例子：</font><br />
+<br />
+<div class="blockcode"><div id="code_ED9"><ol><li>&quot;execute&quot;: {<br />
+<li>&nbsp;&nbsp;&quot;type&quot;: &quot;literal&quot;,<br />
+<li>&nbsp;&nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp; &quot;align&quot;: {...},<br />
+<li>&nbsp; &nbsp; &quot;anchored&quot;: {...},<br />
+<li>&nbsp; &nbsp; &quot;as&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;literal&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;targets&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;parser&quot;: &quot;minecraft:entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;properties&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;amount&quot;: &quot;multiple&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;entities&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;redirect&quot;: [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;execute&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; ...<br />
+<li>&nbsp; &nbsp; &quot;run&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;literal&quot;<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; ...<br />
+<li>&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_ED9'));">复制代码</em></div><br />
+<font size="3">我们以<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/execute as @a run tp xuan_su</font>为例。</font><br />
+<br />
+<font size="3"><ul><li>首先匹配字符串<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font>，略过不提。<li>然后我们从<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>里找到了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">as</font>，它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">literal</font>，于是我们再匹配一个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">as</font>。<li>然后我们从<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>里找到了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">targets</font>，它的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">type</font>是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">argument</font>，其parser匹配一个或多个实体，于是我们又匹配到了一个实体选择器，这里是<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">@a</font>。<li>然后我们发现<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">targets</font>没有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>了，但是它有一个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">redirect</font>，按照之前对于<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">redirect</font>的解释，后续的<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">run tp 233 33 333</font>被当作<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/execute run tp 233 33 333</font>的相应部分处理。<li>然后我们读取一个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font>，又切换到了<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">run</font>。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">run</font>是全<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>中唯一一个既没有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">children</font>和<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">redirect</font>，也没有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">executable</font>的用于命令匹配的JSON节点。1.13看起来对其的处理是把后续的内容直接按照从头开始的命令解析，这也挺符合<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font>命令本身的。<li>然后命令解析完成并开始执行，一群不幸的玩家全都被传送到了玄素那里。<br />
+</ul></font><br />
+<font size="3">到此<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>的内容就大概讲清楚了。最后再讲一点parser的属性相关的东西。</font><br />
+</td></table></div></div><br />
+<font size="4"><strong>parser及其属性</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>中Minecraft为部分parser指定了属性，如果区分属性的话，目前所有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>中用到的parser如下：</font><br />
+<br />
+<font size="3"><ul><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:bool</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:double</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:float[min=0,max=1]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:float[min=0,max=2]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:float[min=0]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:float[min=1]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=-60000000,max=60000000]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=0,max=1000000]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=0,max=255]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=0,max=65535]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=0]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=1,max=1000000]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=1,max=64]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:integer[min=1]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:string[type=greedy]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:string[type=phrase]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier:string[type=word]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:block_pos</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:block_predicate</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:block_state</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:color</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:component</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity[amount=multiple,type=entities]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity[amount=multiple,type=players]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity[amount=single,type=entities]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity[amount=single,type=players]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:entity_anchor</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:function</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:game_profile</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:item_enchantment</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:item_predicate</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:item_slot</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:item_stack</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:message</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:mob_effect</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:nbt</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:nbt_path</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:objective</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:objective_criteria</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:operation</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:particle</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:range[decimals=false]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:resource_location</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:rotation</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:score_holder[amount=multiple]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:score_holder[amount=single]</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:scoreboard_slot</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:swizzle</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:team</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:vec2</font></font><li><font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft:vec3</font></font><br />
+</ul></font><br />
+<font size="3">看起来所有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">brigadier</font>开头的都是基本数据类型，所有<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">minecraft</font>开头的都是Minecraft自己的数据类型，有一些数据类型比较清楚，而有一些数据类型比较奇怪，具体问题具体分析吧。</font><br />
+<br />
+<font size="3">对于parser的参数，我们可以注意到，有些整数设定了最小值或最大值，有些实体的parser设定了是否只选择玩家，以及只选择一个实体，还是选择一个或多个实体。</font><br />
+<br />
+<font size="3">整个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>的分析，就到这里。</font><br />
+</td></table></div></div><br />
+<font size="4"><strong>后记</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font size="3">我们可以看到，基于这样的一个JSON，我们可以很容易地做出来一些命令检查系统或者类似的东西。比如说一个最简单的应用，本人编写了不到40行的JavaScript代码把JSON转换成了一个输入<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">/help</font>后出现的列表，该列表和游戏内的实际输出丝毫不差。这段代码是本人随便写的，理解起来应该也不难。</font><br />
+<br />
+<font size="3">该代码基于Node v8.9.4。如欲使用，把该段代码复制保存，然后把<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.json</font>放置于同目录下，执行完成后查看<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">commands.output.txt</font>这一输出文件即可。</font><br />
+<br />
+<div class="blockcode"><div id="code_pHB"><ol><li>// Licensed under WTFPL (https://en.wikipedia.org/wiki/WTFPL)<br />
+<li><br />
+<li>const fs = require('fs'), path = require('path')<br />
+<li><br />
+<li>const visitors = {<br />
+<li>&nbsp; &nbsp; root: visitJSONRoot,<br />
+<li>&nbsp; &nbsp; literal: visitJSONLiteral,<br />
+<li>&nbsp; &nbsp; argument: visitJSONArgument<br />
+<li>}<br />
+<li><br />
+<li>function* visitJSON(json, key, prefix) {<br />
+<li>&nbsp; &nbsp; for (let line of visitors[json.type](json, key)) yield (prefix || '') + line<br />
+<li>}<br />
+<li><br />
+<li>function* visitJSONRoot(json) {<br />
+<li>&nbsp; &nbsp; for (let i in json.children) yield* visitJSON(json.children[i], i)<br />
+<li>}<br />
+<li><br />
+<li>function* visitJSONLiteral(json, key) {<br />
+<li>&nbsp; &nbsp; if (json.executable) yield key<br />
+<li>&nbsp; &nbsp; else if (!json.children &amp;&amp; !json.redirect) yield `${key} ...`<br />
+<li>&nbsp; &nbsp; for (let i in json.redirect) yield `${key} -&gt; ${json.redirect[i]}`<br />
+<li>&nbsp; &nbsp; for (let i in json.children) yield* visitJSON(json.children[i], i, `${key} `)<br />
+<li>}<br />
+<li><br />
+<li>function* visitJSONArgument(json, key) {<br />
+<li>&nbsp; &nbsp; if (json.executable) yield `&lt;${key}&gt;`<br />
+<li>&nbsp; &nbsp; else if (!json.children &amp;&amp; !json.redirect) yield `&lt;${key}&gt; ...`<br />
+<li>&nbsp; &nbsp; for (let i in json.redirect) yield `&lt;${key}&gt; -&gt; ${json.redirect[i]}`<br />
+<li>&nbsp; &nbsp; for (let i in json.children) yield* visitJSON(json.children[i], i, `&lt;${key}&gt; `)<br />
+<li>}<br />
+<li><br />
+<li>let outputFileData = ''<br />
+<li><br />
+<li>let inputFileData = fs.readFileSync(path.join(__dirname, 'commands.json'), 'utf8')<br />
+<li><br />
+<li>for (let line of visitJSON(JSON.parse(inputFileData))) outputFileData += line + '\n'<br />
+<li><br />
+<li>fs.writeFileSync(path.join(__dirname, 'commands.output.txt'), outputFileData, 'utf8')</ol></div><em onclick="copycode($('code_pHB'));">复制代码</em></div><br />
+<font size="3">然后我只圈一个人： @pca006132 <font style="background-color:Black"><font color="Black">（催更）（噫，没蓝）</font></font>。</font><br />
+<br />
+<font size="3">最后我想对插件开发者说两句：</font><br />
+<br />
+<font size="3">插件中仍然会大量出现自定义命令。如果你是Bukkit插件开发者，你可能已经适应了通过分析一个数组长度或者什么传统的方式解析命令。而这种基于parser的命令解析方式十分强大，可读性很好，也不容易出错。对于Sponge插件开发者来说，SpongeAPI目前已经内嵌了这种基于parser的命令解析方式。随着1.13的发布，你一定会在代码中看到，或自己尝试应用这种，强大、方便、又安全的基于parser的命令解析方式。毕竟，Minecraft 1.13，无疑是命令的一次革新。</font><br />
+</td></table></div></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2018-3-4 06:30<br />
+插一句：<br />
+<a href="https://gist.github.com/Dinnerbone/7370a2846953eee2d8fc64514fb76de8" target="_blank">https://gist.github.com/Dinnerbo ... ee2d8fc64514fb76de8</a><br />
+还记得 Dinnerbone 发的<a href="https://twitter.com/Dinnerbone/status/930040343826976768" target="_blank">那个奇怪的推</a>吗？那个推提到了一个 gist（上面给的就是），其中出现的巨大的 JSON 文件，现在看来很可能就是这个。<br />
+我对这个 JSON 理解是“全部 Minecraft 命令的<i>语法树</i>（请允许我使用这个词来称呼它）合并在一个文件里”。换言之，这个 JSON 描述了所有原版 Minecraft 指令的正确使用方式（虽然，这个文件不是给人看的）。<br />
+zzzz 这个贴给出了这个文件的一个十分明显的用途。<br />
+事实上，如果我们把脑洞再开得大一点，我们可以做出一个“适用于 Minecraft 1.13 Release 及以上版本的，外置的，Minecraft 命令集成开发环境”。这样一个奇葩的集成开发环境有什么用呢？<br />
+1. CB 玩家可以用它在不开游戏的情况下写 mcfunction（自带语法高亮）并进行调试...<br />
+2. Mod/插件开发者可以用它来制作生成对应的命令的具体实现，加速命令的开发（搞不好可以做图形化）...<br />
+<br />
+好了脑洞结束，撤了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>leavessoft&nbsp; &nbsp; <b>时间: </b>2018-3-4 07:10<br />
+对开发者很友好啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-3-4 10:05<br />
+<div class="quote"><blockquote><font color="#999999">u.s.knowledge 发表于 2018-3-4 06:30</font><br />
+<font color="#999999">插一句：<br />
+https://gist.github.com/Dinnerbone/7370a2846953eee2d8fc64514fb76de8<br />
+还记得 Dinnerbone 发的 ...</font></blockquote></div><br />
+对cb玩家来说，早就有了...<br />
+两个都是我写的(跑)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玄素&nbsp; &nbsp; <b>时间: </b>2018-3-4 10:29<br />
+解析方式的变更还带来了一些比较有意思的东西。<br />
+一则，应该很明显能发现，现在的命令错误提示比以前的版本，友好度提高了非常多。这意味着对命令中出现的错误，查知起来的成本更低。同样，也更容易能让新玩家了解到如何去寻找自己命令中的差错，而不是和以前一样全凭经验来做查验。<br />
+二则，虽然大部分命令没有在1.13的命令变更中做调整，但依旧有一些变化悄然发生在了这场变革之中。比如由/entitydata来的/data entity命令选择器参数处仅接受一个实体，而服务器玩家操作命令系列（/ban，/kick之类）也开始接受选择器（虽然依旧要求三级op权限而不能被命令方块执行）。这些细微之处的变化不容易察觉，但使用时可能没准一不留神就栽进去了，万望谨慎。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-3-4 11:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12768122&amp;ptid=785747" target="_blank"><font color="#999999">u.s.knowledge 发表于 2018-3-4 06:30</font></a></font><br />
+插一句：<br />
+https://gist.github.com/Dinnerbone/7370a2846953eee2d8fc64514fb76de8<br />
+还记得 Dinnerbone 发的 ...</blockquote></div><br />
+实际上呢，调试是不可能的<br />
+你鬼知道里面实际游戏机制是咋样啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2018-3-4 12:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12768788&amp;ptid=785747" target="_blank"><font color="#999999">pca006132 发表于 2018-3-4 11:29</font></a></font><br />
+实际上呢，调试是不可能的<br />
+你鬼知道里面实际游戏机制是咋样啊</blockquote></div><br />
+你可以模拟一个。<strike>于是上来就有了各种各样的标准库...</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo_v3&nbsp; &nbsp; <b>时间: </b>2018-3-11 13:29<br />
+<a href="https://github.com/langyo/SyntaxBuilder/blob/master/Example/cpp.sb" target="_blank">https://github.com/langyo/SyntaxBuilder/blob/master/Example/cpp.sb</a><br />
+<br />
+为何Mojang的脑洞和我碰一起了？…<br />
+(这是本人最近在实验的SyntaxBuilder语言的配置文件，用于部分解析C++语言)(这语言简称什么？当然是SB了…别想歪了，我没骂人)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chyx&nbsp; &nbsp; <b>时间: </b>2018-5-1 14:31<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12781891&amp;ptid=785747" target="_blank"><font color="#999999">langyo_v3 发表于 2018-3-11 13:29</font></a></font><br />
+https://github.com/langyo/SyntaxBuilder/blob/master/Example/cpp.sb<br />
+<br />
+为何Mojang的脑洞和我碰一起了？… ...</blockquote></div><br />
+从来没听说过有任何不为你的人理解你的脑洞<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq2799660499&nbsp; &nbsp; <b>时间: </b>2018-5-22 23:38<br />
+明白了呃zzzz<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>00ll00&nbsp; &nbsp; <b>时间: </b>2020-4-25 10:08<br />
+<div class="quote"><blockquote>executable为true代表试图匹配后面没有参数的情况。</blockquote></div><br />
+这里好像有些问题。executable为true应该只是代表如果这之后没有参数的话这个命令是可以执行的，也就是如果后面还有参数的话也可以继续解析。<br />
+例如新版的kill<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_uZA"><ol><li>&quot;kill&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;literal&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;children&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;targets&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;type&quot;: &quot;argument&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;parser&quot;: &quot;minecraft:entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;properties&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;amount&quot;: &quot;multiple&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;entities&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&quot;executable&quot;: true<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_uZA'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+所以tp命令那里究竟是怎样解析的呢……<br />
+<img src="static/image/smiley/tong/q_q.png" smilieid="1459" border="0" alt="" /><br />
+<br />
+<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

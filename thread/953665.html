@@ -1,0 +1,402 @@
+<html>
+<head>
+<title>[Bukkit/Spigot]一种特别的方式加载插件 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[Bukkit/Spigot]一种特别的方式加载插件 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏雨吖&nbsp; &nbsp; <b>时间: </b>2020-2-7 00:25<br />
+<b>标题: </b>[Bukkit/Spigot]一种特别的方式加载插件<br /><i class="pstatus"> 本帖最后由 M8_mve 于 2020-2-7 00:23 编辑 </i><br />
+<br />
+
+<br />
+
+<br />
+
+<br />
+<div align="center"><img id="aimg_tN2uu" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/line8.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></div><div align="center"><font face="黑体"><font size="7"><font color="#ff0000"><strong>用特别的方式加载插件</strong></font></font></font></div><br />
+<div align="center"><hr class="l" /></div><br />
+<div align="center"><font size="5">看这篇<strike>水贴</strike>教程之前需要</font></div><br />
+<div align="center"><font size="4">Java基础</font></div><br />
+<div align="center"><font size="4">反射知识</font></div><br />
+<div align="center"><font size="4">类加载器的简单原理</font></div><br />
+<div align="center"><font size="4">对ClassLoader的理解</font></div><br />
+<div align="center"><font size="4"><br />
+</font></div><br />
+<div align="center"><hr class="l" /><br />
+</div><br />
+<div align="center"><font size="5">这篇教程是哪里来的</font></div><br />
+<div align="center"><font size="4">之前写过一个UI化服务器的插件<strike>烂坑</strike></font></div><br />
+<div align="center"><font size="4">是用Java FX写的UI</font></div><br />
+<div align="center"><font size="4">但是插件每次reload之后会重新实例化Plugin</font></div><br />
+<div align="center"><font size="4">这就会重新创建FX Application然后丢异常给我</font></div><br />
+<div align="center"><font size="4">我想能不能让插件只会实例化一次呢？</font></div><br />
+<div align="center"><font size="4">然后就有了这个想法和这篇教程</font></div><br />
+<br />
+<hr class="l" /><table cellspacing="0" class="t_table" ><tr style="background-color:#FFFFFF"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#C2D5E3"><td><div align="center"><font size="5"><font color="#000000"><strong>一、Loader</strong></font></font></div></td></tr></table><hr class="l" /><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><font size="4"><font color="#000000"><strong>1、HyperPlugin</strong></font></font></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><div align="left"><strong>创建一个类做下面加载的类的父类，当然也可以直接用子类</strong></div><div align="left"><div class="blockcode"><div id="code_UPq"><ol><li>public class HyperPlugin<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Plugin plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onLoad() { }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable() { }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onDisable() { }<br />
+<li>}</ol></div><em onclick="copycode($('code_UPq'));">复制代码</em></div><div align="left"><strong>这里的Plugin是保存每次加载时候的Plugin实例的，因为每次加载插件插件实例都会改变</strong></div><div align="left"><strong>因为plugin实例要在调用onEnable之前更新，访问权限不公开的话要用反射改，会拉低效率</strong></div><div align="left"><strong>当然如果你不考虑效率也可以用反射</strong></div><div align="left"><strike><strong>反正都能反射改，公开不公开又有什么区别呢233</strong></strike></div><div align="left"><strong>一会要写的Core的主类要继承这个类，重写这里的三个方法</strong></div><div align="left"><strong>当然也可以改个名字，或者加一些别的方法</strong></div></div></div></td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:rgb(251, 242, 219)"><td><div align="center"><font size="4"><font color="#000000"><strong>2、HyperPluginClassLoader</strong></font></font></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:rgb(251, 242, 219)"><td><div align="left"><table cellspacing="0" class="t_table" ><tr><td><div align="center"><div align="left"><strong>创建一个用来加载Core的类加载器，可以继承java的URLClassLoader但是要打破双亲委派的规则</strong></div><div align="left"><div class="blockcode"><div id="code_nSq"><ol><li>public class HyperPluginClassLoader extends URLClassLoader<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final HyperPluginClassLoader LOADER;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final Map&lt;String, Class&lt;?&gt;&gt; classes = new ConcurrentHashMap&lt;&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final JarFile jar;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final HyperPlugin plugin;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private Map&lt;String, Class&lt;?&gt;&gt; parentClasses = new HashMap&lt;&gt;();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private HyperPluginClassLoader(File pluginFile) throws IOException<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(new URL[]{pluginFile.toURI().toURL()});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.jar = new JarFile(pluginFile);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; HyperPlugin plugin = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Class&lt;?&gt; main = Class.forName(&quot;org.mve.hy.Main&quot;, true, this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;plugin = (HyperPlugin) main.newInstance();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (Exception e)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin = plugin;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.plugin == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(&quot;Can not load plugin: &quot;+pluginFile);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin.onLoad();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable(Plugin plugin)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.parentClasses.putAll(this.classes);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin.plugin = plugin;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin.onEnable();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onDisable()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin.onDisable();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.plugin.plugin = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Class&lt;?&gt; findClass(String name) throws ClassNotFoundException<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return this.loadClass(name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Class&lt;?&gt; loadClass(String name) throws ClassNotFoundException<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Class&lt;?&gt; clazz = this.classes.get(name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (clazz != null) return clazz;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; clazz = this.parentClasses.get(name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (clazz != null) return clazz;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String path = name.replace('.', '/').concat(&quot;.class&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;JarEntry entry = jar.getJarEntry(path);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (entry != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;InputStream in = this.jar.getInputStream(entry);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] bytes = HyperPluginClassLoader.toByteArray(in);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;in.close();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;clazz = this.defineClass(name, bytes, 0, bytes.length);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (clazz != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.classes.put(name, clazz);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.parentClasses.put(name, clazz);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (Exception ignored) {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return clazz != null ? clazz : this.getParent().loadClass(name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static byte[] toByteArray(InputStream in) throws IOException<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ByteArrayOutputStream out = new ByteArrayOutputStream();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int len;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; byte[] b = new byte[1024];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while ((len = in.read(b)) &gt; -1)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;out.write(b, 0, len);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; out.flush();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; out.close();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return out.toByteArray();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; HyperPluginClassLoader loader = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;File coreFile = new File(&quot;plugins/HyperPlugin/Core.jar&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;loader = new HyperPluginClassLoader(coreFile);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (IOException e)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; LOADER = loader;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_nSq'));">复制代码</em></div><div align="left"><strong><br />
+这里的loadClass和findClass要自己实现，我把findClass推给了loadClass</strong></div><div align="left"><strong>我这里用了单例模式，防止反复实例化classloader</strong></div><div align="left"><strong>loadClass一定<font color="#ff0000">不能</font>遵循双亲委派的规则，不然会出现ClassNotFoundException之类的奇怪的东西</strong></div><div align="left"><strong>这里的parentClasses是加载插件的PluginClassLoader的classes</strong></div><div align="left"><strong>这样可以假装自己加载过的类，父类加载器也加载过</strong></div><div align="left"><strong>如果其他插件要连接你的插件需要这个东西</strong></div><div align="left"><strong>在loadClass方法里加载新的类需要把加载的Class实例也put到这个parentClasses里</strong></div><div align="left"><strong>但是自己保存的classes也是<font color="#ff0000">必须</font>的，因为每次重载插件，父类加载器都会变</strong></div><div align="left"><strong>这样这里的parentClasses也要变，在每次onEnable的时候需要把自己加载过的所有类都put进去</strong></div><div align="left"><strong>注意: 这里的静态代码块里指定的File一定是之后插件本体的位置</strong></div><div align="left"><strong>当然你可以改路径和名字但是别忘了改这里</strong></div><div align="left"><strong>这里的构造方法里加载的类一定是插件本体继承之前写的HyperPlugin的类</strong></div></div></div></td></tr></table></div></td></tr></table></div></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#FFFFFF"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#C2D5E3"><td><div align="center"><font size="5"><font color="#000000"><strong>二、Plugin</strong></font></font></div></td></tr></table><hr class="l" /><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><font size="4"><font color="#000000"><strong>1、用来加载插件本体的BukkitPlugin</strong></font></font></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><div align="left"><strong>现在写的类是让Bukkit来加载的</strong></div><div align="left"><div class="blockcode"><div id="code_AVJ"><ol><li>public class PluginMain extends JavaPlugin<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; InputStream pluginIn = this.getResource(&quot;HyperPlugin.class&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; InputStream loaderIn = this.getResource(&quot;HyperPluginClassLoader.class&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (pluginIn == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Can not load core&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;new FileNotFoundException(&quot;HyperPlugin.class&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (loaderIn == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Can not load core&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;new FileNotFoundException(&quot;HyperPluginClassLoader.class&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;SystemClassLoader.define(IO.toByteArray(pluginIn));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;SystemClassLoader.define(IO.toByteArray(loaderIn));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (Throwable e)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (! (e instanceof LinkageError))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new IllegalStateException(&quot;Can not load core&quot;, e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Reflect.setFinalField(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassLoader.class,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;parent&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;HyperPluginClassLoader.LOADER,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.getClass().getClassLoader()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Reflect.setField(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;HyperPluginClassLoader.class,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;parentClasses&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;HyperPluginClassLoader.LOADER,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Reflect.reflectField(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; PluginClassLoader.class,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;classes&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (NoSuchFieldException | IllegalAccessException e)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; HyperPluginClassLoader.LOADER.onEnable(this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onDisable()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; HyperPluginClassLoader.LOADER.onDisable();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_AVJ'));">复制代码</em></div><br />
+</div></div></td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:rgb(251, 242, 219)"><td><div align="center"><font size="4"><font color="#000000"><strong>2、正确的加载</strong></font></font></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:rgb(251, 242, 219)"><td><div align="left"><table cellspacing="0" class="t_table" ><tr><td><div align="center"><div align="left"><strong>之前写的HyperPlugin和HyperPluginClassLoader这两个类一定<font color="#ff0000">不能</font>直接丢到插件里</strong></div><div align="left"><strong><font color="#ff0000">不能</font>让PluginClassLoader加载它，</strong><strong>不然和普通的插件加载没什么区别了</strong></div></div><div align="center"><div align="left"><strong>只要这两个class不在package指定的包里就可以，我直接放在缺省包里了</strong></div><br />
+<div align="left"><div class="quote"><blockquote>SystemClassLoader.define(IO.toByteArray(pluginIn));<br />
+SystemClassLoader.define(IO.toByteArray(loaderIn));</blockquote></div><br />
+</div><div align="left"><strong>然后在插件的onEnable方法里把这两个类define到AppClassLoader也就是JVM第三级类加载器</strong></div><div align="left"><strong>也可以在onLoad方法里define，<strike>反正都一样只要别在onDisable里define就好 嗷呜~</strike></strong></div><div align="left"><strong>因为每次插件onEnable都会define，重复加载相同的类会报错，需要捕捉一下异常，直接忽略掉</strong></div><div align="left"><strong>之后要改一下HyperPluginClassLoader的parent</strong></div><div align="left"><strong>还要改一下之前说过的parentClasses，这个Map在Bukkit的PluginClassLoader里</strong></div><div align="left"><strong>然后就可以onEnable你的插件本体啦</strong></div></div></td></tr></table></div></td></tr></table></div></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#FFFFFF"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#C2D5E3"><td><div align="center"><font size="5"><font color="#000000"><strong>三、Core</strong></font></font></div></td></tr></table><hr class="l" /><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><strong><font size="4"><font color="#000000">现在就可以写插件的本体啦</font></font></strong></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><div align="left"><strong>这里写的插件本体在服务器运行的过程里只会调用一次onLoad方法</strong></div></div><div align="center"><div align="left"><strong>也就是只会加载一次类</strong></div></div><div align="center"><div align="left"><strong><strike>虽然不知道有什么用，但是之前写fx的时候发现的这个方法就来水一贴了哈哈哈哈</strike></strong></div></div><div align="center"><div align="left"><strong>本体的主类要继承之前写的HyperPlugin而不是JavaPlugin</strong></div></div><div align="center"><div align="left"><strong>主类必须和之类加载器里指定的主类一致(全限定名)</strong></div></div><div align="center"><div align="left"><div class="blockcode"><div id="code_H0k"><ol><li>public class Main extends HyperPlugin<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onLoad()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;Plugin load&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(this.getClass().getClassLoader());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;Plugin enable&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(this.getClass().getClassLoader());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onDisable()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;Plugin disable&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(this.getClass().getClassLoader());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_H0k'));">复制代码</em></div>可以输出一下类加载器看看前后的类是不是唯一</div></div></td></tr></table></div></td></tr></table></div></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#FFFFFF"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#C2D5E3"><td><div align="center"><font size="5"><font color="#000000"><strong>四、测试！测试！测试！</strong></font></font></div></td></tr></table><hr class="l" /><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><strong><font size="4"><font color="#000000">写好啦？快丢到服务器上面测试一下</font></font></strong></div></td></tr></table><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="left"><table cellspacing="0" class="t_table" ><tr style="background-color:#FBF2DB"><td><div align="center"><div align="left"><strong>第二节的Plugin编译的jar放在plugins文件夹里</strong></div></div><div align="center"><div align="left"><strong>第三节Core编译的jar放在之前类加载器指定的目录里</strong></div></div><div align="center"><div align="left"><strong>我指定的是plugins/HyperPlugin/Core.jar 当然你也可以改但是别忘记改类加载器里的路径</strong></div></div><div align="center"><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1451038" aid="1451038" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202002/07/000135o35a44tdtt4hetwe.png" file="https://attachment.mcbbs.net/forum/202002/07/000135o35a44tdtt4hetwe.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1451038" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1451038_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>0021.png</strong> <em class="xg1">(68.94 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTAzOHwxODlkNmYwYXwxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-2-7 00:01 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div></div><div align="center"><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1451037" aid="1451037" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202002/07/000129ep3ewe0rrwd3mmap.png" file="https://attachment.mcbbs.net/forum/202002/07/000129ep3ewe0rrwd3mmap.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1451037" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1451037_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>0020.png</strong> <em class="xg1">(72.39 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTAzN3xlODkzODFjNHwxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-2-7 00:01 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div></div><div align="center"><div align="left"><strong>快把服务器run起来看一下</strong></div></div><div align="center"><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1451040" aid="1451040" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202002/07/000310pm6a9x6a6hifh3aq.png" file="https://attachment.mcbbs.net/forum/202002/07/000310pm6a9x6a6hifh3aq.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="423" id="aimg_1451040" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1451040_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>0010.png</strong> <em class="xg1">(36.72 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTA0MHxmYTNmMWM0M3wxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-2-7 00:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div></div><br />
+<div align="center"><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1451042" aid="1451042" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202002/07/000330tbbnmo9wwowno77o.png" file="https://attachment.mcbbs.net/forum/202002/07/000330tbbnmo9wwowno77o.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="419" id="aimg_1451042" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1451042_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>0011.png</strong> <em class="xg1">(18.29 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTA0Mnw4YjlmODA1NnwxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-2-7 00:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div></div><br />
+<div align="center"><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1451044" aid="1451044" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202002/07/000351m8n09z9t87nk7mk2.png" file="https://attachment.mcbbs.net/forum/202002/07/000351m8n09z9t87nk7mk2.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="423" id="aimg_1451044" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1451044_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>0012.png</strong> <em class="xg1">(14.25 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTA0NHxkNDQwZTQxYnwxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-2-7 00:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div></div><div align="center"><div align="left"><strong>这里的顺序是</strong></div></div><div align="center"><div align="left"><strong>onLoad-&gt;onEnable-&gt;reload-&gt;onDisable-&gt;onEnable</strong></div></div><div align="center"><div align="left"><strong>onLoad后面的onEnable我没截图，反正都一样<br />
+</strong></div><div align="left"><strong>这里输出的内存地址都一样说明插件在reload前后实例没有变</strong></div><div align="left"><strong>成功啦！嗷呜~</strong></div></div></td></tr></table></div></td></tr></table></div></td></tr></table><br />
+<hr class="l" /><br />
+<br />
+<div align="center"><font size="4">插件源码</font></div><br />
+<div align="center"><font size="4">这里IO工具和Reflect工具我也和源码一起丢出来了可以扒源码自己看</font></div><br />
+<div align="center"><font size="4">如果有什么不明白的地方可以来问我啦 嗷呜~</font></div><br />
+<div align="center">
+<ignore_js_op>
+
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1451059" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTQ1MTA1OXwwNDRhYTdmM3wxNjE0MDA5MzAzfDI0MTk0ODZ8OTUzNjY1" target="_blank">PLL.zip</a>
+
+<em class="xg1">(29.91 KB, 下载次数: 4)</em>
+</span>
+<div class="tip tip_4" id="attach_1451059_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2020-2-7 00:19 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+ </div><br />
+<br />
+<div align="center"><hr class="l" /><br />
+</div><br />
+<div align="center"><font color="#000000"><font style="background-color:rgb(0, 0, 0)"><strike>又是一篇不会有人看的没什么用的教程呢</strike></font></font></div><br />
+<br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[16276516] = ['1451037','1451038','1451040','1451042','1451044'];
+attachimggroup(16276516);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Tds...&nbsp; &nbsp; <b>时间: </b>2020-2-7 00:29<br />
+虽然看不懂,但是留个爪！<br />
+<br />
+谢谢大佬的分享,收藏了,等我会了再来看！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mr2044154518&nbsp; &nbsp; <b>时间: </b>2020-2-7 00:32<br />
+支持支持支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>邓毅&nbsp; &nbsp; <b>时间: </b>2020-3-3 10:47<br />
+其实我有点看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dousha0v0&nbsp; &nbsp; <b>时间: </b>2020-3-5 14:23<br />
+虽然真的看不懂 但是 楼主干巴爹！<img src="static/image/smiley/mc_mob_food_plants/notch_square.gif" smilieid="840" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pocketit&nbsp; &nbsp; <b>时间: </b>2020-3-5 14:56<br />
+&nbsp; &nbsp; &nbsp; &nbsp; MCBBS有你更精彩?<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>KBlom&nbsp; &nbsp; <b>时间: </b>2020-3-6 13:50<br />
+顶&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

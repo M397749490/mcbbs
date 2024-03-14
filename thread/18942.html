@@ -1,0 +1,609 @@
+<html>
+<head>
+<title>MCP的Mod制作教程(4) - 创建新的实体,NPC,添加特殊功能 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>MCP的Mod制作教程(4) - 创建新的实体,NPC,添加特殊功能 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>szszss&nbsp; &nbsp; <b>时间: </b>2012-3-3 23:22<br />
+<b>标题: </b>MCP的Mod制作教程(4) - 创建新的实体,NPC,添加特殊功能<br /><i class="pstatus"> 本帖最后由 szszss 于 2012-8-8 23:34 编辑 </i><br />
+<br />
+<div align="left">MCP的Mod制作教程(4)</div><div align="left">创建新的实体,NPC,添加特殊功能,创建粒子与屏幕文字</div><div align="left">作者:szszss</div><br />
+索引贴地址:<br />
+<a href="thread.html?t=18949" target="_blank">http://www.mcbbs.net/thread-18949-1-2.html</a><br />
+<br />
+<font size="4"><strong>注:本文最初基于MCP5.6和ModLoader1.1.0编写的.<br />
+<font size="4"><strong>MCP6.2和ModLoader1.2.4更新了大量方法的名字,导致我的教程几乎报废一半...</strong></font> <font size="4"><strong>不管怎么说,我用了一个晚上的时间还是修正了教程的文字部分,使其和最新版的MCP与ModLoader接轨.但图片部分我实在是无力修改了...大家将就着看吧.</strong></font><br />
+</strong></font><font size="4"><strong>MCP6.2改掉了一大批方法的名字.以本教程的NBT部分为例,5.6的setTag在6.0改成了appendTag.或许这个看起来还有些道理.但有些就显得毫无理由了.比如判断一个世界是否是多人游戏世界.5.6是multiplayerWorld,6.0成了isRemote...<br />
+</strong></font><br />
+<br />
+<div align="left">在读本篇之前,请确定你已读过并掌握上一篇的内容.</div><br />
+<div align="left">本篇我们将要:</div><div align="left">创建一种新的Mob:Dirac Pig</div><div align="left">添加新的功能,使Dirac Wand具有瞬间转移箱子内的物品的能力</div><br />
+<br />
+<div align="left"><font color="blue">创建一个新的活物Entity</font></div><br />
+<div align="left">&quot;一切事物都依存于Entity,即是说,没有做不出的东西.&quot;</div><div align="left">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; --考验东方众的时刻到了,这句话的原型出自哪?</div><br />
+<br />
+<div align="left">事实上这句话说得有些大了,比如Block就和Entity是截然不同的...</div><br />
+<div align="left">抛开这些不管,确实很多东西都是靠Entity(实体)来做成,比如NPC.</div><div align="left">这里我们以NPC为例,教大家如何创建一个Entity.</div><br />
+<div align="left"><font color="red">知识点:Entity的原理,与NBT的使用</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">之前我们提到,Entity很少直接使用,我们多是使用从Entity中派生而来的实体.</div><div align="left">按照规则,大部分实体被编写好后需要加入实体列表(EntityList),实体列表对一个实体储存3个信息:ID,里名字,实体本身.</div><div align="left">通过ID可以获取对应的实体,同样如果你知道一个实体,你可以获取它的ID.</div><div align="left">里名字和ID同理,知道里名字可以获得实体,知道实体也能获得里名字.</div><div align="left">但ID和里名字无法相互获取,需要利用实体作为中介来间接获取.</div><div align="left">一个实体可以用ID或里名字来间接获取,也可以通过实体类直接获取.</div><div align="left"><font color="gray">那实体列表到底有什么用?答案是:用于多人游戏下的网络传输.多人游戏中,MC不会把整个实体都写入封包发送过去,这会让玩家和服务器的带宽崩坏的,取而代之,他只会发送必要的数据,其中一点就是游戏会根据实体列表来获取要发送的实体的ID,然后将ID发送过去.</font></div><div align="left"><font color="gray">这样做,可以大大减小封包的体积,增加信息传输效率,提高多人游戏的流畅度.</font></div><div align="left"><font color="gray">另外实体列表在刷怪笼也有用到.刷怪笼是通过实体列表来查询所应刷的怪物.</font></div><div align="left"><font color="gray">里名字则是在NBT存储数据时用到.</font></div><br />
+<div align="left">在创建完一个Entity后,如果你想在游戏世界中放置一个Entity,你可以使用World类(注意,这不是一个静态类)的spawnEntityInWorld方法来在游戏世界中添加一个实体.</div><div align="left">比如船(ItemBoat)的右键方法:</div><div align="left">public ItemStack onItemRightClick(ItemStack itemstack, World world, EntityPlayer entityplayer)</div><div align="left">{</div><div align="left">&nbsp; &nbsp;&nbsp;&nbsp;......</div><div align="left">&nbsp; &nbsp;&nbsp;&nbsp;world.spawnEntityInWorld(new EntityBoat(world, (float)i + 0.5F, (float)j + 1.0F, (float)k + 0.5F));</div><div align="left">&nbsp; &nbsp;&nbsp;&nbsp;......</div><div align="left">}</div><div align="left">游戏在引发onItemRightClick方法时会将玩家所在的世界作为参数传入,onItemRightClick方法会在玩家所在的世界(world参数)创建一个EntityBoat实体.</div><br />
+<div align="left">然而我们之前也提到过,Entity是通过NBT来储存特殊信息,基本上说,凡是你为一个实体添加了新变量,如果你希望这些变量即使在存读游戏后依然保留的话,就要写入NBT.</div><br />
+<div align="left">Entity自带两个方法,writeEntityToNBT方法是向NBT写入信息,readEntityFromNBT方法是从NBT读取信息,你无须担心它们的参数问题,游戏会向它们提供参数的,你所要做的只是为NBT节点(NBTTagCompound类)添加数据.节点可以被写入很多数据,同时节点也能派生出更多的子节点.</div><div align="left">但是我们现在仅仅是学习NBT的使用,不会深入学习它的运作机理和复杂使用.如果可能,我会在教程的Extra编中撰写相关的NBT教程.你现在只需知道如何向一个NBT节点读写数据就行了.</div><br />
+<br />
+<div align="left">以EntityLiving类(一切活物Entity的基类)的writeEntityToNBT方法的节选片段为例.</div><div align="left">nbttagcompound.setShort(&quot;Health&quot;, (short)health);</div><div align="left">它是向nbttagcompound(这个是作为参数输入的,不用担心它从哪里来,程序会负责处理这一切)这个NBT节点添加一个short(8位整数)类型的数据,数据名称为Health,数据数值是转换为8位整数的health变量.<font color="gray">(health是int变量,转换为short要显式转换)</font></div><br />
+<div align="left">再以readEntityFromNBT方法的节选片段为例.</div><div align="left">health = nbttagcompound.getShort(&quot;Health&quot;);</div><div align="left">它是设置health为nbttagcompound节点中,名称为Health的short类数据的数值.</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left"><font color="red">知识点:活物Entity的创建</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">说了这么多才说道本章重点...V587吧.</div><div align="left">MC中,玩家和野怪的实体是按照这个顺序派生的.</div><div align="left">Entity</div><div align="left">&nbsp;&nbsp;↓</div><div align="left">EntityLiving → EntityPlayer(玩家类)</div><div align="left">&nbsp;&nbsp;↓</div><div align="left">EntityCreature → EntityMob(野怪类)</div><div align="left">&nbsp;&nbsp;↓</div><div align="left">EntityAnimal(动物类)</div><br />
+<div align="left">Entity类:所有Entity的基础类</div><div align="left">EntityLiving类:活物类,多了health(HP)等数据.</div><div align="left">EntityPlayer类:玩家类,玩家拥有物品栏..可以重生..等等,很复杂.</div><div align="left">EntityCreature类:NPC类,拥有寻路,移动等等...</div><div align="left">EntityAnimal类:动物类,拥有喂养度等等...不会攻击玩家,可以饲养</div><div align="left">EntityMob类:野怪类,有攻击力(主动不主动看它的派生类怎么设计)</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left">你可能很奇怪我为什么没有在上个知识点内写如何创建NPC,因为我发现这实在太浪费空间了,我决定一边制作范例Mod一边解释如何创建NPC.</div><div align="left">创建一个新类dcEntityDiracPig,将它的全部内容替换如下:</div><div class="blockcode"><div id="code_tQ7"><ol><li><br />
+<li>package net.minecraft.src;<br />
+<li>public class dcEntityDiracPig extends EntityMob<br />
+<li>{<br />
+<li>&nbsp; &nbsp; public dcEntityDiracPig(World world)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(world);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;texture = &quot;/mob/diracpig.png&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;setSize(0.9F, 0.9F);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;attackStrength = 2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;experienceValue = 5;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;moveSpeed = 1F;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public int getMaxHealth()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 20;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void writeEntityToNBT(NBTTagCompound nbttagcompound)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.writeEntityToNBT(nbttagcompound);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void readEntityFromNBT(NBTTagCompound nbttagcompound)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.readEntityFromNBT(nbttagcompound);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; protected String getLivingSound()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;mob.pig&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; protected String getHurtSound()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;mob.pig&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; protected String getDeathSound()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;mob.pigdeath&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; protected int getDropItemId()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Item.porkRaw.shiftedIndex;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_tQ7'));">复制代码</em></div><br />
+<div align="left">这是一个最简的Mob类,他包含了一个Mob所应有的全部功能.</div><div align="left">texture = &quot;/mob/pig.png&quot;;&nbsp;&nbsp;- 设置它的纹理</div><div align="left">setSize(0.9F, 0.9F);&nbsp; &nbsp;&nbsp; &nbsp; - 设置它的体积</div><div align="left">attackStrength = 2;&nbsp; &nbsp;&nbsp; &nbsp; - 设置它的攻击力</div><div align="left">experienceValue = 5;&nbsp; &nbsp;&nbsp;&nbsp;-设置它掉落的经验</div><div align="left">moveSpeed = 1F;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;-设置它的移动速度</div><br />
+<div align="left">public int getMaxHealth()</div><div align="left">&nbsp; &nbsp; {</div><div align="left">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 20;</div><div align="left">}</div><div align="left">设置它的最大生命值为20(玩家的HP即20)</div><br />
+<div align="left">getLiving/Hurt/DeathSound()&nbsp; &nbsp;设置它空闲/受伤/死亡时的声音</div><br />
+<div align="left">protected int getDropItemId()</div><div align="left">&nbsp; &nbsp; {</div><div align="left">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Item.porkRaw.shiftedIndex;</div><div align="left">}</div><div align="left">设置它死亡时掉落的物品</div><br />
+<div align="left">现在我们制作完了一个新的Mob,接下来要为他配置模型和Render,制作新的模型不在本文的讨论范围内,以后我会在Extra编中介绍如何制作新模型,我们现在自行设计一个新Render就行了.</div><br />
+<div align="left">创建一个叫dcRenderDiracPig的类,将它的全部代码替换如下:</div><div class="blockcode"><div id="code_kJo"><ol><li><br />
+<li>package net.minecraft.src;<br />
+<li>public class dcRenderDiracPig extends RenderLiving<br />
+<li>{<br />
+<li>&nbsp; &nbsp; public dcRenderDiracPig(ModelBase modelbase, float f)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(modelbase, f);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void renderDiracPig(dcEntityDiracPig entitypig, double d, double d1, double d2,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;float f, float f1)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.doRenderLiving(entitypig, d, d1, d2, f, f1);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void doRenderLiving(EntityLiving entityliving, double d, double d1, double d2,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;float f, float f1)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;renderDiracPig((dcEntityDiracPig)entityliving, d, d1, d2, f, f1);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void doRender(Entity entity, double d, double d1, double d2,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;float f, float f1)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;renderDiracPig((dcEntityDiracPig)entity, d, d1, d2, f, f1);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_kJo'));">复制代码</em></div><div align="left"><br />
+这样我们就有了一个可以渲染DiracPig的Render了.</div><div align="left">在mod_Diracon类中重写BaseMod的addRenderer方法</div><br />
+<div class="blockcode"><div id="code_bio"><ol><li><br />
+<li>public void addRenderer(Map map)<br />
+<li>&nbsp; &nbsp; {&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;map.put(dcEntityDiracPig.class, new dcRenderDiracPig(new ModelPig(), 0.7F));<br />
+<li>}</ol></div><em onclick="copycode($('code_bio'));">复制代码</em></div><div align="left"><br />
+Eclipse会在Map那里报一个错,因为你没有导入一个必要的包,将鼠标移到Map上,在弹出的窗口中选择Import&quot;Map&quot;.让Eclipse自动完成修正.</div><div align="left">addRenderer<font face="宋体">这个方法会获取游戏的渲染列表</font><font face="Times New Roman">(</font><font face="宋体">系统会把渲染</font><font face="Times New Roman">map</font><font face="宋体">发送给这个方法</font><font face="Times New Roman">),</font><font face="宋体">你可以为渲染列表添加渲染</font>,比如map.put(dcEntityDiracPig.class, new RenderPig(new ModelPig(), new ModelPig(0.5F), 0.7F));,dcEntityDiracPig.class是你的NPC的类,new RenderPig(new ModelPig(), new ModelPig(0.5F), 0.7F)是使用RenderPig类建立一个新的Render,并输入相关的参数,大部分Render只需要2个参数 - &quot;模型类&quot;和&quot;大小&quot;.在这里的模型类是ModelPig类,大小是0.7F.</div><br />
+<div align="left">接下来在load方法内加入</div><div class="blockcode"><div id="code_R1I"><ol><li><br />
+<li>ModLoader.registerEntityID(dcEntityDiracPig.class, &quot;DiracPig&quot;, 121);<br />
+<li>ModLoader.addSpawn(dcEntityDiracPig.class, 10, 4,4,EnumCreatureType.monster);</ol></div><em onclick="copycode($('code_R1I'));">复制代码</em></div><div align="left"><br />
+我们向游戏的实体列表添加了一个实体,它的里名字是DiracPig,实体ID是121(121~199是一片空闲的实体ID),被注册的类是dcEntityDiracPig.class</div><br />
+<div align="left"><font color="gray">getUniqueEntityId这个方法可以用来获取一个可用的空闲ID.但我不推荐使用这个,因为一旦你添加新mod导致读取顺序被改变,发生的事情会是未知的,你可以在EntityList.java中查看可用的实体ID.</font></div><br />
+<div align="left">最后我们向NPC刷新列表添加了一个新的刷新,EnumCreatureType.monster是设置刷新类型为Mob,这样它会在晚上刷出.10, 4,4是刷新频率,这个是大多数野怪的刷新参数,我们可以直接套用,具体的详细规则会在Extra编中讲解.</div><div align="left">此时,你的load方法的末尾代码应该是(图中的AddRenderer应为addRenderer)</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18424" aid="18424" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231633kp88kzp7pa0k08av.png" file="https://attachment.mcbbs.net/forum/201203/03/231633kp88kzp7pa0k08av.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="500" id="aimg_18424" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18424_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D1.png</strong> <em class="xg1">(58.66 KB, 下载次数: 37)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MjR8NmJjM2UxNDR8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:16 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">类的头部分应该是</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18425" aid="18425" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/2317077o2w5gvpgybo76ih.png" file="https://attachment.mcbbs.net/forum/201203/03/2317077o2w5gvpgybo76ih.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="268" id="aimg_18425" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18425_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D2.png</strong> <em class="xg1">(4.62 KB, 下载次数: 47)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MjV8ZDdlZjY1MGZ8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><br />
+<div align="left">最后我们为它绘制一个霸气的纹理.我们从Minecraft.jar中的mob目录内找到了猪的纹理pig.png,解压后将它乱涂一番,然后存到MCP目录下的lib\mob&nbsp;&nbsp;(自行新建文件夹) 改名叫diracpig.png</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18426" aid="18426" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/2317071a0j20agq0ibcqqq.png" file="https://attachment.mcbbs.net/forum/201203/03/2317071a0j20agq0ibcqqq.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="65" id="aimg_18426" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18426_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D3.png</strong> <em class="xg1">(2.06 KB, 下载次数: 93)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MjZ8MGM3ZTQ4MGZ8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">然后保存,编译,测试.</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18427" aid="18427" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231707trd7p0twdp8r887t.jpg" file="https://attachment.mcbbs.net/forum/201203/03/231707trd7p0twdp8r887t.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="500" id="aimg_18427" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18427_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D4.jpg</strong> <em class="xg1">(11.05 KB, 下载次数: 43)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0Mjd8YjhjNTVjMjV8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18428" aid="18428" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231708pntkpp36ltvt4nk3.jpg" file="https://attachment.mcbbs.net/forum/201203/03/231708pntkpp36ltvt4nk3.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="449" id="aimg_18428" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18428_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D5.jpg</strong> <em class="xg1">(9.16 KB, 下载次数: 46)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0Mjh8MWM4MmZkMGV8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">入夜后,不幸神隐入迪拉克之海(xi jian)的紫皮猪会出现,并向玩家发动进攻...用你的迪拉克之杖痛扁他们吧!</div><br />
+<div align="left"><font color="blue">让Dirac Pig去猎杀其他怪物</font></div><br />
+<div align="left">我们制作完了一个新的Mob,准确说是一个新的Entity,但现在感觉未免熊了点,我们的新怪物除了样子猎奇一点以外一点也不特别,所以我们现在来对他修改一下.让DiracPig能与玩家并肩作战.</div><br />
+<div align="left"><font color="red">知识点:OMGWTF!?怪物是怎么发现我的?</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">EntityMob类中的一个方法findPlayerToAttack()能获取一个怪物附近16格内可攻击并且可被怪物看见的玩家,<font color="gray">它的原理是由World类的getClosestVulnerablePlayerToEntity方法获取最近的可攻击的玩家,然后用EntityLiving类的canEntityBeSeen方法检测是否可被怪物看见</font>.我们只要重写findPlayerToAttack()方法就能让紫皮猪们自动寻找其他野怪去杀.</div><br />
+<div align="left"><font color="gray">MC中每个活物都有EyeHeight(眼高)这个属性,它代表这个活物的眼睛到地面的高度,默认的眼高是最大身高的85%,canEntityBeSeen方法的运作机理是利用World类的rayTraceBlocks方法在野怪的眼部到玩家的眼部创建一条线段,并判断线段是否会被方块挡住.</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left">但就在即将编写代码的时候我们又遇到了新的问题,游戏提供了getClosestVulnerablePlayerToEntity方法来查询距离某实体最近的玩家,但没有提供方法来查询距离某实体最近的怪物...但我们也有相应的解决办法,同样是World类,getEntitiesWithinAABB这个方法能够获取一个长方体内的指定类实体,它的运作机理很复杂,涉及到Chunk,这里就不过多解释了(读者:卧槽你其实是自己也没研究明白吧...)</div><br />
+<div align="left">为dcEntityDiracPig类添加这个方法</div><div class="blockcode"><div id="code_Ou1"><ol><li><br />
+<li>protected Entity findPlayerToAttack()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;double i = this.posX;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;double j = this.posY;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;double k = this.posZ;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;List list = worldObj.getEntitiesWithinAABB(net.minecraft.src.EntityMob.class, AxisAlignedBB.getBoundingBox((double)i - 16, (double)j - 4, (double)k - 16, (double)i + 16, (double)j + 4, (double)k + 16));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int a=0;a&lt;list.size();a++)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(list.get(a) instanceof dcEntityDiracPig == false)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return (Entity)list.get(a);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>}</ol></div><em onclick="copycode($('code_Ou1'));">复制代码</em></div>(注:在MCP7.0a以前,getBoundingBox这个方法的名字是getBoundingBoxFromPool) <br />
+<div align="left">i,j,k是迪拉克猪的坐标,list是调用getEntitiesWithinAABB方法后获得的返回列表,返回列表包括以迪拉克猪自身为中心,一个长宽32x32,高8的长方体内所有的怪物(EntityMob)实体.(顺便一提,getEntitiesWithinAABB的效率不高...用多了会卡).</div><div align="left">按照规范,我们应该先检查list是否是个空表,但在这里list一定包含了至少一个实体(迪拉克猪自己也会被列入list内)所以我们就不用检查了,之后我们会枚举list内所有的Object(懂得面向对象编程的人一定知道这是何物,顺便一问,Java有foreach这种枚举吗...我是学C#的=w=) 并判断它是否是dcEntityDiracPig(迪拉克猪)类,如果不是便将它转换为Entity并返回.(为什么我们要判断它是否等于迪拉克猪类?你总不会希望那紫皮猪自己打自己或同类相残吧...)</div><br />
+<div align="left">于是保存,编译,测试.</div><br />
+<div align="left">夜幕降临(~ Evening Star),紫皮猪再次出现,这次它们不但不会攻击玩家,反而会去猎杀怪物!虽然它们真的很弱...</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18429" aid="18429" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231708u73og6ww11738glz.png" file="https://attachment.mcbbs.net/forum/201203/03/231708u73og6ww11738glz.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="446" id="aimg_18429" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18429_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D6.png</strong> <em class="xg1">(72.87 KB, 下载次数: 46)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0Mjl8ZTlkMmU2ZTR8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><br />
+<br />
+<div align="left"><font color="blue">强化物品的功能,物品栏的操作,NBT的操作,TileEntity初解</font></div><br />
+<div align="left"><font color="blue">注意:这一部分所要实现的功能需要涉及修改游戏源文件.</font></div><div align="left"><font color="blue">对源文件的修改很容易导致Mod冲突,如果不是非常必要,请尽可能避免.</font></div><br />
+<div align="left">现在我们要制作迪拉克之杖(Dirac Wand)的强化功能,首先我们来设计一下它的功能:</div><div align="left">右击一个箱子A,再右击箱子B,就能把箱子A的物品转移至箱子B.</div><div align="left">箱子A的记录数据随物品绑定,存读游戏后依旧保留.</div><br />
+<div align="left"><font color="red">知识点:使用物品会引发的方法</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">我们已经知道hitEntity这个方法是在物体击中一个实体时引发(即左键攻击一个实体且命中时),接下来我会列出在其他情况下引发的方法.</div><br />
+<div align="left">左键挥动击中砖块时.</div><div align="left">getStrVsBlock&nbsp;&nbsp;返回一个物品对指定砖块可造成的伤害(注意你无法通过这个方法来获得一个具体的方块!)</div><div align="left">(2012.3.28备注:我猜想应该还是有办法来获取一个具体的方块,我会在Extra编中写)</div><br />
+<div align="left">左键挥动击中实体(NPC)时.</div><div align="left">hitEntity&nbsp;&nbsp;通常来说是降低指定物品的耐久度.<font color="gray">实质是让玩家对物品造成伤害.</font></div><div align="left">getDamageVsEntity&nbsp;&nbsp;返回一个物品对实体可造成的伤害.</div><br />
+<div align="left">敲碎一个砖块时</div><div align="left">onBlockDestroyed&nbsp;&nbsp;通常来说是降低物品的耐久度.<font color="gray">实质是让玩家对物品造成伤害.</font></div><div align="left">canHarvestBlock&nbsp;&nbsp;判断是否可以获得捣碎的砖块...这个功能比较含糊,建议还是使用上一个.</div><br />
+<div align="left">右键使用一个物品时</div><div align="left">onItemRightClick&nbsp;&nbsp;默认没有什么特殊功能.</div><div align="left">onItemUse&nbsp;&nbsp;对砖块使用时引发,和上面那个相比,它多了几个参数</div><div align="left">useItemOnEntity&nbsp;&nbsp;对某个实体使用物品时触发.</div><br />
+<div align="left">松开右键时</div><div align="left">onPlayerStoppedUsing 好吧这个功能不是很可靠,最好不要依赖它...</div><br />
+<div align="left">物品受到损伤时</div><div align="left">getMaxDamage&nbsp;&nbsp;返回一个物体的最大耐久度</div><br />
+<div align="left">物品被创建时</div><div align="left">onCreated&nbsp;&nbsp;充当构造函数的功能吧...</div><br />
+<div align="left">Update物品时(更新物品的状态)</div><div align="left">onUpdate&nbsp;&nbsp;没有太多可解释的...</div><br />
+<div align="left">这些方法的访问级都是public或protected,换句话说你可以随意在继承类中重写它们!HOYA!</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left">之后我们还要考虑如何存储这些数据,请记住,一切物品(Item)都是以物品栈(ItemStack)的形式在游戏世界中体现,比如当你拿着之前制作的迪拉克之杖时,你手中拿着的并非是一个叫diracwand的Item,而是一个类型为diracwand,数量为1的ItemStack.同理,一切数据也都要在储存在ItemStack的NBT节点中<font color="gray">(如果你够范可以学着ItemMap专门写一个类来储存数据,不过这样只会让你的工作量激增,最后你还是不得不求助于NBT)</font>.</div><br />
+<div align="left">现在便可以开始第一个规则的编写了,为dcItemDiracWand添加一个方法重写</div><div class="blockcode"><div id="code_QHH"><ol><li><br />
+<li>public boolean onItemUse(ItemStack itemstack, EntityPlayer entityplayer, World world, int i, int j, int k, int l)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; //待会在这里添加代码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_QHH'));">复制代码</em></div><div align="left"><br />
+这样我们便添加了一个onItemUse的重写,它会在玩家对一个砖块按右键时引发.</div><div align="left">之后为继续为方法添加代码</div><div class="blockcode"><div id="code_dby"><ol><li><br />
+<li>NBTTagCompound nbttagcompound = itemstack.getTagCompound();<br />
+<li>if(nbttagcompound == null)<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;itemstack.setTagCompound(new NBTTagCompound());<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound = itemstack.getTagCompound();<br />
+<li>}<br />
+<li>if(nbttagcompound.getBoolean(&quot;chestAExist&quot;) == false)<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;if(world.getBlockId(i, j, k) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nbttagcompound.setInteger(&quot;chestAx&quot;, (int)i);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nbttagcompound.setInteger(&quot;chestAy&quot;, (int)j);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nbttagcompound.setInteger(&quot;chestAz&quot;, (int)k);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;chestAExist&quot;, true);<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_dby'));">复制代码</em></div><div align="left"><br />
+这个代码会先获取物品栈的NBT节点,然后判断NBT节点是否存在,如果不存在则创建,之后检查节点的chestAExist数据是否是false(即使chestAExist不存在也没关系,不存在的Boolean类数据默认视为false)即判断是否设置过箱子A,如果没有那么便判断玩家右键的砖块是否是箱子,如果是就储存下玩家所右击的箱子的位置,并将chestAExist设为true.</div><div align="left">此时你的代码应该是这样</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18430" aid="18430" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231708ag5t5apo8lzrb6lp.png" file="https://attachment.mcbbs.net/forum/201203/03/231708ag5t5apo8lzrb6lp.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="471" id="aimg_18430" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18430_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D7.png</strong> <em class="xg1">(15.58 KB, 下载次数: 49)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzB8OGFjNjI3YWR8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">那么如果chestAExist存在且为true呢?自然就是转移箱子的物品了,在写下一步代码前先了解一下MC的物品储存机制和TileEntity的原理.</div><br />
+<div align="left"><font color="red">知识点:物品存储机制</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">当我写到这部分时我都畏葸了...因为我自己都没完全研究明白MC的物品存储系统的运作机理,但毕竟自己是写教程的...明白多少就得写多少了.</div><div align="left"><font color="gray">以单人模式下(多人模式下也类似,只不过运算会交给服务器端)的箱子的物品存储运作机理为例.</font></div><div align="left"><font color="gray">当玩家放置一个箱子后,就会在箱子的位置同时创建一个TileEntity(待会我会解释TileEntity为何物)</font></div><div align="left"><font color="gray">如果两个箱子连接为一个大箱子,它们俩的TileEntity不会合并.</font></div><div align="left"><font color="gray">当玩家打开一个箱子时,系统会分析这是一个小箱子还是一个大箱子,如果是小箱子就将它的TileEntityChest按照IInventory接口转换并作为参数输入玩家实体的displayGUIChest方法.如果是大箱子就将2个箱子的TileEntityChest转化为一个InventoryLargeChest类,最后再按照IInventory接口转换并作为参数输入玩家实体的displayGUIChest方法.这个方法经过一系列传导后最终会显示给玩家物品栏界面.</font></div><br />
+<div align="left"><font color="gray">解释:</font></div><div align="left"><font color="gray">TileEntityChest类包含了实体的创建和删除等方法,此外物品数据也存储于此</font></div><div align="left"><font color="gray">IInventory接口定义了最基本的几个方法:物品的存取等,它可以过滤掉TileEntityChest多余的方法.</font></div><div align="left"><font color="gray">InventoryLargeChest类是一个合集,它包括2个已按照IInventory接口转换过的TileEntityChest,分别对应两只箱子.它是基于IInventory接口创建的类,所以说它与IInventory接口完全匹配.</font></div><br />
+<div align="left">不管你是否看没看或看没看懂上面的文字,我们只要知道一个道理就能继续本篇的教程了:物品数据存储在TileEntityChest内.</div><div align="left">顺便一提,玩家的物品数据储存在EntityPlayer的inventory变量里.</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left"><font color="red">知识点:TileEntity初解</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">但愿你已经知道NBT是何物了吧...</div><div align="left">众所周知,MC中Entity(实体)会随着游戏保存进存档内,玩家是实体,所以玩家的背包也能被保存.然而砖块呢?</div><div align="left">答案是:当然也被保存,但为了缩小地图数据,所有的砖块(不管你是无用的泥砖还是神奇的火炉)都会被一视同仁地以最简形式(<font color="red">只有简单的ID等信息,没有坐标数据,没错,正是因为如此,你不能依靠一个Block类来获取一个砖块的坐标</font>!)储存起来,结果就是一些专有数据丢失了,比如箱子的储物,火炉内尚未取出的矿物.</div><div align="left"><font color="gray">(2012.3.28备注:我认为也许可以通过遍历对比一片区域内的Block来确定一个砖块的坐标,也许这里太难表达我的想法了,我会在Extra编中解释)</font></div><div align="left">为此,Notch使用了一个愚蠢的办法(比一[哔-]两制还要愚蠢):专门创造一种实体,用于储存砖块的信息.</div><div align="left">这种实体就是TileEntity</div><div align="left">TileEntity也和普通的Entity一样,直接存在于游戏世界中,然后有些TileEntity可以看到(比如牌子的TileEntitySignRenderer,它是用来在游戏世界中渲染文字),有些则看不见摸不着(比如箱子的TileEntityChest,它用来记录箱子内的物品).TileEntity与它所属的砖块是重叠在一起的,也就是说它与所属砖块的XYZ坐标都是一样的.游戏也是根据XYZ坐标来定位TileEntity,换句话说,如果你请求获取一个火炉的TileEntityFurnace,游戏会根据火炉的XYZ坐标来查找它所在的位置的TileEntityFurnace.这也是为什么有时你通过特殊手段刷出的特殊砖块会失效.</div><br />
+<div align="left">TileEntity和Entity一样,都需要将它的特殊信息保存入NBT中.</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><br />
+<div align="left">了解这些后我们就可以开始编写了.</div><div align="left">准备在if结构的下面,return true的上面,加入这些代码...</div><br />
+<div class="blockcode"><div id="code_Cc4"><ol><li><br />
+<li>else<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int Ax = (int)nbttagcompound.getInteger(&quot;chestAx&quot;); //读取NBT数据 <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int Ay = (int)nbttagcompound.getInteger(&quot;chestAy&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int Az = (int)nbttagcompound.getInteger(&quot;chestAz&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int Bx = i;&nbsp;&nbsp;//将当前敲得砖块坐标设为Bx,By,Bz<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int By = j;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int Bz = k;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(world.getBlockId(Ax, Ay, Az) != Block.chest.blockID) //如果箱子A不存在了,就返回<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(world.getBlockId(Bx, By, Bz) != Block.chest.blockID) //如果玩家敲得不是一个箱子,就返回<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Object obj = (TileEntityChest)world.getBlockTileEntity(Ax, Ay, Az); //取得箱子A的TileEntity并强转换为TileEntityChest<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//之后我们需要检测箱子A的前后左右有没有和他相连的箱子,如果有,将它们俩的TileEntity拼接成一个InventoryLargeChest<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Ax - 1, Ay, Az) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, (TileEntityChest)world.getBlockTileEntity(Ax - 1, Ay, Az),((IInventory) (obj)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Ax + 1, Ay, Az) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, ((IInventory) (obj)), (TileEntityChest)world.getBlockTileEntity(Ax + 1, Ay, Az));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Ax, Ay, Az - 1) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, (TileEntityChest)world.getBlockTileEntity(Ax, Ay, Az - 1),((IInventory) (obj)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Ax, Ay, Az + 1) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, ((IInventory) (obj)), (TileEntityChest)world.getBlockTileEntity(Ax, Ay, Az + 1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IInventory inv1 = (IInventory) obj; //将obj按照IInventory接口转换,并将结果存为Inv1.Inv1即箱子A的物品.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;obj = (TileEntityChest)world.getBlockTileEntity(Bx, By, Bz);//取得箱子B的TileEntity并强转换为TileEntityChest<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//同样,我们需要检测箱子B的前后左右有没有和他相连的箱子,如果有,将它们俩的TileEntity拼接成一个InventoryLargeChest<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Bx - 1, By, Bz) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, (TileEntityChest)world.getBlockTileEntity(Bx - 1, By, Bz), ((IInventory) (obj)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Bx + 1, By, Bz) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, ((IInventory) (obj)), (TileEntityChest)world.getBlockTileEntity(Bx + 1, By, Bz));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Bx, By, Bz - 1) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, (TileEntityChest)world.getBlockTileEntity(Bx, By, Bz - 1), ((IInventory) (obj)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getBlockId(Bx, By, Bz + 1) == Block.chest.blockID)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; obj = new InventoryLargeChest(&quot;Large chest&quot;, ((IInventory) (obj)), (TileEntityChest)world.getBlockTileEntity(Bx, By, Bz + 1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IInventory inv2 = (IInventory) obj; //将obj按照IInventory接口转换,并将结果存为Inv2.Inv2即箱子B的物品.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int ASize = inv1.getSizeInventory();//获取Inv1的箱子容量,箱子容量是所有格子的综合,一个小箱子是27容量.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int BSize = inv2.getSizeInventory();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int loop=0;loop&lt;ASize;loop++) //遍历Inv1的所有格子,在内部计数中,一个容量为N的箱子,所拥有的格子的编号为[0~(N-1)] 所以我们的循环范围是严格小于ASize<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemStack IS = inv1.getStackInSlot(loop); //获取Inv1在第loop个格子上的物品栈<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(IS != null)&nbsp;&nbsp;//如果物品栈不是null(不存在)的话.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for(int loop2=0;loop2&lt;=BSize;loop2++)&nbsp;&nbsp;//遍历Inv2的格子以寻找可插入物品栈的空位,注意由于我们需要处理特殊情况:Inv2没有可用的格子.所以我们让循环范围是小于等于BSize<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(loop2 == BSize) //如果loop等于箱子容量,即再也没有任何可用的空位,就让物品栈从箱子B中弹出来.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;EntityItem entityitem = new EntityItem(world, Bx, By + 1f, Bz, IS); //创建一个EntityItem,它代表在游戏中被扔在地上的物品栈<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;entityitem.delayBeforeCanPickup = 10; //设置拾取延迟.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;world.spawnEntityInWorld(entityitem); //生成实体<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;inv1.setInventorySlotContents(loop, null); //将Inv1中的对应物品栈抹除(设为null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break; //中止循环<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(inv2.getStackInSlot(loop2) == null) //如果发现了可用空位.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;inv2.setInventorySlotContents(loop2, IS); //在Inv2的可用空位制造一个一模一样的物品栈<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;inv1.setInventorySlotContents(loop, null); //清除Inv1中对应的物品栈<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break; //中止循环<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound.setBoolean(&quot;chestAExist&quot;, false); //将NBT中的&quot;已存在箱子A&quot;设为false<br />
+<li>}</ol></div><em onclick="copycode($('code_Cc4'));">复制代码</em></div><br />
+<div align="left">很高能吧...它和你的其他代码的位置关系是这样的.</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18431" aid="18431" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231708i6yonp3f8nyyn733.png" file="https://attachment.mcbbs.net/forum/201203/03/231708i6yonp3f8nyyn733.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="371" id="aimg_18431" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18431_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D8.png</strong> <em class="xg1">(11.17 KB, 下载次数: 43)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzF8YTU3ZTU2NWZ8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18432" aid="18432" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231708l585yukkytog3to8.png" file="https://attachment.mcbbs.net/forum/201203/03/231708l585yukkytog3to8.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="184" id="aimg_18432" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18432_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D9.png</strong> <em class="xg1">(1.93 KB, 下载次数: 45)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzJ8ZTZlMWY2MDV8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">但如果你在此时编译测试的话你会发现它在游戏里毫无效果,因为游戏默认设置如果你持有具有右键功能的物品对具有特殊功能的砖块按右键的话,只会执行右键砖块的效果,所以我们必须修改游戏源文件(再次说明,为了防止Mod冲突,对源文件修改一定要尽量避免,但如果迫不得已也不要吊死在一棵树上,该修改时就修改...)打开PlayerControllerSP.java,找到onPlayerRightClick方法,将</div><div align="left">if (i &gt; 0 &amp;&amp; Block.blocksList<i>.blockActivated(par2World, par4, par5, par6, par1EntityPlayer))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}</i></div><div align="left"><i>修改为</i></div><div class="blockcode"><div id="code_lIw"><ol><li>if(par1EntityPlayer.isSneaking() == false)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (i &gt; 0 &amp;&amp; Block.blocksList[i].blockActivated(par2World, par4, par5, par6, par1EntityPlayer))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_lIw'));">复制代码</em></div><div align="left"><i><br />
+这样如果玩家按住Shift的话,始终只会执行物品的功能.</i></div><i><br />
+<div align="left">编译程序,然后开始测试.</div><br />
+<div align="left">使用迪拉克之杖按住Shift对着一个箱子按右键,然后对着另一个箱子按右键,第一个箱子的物品就会转移至第二个箱子,如果空间不够的话就会弹出在第二个箱子的上方.</div><br />
+<div align="left"><font color="blue">添加特效与屏幕文字</font></div><br />
+<div align="left">现在做成了一个迪拉克之杖,但我们发现它缺乏足够的提示,有时候我们不清楚到底有没有设置成功,所以我们希望添加一些提示,比如特效什么的.</div><br />
+<div align="left"><font color="red">知识点:波与粒的境界</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">游戏中有一些粒子特效,比如你敲砖块时崩发出的岩石碎片,敌人倒地后出现的灰色烟雾,紫色的传送门中散发出的光粒,这些粒子特效全部派生自一个类:EntityFX(特效实体)</div><div align="left">EntityFX派生自Entity类,默认的可输入参数有World,d,d2,d3,d4,d5,d6(某些特殊的派生类根据需求不同改掉了一些参数,但大体仍不变),World是特效所在的世界,d,d2,d3对应xyz坐标,d4,d5,d6对应速度向量在xyz三个轴上的分速度.</div><br />
+<div align="left">至于你问波在哪,我也不知道...</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">我们决定使用使用EntityPortalFX(传送门的光粒特效)作为粒子特效,我们设置箱子时能够让箱子崩发出一些粒子特效.</div><br />
+<div align="left">在NBTTagCompound nbttagcompound = itemstack.getTagCompound();的下方加入</div><div class="blockcode"><div id="code_c8o"><ol><li><br />
+<li>Random random = new Random();</ol></div><em onclick="copycode($('code_c8o'));">复制代码</em></div><br />
+<div align="left">之后Eclipse会报错,用纠错功能添加缺少的包</div><br />
+<div align="left">在设定箱子A的部分中的nbttagcompound.setBoolean(&quot;chestAExist&quot;, true);的下方加入</div><div class="blockcode"><div id="code_SV9"><ol><li><br />
+<li>for(int number = 0;number &lt;= 10;number++)<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;world.spawnParticle(&quot;portal&quot;,(double)i+0.5,(double)j,(double)k+0.5,(double)random.nextFloat() - 0.5D,(double)random.nextFloat(),(double)random.nextFloat() - 0.5D);<br />
+<li>}</ol></div><em onclick="copycode($('code_SV9'));">复制代码</em></div><br />
+<div align="left">这个代码能够创建10个粒子并他们向上方喷发(在游戏内不明显,这是由于EntityPortalFX的特性),并且随机带有一些角度.portal是传送门的光粒子的名字.关于各种粒子的名字,可以在RenderGlobal.java内找到.</div><br />
+<div align="left">在为箱子B传送物品的部分中的nbttagcompound.setBoolean(&quot;chestAExist&quot;, false);的下方加入相同的代码.</div><div class="blockcode"><div id="code_J3L"><ol><li><br />
+<li>for(int number = 0;number &lt;= 10;number++)<br />
+<li>{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;world.spawnParticle(&quot;portal&quot;,(double)i+0.5,(double)j,(double)k+0.5,(double)random.nextFloat() - 0.5D,(double)random.nextFloat(),(double)random.nextFloat() - 0.5D);<br />
+<li>}</ol></div><em onclick="copycode($('code_J3L'));">复制代码</em></div><div align="left"><br />
+这样我们就做完粒子特效了,那不妨再加一点别的,比如文字提示.</div><br />
+<div align="left"><font color="red">知识点:向玩家屏幕的左下角显示文字</font></div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">事实上,实现这个功能非常简单,你只要调用一个玩家实体的addChatMessage方法就行了.唯一的难度就是如何获取玩家实体.告诉你个办法,Wolrd类的playerEntities列表包含所有位于这个世界的玩家.如果你问我如何获取Wolrd...</div><div align="left"><font color="red">///////////////////////////////////////////////////////////////////////////////////////////////////////////</font></div><div align="left">在我们添加粒子特效的代码下新起一行,分别加入</div><div class="blockcode"><div id="code_hfY"><ol><li><br />
+<li>entityplayer.addChatMessage(&quot;已设置传送起点&quot;);</ol></div><em onclick="copycode($('code_hfY'));">复制代码</em></div><div class="blockcode"><div id="code_BgJ"><ol><li>entityplayer.addChatMessage(&quot;物品传送完毕&quot;);</ol></div><em onclick="copycode($('code_BgJ'));">复制代码</em></div><div align="left"><br />
+这时你的代码应该是这个样子.</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18433" aid="18433" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/2317081sozvhbjhhsaqyz1.png" file="https://attachment.mcbbs.net/forum/201203/03/2317081sozvhbjhhsaqyz1.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="471" id="aimg_18433" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18433_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D10.png</strong> <em class="xg1">(16.04 KB, 下载次数: 42)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzN8OWUzMmFiMTl8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18434" aid="18434" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/23170934ia83po1p5odgxp.png" file="https://attachment.mcbbs.net/forum/201203/03/23170934ia83po1p5odgxp.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="346" id="aimg_18434" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18434_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D11.png</strong> <em class="xg1">(7.65 KB, 下载次数: 40)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzR8Y2E5NGQwNzV8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">于是保存,编译,测试.</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_18435" aid="18435" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201203/03/231709ici4qdcqwqa04i6n.png" file="https://attachment.mcbbs.net/forum/201203/03/231709ici4qdcqwqa04i6n.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="500" id="aimg_18435" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_18435_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>D12.png</strong> <em class="xg1">(148.62 KB, 下载次数: 45)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTg0MzV8YmQyNmQzMTZ8MTYxMzcwNDYzOHwyNDE5NDg2fDE4OTQy&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2012-3-3 23:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><br />
+<div align="left">如果你完成了上面的几章,那么现在你已经有能力制作一些更加复杂的mod了.你现在能创建新的Mob,能重写Mob的行为模式,能为物品添加功能,创建粒子特效,向玩家屏幕输出文字.下一篇我们会学习最后两个部分,地形生成器和TileEntity的创建.</div><br />
+<div align="left">但愿你还没有读晕吧=w=反正作为写的人我还没晕.</div><br />
+<br />
+<div align="left">下一篇:地形生成器,制作新的TileEntity</div><div align="left"><a href="thread.html?t=18944" target="_blank">http://www.mcbbs.net/thread-18944-1-1.html</a></div></i><script type="text/javascript" reload="1">
+aimgcount[250605] = ['18424','18425','18426','18427','18428','18429','18430','18431','18432','18433','18434','18435'];
+attachimggroup(250605);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DR.MC.ztz&nbsp; &nbsp; <b>时间: </b>2012-3-3 23:24<br />
+OMG LZ真牛<img src="static/image/smiley/rabbit/17.gif" smilieid="667" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>谜之塔&nbsp; &nbsp; <b>时间: </b>2012-3-3 23:25<br />
+看不懂。。<img src="static/image/smiley/rabbit/49.gif" smilieid="699" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>geludan&nbsp; &nbsp; <b>时间: </b>2012-3-4 00:07<br />
+好的，表示我没有明白上一篇内容，所以我只是打酱油<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>514572031&nbsp; &nbsp; <b>时间: </b>2012-3-7 19:53<br />
+好强大！好多字！（虽然看不懂）<img src="static/image/smiley/mc_mob_food_plants/pig.gif" smilieid="841" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jacky1440&nbsp; &nbsp; <b>时间: </b>2012-3-9 07:08<br />
+LZ太强大了。。。英语一定超级好！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yyq90&nbsp; &nbsp; <b>时间: </b>2012-6-10 23:03<br />
+原文地址在哪啊？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kuafuzhuguang&nbsp; &nbsp; <b>时间: </b>2012-6-29 09:16<br />
+把aabb的范围缩小然后用宽搜之类的方法每次只aabb很小一块会不会快些呢，类似于懒惰加载的方法。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>6112562a&nbsp; &nbsp; <b>时间: </b>2012-7-2 22:02<br />
+我的猪模型怎么变成了人的样子？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阿克罗&nbsp; &nbsp; <b>时间: </b>2012-7-2 22:09<br />
+<img src="static/image/smiley/rabbit/48.gif" smilieid="698" border="0" alt="" />免免强强看得懂，不过。。。。。。。。。。<img src="static/image/smiley/rabbit/49.gif" smilieid="699" border="0" alt="" />好晕<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>6112562a&nbsp; &nbsp; <b>时间: </b>2012-7-4 11:00<br />
+我知道原因了，<br />
+<div class="blockcode"><div id="code_DC9"><ol><li>public void AddRenderer(Map map)<br />
+<li>{ <br />
+<li>map.put(dcEntityDiracPig.class, new dcRenderDiracPig(new ModelPig(), 0.7F));<br />
+<li>}</ol></div><em onclick="copycode($('code_DC9'));">复制代码</em></div>这里的方法应该是<br />
+<div class="blockcode"><div id="code_Eud"><ol><li>@Override<br />
+<li>public void addRenderer(Map map) {<br />
+<li>// TODO Auto-generated method stub<br />
+<li>map.put(dcEntityDiracPig.class, new dcRenderDiracPig(new ModelPig(), 0.7F));<br />
+<li>}</ol></div><em onclick="copycode($('code_Eud'));">复制代码</em></div>原来是个覆写，我一直当自定义的方法了，不过猪猪的材质变化很厉害啊，看的好累<br />
+没法上传图片，猪猪的材质都浮空了。<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>A-Kreedz&nbsp; &nbsp; <b>时间: </b>2012-7-27 21:32<br />
+求QQ号码{:10_527:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>123g4&nbsp; &nbsp; <b>时间: </b>2015-3-28 17:36<br />
+读晕了==<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天蝎_心殇&nbsp; &nbsp; <b>时间: </b>2015-8-13 09:51<br />
+白玉楼蹦了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaofeieie&nbsp; &nbsp; <b>时间: </b>2015-8-14 09:14<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

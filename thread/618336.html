@@ -1,0 +1,185 @@
+<html>
+<head>
+<title>[CBL§秋一][1.9-1.10]简单易懂的CD系统 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[CBL§秋一][1.9-1.10]简单易懂的CD系统 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2016-8-9 23:45<br />
+<b>标题: </b>[CBL§秋一][1.9-1.10]简单易懂的CD系统<br /><i class="pstatus"> 本帖最后由 acordome 于 2016-8-22 09:31 编辑 </i><br />
+　　大家好，我是秋一，好久不见。这次给大家发一个通俗易懂的CD系统，相信可以对正在做PVP/PVE地图的各位提供一些便利。<br />
+<br />
+　　在这个帖子里，<i><strong>你不会看到多么高深的指令逻辑，但是你可以看到整个系统的设计思路，以及完善和优化的过程</strong></i>。老手们觉得无聊可以点击右上角离开，同时也欢迎大家指正文中的错误。<br />
+<br />
+　　本帖所有指令适用于<strong>Minecraft 1.9以上版本，写帖子的时候最新版本是1.10.2</strong>，请知悉。<br />
+<br />
+　　本帖所涉及的命令方块都是高频指令链，即以循环型命令方块(RCB)开头，后续全是连锁型命令方块(CCB)，以保证指令的逻辑性和连贯性。<br />
+<br />
+　　在开始贴指令前，我们先来分析一下核心的功能。一般来说，CD的判定通常都是这么一个过程：<br />
+<br />
+　　　　<strong>判断使用物品 </strong>-&gt; <strong>设置CD时间 </strong>-&gt; <strong>CD计时器激活 </strong>-&gt; <strong>冷却完毕补给</strong><br />
+<br />
+　　需要注意的是，由于每个人的<strong>CD是单独计算的</strong>，因此我们不能够使用全局计时/操作，<strong>选择器</strong>和<strong>记分板</strong>的合理运用才是正确的解法。<br />
+<br />
+　　我们首先来谈谈<strong>触发方式</strong>。过去有很多种触发方式，例如右键、Q等等，1.9以后还可以用副手触发，与之对应的检测方法有很多，但是主要原理都是<strong>通过选择器中与记分相关的参数来实现检测</strong>，例如：<div class="blockcode"><div id="code_z6D"><ol><li>stat.useItem.minecraft.carrot_on_a_stick</ol></div><em onclick="copycode($('code_z6D'));">复制代码</em></div>　　这个判据，在你右键胡萝卜钓竿的时候会自动+1分，，假定这个记分项取名叫rightClick，你就可以<strong>通过选择器来选中</strong><div class="blockcode"><div id="code_AvG"><ol><li>#前置指令<br />
+<li>/scoreboard objectives add rightClick stat.useItem.minecraft.carrot_on_a_stick 右键探测<br />
+<li><br />
+<li>#高频CB链执行<br />
+<li>kill @a[score_rightClick_min=1]<br />
+<li>scoreboard players reset @a[score_rightClick_min=1] rightClick</ol></div><em onclick="copycode($('code_AvG'));">复制代码</em></div>　　这样的话，当你右键胡萝卜钓竿时，你就挂了。<br />
+<br />
+　　另一种是<strong>物品栏检测</strong>，更准确地说，是检测玩家NBT。例如检测副手有物品就杀掉：<div class="blockcode"><div id="code_q43"><ol><li>#高频执行<br />
+<li>scoreboard players tag @a add offhandKill {Inventory:[{Slot:-106b}]}<br />
+<li>replaceitem entity @a[tag=offhandKill] slot.weapon.offhand minecraft:air<br />
+<li>kill @a[tag=offhandKill]<br />
+<li>scoreboard players tag @a[tag=offhandKill] remove offhandKill</ol></div><em onclick="copycode($('code_q43'));">复制代码</em></div><br />
+　　类似的小技巧在这里就不解释了，如果有需要，欢迎提问。<br />
+<br />
+　　接下来，我们以<strong>模拟手枪的装填</strong>为例，来讲解这个CD系统的工作过程：假设你<strong>1号位有10个雪球</strong>，你可以<strong>右键发射</strong>，并且可以<strong>在任意时候按F来进行装填</strong>；当你<strong>打完10发雪球后，1号位替换为一个屏障</strong>，需要你<strong>手动按F来进行装填</strong>，装填<strong>耗时2秒</strong>。<br />
+<br />
+　　按照前面所说的，我们可以用判断使用了10发雪球的玩家，或者判断玩家的1号位是否为空。<br />
+　　第一种办法比较简单，就是使用对应的判据，即stat.useItem.minecraft.snowball。但是这样容易出问题，比如你在不同的快捷栏有相同ID的道具（如雪球），那么你这个判定就会彻底乱掉，所以<strong>比较好的办法是使用物品栏检测</strong>。正好题设里触发CD时间的条件是<strong>雪球或者屏障通过按F键将物品放到副手</strong>。<br />
+<br />
+　　然后是设置CD时间，前面说到，由于CD是每个人单独计算的，因此不能够进行全局操作，也就是说，不能使用testfor这类指令，因此，我们需要通过记分板操作来实现这个检测。<br />
+<br />
+　　这里我们需要一个变量来实现计时，因此：<div class="blockcode"><div id="code_RVV"><ol><li>#前置<br />
+<li>/scoreboard objectives add snowballCD dummy 装填时间</ol></div><em onclick="copycode($('code_RVV'));">复制代码</em></div>　　当检测到副手有相应物品后，触发的操作是设置CD，同时还要清除物品，如下:<div class="blockcode"><div id="code_Z5t"><ol><li>#高频执行<br />
+<li>scoreboard players tag @a add reload {Inventory:[{Slot:-106b}]}<br />
+<li>replaceitem entity @a[tag=reload] slot.weapon.offhand air<br />
+<li>scoreboard players set @a[tag=reload] snowballCD 40<br />
+<li>scoreboard playesr tag @a[tag=reload] remove reload</ol></div><em onclick="copycode($('code_Z5t'));">复制代码</em></div><br />
+　　这样就可以完成设置冷却时间<br />
+<br />
+　　因为这个例子里面只有一种物品需要这么检测，所以你可以这么写，但是如果你有好多个物品要做CD系统，那么你可以给物品加上<strong>自定义NBT</strong>来方便管理，这个我会在后面提到。<br />
+<br />
+　　接下来我们需要计时。就我个人而言，我更喜欢减分计时，因为<strong>CD就是倒计时</strong>嘛！减分计时更容易理解。<br />
+<br />
+　　但是这个减分不能一直减，到一定的条件以后就要停下来，显然这个条件是分数为0的时候<div class="blockcode"><div id="code_pDn"><ol><li>#高频执行<br />
+<li>scoreboard players remove @a[score_snowballCD=0,score_snowballCD_min=0] snowballCD 1</ol></div><em onclick="copycode($('code_pDn'));">复制代码</em></div>　　但CD时间结束的时候，记分应当停留在-1，不需要大家进行重置，因为这个-1在后面还会派上用场。<br />
+<br />
+　　最后是补给物品，<strong>强烈建议大家不要在这里用give，用replaceitem</strong>：<div class="blockcode"><div id="code_PjQ"><ol><li>#接上面那条<br />
+<li>replaceitem entity @a[score_snowballCD=0,score_snowballCD_min=0] slot.hotbar.0 snowball 10</ol></div><em onclick="copycode($('code_PjQ'));">复制代码</em></div><br />
+　　乍一看好像没什么问题，但是聪明的读者一定一下子就发现了，有一个要求还没有实现，那就是打完雪球以后把1号位替换为屏障，那这要怎么做呢？<br />
+　　前面说了比较简单的方法是为使用了10个雪球的玩家替换物品，同时重置该记分板，另一种办法是检测物品栏。在这里，我选择了物品栏检测，因为这不仅比较可靠，而且不会和其他物品产生冲突。什么冲突呢？比如你有两个快捷栏都有雪球，那物品你使用哪个位置的雪球，只要你打满10发，就会触发替换屏障，这是不科学的，也是不可取的，所以我选择物品栏检测。<br />
+<br />
+　　这个检测跟上面的还不一样，是要<strong>检测一个位置是否为空</strong>，更准确讲，是要<strong>检测该位置是不是符合我们预想的道具</strong>。<br />
+<br />
+　　于是我们可以这么想，给1号位有这个道具的玩家加上tag，再对CD时间为-1（即没有处于冷却时间中的玩家）进行tag反选来检测。<br />
+<br />
+　　这么说好像很绕，那我们直接来看：<div class="blockcode"><div id="code_Q7m"><ol><li>#高频执行<br />
+<li>scoreboard players tag @a[score_snowballCD=-1] add withSnowball {Inventory:[{Slot:0b}]}<br />
+<li>replaceitem entity @a[score_snowballCD=-1,tag=!withSnowball] slot.hotbar.0 barrier<br />
+<li>scoreboard plyaers tag @a[tag= withSnowball] remove withSnowball</ol></div><em onclick="copycode($('code_Q7m'));">复制代码</em></div><br />
+　　这样就完成了整个功能。<br />
+<br />
+　　如果只是一个小模组的话，这样也许已经可以了，但是<strong>实际制作地图你需要考虑很多很多的东西</strong>，接下来，我们来对上述指令进行完善和优化——<br />
+<br />
+　　首先，我们要引入clear指令，来防止玩家刷道具。就像上面的系统，玩家只要打开物品栏把雪球换到其他位置就可以获取到屏障，进而可以触发一次装填来刷道具，这是我们不希望看到的，于是我们要在replaceitem之前先clear。<br />
+<br />
+　　其次，我们要把CD计时放到补给之前。<br />
+<br />
+　　并且，<strong>为了不和其他道具产生冲突，同时又不能使系统过于庞大，我们可以选择对道具加上自定义NBT</strong>，来统一操作。<br />
+<br />
+　　由于是物品栏检测，所以最后并没有使用雪球使用判定。当然我也会给出另一种需要到雪球使用判定的场景，这个在后面会讲到。<br />
+<br />
+　　下面是完整的指令<div class="blockcode"><div id="code_u9u"><ol><li>#前置记分板<br />
+<li>/scoreboard objectives add snowballCD dummy 装填CD<br />
+<li>/scoreboard players add @a snowballCD 0<br />
+<li><br />
+<li>#高频执行 <br />
+<li>scoreboard players remove @a[score_snowballCD_min=0] snowballCD 1<br />
+<li>clear @a[score_snowballCD=0,score_snowballCD_min=0] snowball -1 64 {reload:1}<br />
+<li>replaceitem entity @a[score_snowballCD=0,score_snowballCD_min=0] snowball 10 0 {reload:1}<br />
+<li><br />
+<li>//装填判定<br />
+<li>scoreboard players tag @a[score_snowballCD=-1] add reloadAmmo {Inventory:[{Slot:-106b,tag:{reload:1}}]}<br />
+<li>replaceitem entity @a[score_snowballCD=-1,tag=reloadAmmo] slot.weapon.offhand air<br />
+<li>scoreboard players set @a[score_snowballCD=-1,tag=reloadAmmo] snowballCD 40<br />
+<li>scoreboard players tag @a[tag=reloadAmmo] remove reloadAmmo<br />
+<li><br />
+<li>//防改位判定<br />
+<li>scoreboard players tag @a[score_snowballCD=-1] add withSnowball {Inventory:[{Slot:0b,tag:{reload:1}}]}<br />
+<li>clear @a[score_snowballCD=-1,tag=!withSnowball] snowball -1 64 {reload:1}<br />
+<li>clear @a[score_snowballCD=-1,tag=!withSnowball] barrier -1 64 {reload:1}<br />
+<li>replaceitem entity @a[score_snowballCD=-1,tag=!withSnowball] slot.hotbar.0 barrier 1 0 {reload:1,display:{Name:&quot;按 F 重新装填&quot;},HideFlags:63,ench:[]}<br />
+<li>scoreboard players tag @a[tag=withSnowball] remove withSnowball</ol></div><em onclick="copycode($('code_u9u'));">复制代码</em></div>　　最后的防改位判定，对于不需要判定装填的系统，可以把其中的replaceitem那一条换成设置CD时间的指令。<strong>就我个人而言，我觉得最后防改位判定是这个CD系统的重点。原因是有时候服务器会因为卡顿没有在CD=0的瞬间补给物品，下一刻，你的CD就变成-1了，却没有得到物品补给，</strong>整个人就会傻掉。<br />
+<br />
+　　各位可以再看看另一种情形：<br />
+<br />
+　　假设<strong>2号位有3个鸡蛋</strong>，<strong>如果数量不足3</strong>，则<strong>每3秒补给1个</strong>。<br />
+<br />
+　　这个比较好判定，直接用相应的判据即可，完整指令如下：<div class="blockcode"><div id="code_CUA"><ol><li>#前置指令<br />
+<li>/scoreboard objectives add eggUse stat.useItem.minecraft.egg 使用了鸡蛋<br />
+<li>/scoreboard objectives add eggCD dummy 鸡蛋CD时间<br />
+<li>/scorebard players add @a eggCD 0<br />
+<li><br />
+<li>#高频执行</ol></div><em onclick="copycode($('code_CUA'));">复制代码</em></div><br />
+　　大家可以看到，实际上就算没有最后的几条指令，也照样可以工作的……所以说这个判定属于非必要、但是是细节层面的设计。<br />
+<br />
+　　再来一个例子：<strong>3号位有16个雪球，打完后等30秒自动补给</strong>。<br />
+<br />
+　　这个跟第一个比较不一样了，它的物品ID和数量跟1号位互相冲突，因此之前那种 <strong><i>判断玩家使用了多少个雪球然后触发设置CD时间 </i></strong>的方法不可取。考虑到1号位已经有雪球，3号位的雪球还必须是打完了才能进行CD设置，所以我们需要这么来写。<br />
+<br />
+　　完整指令如下：<div class="blockcode"><div id="code_WZj"><ol><li>#前置指令<br />
+<li>/scoreboard objectives add snowballUse stat.useItem.minecraft.snowball 雪球使用判定<br />
+<li>/scoreboard objectives add snowbllCD2 dummy 第2个雪球CD<br />
+<li><br />
+<li>#高频执行<br />
+<li>scoreboard players set @a[score_snowballUse_min=1,tag=snowballSelected] ramItemCD 600 {SelectedItemSlot:2}<br />
+<li>clear @a[score_ramItemCD_min=600] snowball -1 64 {ramItem:1}<br />
+<li>scoreboard players tag @a[tag=!snowballSelected] add snowballSelected {SelectedItem:{id:&quot;minecraft:snowball&quot;,Count:1b,tag:{ammo:2}}}<br />
+<li>scoreboard players tag @a[score_snowballUse_min=1,tag=snowballSelected] remove snowballSelected<br />
+<li><br />
+<li>//CD计时与补给<br />
+<li>scoreboard players remove @a[score_snowballCD2_min=0] snowballCD2 1<br />
+<li>clear @a[score_snowballCD=0,score_snowballCD2_min=0] snowball -1 64 {ammo:2}<br />
+<li>replaceitem entity @a[score_snowballCD2=0,score_snowballCD2_min=0] snowball 10 0 {ammo:2}<br />
+<li><br />
+<li>//防改位判定<br />
+<li>scoreboard players tag @a[score_snowballCD2=-1] add withSnowball2 {Inventory:[{Slot:2b,tag:{ammo:2}}]}<br />
+<li>scoreboard players tag @a[score_ snowballCD2=-1] remove withSnowball2 {Inventory:[{Slot:-106b,tag:{ammo:2}}]}<br />
+<li>clear @a[score_ snowballCD2=-1,tag=!withRamItem] snowball -1 64 {ammo:2}<br />
+<li>scoreboard players set @a[score_ramItemCD=-1,tag=!withSnowball2] ramItemCD 600<br />
+<li>scoreboard players tag @a[tag=withSnowball2] remove withSnowball2</ol></div><em onclick="copycode($('code_WZj'));">复制代码</em></div><br />
+　　瞧！这是多么通俗易懂又好用的CD系统！<br />
+<br />
+　　也许这时候会有朋友说，如果东西丢出去一部分又捡回来怎么办？这样也可以刷物品啊！<br />
+<br />
+　　好，接下来我们来解决这个问题。<br />
+<br />
+　　你需要明确一点：<br />
+　　　　<strong>你的地图是否允许物品以实体形式存在</strong>？<br />
+<br />
+　　这个问题关系到你是否需要对整个系统的道具进行修改。如果允许实体物品存在，那么你可以选择这几种做法：<ul type="1" class="litype_1"><li>对所有不需要kill的实体物品添加一个tag，然后kill掉所有没有这个tag的所有实体<li>给你所有的道具加上自定义NBT，然后给带有这个NBT的所有实体加上一个tag，再kill掉所有没有这个tag的实体<li>给物品实体设置 PickupDelay，不可拾起。<li>允许捡起，但是直接清除物品，并根据stat.pick.xxx判据和stat.drop.xxx判据来触发功能<br />
+</ul><br />
+　　如果不允许实体物品形式，那么直接kill掉所有物品即可。<br />
+<br />
+　　该系统的基本思路至此结束。虽然这个系统看起来很简单，但是如果你道具很多的话，你最后做出来的系统不会很小。以我个人的经验看，做地图实际上比拼的是细节。因为玩家很少看你做了多少很黑科技但是毫无玩法可言的东西，而是看你的图整体表现和细节涉及。记住一句话：<strong>一个BUG=一万个BUG</strong>。<br />
+<br />
+　　希望这个小小的系统可以帮助到大家。最后，祝大家玩得开心！<br />
+<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>坑佑雷~&nbsp; &nbsp; <b>时间: </b>2016-8-10 00:42<br />
+CB一窍不通的坑表示这沙发坐的不是很稳当<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MODlover&nbsp; &nbsp; <b>时间: </b>2016-8-20 17:40<br />
+我还以为是刷碟片呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2016-8-21 13:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10819493&amp;ptid=618336" target="_blank"><font color="#999999">MODlover 发表于 2016-8-20 17:40</font></a></font><br />
+我还以为是刷碟片呢</blockquote></div><br />
+我看你回复还以为我帖子分类错了呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>siss&nbsp; &nbsp; <b>时间: </b>2016-8-21 21:22<br />
+讲的很详细啊，赞<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2017-3-2 20:08<br />
+咦,这不是你在ChinaJoy那会写的东西嘛?XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huang520&nbsp; &nbsp; <b>时间: </b>2020-7-26 10:37<br />
+<img src="static/image/smiley/rabbit/47.GIF" smilieid="697" border="0" alt="" />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

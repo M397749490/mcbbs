@@ -1,0 +1,206 @@
+<html>
+<head>
+<title>防攻击脚本 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>防攻击脚本 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>匿名&nbsp; &nbsp; <b>时间: </b>2018-12-28 21:29<br />
+<b>标题: </b>防攻击脚本<br />root_need() {<br />
+&nbsp; &nbsp; if [[ $EUID -ne 0 ]]; then<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;echo &quot;Error:This script must be run as root!&quot; 1&gt;&amp;2<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;exit 1<br />
+&nbsp; &nbsp; fi<br />
+}<br />
+<br />
+check_release() {<br />
+&nbsp; &nbsp; if uname -a | grep el7&nbsp;&nbsp;; then<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;release=&quot;centos7&quot;<br />
+&nbsp; &nbsp; elif uname -a | grep el6 ; then<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;release=&quot;centos6&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;yum install ipset -y<br />
+&nbsp; &nbsp; elif cat /etc/issue |grep -i ubuntu ; then<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;release=&quot;ubuntu&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;apt install ipset -y<br />
+&nbsp; &nbsp; fi<br />
+}<br />
+<br />
+get_china_ip() {<br />
+&nbsp; &nbsp; &nbsp; &nbsp; (wget)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; rpm --help &gt;/dev/null 2&gt;&amp;1 &amp;&amp; rpm -qa |grep wget &gt;/dev/null 2&gt;&amp;1 ||yum install -y wget ipset &gt;/dev/null 2&gt;&amp;1 <br />
+&nbsp; &nbsp; &nbsp; &nbsp; dpkg --help &gt;/dev/null 2&gt;&amp;1 &amp;&amp; dpkg -l |grep wget &gt;/dev/null 2&gt;&amp;1 ||apt-get install wget ipset -y &gt;/dev/null 2&gt;&amp;1<br />
+<br />
+&nbsp; &nbsp; &nbsp; &nbsp; [ -f china_ip_list.txt ] &amp;&amp; mv china_ip_list.txt china_ip_list.txt.old<br />
+&nbsp; &nbsp; &nbsp; &nbsp; wget <a href="https://github.com/17mon/china_ip_list/blob/master/china_ip_list.txt" target="_blank">https://github.com/17mon/china_i ... r/china_ip_list.txt</a><br />
+&nbsp; &nbsp; &nbsp; &nbsp; cat china_ip_list.txt |grep 'js-file-line&quot;&gt;' |awk -F'js-file-line&quot;&gt;' '{print $2}' |awk -F'&lt;' '{print $1}' &gt;&gt; china_ip.txt<br />
+&nbsp; &nbsp; &nbsp; &nbsp; rm -rf china_ip_list.txt<br />
+&nbsp; &nbsp; &nbsp; &nbsp; #wget <a href="https://qiniu.wsfnk.com/china_ip.txt" target="_blank">https://qiniu.wsfnk.com/china_ip.txt</a><br />
+<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;192.168.0.0/18&quot; &gt;&gt; china_ip.txt<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;10.0.0.0/8&quot; &gt;&gt; china_ip.txt<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;172.16.0.0/12&quot; &gt;&gt; china_ip.txt<br />
+}<br />
+<br />
+ipset_only_china() {<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;ipset create whitelist-china hash:net hashsize 10000 maxelem 1000000&quot; &gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; for i in $( cat china_ip.txt )<br />
+&nbsp; &nbsp; &nbsp; &nbsp; do<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;ipset add whitelist-china $i&quot; &gt;&gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; done<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables -I INPUT -m set --match-set whitelist-china src -j ACCEPT&quot; &gt;&gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables&nbsp;&nbsp;-A INPUT -p tcp --syn -m connlimit --connlimit-above 0 -j DROP&quot; &gt;&gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables&nbsp;&nbsp;-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP&quot; &gt;&gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; #echo &quot;iptables -A INPUT -j DROP&quot; &gt;&gt; /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; rm -rf china_ip.txt<br />
+}<br />
+<br />
+run_setup() {<br />
+&nbsp; &nbsp; &nbsp; &nbsp; chmod +x /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; sh /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; rm -rf /etc/ip-black.sh<br />
+&nbsp; &nbsp; &nbsp; &nbsp; ipset save whitelist-china -f /etc/ipset.conf || ipset save whitelist-china &gt; /etc/ipset.conf<br />
+&nbsp; &nbsp; &nbsp; &nbsp; [ $release = centos7 ] &amp;&amp; echo &quot;ipset restore -f /etc/ipset.conf&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; [ $release = centos6 ] &amp;&amp; echo &quot;ipset restore &lt; /etc/ipset.conf&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables -I INPUT -m set --match-set whitelist-china src -j ACCEPT&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables&nbsp;&nbsp;-A INPUT -p tcp --syn -m connlimit --connlimit-above 0 -j DROP&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;iptables&nbsp;&nbsp;-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; #echo &quot;iptables -A INPUT -j DROP&quot; &gt;&gt; /etc/rc.local<br />
+}<br />
+<br />
+main() {<br />
+&nbsp; &nbsp; &nbsp; &nbsp; check_release<br />
+&nbsp; &nbsp; &nbsp; &nbsp; get_china_ip<br />
+&nbsp; &nbsp; &nbsp; &nbsp; ipset_only_china<br />
+<br />
+case &quot;$release&quot; in<br />
+centos6)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; run_setup<br />
+&nbsp; &nbsp; &nbsp; &nbsp; ;;<br />
+centos7)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; chmod +x /etc/rc.d/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; run_setup<br />
+&nbsp; &nbsp; &nbsp; &nbsp; ;;<br />
+ubuntu)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; sed -i '/exit 0/d' /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; run_setup<br />
+&nbsp; &nbsp; &nbsp; &nbsp; echo &quot;exit 0&quot; &gt;&gt; /etc/rc.local<br />
+&nbsp; &nbsp; &nbsp; &nbsp; ;;<br />
+esac<br />
+}<br />
+main<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-12-28 21:51<br />
+还行，不太懂 iptables <br />
+<br />
+不知道是不是屏蔽除中国以外的所有ip，不过这样似乎很不实用。<br />
+<br />
+因为国内也有大量的代理来着。<br />
+<br />
+（用了一下显身卡，我知道你是谁了）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>一手汗&nbsp; &nbsp; <b>时间: </b>2018-12-28 21:54<br />
+楼上说的也不是没有道理<br />
+但是在这种非常时期<br />
+这种办法并不是不可行<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:03<br />
+弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“印度”这些发包机地方，反正拉黑**们不可能去到的地方就对了，这样能屏蔽一点是一点，光靠防火墙还是不够的，虽说秒解，但有何用？就如在阿里云开一服务器，一来攻击玩家就全掉线，指不定用户就流失不到哪去了。<br />
+<br />
+论坛好像回复不到..统一在这艾特了233<br />
+最后你知道我是谁了233？<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=1770442" target="_blank">@xmdhs</a> <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2627684" target="_blank">@一手汗</a> <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13652998&amp;ptid=835619" target="_blank"><font color="#999999">454475906 发表于 2018-12-28 22:03</font></a></font><br />
+弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“ ...</blockquote></div><br />
+@xmdhs 补一句，若能用大量中国鸡发包的也不简单，是个豪！所以一般惹上这些就只能靠机房了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13652998&amp;ptid=835619" target="_blank"><font color="#999999">454475906 发表于 2018-12-28 22:03</font></a></font><br />
+弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“ ...</blockquote></div><br />
+可是也可能是在国内发起的攻击<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zyjking&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:13<br />
+如果系统不是CentOS或者Ubuntu怎么办？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:21<br />
+@xmdhs 不存在的，你去问，十个有8个攻击ip都是属国外的，国内鸡能打出什么流量？除非那些手里就有黑产的人，或者是有机房的，可那些人一来你就不是进论坛进的慢的事，而是直接瘫痪了，如一些企业的竞争就有此资本。反正打和防都费钱，拉黑国外**，这就是为什么有些国内服号称打不死的秒招。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653016&amp;ptid=835619" target="_blank"><font color="#999999">zyjking 发表于 2018-12-28 22:13</font></a></font><br />
+如果系统不是CentOS或者Ubuntu怎么办？</blockquote></div><br />
+windows？ <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>二哈大魔王&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:25<br />
+防攻击？防御什么攻击。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:30<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2236077" target="_blank">@二哈大魔王</a> tcp syn啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653036&amp;ptid=835619" target="_blank"><font color="#999999">454475906 发表于 2018-12-28 22:21</font></a></font><br />
+@xmdhs 不存在的，你去问，十个有8个攻击ip都是属国外的，国内鸡能打出什么流量？除非那些手里就有黑产的人 ...</blockquote></div><br />
+你都没at到。。。。。。<br />
+<br />
+回复右键新页面就行。<br />
+<br />
+好吧，杀敌一千<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zyjking&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653041&amp;ptid=835619" target="_blank"><font color="#999999">454475906 发表于 2018-12-28 22:22</font></a></font><br />
+windows？</blockquote></div><br />
+windows server也有可能<br />
+而且你没有考虑到Debian<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 22:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653098&amp;ptid=835619" target="_blank"><font color="#999999">xmdhs 发表于 2018-12-28 22:43</font></a></font><br />
+你都没at到。。。。。。<br />
+<br />
+回复右键新页面就行。</blockquote></div><br />
+还是建议bbs能搞一个收集正常用户地址的东西，在往后推理出哪些国家是没有任何访问的，然后直接拉黑掉那国家的IP段即可，这也算顾及了国外留学的用户，为下一次被攻击做预备吧！毕竟bbs还没火到全球都在访问的地步。<br />
+<br />
+通常简单暴力的行为都最有效，就如一逗逼持续骚扰别人服务器，还是动态ip的时（重启路由器就换IP了），没有什么是比拉黑那人IP段更强的，虽然误杀大！（临时搞搞还行，233）不然就只能禁别人机器码了。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 23:04<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653121&amp;ptid=835619" target="_blank"><font color="#999999">zyjking 发表于 2018-12-28 22:52</font></a></font><br />
+windows server也有可能<br />
+而且你没有考虑到Debian</blockquote></div><br />
+wget <a href="https://raw.githubusercontent.com/iiiiiii1/Block-IPs-from-countries/master/block-ips.sh" target="_blank">https://raw.githubusercontent.co ... master/block-ips.sh</a><br />
+sh block-ips.sh<br />
+其实这脚本也适用，只不过要手动添加国家名罢了<br />
+<font face="Monaco, MonacoRegular, &amp;quot;"><font style="font-size:12px">www.ipdeny.com/ipblocks</font></font><br />
+<font face="Monaco, MonacoRegular, &amp;quot;"><font style="font-size:12px">这是国家名</font></font><br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2018-12-28 23:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13653121&amp;ptid=835619" target="_blank"><font color="#999999">zyjking 发表于 2018-12-28 22:52</font></a></font><br />
+windows server也有可能<br />
+而且你没有考虑到Debian</blockquote></div><br />
+windows默认防火墙是个好东西<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>UNlost&nbsp; &nbsp; <b>时间: </b>2018-12-29 01:23<br />
+我来听听大佬的见解<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NoName德里奇&nbsp; &nbsp; <b>时间: </b>2018-12-29 08:54<br />
+可能这就是大佬吧...<br />
+是不是可以发到反馈版？<img src="static/image/smiley/mc_mob_food_plants/chicken.gif" smilieid="827" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC_tingfeng&nbsp; &nbsp; <b>时间: </b>2018-12-29 09:02<br />
+非常时期采用非常手段，可以理解<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Abraham511&nbsp; &nbsp; <b>时间: </b>2018-12-29 10:47<br />
+为什么要匿名<img src="static/image/smiley/tong/stupid.png" smilieid="1454" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>caiden&nbsp; &nbsp; <b>时间: </b>2018-12-29 11:52<br />
+emmmmmmmm ，看不懂，膜拜下大佬，能说下这个是用来干嘛的吗？楼上有说是用来屏蔽国外ip的，不知道真相如何<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2018-12-29 12:05<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=358771" target="_blank">@454475906</a> 我觉得你不应该匿名……<br />
+<br />
+真要匿名，在反馈区发似乎更好些……<br />
+<br />
+以及，你这个防攻击脚本分明就是直接屏蔽了所有国外 IP 嘛……虽然可能有点作用……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Akkariin&nbsp; &nbsp; <b>时间: </b>2018-12-29 13:33<br />
+行了吧，攻击的人是用家用宽带 + 代理单机打的，才 1000 线程就打死了，说明不是攻击太强而是防御太差。<br />
+据说代理还是从各大代理平台收的辣鸡代理，这样都能打死。<br />
+我为什么知道？我群里有人告诉我的<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-12-29 18:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13654378&amp;ptid=835619" target="_blank"><font color="#999999">Akkariin 发表于 2018-12-29 13:33</font></a></font><br />
+行了吧，攻击的人是用家用宽带 + 代理单机打的，才 1000 线程就打死了，说明不是攻击太强而是防御太差。<br />
+据 ...</blockquote></div><br />
+听说一般来自被黑的家用路由器
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

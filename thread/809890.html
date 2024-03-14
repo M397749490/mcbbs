@@ -1,0 +1,291 @@
+<html>
+<head>
+<title>[1.13][技术分析]海龟蛋孵化到底需要多少时间？ - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.13][技术分析]海龟蛋孵化到底需要多少时间？ <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-7-29 04:04<br />
+<b>标题: </b>[1.13][技术分析]海龟蛋孵化到底需要多少时间？<br /><i class="pstatus"> 本帖最后由 gooding300 于 2018-8-19 18:58 编辑 </i><br />
+<br />
+<font size="5"><font color="#0000ff"><strong>0.引言</strong></font></font><br />
+作为一名标准的非酋，在服务器中与他人联机时，想要使用乌龟壳制作一顶<strike>绿</strike>帽子，也非常幸运的遇到了不少海龟，并让他们产下了海龟蛋，然而在苦苦等待后，未见海龟蛋有任何动静..<br />
+<strike>为什么会变成这样呢，第一次遇到了成对的海龟，见到了那么多的海龟蛋，两件快乐的事情重合在一起，又给我带来了更多的快乐，得到的，本应是梦境一般幸福的时间，可为什么..会变成这样呢..</strike>（逃<br />
+<br />
+本文通过反编译Minecraft1.13查看相关代码，来从<strong>数学期望</strong>的角度分析海龟蛋孵化所需的时间。<br />
+<br />
+<font size="5"><font color="#ff8c00"><strong>1.基础说明</strong></font></font><br />
+海龟蛋是一个<strong>方块</strong>（Block），通过HATCH、EGGS两个标签在方块状态中分别记录<strong>孵化程度</strong>、<strong>海龟蛋数量</strong>两个信息。<br />
+其中，孵化程度有0、1、2三个状态，会随着时间增加（具体如何增加请看下文），在状态2时如果继续增加，则会消失海龟蛋并生成对应数量的小海龟，也就是说<strong>需要增加三次状态才能完成孵化</strong>。<br />
+海龟蛋数量为当前方块中拥有的海龟蛋的数量，最高为4。<br />
+海龟蛋方块的代码位于net/minecraft/block/BlockTurtleEgg<br />
+以下所有使用的代码均采用SRG混淆方式（半混淆），<strong>并尽可能减少代码的使用</strong><br />
+<strong><font size="5"><font color="#800080">2.基本条件</font></font></strong><br />
+首先先谈一谈海龟蛋孵化的<strong>基本条件</strong>是什么<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_ir1"><ol><li>&nbsp; &nbsp; public void func_196267_b(IBlockState p_196267_1_, World p_196267_2_, BlockPos p_196267_3_, Random p_196267_4_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.func_203169_a(p_196267_2_) &amp;&amp; this.func_203168_a(p_196267_2_, p_196267_3_)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = p_196267_1_.func_177229_b(field_203170_a);//获得孵化程度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (i &lt; 2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//孵化程度增加<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//移除方块、生成小海龟<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;}</ol></div><em onclick="copycode($('code_ir1'));">复制代码</em></div></td></table></div></div>从海龟蛋方块的tick（每个随机刻）方法中可以看出，有两个方法func_203169_a和func_203168_a<strong>共同决定</strong>了海龟蛋能否生长<br />
+其中func_203168_a<strong>用于判断孵化环境</strong>，func_203169_a<strong>通过随机决定是否进行孵化</strong>，也就是说前者判断了孵化的基本条件<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_DDg"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private boolean func_203168_a(IBlockReader p_203168_1_, BlockPos p_203168_2_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return p_203168_1_.func_180495_p(p_203168_2_.func_177977_b()).func_177230_c() == Blocks.field_150354_m;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_DDg'));">复制代码</em></div></td></table></div></div>什么？你说你看不懂？好吧..直接看我也看不懂，总之就是判断了海龟蛋底下的方块是否为沙子。<br />
+也就是说，海龟蛋<strong><font color="#ff0000">只有在沙子上才能孵化</font></strong>。<br />
+<br />
+<strong><font size="5"><font color="#ff0000">3.时间期望</font></font></strong><br />
+现在，我们的海龟乖乖的将海龟蛋产在沙子上后（本来就只产在沙子上），我们也没有作死强行把海龟蛋移植到泥土等其他方块上了，那么，到底要等多久才能见到可爱的小海龟呢？<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_UL2"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;private boolean func_203169_a(World p_203169_1_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; float f = p_203169_1_.func_72826_c(1.0F);//获得星空仰角<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if ((double)f &lt; 0.69D &amp;&amp; (double)f &gt; 0.65D) {//如果星空仰角在(0.65,0.69)区间内，则返回真<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return p_203169_1_.field_73012_v.nextInt(500) == 0;//从0-499中取一个数字，如果为0则返回真<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_UL2'));">复制代码</em></div></td></table></div></div>也就是说，<strong>在每个随机刻中，如果星空仰角在(0.65,0.69)之间，或者从500个数字中幸运的抽到了0，那么就能增加一个孵化程度了</strong>。<br />
+肯定有人要问了，星空仰角是什么奇怪的东西？我们无需知道它是什么，只需要知道它是如何被计算出来的即可。<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_vu9"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//参数一为当前世界时间（单位：刻），参数二为时间偏移值（海龟蛋计算时为1）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public float func_76563_a(long p_76563_1_, float p_76563_3_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int i = (int)(p_76563_1_ % 24000L);//当前时间对24000（一天的时间）取余，计算出当前时间是单日中的第几刻<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; float f = ((float)i + p_76563_3_) / 24000.0F - 0.25F;//加上偏移值，并减去6000刻（出生时间），除以一天的总时间<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //调节时间到[0,1)区间内<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //..<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; float f1 = 1.0F - (float)((Math.cos((double)f * 3.141592653589793D) + 1.0D) / 2.0D);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; f = f + (f1 - f) / 3.0F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return f;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_vu9'));">复制代码</em></div></td></table></div></div>无论能否理解代码，只用知道所谓的“星空仰角”是一个只与当前时间（刻tick）有关的函数即可。<br />
+<img id="aimg_L0o2c" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/07/29/5b5cc5c6bb71d.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+大致上是这样的关系，x∈[6000+24000k, 30000+24000k), x∈N, k∈N，是一个周期函数。<br />
+经过计算，y∈(0.65,0.69)时，x∈[21060, 21903]（周期同上），（细心的朋友会注意到，<strong>在这个时间范围内，海龟蛋的生长速度是最快的</strong>）<br />
+也就是说，<strong>每24000ticks中，有844ticks的随机刻生长概率为100%，而剩余的23156ticks的生长概率只有1/500=0.2%</strong><br />
+换而言之，<strong>每个随机刻的平均生长概率为(844/24000)*100%+(23156/24000)*0.2%=3.7% </strong>。<br />
+<br />
+而随机刻是如此进行的，每游戏刻，每16*16*16（4096）个方块中，随机抽取3个方块执行随机刻。<br />
+即，每个方块，每游戏刻都有(3/4096)的概率被抽到执行随机刻，每秒钟20个游戏刻，<strong>每个方块每分钟平均</strong><strong>执行</strong><strong>60*20*(3/4096)=0.8789个随机刻</strong>。<br />
+<br />
+综上，<strong>每分钟海龟蛋期望增加0.8789*3.7%=0.0325193个生长程度</strong>。<br />
+上文已经解释过，海龟蛋从产下到孵出小海龟需要3个生长程度，<strong>因此期望上需要3/0.0325193=<font size="3"><font color="#ff0000">92.3分钟</font></font></strong><br />
+<br />
+<strong><font size="5"><font color="#800080">4.总结</font></font></strong><br />
+<font color="#000000">海龟蛋</font><strong>需要<font color="#ff0000">改变三次生长状态</font></strong><strong><font color="#000000">才能孵化</font></strong><font color="#000000">，</font><br />
+<font color="#000000">海龟蛋</font><strong>只有<font color="#ff0000">在沙子上</font></strong><strong><font color="#000000">才能孵化</font></strong><font color="#000000">，</font><br />
+<font color="#000000">海龟蛋</font><strong><font color="#ff0000">在晚上特定时间</font>会有远超其他时间的速度</strong><font color="#000000">，</font><br />
+<font color="#000000">海龟蛋</font><strong>期望上需要</strong><font size="3"><font color="#ff00"><strong>92.3分钟</strong></font></font><strong>进行孵化</strong><font color="#000000">。</font><br />
+有深入了解过随机刻的人会发现，单个方块轮到一个随机刻的时间离散程度相当巨大，也就是说孵化海龟这完全是一个看脸的操作，无论数学期望上时间是多少，每个人海龟蛋的孵化时间都会有所差距，你就是那个欧洲人吗？<br />
+<br />
+请求dalao指点QAQ<br />
+<br />
+[afd]xfl03[/afd]<br />
+<br />
+[groupid=128]HAYO Studio[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>robbit&nbsp; &nbsp; <b>时间: </b>2018-7-29 05:06<br />
+厉害了我的龟龟<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>buhuichongfu&nbsp; &nbsp; <b>时间: </b>2018-7-29 07:42<br />
+我记得谁说过大约六分钟的？拖出去打！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zjxx&nbsp; &nbsp; <b>时间: </b>2018-7-29 11:10<br />
+第一次看懂大佬的分析...嘤嘤嘤<br />
+<br />
+然后有字打错了233<br />
+<img id="aimg_HmKll" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/07/29/5b5d2fa12a19a.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>爱心魔王FHC&nbsp; &nbsp; <b>时间: </b>2018-7-29 11:58<br />
+这一年不要@我，我也不在，谢谢了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>8784&nbsp; &nbsp; <b>时间: </b>2018-7-29 12:40<br />
+<i class="pstatus"> 本帖最后由 8784 于 2018-7-29 12:42 编辑 </i><br />
+<br />
+那个，其实用引雷三叉戟杀海龟有机率掉乌龟壳的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2018-7-29 13:22<br />
+能否这样理解：<br />
+在每个游戏刻中，系统会在每16*16*16（4096）个方块中，随机抽取3个方块执行随机刻<br />
+如果海龟蛋被幸运地抽中执行了随机刻，那么就会执行：<br />
+①检测现在的游戏时间是多少（运行星空仰角这个函数），如果刚好为晚上的某一特定时间（星空仰角函数的返回值在(0.65,0.69)，也就是x∈[21060, 21903]这844个tick，减去6000，也就是每天的第15060到底15903这几个游戏刻），那么孵化程度+1<br />
+②如果不是那个特定的</strike>欧气</strike>时间，那么再随机抽取0-500中的一个数，如果是0，那么孵化程度+1<br />
+③如果都不是，海龟蛋就错过了这个随机刻，什么都没得到<br />
+<br />
+</strike>所以创造党只需要关掉昼夜循环再time set就可以看到海龟蛋高速生长咯← ←</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Argon_gas&nbsp; &nbsp; <b>时间: </b>2018-7-29 13:23<br />
+表示有一次挂了30分钟左右就孵化好了..<br />
+<strike>其实龟壳真的没啥用</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2018-7-29 13:24<br />
+<font style="font-size:14px">能否这样理解：</font><br />
+<font style="font-size:14px">在每个游戏刻中，系统会在每16*16*16（4096）个方块中，随机抽取3个方块执行随机刻</font><br />
+<font style="font-size:14px">如果海龟蛋被幸运地抽中执行了随机刻，那么就会执行：</font><br />
+<font style="font-size:14px">①检测现在的游戏时间是多少（运行星空仰角这个函数），如果刚好为晚上的某一特定时间（星空仰角函数的返回值在(0.65,0.69)，也就是x∈[21060, 21903]这844个tick，减去6000，也就是每天的第15060到底15903这几个游戏刻），那么孵化程度+1</font><br />
+<font style="font-size:14px">②如果不是那个特定的<strike>欧气</strike>时间，那么再随机抽取0-500中的一个数，如果是0，那么孵化程度+1</font><br />
+<font style="font-size:14px">③如果都不是，海龟蛋就错过了这个随机刻，什么都没得到</font><br />
+<br />
+<font style="font-size:14px"><strike>所以创造党只需要关掉昼夜循环再time set就可以看到海龟蛋高速生长咯← ←</strike></font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-7-29 13:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13134351&amp;ptid=809890" target="_blank"><font color="#999999">aa0307bb 发表于 2018-7-29 13:24</font></a></font><br />
+能否这样理解：<br />
+在每个游戏刻中，系统会在每16*16*16（4096）个方块中，随机抽取3个方块执行随机刻<br />
+如果海 ...</blockquote></div><div class="blockcode"><div id="code_vDy"><ol><li>/gamerule randomTickSpeed 50000<br />
+<li>/time set 21060</ol></div><em onclick="copycode($('code_vDy'));">复制代码</em></div><br />
+感受飞一般的速度吧233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玄素&nbsp; &nbsp; <b>时间: </b>2018-7-29 15:58<br />
+<i class="pstatus"> 本帖最后由 玄素 于 2018-7-29 15:59 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13134105&amp;ptid=809890" target="_blank"><font color="#999999">8784 发表于 2018-7-29 12:40</font></a></font><br />
+那个，其实用引雷三叉戟杀海龟有机率掉乌龟壳的</blockquote></div><br />
+1.13.jar/data/minecraft/loot_tables/entities/turtle.json<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_fN2"><ol><li>{<br />
+<li>&nbsp; &nbsp; &quot;pools&quot;: [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;rolls&quot;: 1,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;entries&quot;: [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;type&quot;: &quot;item&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;name&quot;: &quot;minecraft:seagrass&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;weight&quot;: 3,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;functions&quot;: [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;function&quot;: &quot;set_count&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;count&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;min&quot;: 0,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;max&quot;: 2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;function&quot;: &quot;looting_enchant&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;count&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;min&quot;: 0,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;max&quot;: 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; ]<br />
+<li>}</ol></div><em onclick="copycode($('code_fN2'));">复制代码</em></div></td></table></div></div>掉落仅受掠夺附魔影响 增加1的可能掉落的海草上限<br />
+与三叉戟/引雷附魔无关<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ShiChunAn&nbsp; &nbsp; <b>时间: </b>2018-7-29 16:44<br />
+也就是说每天的第15060到15903的游戏刻概率暴增，换算一下就是进入夜晚约2.5分钟~约3分钟这一段时间？<br />
+再换一句话说就是进入夜晚后3分钟过点再睡觉咯？<img src="static/image/smiley/rabbit/51.gif" smilieid="701" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>nggcgg2&nbsp; &nbsp; <b>时间: </b>2018-7-29 16:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13133882&amp;ptid=809890" target="_blank"><font color="#999999">FHC红石 发表于 2018-7-29 11:58</font></a></font><br />
+这一年不要@我，我也不在，谢谢了</blockquote></div><br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=679293" target="_blank">@FHC红石</a> 我@了 咋整<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>8784&nbsp; &nbsp; <b>时间: </b>2018-7-29 16:57<br />
+<div class="quote"><blockquote>英文wiki-Turtle-Drops<br />
+0-1 bowl, if killed by a lightning bolt[Java Edition only] [1]</blockquote></div><br />
+搞错了，其实是碗（说来奇怪，我是怎么看错的？这碗掉落表里又没有…）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2018-7-30 08:23<br />
+话说为什么要用srg name呢。。演示说明的话mcp name不是好得多。用srg name的话放代码就跟没放没区别了，，反正一样的看不懂。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kongbaiyo&nbsp; &nbsp; <b>时间: </b>2018-7-30 09:32<br />
+能否根据根据随机刻的规律计算出方差呢！<br />
+既然每次生长都是独立的与前一个状态无关，<br />
+那就可以假设海龟蛋生长时间服从特定方差和期望正态分布<br />
+然后三次生长就能孵化了 所以可以根据这个得到海龟蛋生长的概率密度图<br />
+然后就可以知道大概在多长时间之内海龟蛋大概率孵化出来了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-7-30 11:13<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13138510&amp;ptid=809890" target="_blank"><font color="#999999">kongbaiyo 发表于 2018-7-30 09:32</font></a></font><br />
+能否根据根据随机刻的规律计算出方差呢！<br />
+既然每次生长都是独立的与前一个状态无关，<br />
+那就可以假设海龟蛋生 ...</blockquote></div><br />
+应该还是泊松分布的线性组合吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sjx&nbsp; &nbsp; <b>时间: </b>2018-7-30 12:24<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13135666&amp;ptid=809890" target="_blank"><font color="#999999">8784 发表于 2018-7-29 16:57</font></a></font><br />
+搞错了，其实是碗（说来奇怪，我是怎么看错的？这碗掉落表里又没有…） ...</blockquote></div><br />
+这是真的，被雷击中掉碗<br />
+详见<a href="https://github.com/sjx233/minecraft-src/blob/master/net/minecraft/entity/passive/EntityTurtle.java#L410-L413" target="_blank">源码</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BlackCB.&nbsp; &nbsp; <b>时间: </b>2018-7-30 13:34<br />
+93分钟……<br />
+<div class="quote"><blockquote>首先先谈一谈海龟蛋孵化的基本条件是什么</blockquote></div><br />
+<strike>踩上几脚即可</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-7-30 14:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13138244&amp;ptid=809890" target="_blank"><font color="#999999">andylizi 发表于 2018-7-30 08:23</font></a></font><br />
+话说为什么要用srg name呢。。演示说明的话mcp name不是好得多。用srg name的话放代码就跟没放没区别了，， ...</blockquote></div><br />
+主要是因为这里大部分东西（基本都是1.13才加的新方法）都还没有确定的mcp name..<br />
+我自己强塞mcp name的话感觉不太好QAQ<br />
+<br />
+等出确定的mcp name的时候我会更新贴子的www<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaowei233v&nbsp; &nbsp; <b>时间: </b>2018-8-8 12:46<br />
+萌新看着这里的大佬瑟瑟发抖<br />
+什么事周期函数 什么事线性分布<br />
+表示看得一脸懵逼（跑去度娘了awa）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>种拔&nbsp; &nbsp; <b>时间: </b>2018-8-9 21:46<br />
+想要孵海龟，挂机去吧。不然改随机刻<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天子~Tensi&nbsp; &nbsp; <b>时间: </b>2018-8-10 00:23<br />
+羡慕懂编程的人什么都可以直接从源代码里查看QnQ<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>難篱&nbsp; &nbsp; <b>时间: </b>2018-9-7 11:29<br />
+emm我上次挂机看着海龟孵化好像花了3个晚上 看到评论花30分钟的哭了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>QWQQWQTAT&nbsp; &nbsp; <b>时间: </b>2018-12-15 20:56<br />
+解释的很接地气呀！我都能看懂qwq<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>uuu2011&nbsp; &nbsp; <b>时间: </b>2019-1-23 21:24<br />
+不错，最终还是看脸<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>摸鱼&nbsp; &nbsp; <b>时间: </b>2019-1-24 12:55<br />
+你这个是分段函数呀&nbsp;&nbsp;高中的&nbsp;&nbsp;应该研究了很久了吧 辛苦了 楼主！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>作者是谁&nbsp; &nbsp; <b>时间: </b>2019-2-13 14:26<br />
+哇，还是randomTickSpeed有点用，<font color="#98fb98">话说你为什么要绿帽子</font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>laofangkuai&nbsp; &nbsp; <b>时间: </b>2019-3-12 23:28<br />
+1.7.10玩家表示很慌<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>灬屮灬屮灬&nbsp; &nbsp; <b>时间: </b>2019-3-14 21:31<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BigGay_BODJ&nbsp; &nbsp; <b>时间: </b>2019-3-14 22:03<br />
+要孵化好久<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1357077767&nbsp; &nbsp; <b>时间: </b>2019-5-10 00:11<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1453🐱&nbsp; &nbsp; <b>时间: </b>2019-5-12 10:49<br />
+厉害了，怎么看代码啊？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1677343686&nbsp; &nbsp; <b>时间: </b>2019-5-12 13:12<br />
+emmmmm,其实为什么要管啥时候掉落呢，往沙子里挤进去一个漏斗矿车不就行了吗<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2019-8-19 00:32<br />
+忽然想起一件事……这星空仰角函数的意义是什么……直接判定随机刻执行时是否满足x∈[21060, 21903]就行了，为什么要用一个图像近似为直线的曲线的函数来表示……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zxcvx_nian&nbsp; &nbsp; <b>时间: </b>2019-8-19 16:43<br />
+海龟蛋孵化不管要多久 反正我是不会在意的哈哈<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2411453931&nbsp; &nbsp; <b>时间: </b>2019-10-12 17:35<br />
+感谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>我爱54290&nbsp; &nbsp; <b>时间: </b>2020-4-10 16:33<br />
+那个90多分钟孵化时间是游戏时间对吧..<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>young_panda&nbsp; &nbsp; <b>时间: </b>2020-5-3 21:06<br />
+踩一下就没233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>社会我祺大大&nbsp; &nbsp; <b>时间: </b>2021-2-14 03:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13134105&amp;ptid=809890" target="_blank"><font color="#999999">8784 发表于 2018-7-29 12:40</font></a></font><br />
+那个，其实用引雷三叉戟杀海龟有机率掉乌龟壳的</blockquote></div><br />
+那是碗（壳被雷劈焦了？），并且仅限Java版（大家最常用的也是这个版吧）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>社会我祺大大&nbsp; &nbsp; <b>时间: </b>2021-2-14 03:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=21137519&amp;ptid=809890" target="_blank"><font color="#999999">社会我祺大大 发表于 2021-2-14 03:25</font></a></font><br />
+那是碗（壳被雷劈焦了？），并且仅限Java版（大家最常用的也是这个版吧） ...</blockquote></div><br />
+啊，好像大家已经回复过了……那当没看到吧[汗]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Lao_5493&nbsp; &nbsp; <b>时间: </b>2021-2-14 17:38<br />
+什么版本的有海龟啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>聂明锐&nbsp; &nbsp; <b>时间: </b><span title="2021-2-15 00:56">7&nbsp;天前</span><br />
+<br />
+厉害了我的龟龟<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小猪猪007&nbsp; &nbsp; <b>时间: </b><span title="2021-2-15 05:41">7&nbsp;天前</span><br />
+好家伙，孵化都是门学问，我傻了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>6566pqh&nbsp; &nbsp; <b>时间: </b><span title="2021-2-15 11:00">7&nbsp;天前</span><br />
+6666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>feige2464&nbsp; &nbsp; <b>时间: </b><span title="2021-2-15 14:34">7&nbsp;天前</span><br />
+看起来挺好用，可以有<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>cu665462&nbsp; &nbsp; <b>时间: </b><span title="2021-2-18 12:06">4&nbsp;天前</span><br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1372959307&nbsp; &nbsp; <b>时间: </b><span title="2021-2-18 19:07">4&nbsp;天前</span><br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>rDUPjJ&nbsp; &nbsp; <b>时间: </b><span title="2021-2-21 05:15">昨天&nbsp;05:15</span><br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>陈c&nbsp; &nbsp; <b>时间: </b><span title="2021-2-21 15:00">昨天&nbsp;15:00</span><br />
+话说为什么要用srg name呢。。演示说明的话mcp name不是好得多。用srg name的话放代码就跟没放没区别了，，反正一样的看不懂。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

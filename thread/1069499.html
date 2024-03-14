@@ -1,0 +1,210 @@
+<html>
+<head>
+<title>从 Lambda 表达式中捕获类型参数 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>从 Lambda 表达式中捕获类型参数 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>土球球&nbsp; &nbsp; <b>时间: </b>2020-6-28 22:56<br />
+<b>标题: </b>从 Lambda 表达式中捕获类型参数<br /><i class="pstatus"> 本帖最后由 土球球 于 2020-6-29 11:47 编辑 </i><br />
+<br />
+<font style="font-size:24px"><strong>引言</strong></font><br />
+<br />
+<font style="font-size:16px">Forge 在高版本（Minecraft 1.13+）为事件总线添加了使用 Functional Interface 监听事件的方式。以下是接口声明：</font><br />
+<br />
+<div class="blockcode"><div id="code_AaS"><ol><li>&lt;T extends Event&gt; void addListener(Consumer&lt;T&gt; consumer);</ol></div><em onclick="copycode($('code_AaS'));">复制代码</em></div><br />
+<font style="font-size:16px">我们可以注意到，我们不需要向 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">addListener</font></font> 方法传入一个额外的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Class</font></font> 代表事件的类型，也就是说事件类型只能通过我们传入的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Consumer&lt;T&gt;</font></font> 拿到。换言之，我们需要从 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Consumer&lt;T&gt;</font></font> 中推断出具体的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">T</font></font> 是什么类型，考虑到 Java 的泛型擦除机制，这不得不说是一个困难。</font><br />
+<br />
+<font style="font-size:16px">本文将以 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Consumer&lt;T&gt;</font></font> 类型为例，阐述将类型参数从泛型类型的实例（尤其是 Lambda 表达式）中捕获的方式。读者应能相对容易地将其推广到其他类型。</font><br />
+<br />
+<font style="font-size:16px">本文将使用 Java 11（实际上相较基于 Java 8 的等价代码，只是单纯地多了一些 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">var</font></font> 而已），以证明该解决方案不单纯限于 Java 8 或更低版本。</font><br />
+<br />
+<font style="font-size:24px"><strong>常规解决方案</strong></font><br />
+<br />
+<font style="font-size:16px">有的读者可能会说，这很简单啊：我们只需要通过一点反射的小技巧，就可以拿到具体的类型。</font><br />
+<br />
+<font style="font-size:16px">类似的实现有很多，比如 Guava 在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">TypeToken</font></font> 中的实现。这里我们也随手写一个：</font><br />
+<br />
+<div class="blockcode"><div id="code_wK2"><ol><li>public static Class&lt;?&gt; getErased(Type type)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; if (type instanceof ParameterizedType)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return getErased(((ParameterizedType) type).getRawType());<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; if (type instanceof GenericArrayType)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Array.newInstance(getErased(((GenericArrayType) type).getGenericComponentType()), 0).getClass();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; if (type instanceof TypeVariable&lt;?&gt;)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var bounds = ((TypeVariable&lt;?&gt;) type).getBounds();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return bounds.length &gt; 0 ? getErased(bounds[0]) : Object.class;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; if (type instanceof WildcardType)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var bounds = ((WildcardType) type).getUpperBounds();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return bounds.length &gt; 0 ? getErased(bounds[0]) : Object.class;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; if (type instanceof Class&lt;?&gt;)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (Class&lt;?&gt;) type;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return Object.class;<br />
+<li>}<br />
+<li><br />
+<li>public static Class&lt;?&gt; getConsumerParameterType(Consumer&lt;?&gt; consumer) throws ReflectiveOperationException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; for (var type : consumer.getClass().getGenericInterfaces())<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (type instanceof ParameterizedType &amp;&amp; ((ParameterizedType) type).getRawType() == Consumer.class)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return getErased(((ParameterizedType) type).getActualTypeArguments()[0]);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; if (consumer.getClass().isSynthetic())<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return getConsumerLambdaParameterType(consumer);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; throw new NoSuchMethodException();<br />
+<li>}</ol></div><em onclick="copycode($('code_wK2'));">复制代码</em></div><br />
+<font style="font-size:16px"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getConsumerParameterType</font></font> 方法的实现对于匿名内部类非常完美，换句话说，下面这一实例中的具体参数类型将会很容易地被捕获：</font><br />
+<br />
+<div class="blockcode"><div id="code_Mkr"><ol><li>Consumer&lt;String&gt; a = new Consumer&lt;String&gt;<br />
+<li>{<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void accept(String s)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(s);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Mkr'));">复制代码</em></div><br />
+<font style="font-size:16px">但对于 Lambda 表达式（也包括方法引用）呢？</font><br />
+<br />
+<div class="blockcode"><div id="code_c61"><ol><li>Consumer&lt;String&gt; b = s -&gt; System.out.println(s);<br />
+<li>Consumer&lt;String&gt; c = System.out::println;</ol></div><em onclick="copycode($('code_c61'));">复制代码</em></div><br />
+<font style="font-size:16px">实际上，我们从 Lambda 表达式中，根本拿不到一个 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ParameterizedType</font></font>，更不要说从里面提取参数类型了。我们需要其他的方法，当然了，也是更为 dirty hack 的方法。</font><br />
+<br />
+<font style="font-size:24px"><strong>探究 Lambda 表达式常量池</strong></font><br />
+<br />
+<font style="font-size:16px">每个 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">.class</font></font> 后缀的文件中都有一段二进制存放的是该类或接口的常量池（Constant Pool），其中包含着描述每个字段和方法的符号引用。</font><br />
+<br />
+<font style="font-size:16px">我们知道，对于每个 Lambda 表达式，JVM 都会为其生成对应的类型，而它们也包含了常量池。我们需要做的，就是把 Lambda 表达式对应的常量池提取出来，并寻找对我们有用的方法的符号引用。</font><br />
+<br />
+<font style="font-size:16px">我们需要排除这些符号引用：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>构造方法的符号引用<li>覆盖 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Object</font></font> 类的方法的符号引用<br />
+</ul></font><br />
+<font style="font-size:16px">我们可以通过调用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Class</font></font> 类的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getConstantPool</font></font> 方法（非公开）拿到常量池，也就是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ConstantPool</font></font> 类的实例。但是，从 Java 9 开始，常量池的实现被移动到了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">jdk.internal.reflect</font></font> 包下，换言之，如果想要调用常量池的一些非公开方法，我们需要一些更激进的策略。</font><br />
+<br />
+<font style="font-size:16px">我们可以通过替换 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Method</font></font> 类下的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">override</font></font> 字段来绕过 JVM 的限制。为此，我们先编写辅助用的方法：</font><br />
+<br />
+<div class="blockcode"><div id="code_CCh"><ol><li>public static Method getMethod(Class&lt;?&gt; objClass, String methodName) throws NoSuchMethodException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; for (var method : objClass.getDeclaredMethods())<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (methodName.equals(method.getName()))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return method;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; throw new NoSuchMethodException();<br />
+<li>}<br />
+<li><br />
+<li>public static Object invoke(Object obj, String methodName, Object... args) throws ReflectiveOperationException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; var overrideField = AccessibleObject.class.getDeclaredField(&quot;override&quot;);<br />
+<li>&nbsp; &nbsp; overrideField.setAccessible(true);<br />
+<li>&nbsp; &nbsp; var targetMethod = getMethod(obj.getClass(), methodName);<br />
+<li>&nbsp; &nbsp; overrideField.set(targetMethod, true);<br />
+<li>&nbsp; &nbsp; return targetMethod.invoke(obj, args);<br />
+<li>}</ol></div><em onclick="copycode($('code_CCh'));">复制代码</em></div><br />
+<font style="font-size:16px">上面的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">invoke</font></font> 方法将会找到特定名称的方法，并针对性的调用该方法。由于仅为演示可行性用，因此上面的方法并未考虑性能，因此如果读者需要在实际开发中用到，请自行对该实现进行优化。</font><br />
+<br />
+<font style="font-size:24px"><strong>从常量池中获取参数类型</strong></font><br />
+<br />
+<font style="font-size:16px">我们将接下来的工作分为四步：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>找到 Lambda 表达式对应的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Class</font></font> 的常量池<li>依次遍历常量池中对方法的符号引用<li>排除无关方法的符号引用<li>从第一个满足条件的方法中取出参数类型<br />
+</ul></font><br />
+<font style="font-size:16px">需要用到 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ConstantPool</font></font> 的两个方法：</font><br />
+<br />
+<font style="font-size:16px"><ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getSize</font></font> 方法：用于获取常量池的元素个数<li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getMethodAt</font></font> 方法：用于获取常量池特定位置对方法的符号引用<br />
+</ul></font><br />
+<font style="font-size:16px">注意如果 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getMethodAt</font></font> 寻找的位置对应的不是对方法的符号引用，调用该方法将会报错。我们需要把该报错屏蔽掉，然后尝试寻找下一个常量池中的元素。</font><br />
+<br />
+<font style="font-size:16px">下面的实现贯彻了上面提到的四步。需要注意的一点是，遍历常量池是倒序进行的：</font><br />
+<br />
+<div class="blockcode"><div id="code_Abo"><ol><li>public static Class&lt;?&gt; getConsumerLambdaParameterType(Consumer&lt;?&gt; consumer) throws ReflectiveOperationException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; var consumerClass = consumer.getClass();<br />
+<li>&nbsp; &nbsp; var constantPool = invoke(consumerClass, &quot;getConstantPool&quot;);<br />
+<li>&nbsp; &nbsp; for (var i = (int) invoke(constantPool, &quot;getSize&quot;) - 1; i &gt;= 0; --i)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;var member = (Member) invoke(constantPool, &quot;getMethodAt&quot;, i);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (member instanceof Method &amp;&amp; member.getDeclaringClass() != Object.class)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return ((Method) member).getParameterTypes()[0];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (Exception ignored)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// ignored<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; throw new NoSuchMethodException();<br />
+<li>}</ol></div><em onclick="copycode($('code_Abo'));">复制代码</em></div><br />
+<font style="font-size:16px">我们可以把该方法的调用补充到之前编写的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">getConsumerParameterType</font></font> 方法下。这里使用的判别标准是该方法所对应的类是否是 Java 编译器自动生成的（<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">isSynthetic</font></font> 方法返回 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">true</font></font>）：</font><br />
+<br />
+<div class="blockcode"><div id="code_jXA"><ol><li>public static Class&lt;?&gt; getConsumerParameterType(Consumer&lt;?&gt; consumer) throws ReflectiveOperationException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; for (var type : consumer.getClass().getGenericInterfaces())<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (type instanceof ParameterizedType &amp;&amp; ((ParameterizedType) type).getRawType() == Consumer.class)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return getErased(((ParameterizedType) type).getActualTypeArguments()[0]);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; // lambda start<br />
+<li>&nbsp; &nbsp; if (consumer.getClass().isSynthetic())<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return getConsumerLambdaParameterType(consumer);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; // lambda end<br />
+<li>&nbsp; &nbsp; throw new NoSuchMethodException();<br />
+<li>}</ol></div><em onclick="copycode($('code_jXA'));">复制代码</em></div><br />
+<font style="font-size:16px">各位可以自己试一试了：</font><br />
+<br />
+<div class="blockcode"><div id="code_Y7G"><ol><li>public static void main(String[] args)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; try<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Consumer&lt;Consumer&lt;String&gt;&gt; consumerConsumer = c -&gt; c.accept(&quot;&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getConsumerParameterType(consumerConsumer));<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Consumer&lt;String&gt; stringConsumer = System.out::println;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getConsumerParameterType(stringConsumer));<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Consumer&lt;Long&gt; longConsumer = l -&gt; System.out.println(l + &quot;L&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getConsumerParameterType(longConsumer));<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; catch (ReflectiveOperationException e)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Y7G'));">复制代码</em></div><br />
+<font style="font-size:24px"><strong>鸣谢</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>Forge 的事件总线的实现：<a href="https://github.com/MinecraftForge/EventBus" target="_blank">https://github.com/MinecraftForge/EventBus</a><li>Forge 实现该机制所依赖的库：<a href="https://github.com/jhalterman/typetools" target="_blank">https://github.com/jhalterman/typetools</a><br />
+</ul></font><br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

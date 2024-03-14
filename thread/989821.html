@@ -1,0 +1,320 @@
+<html>
+<head>
+<title>预设建筑的储存方式 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>预设建筑的储存方式 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>woaiwen1234&nbsp; &nbsp; <b>时间: </b>2020-3-18 15:45<br />
+<b>标题: </b>预设建筑的储存方式<br />我的想法是在随机位置生成预设模板的建筑物，既然是预设模板，那么用什么方式储存更好，大家有什么思路请告诉我<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>roj234&nbsp; &nbsp; <b>时间: </b>2020-3-18 17:12<br />
+<i class="pstatus"> 本帖最后由 roj234 于 2020-3-18 17:16 编辑 </i><br />
+<br />
+推荐用二进制方式，优点速度快，缺点(普通人)没法修改<br />
+u4: unsigned int<br />
+u2: unsigned short<br />
+u1: unsigned byte<br />
+struct file {<br />
+&nbsp;&nbsp;u4 magic_number; //可选文件标识，确定这是你的二进制格式<br />
+&nbsp;&nbsp;u4 width;&nbsp; &nbsp;// 三个INT长宽高随便啦<br />
+&nbsp;&nbsp;u4 height;<br />
+&nbsp;&nbsp;u4 length;<br />
+&nbsp;&nbsp;plate blockIdMap;<br />
+&nbsp;&nbsp;blockinfo[width * height * length] info;<br />
+}<br />
+struct plate {<br />
+&nbsp;&nbsp;u2 length;<br />
+&nbsp;&nbsp;block_info[length] datas;<br />
+}<br />
+struct block_info {<br />
+&nbsp;&nbsp;u2 id; // 因为是插件所以int就可以如果是mod可以用string<br />
+&nbsp;&nbsp;u1 meta;<br />
+}<br />
+struct blockinfo {<br />
+&nbsp; &nbsp; u2 tableId; // 在plate中的id<br />
+}<br />
+// 你只需要用下面的三个工具类就可以实现读取了<br />
+<br />
+public final class ByteReader {<br />
+&nbsp; &nbsp; private byte[] bytes;<br />
+&nbsp; &nbsp; public int index = 0;<br />
+&nbsp; &nbsp; public int length;<br />
+&nbsp; &nbsp; public ByteReader(byte[] bytes) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;refresh(bytes);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final void refresh(byte[] bytes) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.bytes = bytes;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.length = bytes.length;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final byte getByte() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return bytes[index++];<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final short getUByte() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (short)(bytes[index++] &amp; 0xff);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final boolean isFinished() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return index &gt;= bytes.length;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final String getString() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new String(getBytes(getInt()));<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final void getBytes(byte[] array, int start, int length) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(index + length &gt; bytes.length) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new RuntimeException(&quot;ByteReader: not enough data to process&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.arraycopy(bytes, index, array, start, length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;index += length;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final byte[] getBytes(int length) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] result = new byte[length];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getBytes(result, 0, length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return result;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final byte[] getBytesPlusAnEmpty(int length) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] result = new byte[length + 1];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getBytes(result, 0, length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return result;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; // &amp;0xff将byte值无差异转成int,避免Java自动类型提升后,会保留高位的符号位<br />
+&nbsp; &nbsp; public final int getIntR() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (bytes[index++] &amp; 0xff) &lt;&lt; 8 | (bytes[index++] &amp; 0xff) | (bytes[index++] &amp; 0xff) &lt;&lt; 24 | (bytes[index++] &amp; 0xff) &lt;&lt; 16;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final int getInt() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (bytes[index++] &amp; 0xff) &lt;&lt; 24 | (bytes[index++] &amp; 0xff) &lt;&lt; 16 | (bytes[index++] &amp; 0xff) &lt;&lt; 8 | (bytes[index++] &amp; 0xff);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final long getLongR() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (long) (bytes[index++] &amp; 0xff) &lt;&lt; 24 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 16 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 8&nbsp;&nbsp;|<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 56 | <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 48 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 40 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 32;<br />
+<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final long getLong() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (long) (bytes[index++] &amp; 0xff) &lt;&lt; 56 | <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 48 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 40 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 32 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 24 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 16 |<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff) &lt;&lt; 8&nbsp;&nbsp;|<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (long) (bytes[index++] &amp; 0xff);<br />
+<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final float getFloat() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Float.intBitsToFloat(getInt());<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final double getDouble() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Double.longBitsToDouble(getLong());<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final int getUShort() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (bytes[index++] &amp; 0xff) &lt;&lt; 8 | (bytes[index++] &amp; 0xff);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final int getUShortR() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (bytes[index++] &amp; 0xff) | (bytes[index++] &amp; 0xff) &lt;&lt; 8;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public final short getShort() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (short)((bytes[index++] &amp; 0xff) &lt;&lt; 8 | (bytes[index++] &amp; 0xff));<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public static boolean isBitTrue(int i, int bit) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return bit == 0 ? ((i &amp; 1) == 1) : ((i &amp; (1 &lt;&lt; bit)) &gt;&gt; bit) == 1;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public static int getSpecifyBit(int n, int fromInclude, int toInclude) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int k = 0;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(int i = fromInclude; i &lt;= toInclude; i++) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;k |= (1 &lt;&lt; i);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (n &amp; k) &gt;&gt;&gt; fromInclude;<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+<br />
+///////////////////////////////////////////////////////////////////////////////<br />
+<br />
+public class ByteWriter {<br />
+&nbsp; &nbsp; public final ByteList list;<br />
+&nbsp; &nbsp; public ByteWriter() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list = new ByteList();<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter(int len) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list = new ByteList(len);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeByte(short b) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)b);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeString(String s) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] b;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;writeInt((b = s.getBytes()).length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;writeBytes(b);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeBytes(byte[] bs) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(list.id + bs.length &gt;= list.length) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;byte[] newArr = new byte[list.id + bs.length + 512];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.arraycopy(list.list, 0, newArr, 0, list.id);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list.list = newArr;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list.length = newArr.length;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.arraycopy(bs, 0, list.list, list.id, bs.length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.id += bs.length;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeIntR(int i) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 8));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 24));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 16));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeInt(int i) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 24));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 16));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i &gt;&gt;&gt; 8 ));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(i));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeLong(long l) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 56));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 48));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 40));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 32));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 24));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 16));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l &gt;&gt;&gt; 8 ));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(l));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeFloat(float f) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;writeInt(Float.floatToIntBits(f));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeDouble(double d) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;writeLong(Double.doubleToLongBits(d));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeShort(int s) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(s &gt;&gt;&gt; 8));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(s));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteWriter writeShortR(int s) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(s));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.add((byte)(s &gt;&gt;&gt; 8));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public byte[] toByteArray() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return list.toByteArray();<br />
+&nbsp; &nbsp; }<br />
+<br />
+}<br />
+<br />
+/////////////////////////////////////////////////////////////////////////////////////////////////<br />
+<br />
+public class ByteList {<br />
+&nbsp; &nbsp; public byte[] list;<br />
+&nbsp; &nbsp; protected int id = 0;<br />
+&nbsp; &nbsp; protected int length;<br />
+<br />
+&nbsp; &nbsp; public ByteList() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(1024);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public ByteList(int len) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list = new byte[len];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = len;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public int size() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return id;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public int add(byte e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list[id++] = e; // [1,1,1,2]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(id &gt;= length){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;byte[] newList = new byte[length+128];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.arraycopy(list,0,newList ,0,length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list = newList;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length += 128;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return id-1; //[3]<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public void set(int index, byte e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list[index] = e;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public boolean remove(int index){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(index &gt;= 0){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for(int i=index;i&lt;list.length-1;i++){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; list<i> = list[i+1];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list = Arrays.copyOf(list, list.length-1);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public byte get(int _id){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(_id &gt;= length) // 3 &lt; 4<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return 0;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return list[_id]; // 2<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public byte[] toByteArray() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] result = new byte[size()];<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.arraycopy(list, 0, result , 0, result.length);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return result;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; public void clear() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;id = 0;<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+</i>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

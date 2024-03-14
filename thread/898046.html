@@ -1,0 +1,82 @@
+<html>
+<head>
+<title>[PCD]Metadata（元数据）的使用 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[PCD]Metadata（元数据）的使用 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-6 20:53<br />
+<b>标题: </b>[PCD]Metadata（元数据）的使用<br /><i class="pstatus"> 本帖最后由 2280761425 于 2019-8-6 21:30 编辑 </i><br />
+<br />
+这东西其实很早前我就在使用了，当时懒得写使用方法就没发出来，最近有点无聊想想还是写出来吧qwq（比map好用）。<br />
+<br />
+要使用Metadata，我们需要用到下面的类<br />
+Metadatable：通过doc我们可以看到有很多类实现了它（有Player等各种实体，也有Block），而Metadata的原意也是希望用这个替代map<br />
+MetadataValue：可以通过Metadatable的getMetadata方法获取。在为Metadatable添加MetadataValue时一般是用FixedMetadataValue类<br />
+<br />
+使用方法：<br />
+先获取对象的MetadataValue：metadatable.getMetadata(&quot;key&quot;)，如果之前没设置过MetadataValue，还需要先使用setMetadata设置MetadataValue，如：<br />
+<div class="blockcode"><div id="code_wU7"><ol><li>player.setMetadata(&quot;键（类似map）&quot;, new FixedMetadataValue(plugin, 要储存的数据));</ol></div><em onclick="copycode($('code_wU7'));">复制代码</em></div><br />
+使用getMetadata后获取到的是一个List（并不知道有什么用，是区分不同插件的？希望有大佬补充），我们使用list.get(0)来获取单个元素（MetadataValue），然后用MetadataValue的value()方法获取之前加入的数据，就像这样：<br />
+<div class="blockcode"><div id="code_PEb"><ol><li>Object data = player.getMetadata(&quot;key&quot;).get(0).value();</ol></div><em onclick="copycode($('code_PEb'));">复制代码</em></div><br />
+由于获取到的对象是Object类型，还需要通过类型转换才能使用<br />
+<br />
+有时要储存的数据可能比较多，所以我一般是直接在MetadataValue里塞Map（直接用Metadatable的不同键也可以）<br />
+这是我的某插件使用的代码：<br />
+<div class="blockcode"><div id="code_FtP"><ol><li>//为了便于区分，一个插件我只使用一个键，所以此方法直接返回保存的数据<br />
+<li>public static Map&lt;String, Object&gt; getMetadata(Metadatable metadatable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;checkMetadata(metadatable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//获取数据<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Object value = metadatable.getMetadata(KEY).get(0).value();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//类型判断，以进行安全的类型转换<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(value instanceof Map) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return (Map&lt;String, Object&gt;) value;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>}<br />
+<li><br />
+<li>//检查Metadata是否存在，不存在则创建（值为一个空的Map）<br />
+<li>public static boolean checkMetadata(Metadatable metadatable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(metadatable.hasMetadata(KEY)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;metadatable.setMetadata(KEY, new FixedMetadataValue(plugin, new HashMap&lt;String, Object&gt;()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>}<br />
+<li><br />
+<li>//这是玩家的pvp状态，可以看到使用Metadata储存，代码简单了很多<br />
+<li>public static boolean isPvping(Map&lt;String, Object&gt; metadata) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(!metadata.containsKey(&quot;pvp&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; metadata.put(&quot;pvp&quot;, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (boolean) metadata.get(&quot;pvp&quot;);<br />
+<li>}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>public static void setPvping(Map&lt;String, Object&gt; metadata, boolean isPvping) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;metadata.put(&quot;pvp&quot;, isPvping);<br />
+<li>}</ol></div><em onclick="copycode($('code_FtP'));">复制代码</em></div><br />
+
+<br />
+注意：Metadata在服务器关闭后就会消失，要保存还需要另写代码，但是它的方便之处在于数据依附的对象销毁后它也就销毁了，所以不像维护外部map那么麻烦（玩家退出重进数据还在）<br />
+<br />
+[groupid=1330]PluginsCDTribe[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>弱鸡绿毛怪&nbsp; &nbsp; <b>时间: </b>2019-8-6 21:55<br />
+<img src="static/image/smiley/tong/Sad.png" smilieid="1445" border="0" alt="" />这种退出服务器重进还在？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-6 22:37<br />
+<i class="pstatus"> 本帖最后由 2280761425 于 2019-8-7 10:19 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15220486&amp;ptid=898046" target="_blank"><font color="#999999">MagicLocyDragon 发表于 2019-8-6 21:55</font></a></font><br />
+这种退出服务器重进还在？</blockquote></div><br />
+当时实验时我也很迷，但是结果是这样的，难道是玩家退出后数据被保存到了OfflinePlayer中？233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yuxinyu12666&nbsp; &nbsp; <b>时间: </b>2019-8-6 23:40<br />
+6666666666牛+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

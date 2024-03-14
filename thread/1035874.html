@@ -1,0 +1,120 @@
+<html>
+<head>
+<title>Bukkit插件开发：非主线程修改方块时遇到的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Bukkit插件开发：非主线程修改方块时遇到的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HQcxf&nbsp; &nbsp; <b>时间: </b>2020-5-2 14:11<br />
+<b>标题: </b>Bukkit插件开发：非主线程修改方块时遇到的问题<br /><i class="pstatus"> 本帖最后由 HQcxf 于 2020-5-2 14:46 编辑 </i><br />
+<br />
+新手开发 Bukkit 插件，测试于 Spigot 1.15.2<br />
+遇到了一些问题，寻求大家的帮助。<br />
+-<br />
+每当玩家破坏方块后（众所周知，由于不知道从哪来的bug，这个事件总会被触发两次）：<br />
+<div class="blockcode"><div id="code_OPz"><ol><li>@EventHandler<br />
+<li>public void onBreak(BlockBreakEvent e)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; e.setCancelled(true);<br />
+<li>&nbsp; &nbsp; ... // 创建延时任务，传入 e.getBlock()<br />
+<li>}</ol></div><em onclick="copycode($('code_OPz'));">复制代码</em></div>在玩家破坏方块后创建延时任务，一定时间后将破坏的方块替换为钻石块，在<font color="Red">非主线程</font>执行。<br />
+本来打算将 e.getBlock() 传入，在<font color="Red">非主线程</font><br />
+<div class="blockcode"><div id="code_IuE"><ol><li>Block block = task.getTargetBlock(); // 是上面的 e.getBlock()<br />
+<li>block.setType(Material.DIAMOND_BLOCK);</ol></div><em onclick="copycode($('code_IuE'));">复制代码</em></div>执行上面第二行时，引发了如下异常，线程中止。<br />
+<div class="blockcode"><div id="code_Sri"><ol><li>[13:19:22] [Thread-19/WARN]: Exception in thread &quot;Thread-19&quot;<br />
+<li>[13:19:22] [Thread-19/WARN]: java.lang.IllegalStateException: Asynchronous block remove!<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at org.spigotmc.AsyncCatcher.catchOp(AsyncCatcher.java:14)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at net.minecraft.server.v1_15_R1.Block.remove(Block.java:396)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at net.minecraft.server.v1_15_R1.IBlockData.remove(SourceFile:259)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at net.minecraft.server.v1_15_R1.Chunk.setType(Chunk.java:287)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at net.minecraft.server.v1_15_R1.World.setTypeAndData(World.java:224)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setTypeAndData(CraftBlock.java:192)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setBlockData(CraftBlock.java:177)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setType(CraftBlock.java:166)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setType(CraftBlock.java:160)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at worldguardstrangemining.WorldGuardStrangeMining.DoWork(WorldGuardStrangeMining.java:62)<br />
+<li>[13:19:22] [Thread-19/WARN]:&nbsp; &nbsp; at java.lang.Thread.run(Unknown Source)</ol></div><em onclick="copycode($('code_Sri'));">复制代码</em></div>这不是我所期望的。而如果这么写：<br />
+<div class="blockcode"><div id="code_HCa"><ol><li>@EventHandler<br />
+<li>public void onBreak(BlockBreakEvent e)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; e.setCancelled(true);<br />
+<li>&nbsp; &nbsp; e.getBlock.setType(Material.DIAMOND_BLOCK);<br />
+<li>}</ol></div><em onclick="copycode($('code_HCa'));">复制代码</em></div>是能够正常执行的。<br />
+-<br />
+<font color="Green">问题已经解决，感谢用户</font><br />
+<a href="https://www.mcbbs.net/?2388218" target="_blank">https://www.mcbbs.net/?2388218</a><br />
+-<br />
+只需确保修改方块的操作在主线程执行即可。可以这样：<br />
+<div class="blockcode"><div id="code_w9s"><ol><li>Block block = task.getTargetBlock();<br />
+<li>Bukkit.getScheduler().runTask(getPlugin(), () -&gt;<br />
+<li>{<br />
+<li>&nbsp; &nbsp; block.setType(task.getMaterialAfterBeingChanged());<br />
+<li>});</ol></div><em onclick="copycode($('code_w9s'));">复制代码</em></div>请参阅沙发。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-2 14:22<br />
+<i class="pstatus"> 本帖最后由 William_Shi 于 2020-5-2 14:23 编辑 </i><br />
+<br />
+这不是很正常吗<br />
+几乎与mc相关的东西都不是线程安全的<br />
+像这种放置方块什么的肯定得放在主线程执行<br />
+<br />
+可以看一下<a href="thread.html?t=725571" target="_blank">https://www.mcbbs.net/forum.php?mod=viewthread&amp;tid=725571</a><br />
+<br />
+海螺螺大佬写到了线程安全相关问题<br />
+<div class="quote"><blockquote>关于线程安全<br />
+以上接收时的事件全部是在网络线程被触发，所以对于线程不安全的Minecraft来说，线程安全问题需要额外注意。<br />
+由于本人对 Forge 的操作并不是很熟练，所以只能以 Bukkit 作为例子，如果你接收到的信息只是一条字符串，并且你只是想将其发送给玩家（Player#sendMessage），那么你可以随意在网络线程中使用，因为这个方法是线程安全的；但是，如果你需要进行踢出（Player#kickPlayer），那么你必须在主线程（Server Thread）进行这个操作，否则可能得到一个报错、崩溃或者意想不到的结果（尽管 Bukkit 会阻止 Async Kick 的行为并发出警告）。<br />
+那么，我们可以用以下的方法将数据转交给主线程处理：<br />
+使用 Bukkit 或者 Sponge 的调度器<br />
+展开 / 收起隐藏文字<br />
+Bukkit#getScheduler 返回一个 Bukkit 的调度器，Sponge#getScheduler 返回一个 Sponge 的调度器。<br />
+实例如下：<br />
+Bukkit 错误的做法：<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onPluginMessageReceived(String channel, Player player, byte[] data) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.kickPlayer(&quot;你因为给服务器发 plugin message 被踢了&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;font color=&quot;#808080&quot;&gt;// 报错&lt;/font&gt;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+复制代码<br />
+Bukkit 的正确做法，将涉及服务器的操作使用调度器交给主线程完成：<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onPluginMessageReceived(String channel, Player player, byte[] data) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Bukkit.getScheduler().runTask(插件实例, () -&gt; player.kickPlayer(&quot;被服务器用调度器踢出&quot;));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+复制代码<br />
+Sponge 的调度器操作类似。<br />
+<br />
+利用管道IO<br />
+展开 / 收起隐藏文字<br />
+管道IO，PipedInputStream 和 PipedOutputStream 用于线程间的通信，主要思想为：<br />
+连接管道（PipedOutputStream#connect(PipedInputStream in)）-&gt; 线程W写入流（即网络线程） -&gt; 线程R读取流（即Server Thread）<br />
+示例用法见帖尾链接<br />
+管道流可以用于线程间的通信，使用 byte[] 传输。<br />
+PipedInputStream 的 read 方法，如果没有读取到管道流中的数据，将会阻塞线程，请务必注意！<br />
+还需要注意的是，Minecraft 使用的网络线程可能有多条，需要额外注意。默认的 Netty IO 线程有 4 条。</blockquote></div><br />
+当然这是netty数据传输的例子<br />
+但是原理是相通的<br />
+你可以使用BukkitRunnable、MinecraftScheduler、BukkitScheduler等多种方式把任务推给主线程<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>狡诈师&nbsp; &nbsp; <b>时间: </b>2020-5-2 14:31<br />
+<i class="pstatus"> 本帖最后由 童鞋鞋 于 2020-5-2 14:33 编辑 </i><br />
+<div class="quote"><blockquote>Asynchronous block remove!</blockquote></div>不能用异步删除块，请使用主线程方式操作<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HQcxf&nbsp; &nbsp; <b>时间: </b>2020-5-2 14:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17986323&amp;ptid=1035874" target="_blank"><font color="#999999">William_Shi 发表于 2020-5-2 14:22</font></a></font><br />
+这不是很正常吗<br />
+几乎与mc相关的东西都不是线程安全的<br />
+像这种放置方块什么的肯定得放在主线程执行</blockquote></div><br />
+问题解决了。谢谢！<br />
+但是金粒上限15……有点尴尬……是不是要您多写几条回复
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,236 @@
+<html>
+<head>
+<title>【CBL|SYL】关于引号转义的探讨 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【CBL|SYL】关于引号转义的探讨 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:35<br />
+<b>标题: </b>【CBL|SYL】关于引号转义的探讨<br /><i class="pstatus"> 本帖最后由 贰逼 于 2015-5-9 19:12 编辑 </i><br />
+<br />
+首先说明一下，这帖子并不是新手教程<font size="3"><font color="#ff0000">也不是适合新人阅读的教程，所以别再回复什么看不懂了，看起来好高大上之类的回复了</font></font><br />
+<br />
+只是对一个重要的，在命令总中使用的机制——转义的探讨<br />
+这次是关于多重转义的发现<br />
+<hr class="l" /><br />
+<font size="5">转义简介</font><br />
+转义：转变意义<br />
+转义最重要的功能就是告诉系统，双引号&quot;究竟是属于哪一层的值的<br />
+为了避免系统混淆，值内所使用的引号需要转义，在格式要求严格的JSON中体现甚多<br />
+比如：<br />
+我需要tellraw显示&quot;hello world&quot;<br />
+而格式为<div class="blockcode"><div id="code_vwk"><ol><li>/tellraw @a {text:&quot;[值]&quot;}</ol></div><em onclick="copycode($('code_vwk'));">复制代码</em></div><br />
+
+<br />
+那么为了在值的部分输入引号，我们需要使用：<br />
+<div class="blockcode"><div id="code_O1m"><ol><li>/tellraw @a {text:&quot;&quot;hello world&quot;&quot;}</ol></div><em onclick="copycode($('code_O1m'));">复制代码</em></div><br />
+
+<br />
+如果没有转义（\&quot;）的话<br />
+系统会认为命令是&quot;<br />
+<div class="blockcode"><div id="code_oRB"><ol><li>/tellraw @a {text:&quot;&quot;}</ol></div><em onclick="copycode($('code_oRB'));">复制代码</em></div>这部分已经完结了text的值（空值），然后后面的全部不符合JSON格式<br />
+会出现<br />
+<div class="blockcode"><div id="code_ad0"><ol><li>无效的json：Unterminated object at line 1 column 10</ol></div><em onclick="copycode($('code_ad0'));">复制代码</em></div>的提示<br />
+这就是对转义的简单解释<br />
+一切都是系统蠢惹的祸，我们必须清清楚楚告诉他<br />
+&quot;hello world&quot;中的引号，属于第二层的引号（第一层是text部分的引号）<br />
+那样系统就不会搞乱<br />
+<hr class="l" /><br />
+<font size="5">转义探讨</font><br />
+然而我们组内在探讨2b组长：<a href="thread.html?t=443181" target="_blank">关于原版内输入格式符§的发现</a><br />
+对于出现的\\\&quot;疑惑不解<br />
+当初我只是以为是转义的另一个写法<br />
+事实证明了用\&quot;会导致命令错误<br />
+<hr class="l" /><br />
+<font size="3">错误示范</font><br />
+2b的发现很重要一步，就是通过设置牌子的CE，/blockdata某个命令方块，其中包含格式符的unicode，突破程序的限制<br />
+以下是例子（并不涉及到格式符部分，只是类似步骤的命令）：<br />
+<div class="blockcode"><div id="code_y0j"><ol><li>/blockdata ~ ~1 ~ {Text1:&quot;{text:&quot;test&quot;,clickEvent:{action:run_command,value:&quot;/blockdata 109 56 326 {Command:&quot;say &quot;hi&quot;&quot;}&quot;}}&quot;}</ol></div><em onclick="copycode($('code_y0j'));">复制代码</em></div>命令本意是想修改上方的牌子，让牌子拥有blockdata掉某个命令方块的CE，使命令变成/say &quot;hi&quot;<br />
+但效果变成了这个：<br />
+<img id="aimg_sKcIJ" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="690" height="391" src="http://ww1.sinaimg.cn/mw690/95d28122gw1ery4qso08cj20ni0dcdj3.jpg" border="0" alt="" /><br />
+右键以后也没有效果<br />
+<hr class="l" /><br />
+经过一轮排除测试后，发现问题出现在value部分的blockdata命令，还有里面的command NBT tag<br />
+虽然不采用规范化书写能够排除这个问题，但是本着探讨的心，对转义系统进行了研究<br />
+该命令最大的问题在于<font color="#ff0000">引号的层级和嵌套导致系统无法正确识别</font><br />
+我们发现，转义也是具有<font color="#ff0000">层级性</font>的<br />
+就是说，在已转义部分，或者说在一个值里面，还需要使用引号的话，那么必须进行<font color="#ff0000">二次转义</font><br />
+让系统不会混淆<br />
+<br />
+我们来分析以上错误命令<br />
+<font style="background-color:rgb(247, 247, 247)"><div class="blockcode"><div id="code_CoP"><ol><li>value:&quot;/blockdata 109 56 326 {Command:&quot;say &quot;hi&quot;&quot;}&quot;</ol></div><em onclick="copycode($('code_CoP'));">复制代码</em></div></font><br />
+问题出在这一块，value:\&quot;\&quot;部分没有问题，他在text1内，属于第一层转义，使用\&quot;是正确的<br />
+问题在于Command:&quot;&quot;部分，还有say &quot;hi&quot;部分的引号<br />
+Command后方的引号处在一层的value内，应该属于第二层<br />
+say &quot;hi&quot;同理，属于第三层<br />
+所以一概使用\&quot;必然会出现错误<br />
+<hr class="l" /><br />
+那么有着\\\&quot;这个发现的前提下，我们发现了转义内转义的规律<br />
+<font color="#ff0000">每一次转义，都必须在已经出现的\和&quot;前添加多一个\</font><br />
+所以第零层的&quot;<br />
+第一层的是\&quot;（&quot;前+\）(1个\)<br />
+第二层的是\\\&quot;（基于第二层的\&quot;,添加多两个\）（3个\）<br />
+第三层的是\\\\\\\&quot;（添加多4个\）（7个\）<br />
+如此类推<br />
+就是说，<font color="#ff0000">每一层的斜杠数量都是前面的2倍+1个 </font><br />
+或者使用以下公式计算<br />
+<div class="blockcode"><div id="code_EBP"><ol><li>2^n-1</ol></div><em onclick="copycode($('code_EBP'));">复制代码</em></div>2的n次方-1个（n代表目前层）<br />
+<hr class="l" /><br />
+按照这个规律来做的话，以上命令的正确写法为：<br />
+<div class="blockcode"><div id="code_OWe"><ol><li>/blockdata ~ ~1 ~ {Text1:&quot;{text:&quot;test&quot;,clickEvent:{action:run_command,value:&quot;/blockdata 109 56 326 {Command:\\&quot;say \\\\\\&quot;hi\\\\\\&quot;\\&quot;}&quot;}}&quot;}</ol></div><em onclick="copycode($('code_OWe'));">复制代码</em></div>value是第一层，用\&quot;<br />
+command是第二层，用\\\“<br />
+say部分的引号是第三层，用\\\\\\\&quot;<br />
+效果如下：<br />
+<img id="aimg_IBBub" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="690" height="391" src="http://ww2.sinaimg.cn/mw690/95d28122gw1ery4qt5fomj20ni0dcwi0.jpg" border="0" alt="" /><br />
+<br />
+右键之后，目标命令方块内：<br />
+<img id="aimg_jgkxX" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="690" height="391" src="http://ww3.sinaimg.cn/mw690/95d28122gw1ery4qtiyuuj20ni0dctay.jpg" border="0" alt="" /><br />
+<br />
+<hr class="l" /><br />
+<font size="5">补充说明</font><br />
+最后一点要注意的是，并不是说引号内的引号一定就是下一层的<br />
+例如我要tellraw输出&quot;&quot;hello world&quot;&quot;<br />
+那么命令是<br />
+<div class="blockcode"><div id="code_ul0"><ol><li>/tellraw @a {text:&quot;&quot;&quot;hello world&quot;&quot;&quot;}</ol></div><em onclick="copycode($('code_ul0'));">复制代码</em></div><br />
+而不是<br />
+<br />
+<div class="blockcode"><div id="code_UOn"><ol><li>/tellraw @a {text:&quot;&quot;\\&quot;hello world\\&quot;&quot;&quot;}</ol></div><em onclick="copycode($('code_UOn'));">复制代码</em></div>因为他们同属text的值内的引号，是第一层转义<br />
+所以同样使用\&quot;系统就能识别了，反而第二个写法输出有误<br />
+变成了:<br />
+<img id="aimg_XRQsw" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="690" height="391" src="http://ww4.sinaimg.cn/mw690/95d28122gw1ery4qtza94j20ni0dcq6c.jpg" border="0" alt="" /><br />
+<br />
+<hr class="l" /><br />
+<font size="5">总结：</font><br />
+1.转义使用的\数量为：<br />
+<div class="blockcode"><div id="code_IE0"><ol><li>2^n-1</ol></div><em onclick="copycode($('code_IE0'));">复制代码</em></div>2的n次方-1个（n代表目前层）<br />
+<br />
+2.同样层级下的转义使用同样数量的\<br />
+<br />
+（终极吐槽：我看了看2b的命令，发现根本不需要多重转义……因为他是不规范格式邪教2333）<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>乾.坤&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:39<br />
+cbl神教逆天233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>simon3000&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:40<br />
+<strike>请不要在论坛继续损害他人的自尊心和脑子了</strike><br />
+干得漂亮<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>C-青皮君&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:41<br />
+\\\\\\\\\\\\\\\&quot;2\\\\\\\&quot;333\\\&quot;333\&quot;3\&quot;333\\\&quot;333\\\\\\\&quot;333\\\\\\\\\\\\\\\\&quot;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:42<br />
+拜见大神{:10_512:}，小弟想问问<br />
+是不是json里面所有的转移都是同一层级的，只是NBT里面的需要多层转移？<br />
+我路过所以就水个回复了233333{:10_496:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>simon3000&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:43<br />
+今天发了好多东西?<br />
+高产啊<br />
+<br />
+貌似和我以前再用Bat输出另外一个文档的时候不知道怎么输出&quot;(好像)的类似问题的解决办法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ufof&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:45<br />
+先让我在读几遍<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:46<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8143923&amp;ptid=443302" target="_blank"><font color="#999999">pca006132 发表于 2015-5-9 17:42</font></a></font><br />
+拜见大神，小弟想问问<br />
+是不是json里面所有的转移都是同一层级的，只是NBT里面的需要多层转移？<br />
+ ...</blockquote></div><br />
+……<br />
+反正就是如果是一个值内套一个值的话<br />
+就是+一层的转义<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 17:50<br />
+<i class="pstatus"> 本帖最后由 贰逼 于 2015-5-9 19:15 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8143932&amp;ptid=443302" target="_blank"><font color="#999999">simon3000 发表于 2015-5-9 17:43</font></a></font><br />
+今天发了好多东西?<br />
+高产啊</blockquote></div><br />
+233<br />
+其实我这探讨是受2b帖子的启发<br />
+但我回首一看的时候<br />
+发现不规范书写其实根本不需要这科技……<br />
+结果就是无中生有了的感觉<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lzs1234&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:27<br />
+系统本来就蠢…（有人说这是为了系统准确…）<br />
+在value里打带引号的NBT真是令人发疯…<br />
+（为什么这么多人看不懂，很简单嘛…）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144448&amp;ptid=443302" target="_blank"><font color="#999999">lzs1234 发表于 2015-5-9 18:27</font></a></font><br />
+系统本来就蠢…（有人说这是为了系统准确…）<br />
+在value里打带引号的NBT真是令人发疯…<br />
+（为什么这么多人看不 ...</blockquote></div><br />
+这就是这次探讨出现的原因了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huanghongxun&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:41<br />
+MC的代码比较蠢。。<br />
+写的转义比较坑<br />
+<strike>一切都是Dinnerbone的锅</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:41<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144586&amp;ptid=443302" target="_blank"><font color="#999999">huanghongxun 发表于 2015-5-9 18:41</font></a></font><br />
+MC的代码比较蠢。。<br />
+写的转义比较坑<br />
+<strike>一切都是Dinnerbone的锅</strike></blockquote></div><br />
+1，3，7，15，31个/<br />
+想想都觉得恐怖……<br />
+虽然我觉得能用到7个的时候已经是很过分的命令了233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huanghongxun&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144601&amp;ptid=443302" target="_blank"><font color="#999999">sylqiuyifeng 发表于 2015-5-9 18:41</font></a></font><br />
+1，3，7，15，31个/<br />
+想想都觉得恐怖……<br />
+虽然我觉得能用到7个的时候已经是很过分的命令了233 ...</blockquote></div><br />
+mc指令长度好像是有限制的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 18:54<br />
+<i class="pstatus"> 本帖最后由 sylqiuyifeng 于 2015-5-9 19:00 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144622&amp;ptid=443302" target="_blank"><font color="#999999">huanghongxun 发表于 2015-5-9 18:44</font></a></font><br />
+mc指令长度好像是有限制的</blockquote></div><br />
+聊天栏打是100个<br />
+如果是CB里面是32767<br />
+不过还是那句……<br />
+你用这么多层转义是干什么鬼啊……经过计算<br />
+到了15层转义的时候刚刚好需要用32767个/，连引号都放不进去<br />
+如果算两边开关和两个引号的话，一共能套13层，用32764个字，还有3个空位留给你，真贴心<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⭐✔️&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:00<br />
+尿了 错误示范后面突然提到我的名字以为我错了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144842&amp;ptid=443302" target="_blank"><font color="#999999">贰逼 发表于 2015-5-9 19:00</font></a></font><br />
+尿了 错误示范后面突然提到我的名字以为我错了</blockquote></div><br />
+你的命令确实是错误示范啊<br />
+规范化书写的错误示范233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⭐✔️&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144857&amp;ptid=443302" target="_blank"><font color="#999999">sylqiuyifeng 发表于 2015-5-9 19:03</font></a></font><br />
+你的命令确实是错误示范啊<br />
+规范化书写的错误示范233</blockquote></div><br />
+FAQ很羞耻<br />
+而且规范个卵，能用就行<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⭐✔️&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144899&amp;ptid=443302" target="_blank"><font color="#999999">sylqiuyifeng 发表于 2015-5-9 19:07</font></a></font><br />
+虽然我也赞成这个说法<br />
+能用至上教派<br />
+真要这样写转义不如让我死了算吧233</blockquote></div><br />
+换个名字<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8144891&amp;ptid=443302" target="_blank"><font color="#999999">贰逼 发表于 2015-5-9 19:05</font></a></font><br />
+FAQ很羞耻<br />
+而且规范个卵，能用就行</blockquote></div><br />
+虽然我也赞成这个说法<br />
+能用至上教派<br />
+真要这样写转义不如让我死了算吧233<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>PotatoMaster101&nbsp; &nbsp; <b>时间: </b>2015-5-9 19:49<br />
+今天是CBL黑科技发布会吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chyx&nbsp; &nbsp; <b>时间: </b>2015-5-11 07:45<br />
+\' 中得\变成\\<br />
+'变成\'<br />
+连起来就是\\\'么？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-5-11 17:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8154719&amp;ptid=443302" target="_blank"><font color="#999999">chyx 发表于 2015-5-11 07:45</font></a></font><br />
+\' 中得\变成\\<br />
+'变成\'<br />
+连起来就是\\\'么？</blockquote></div><br />
+是的<br />
+这就是转换规律
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

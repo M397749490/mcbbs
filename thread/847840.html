@@ -1,0 +1,163 @@
+<html>
+<head>
+<title>Minecraft 1.13.x 中 Function 嵌套执行的顺序问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Minecraft 1.13.x 中 Function 嵌套执行的顺序问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pku_zzzz&nbsp; &nbsp; <b>时间: </b>2019-2-27 00:41<br />
+<b>标题: </b>Minecraft 1.13.x 中 Function 嵌套执行的顺序问题<br /><i class="pstatus"> 本帖最后由 pku_zzzz 于 2019-2-27 16:30 编辑 </i><br />
+<br />
+<font size="6"><strong>Minecraft 1.13.x 中 Function 嵌套执行的顺序问题</strong></font><br />
+<br />
+<font style="background-color:Black"><font color="Black">（在开始本文的阅读前，让我们首先在心中默念四字真言：MJSB）</font></font><br />
+<br />
+本文基于版本 1.13.2，不过相关问题据说 1.14 也有。<br />
+<br />
+<font size="5"><strong>引言</strong></font><br />
+<br />
+引发我研究这件事的动机是素学姐（指 MCBBS 用户 <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2131889" target="_blank">@Vinogradov</a> ）在做一个不知道什么奇奇怪怪的东西的时候触发的一个 BUG 啊不一个特性。不过，这个特性已经有人发现并汇报 Mojang 了（<a href="https://bugs.mojang.com/browse/MC-126946" target="_blank">MC-126946</a>），虽然目前的情况显示这个特性仍处三不管地带：<br />
+<br />
+<img id="aimg_QCBJq" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2019/02/26/5c753507802ac.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+这件事吸引了我从代码角度分析这件事发生的原因，并进一步了解了更多的东西，从而便有了本文。<br />
+<br />
+<font size="5"><strong><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">java.lang.StackOverflowError</font>？</strong></font><br />
+<br />
+在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">mcfunction</font> 文件里引用其他 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">mcfunction</font> 文件，或者说在一个 Function 里嵌套执行另一个 Function，看起来似乎是一个非常明显的需求，明显到一般人可能都意识不到这样的需求，实现起来是否需要有额外注意的地方。<br />
+<br />
+实际上，需要注意的地方是有的——如果我们只是单纯地通过在一段代码里调用另一段代码这种方式实现，那么随着嵌套层数的加深，代码的递归层数就会变大，那么如果我们期望的嵌套层数比 JVM 允许的嵌套层数深，游戏就可能会在我们不希望的地方抛出 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">java.lang.StackOverflowError</font>。<br />
+<br />
+解决办法自然是有的。作为示例，我们以以下四个 Function 作为示例演示 Mojang 是怎么解决问题的。<br />
+<br />
+<div class="blockcode"><div id="code_U90"><ol><li># data/test/functions/a.mcfunction<br />
+<li>say 1<br />
+<li>say 2<br />
+<li>function test:b<br />
+<li>say 4<br />
+<li>say 5<br />
+<li>function test:c<br />
+<li>say 0<br />
+<li><br />
+<li># data/test/functions/b.mcfunction<br />
+<li>say 3<br />
+<li><br />
+<li># data/test/functions/c.mcfunction<br />
+<li>say 6<br />
+<li>function test:d<br />
+<li>say 9<br />
+<li><br />
+<li># data/test/functions/d.mcfunction<br />
+<li>say 7<br />
+<li>say 8</ol></div><em onclick="copycode($('code_U90'));">复制代码</em></div><br />
+对命令稍有了解的玩家应该都可以看出，如果我们执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:a</font>，接下来会发生什么。<br />
+<br />
+<font size="5"><strong>自己动手，丰衣足食</strong></font><br />
+<br />
+既然 Java 递归本身不靠谱，那么我们就需要自己实现一个栈了。事实上 Mojang 的做法正是维护这样一个栈，存储接下来所有将要执行的 Function，如果出现嵌套调用，就在执行到嵌套调用的地方展开。<br />
+<br />
+在执行一个 Function 前，Mojang 会将所有待执行的 Function 压入栈，并在执行命令时逐一弹出：<br />
+<br />
+<ul><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:a</font>，将其所有命令展开并压入栈： <br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[] =&gt; [say 1, say 2, function test:b, ..., say 0]</font><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">say 1</font>，将栈顶命令弹出：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[say 1, say 2, function test:b, ..., say 0] =&gt; [say 2, function test:b, ..., say 0]</font><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">say 2</font>，将栈顶命令弹出：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[say 2, function test:b, say 4, ..., say 0] =&gt; [function test:b, say 4, ..., say 0]</font><br />
+</ul><br />
+现在我们需要执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:b</font> 了，执行时为避免递归，该 Function 将被自动展开，然后逐一执行：<br />
+<br />
+<ul><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:b</font>，将其所有命令展开并压入栈：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[function test:b, say 4, say 5, ..., say 0] =&gt; [say 3, say 4, ..., say 0]</font><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">say 3</font>，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">say 4</font>，和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">say 5</font>，将栈顶命令弹出：<br />
+<font face="Monaco, Consolas, Lucida Console, Courier New, serif">[say 3, say 4, say 5, ..., say 0] =&gt; [say 4, say 5, function test:c, say 0]</font><br />
+<font face="Monaco, Consolas, Lucida Console, Courier New, serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [say 5, function test:c, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [function test:c, say 0]</font><br />
+</ul><br />
+执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:c</font> 需要两层嵌套，但在栈上的展开也是自然的：<br />
+<br />
+<ul><li>准备执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:c</font> 及其中所有命令：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[function test:c, say 0] =&gt; [say 6, function test:d, say 9, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [function test:d, say 9, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [say 7, say 8, say 9, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [say 8, say 9, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [say 9, say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; [say 0]</font><br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">|&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;=&gt; []</font><br />
+</ul><br />
+我们不需要使用递归的方式，就可以完成 Function 的嵌套问题，而且我们可以任意控制嵌套层数，只要游戏内存足够多。<br />
+<br />
+这里我们需要注意到一件事：由于先执行的命令需要先弹出栈，因此游戏代码本身处理 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">mcfunction</font> 文件时，是倒着压入栈的——也就是说最后一条命令最先入栈，而第一条命令直到最后才入栈。稍后我们就会看到这一特殊处理方式带来的隐患。<br />
+<br />
+<font size="5"><strong>问题的出现</strong></font><br />
+<br />
+如果我们只允许使用 Function 的方式一次执行多条指令，那么上面的设计是毫无问题的。可问题就出在一次执行多条指令的方式不止 Function 一种——我们还有 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font> 呢。<br />
+<br />
+我们现在重新复现一下 <a href="https://bugs.mojang.com/browse/MC-126946" target="_blank">MC-126946</a> 中提到的方式。<a href="https://bugs.mojang.com/browse/MC-126946" target="_blank">MC-126946</a> 首先生成了三个盔甲架：<br />
+<br />
+<div class="blockcode"><div id="code_mYr"><ol><li>summon minecraft:armor_stand ~ ~ ~ {CustomName:&quot;&quot;Main&quot;&quot;,CustomNameVisible:1b,Tags:[&quot;foo&quot;]}<br />
+<li>summon minecraft:armor_stand ~1 ~ ~ {CustomName:&quot;&quot;One&quot;&quot;,CustomNameVisible:1b,Tags:[&quot;bar&quot;]}<br />
+<li>summon minecraft:armor_stand ~2 ~ ~ {CustomName:&quot;&quot;Two&quot;&quot;,CustomNameVisible:1b,Tags:[&quot;bar&quot;]}</ol></div><em onclick="copycode($('code_mYr'));">复制代码</em></div><br />
+然后以 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Main</font> 的位置为基点执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font> 命令：<br />
+<br />
+<div class="blockcode"><div id="code_UZl"><ol><li># data/test/functions/foo.mcfunction<br />
+<li>execute as @e[tag=foo] at @s as @e[tag=bar,sort=nearest] run function test:say<br />
+<li><br />
+<li># data/test/functions/say.mcfunction<br />
+<li>say Hello</ol></div><em onclick="copycode($('code_UZl'));">复制代码</em></div><br />
+如果我们执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">function test:foo</font>，那我们相当于一次性为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">One</font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Two</font> 分别执行了两个 Function，按照 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">sort=nearest</font> 规则，选择器列表中 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">One</font> 应位于 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Two</font> 的前面。但是，由于我们是在 Function 中嵌套执行 Function，问题发生了。<br />
+<br />
+<ul><li>游戏会首先将针对 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">One</font> 的压入栈：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[] =&gt; [(One) say Hello]</font><li>然后将针对 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Two</font> 的压入栈：<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">[(One) say Hello] =&gt; [(Two) say Hello, (One) say Hello]</font><br />
+</ul><br />
+在执行时，由于先进栈的后出栈，因此针对 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Two</font> 的会相较针对 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">One</font> 的先执行，导致执行顺序和预期相反。但以下两种情况却是正常的：<br />
+<br />
+<ul><li>直接在控制台执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font> 命令：<br />
+这是因为此时待执行的两个 Function 并不在某个 Function 下，因此是分立的，因此会分别入栈出栈。<li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font> 后的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">run</font> 不执行 Function，而是直接执行命令：<br />
+这是因为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">execute</font> 命令会直接按次执行两个命令，而不会将其交给 Function 系统，更不会有多余的入栈出栈。<br />
+</ul><br />
+于是这一特性就产生了<font style="background-color:Black"><font color="Black">（于是 MJSB，Q.E.D.）</font></font>。<br />
+<br />
+<font size="5"><strong>解决方案</strong></font><br />
+<br />
+单纯使用命令的解决方案我也不清楚，但是这一特性经过证实是稳定的，于是可能真的可以拿来放心大胆直接用？<br />
+<br />
+（据说素学姐最后把 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">nearest</font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">furthest</font> 对调解决了问题，这理论上听着可行，实际我没试<font style="background-color:Black"><font color="Black">，毕竟我只是个云玩家</font></font>）<br />
+<br />
+使用代码修复的解决方案我也想到过，但是我又不是 Mojang 员工，我才不会操心这种破事，这里也不提出来了。<br />
+<br />
+以上です。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-2-27 06:05<br />
+<div class="blockcode"><div id="code_Qsj"><ol><li>18. # data/test/functions/b.mcfunction<br />
+<li>19. say 7<br />
+<li>20. say 8</ol></div><em onclick="copycode($('code_Qsj'));">复制代码</em></div><br />
+
+<br />
+那是 d.mcfunction。<br />
+<br />
+以及这听上去像是个特性而不是 bug。Mojang 有没有 MCFunction Language Specification？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2019-2-27 06:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13953896&amp;ptid=847840" target="_blank"><font color="#999999">u.s.knowledge 发表于 2019-2-27 06:05</font></a></font><br />
+那是 d.mcfunction。<br />
+<br />
+以及这听上去像是个特性而不是 bug。Mojang 有没有 MCFunction Language Specifica ...</blockquote></div><br />
+这当然是BUG。<br />
+同样使用<br />
+<div class="blockcode"><div id="code_XuK"><ol><li>execute as @e[tag=foo] at @s as @e[tag=bar,sort=nearest] run function test:say</ol></div><em onclick="copycode($('code_XuK'));">复制代码</em></div><br />
+放在function里执行和在聊天框输入执行的顺序不同，足够说明问题。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-4-15 16:31<br />
+4z啊，我找到一个临时解决方法了，只是看磨样收不收了（对，Mojang发音是磨样）<br />
+<br />
+<a href="https://bugs.mojang.com/browse/MC-126946" target="_blank">https://bugs.mojang.com/browse/MC-126946</a><br />
+<br />
+希望你还有 <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=208932" target="_blank">@u.s.knowledge</a> 能看看，然后找找我这个临时解决方法有没有漏洞
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

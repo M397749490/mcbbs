@@ -1,0 +1,143 @@
+<html>
+<head>
+<title>求助，在onBlockActived调用player.openGui之后GuiHandler不会被调用 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>求助，在onBlockActived调用player.openGui之后GuiHandler不会被调用 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tt36999&nbsp; &nbsp; <b>时间: </b>2018-10-30 15:39<br />
+<b>标题: </b>求助，在onBlockActived调用player.openGui之后GuiHandler不会被调用<br /><i class="pstatus"> 本帖最后由 tt36999 于 2018-10-31 10:51 编辑 </i><br />
+<br />
+总得来说，我搞了一个方块，然后弄了一个GUI给他。正常来说当调用player.openGui之后，MC应该会去调用注册的GuiHandler。<br />
+我检查了不少地方，不过并没有发现什么问题，下面是一部分可能有关的代码。<div class="blockcode"><div id="code_sfK"><ol><li>这个是MOD入口文件<br />
+<li>&nbsp; &nbsp; @SidedProxy(clientSide = &quot;com.tt36999.BrewingCraft.Proxy.ClientProxy&quot;, serverSide = &quot;com.tt36999.BrewingCraft.Proxy.CommonProxy&quot;)<br />
+<li>&nbsp; &nbsp; public static IProxy proxy;<br />
+<li><br />
+<li>&nbsp; &nbsp; @Mod.Instance<br />
+<li>&nbsp; &nbsp; public static BrewingCraft instance;<br />
+<li><br />
+<li>&nbsp; &nbsp; @Mod.EventHandler<br />
+<li>&nbsp; &nbsp; public void preInit(FMLPreInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;logger = event.getModLog();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Mod.EventHandler<br />
+<li>&nbsp; &nbsp; public void init(FMLInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy.onInit(event);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static void openGui(EntityPlayer player, BRCGuiHandler.EnumGui gui, World world, int x, int y, int z) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;FMLNetworkHandler.openGui(player, instance, gui.getId(), world, x, y, z);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_sfK'));">复制代码</em></div><div class="blockcode"><div id="code_t3J"><ol><li>方块的右击事件<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final IFluidHandler fluidHandler = getFluidHandler(worldIn, pos);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (fluidHandler != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ItemStack heldItem = playerIn.getHeldItem(hand);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!CapabilityUtils.hasCapability(heldItem, CapabilityFluidHandler.FLUID_HANDLER_ITEM_CAPABILITY, null)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!worldIn.isRemote) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (hasGui()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;BrewingCraft.logger.info(&quot;Open Gui &quot; + getGui().getId());//正常执行<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//BrewingCraft.openGui(playerIn, getGui(), worldIn, pos.getX(), pos.getY(), pos.getZ());//请忽略这个，我只想试试这样能不能打开GUI<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerIn.openGui(BrewingCraft.instance, getGui().getId(), worldIn, pos.getX(), pos.getY(), pos.getZ());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;IFluidTankProperties[] properties = fluidHandler.getTankProperties();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;StringBuilder builder = new StringBuilder();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (IFluidTankProperties tankProperties : properties)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; builder.append(tankProperties.getContents().getLocalizedName() + &quot;:&quot; + tankProperties.getContents().amount + &quot;/&quot; + tankProperties.getCapacity());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerIn.sendStatusMessage(new TextComponentString(builder.toString()), false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;FluidUtil.interactWithFluidHandler(playerIn, hand, fluidHandler);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return FluidUtil.getFluidHandler(playerIn.getHeldItem(hand)) != null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_t3J'));">复制代码</em></div><div class="blockcode"><div id="code_K55"><ol><li>这个是GuiHandler<br />
+<li>&nbsp; &nbsp; @Nullable<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BrewingCraft.logger.info(&quot;Get server con &quot; + ID);//没被执行<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch (ID) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new ContainerTestBlock(player.inventory, (TileEntityFluidContainer) world.getTileEntity(new BlockPos(x, y, z)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BrewingCraft.logger.warn(&quot;[Warning] Can not get server gui container with id is &quot; + ID);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Nullable<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BrewingCraft.logger.info(&quot;Get client gui &quot; + ID);//没被执行<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch (ID) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new GuiTestFluidContainer((ContainerBRC) getServerGuiElement(ID, player, world, x, y, z), player.inventory);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BrewingCraft.logger.warn(&quot;[Warning] Can not get client gui object with id is &quot; + ID);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_K55'));">复制代码</em></div><div class="blockcode"><div id="code_DNw"><ol><li>@Mod.EventBusSubscriber<br />
+<li>public class CommonProxy implements IProxy {<br />
+<li><br />
+<li>&nbsp; &nbsp; @SubscribeEvent<br />
+<li>&nbsp; &nbsp; public static void onPotionRegister(RegistryEvent.Register&lt;Potion&gt; register) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BRCPotions.register(register.getRegistry());<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @SubscribeEvent<br />
+<li>&nbsp; &nbsp; public static void onPlayerSleepEvent(PlayerSleepInBedEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (BRCPotions.potionEffectExcited.isAvailable(event))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;BRCPotions.potionEffectExcited.onDoEffect(event);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @SubscribeEvent<br />
+<li>&nbsp; &nbsp; public static void onLivingDamagedEvent(LivingDamageEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (BRCPotions.potionExplosionProof.isAvailable(event))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;BRCPotions.potionExplosionProof.onDoEffect(event);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @SubscribeEvent<br />
+<li>&nbsp; &nbsp; public static void onRrgisterItem(RegistryEvent.Register&lt;Item&gt; event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BRCItems.register(event.getRegistry());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BRCBlocks.registerItemBlock(event.getRegistry());<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @SubscribeEvent<br />
+<li>&nbsp; &nbsp; public static void onRegisterBlock(RegistryEvent.Register&lt;Block&gt; event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BRCBlocks.register(event.getRegistry());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BRCBlocks.registerTileEntity();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onInit(FMLInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;NetworkRegistry.INSTANCE.registerGuiHandler(BrewingCraft.instance, new BRCGuiHandler());<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_DNw'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+大佬们请问是我哪里代码写错了？或者是忽略了什么小细节<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GiNYAi&nbsp; &nbsp; <b>时间: </b>2018-10-30 17:49<br />
+似乎你的IGuiHandler并没有注册?<br />
+<a href="https://fmltutor.ustc-zzzz.net/3.4.1-" target="_blank">https://fmltutor.ustc-zzzz.net/3.4.1-</a>创建一个新的GUI界面.html<br />
+<div class="blockcode"><div id="code_K1v"><ol><li>NetworkRegistry.INSTANCE.registerGuiHandler(FMLTutor.instance, this);</ol></div><em onclick="copycode($('code_K1v'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tt36999&nbsp; &nbsp; <b>时间: </b>2018-10-31 10:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13453005&amp;ptid=826461" target="_blank"><font color="#999999">GiNYAi 发表于 2018-10-30 17:49</font></a></font><br />
+似乎你的IGuiHandler并没有注册?<br />
+https://fmltutor.ustc-zzzz.net/3.4.1-创建一个新的GUI界面.html<br />
+ ...</blockquote></div><br />
+抱歉我的锅，这里的代码忘记贴出来了，注册在CommonProxy的init方法中
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

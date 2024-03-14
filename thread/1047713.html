@@ -1,0 +1,175 @@
+<html>
+<head>
+<title>JVM沙箱技术 - I - 反射重定向 - JDK 8 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>JVM沙箱技术 - I - 反射重定向 - JDK 8 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-5-17 13:51<br />
+<b>标题: </b>JVM沙箱技术 - I - 反射重定向 - JDK 8<br /><i class="pstatus"> 本帖最后由 Karlatemp 于 2020-5-17 13:54 编辑 </i><br />
+<br />
+<font face="Consolas"><br />
+<br />
+<font size="5">JVM沙箱技术 - I - 反射重定向 - JDK 8</font><br />
+<br />
+本人目前在做关于JVM沙箱的内容, 感觉可能会有其他人有需要, 于是便将此技术分享出来<br />
+<br />
+本技术适用于<br />
+<ul><li> 需要重定向反射<li> 需要让远程代码操作部分服务器但是不允许完整操作 (因此不能使用docker的)<li> ....<br />
+</ul><br />
+<br />
+<i>注: 本项目的JDK 8版本使用Kotlin编写</i><br />
+<strike>要不是JDK 13没找到让kotlin访问jdk.internal的方法才不会去用java呢</strike><br />
+<br />
+项目仓库: <a href="https://github.com/Karlatemp/JVMLowLevel" target="_blank">GitHub</a><br />
+开源协议: <a href="https://github.com/Karlatemp/JVMLowLevel/blob/master/LICENSE" target="_blank">GNU AFFERO GENERAL PUBLIC LICENSE version 3</a><br />
+<br />
+本章只说出接管重点, 具体实现细节请自己看<a href="https://github.com/Karlatemp/JVMLowLevel/blob/master/README.MD" target="_blank">README</a>&amp;源代码<br />
+<br />
+不要喷 Java &amp; Kotlin 混用, src唯一的java文件是属于代码自动生成, jdk13目前未找到让kotlin访问jdk.internal.*的方法<br />
+<br />
+没用mvn/gradle, 因为懒得用, 别吐槽<br />
+<br />
+<font size="3">Step 0. 生成ReflectionFactory模型</font><br />
+<br />
+参考 <a href="https://github.com/Karlatemp/JVMLowLevel/blob/master/src/io/github/karlatemp/jll/ApplicationStartup.kt#L67" target="_blank">ApplicationStartup#makeModel</a><br />
+生成一个ReflectionFactory的模型, 至于为啥不直接继承ReflectionFactory, 因为<br />
+<div class="blockcode"><div id="code_r57"><ol><li> private ReflectionFactory() {} </ol></div><em onclick="copycode($('code_r57'));">复制代码</em></div><br />
+
+<br />
+执行上述代码后, 我们可以得到一个 ReflectionFactoryModel.java, 如果不想让kotlin项目混入一个java文件, 可以选择使用IDEA直接将其转换为kotlin代码<br />
+<br />
+<font size="3">Step 1. 准备一个Instrumentation对象</font><br />
+<br />
+我们需要准备一个 Instrumentation 以实现更加底层的操作. 修改字节码<br />
+<br />
+准备好你的 ASM + javaagent.jar<br />
+<br />
+关于 Instrumentation 的传递可以参照 <a href="https://github.com/Karlatemp/JVMLowLevel/tree/master/JvmAgent/src/io/github/karlatemp/jll/agent" target="_blank">JvmAgent</a><br />
+<div class="blockcode"><div id="code_kCX"><ol><li>instrumentation = Thread.currentThread().threadGroup.let {<br />
+<li>&nbsp; &nbsp; val count = it.activeCount()<br />
+<li>&nbsp; &nbsp; val array = Array&lt;Thread?&gt;(count) { null }<br />
+<li>&nbsp; &nbsp; it.enumerate(array)<br />
+<li>&nbsp; &nbsp; return@let array<br />
+<li>}.let {<br />
+<li>&nbsp; &nbsp; it.forEach { thread -&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (thread == null) return@forEach<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (thread.name == &quot;InstrumentationThread&quot;) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (thread is Supplier&lt;*&gt;) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return@let thread.get() as Instrumentation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; error(&quot;Instrumentation not found! Please add -javaagent:JvmAgent.jar&quot;)<br />
+<li>}</ol></div><em onclick="copycode($('code_kCX'));">复制代码</em></div><br />
+
+<br />
+<font size="3">Step 2. 动态修改字节码</font><br />
+<br />
+通过 Instrumentation 把所有 extends ReflectionFactoryModel 转成 extends sun.misc.ReflectionFactory<br />
+<br />
+<div class="blockcode"><div id="code_Xb2"><ol><li><br />
+<li>unsafe.ensureClassInitialized(ClassNode::class.java) // Preload ASM<br />
+<li>instrumentation.addTransformer { loader, className, classBeingRedefined, protectionDomain, classfileBuffer -&gt;<br />
+<li>&nbsp; &nbsp; ClassReader(classfileBuffer).let { reader -&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassNode().also {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;reader.accept(it, 0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }.let {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// If the class is the model, ignore it<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (it.name == &quot;io/github/karlatemp/jll/ReflectionFactoryModel&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return@addTransformer classfileBuffer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;val writer = ClassWriter(0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;it.accept(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassRemapper(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; writer, SimpleRemapper(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;io/github/karlatemp/jll/ReflectionFactoryModel&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;sun/reflect/ReflectionFactory&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; )<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;writer<br />
+<li>&nbsp; &nbsp; }.toByteArray()<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Xb2'));">复制代码</em></div><br />
+
+<br />
+<font size="3">Step 3. 编写接管</font><br />
+<br />
+好, 我们随便写个类继承ReflectionFactoryModel<br />
+<div class="blockcode"><div id="code_H2R"><ol><li>class MyCustomReflectionFactory : ReflectionFactoryModel() {}</ol></div><em onclick="copycode($('code_H2R'));">复制代码</em></div><br />
+
+<br />
+然后alloc我们自己的RF, 并替换JVM内部的RF<br />
+<div class="blockcode"><div id="code_AaI"><ol><li><br />
+<li>val customReflectionFactory = unsafe.allocateInstance(MyCustomReflectionFactory::class.java)<br />
+<li>if(customReflectionFactory !is ReflectionFactory) {<br />
+<li>&nbsp; &nbsp; error(&quot;Oops. This is not working!&quot;)<br />
+<li>}<br />
+<li>instrumentation.allLoadedClasses.forEach {<br />
+<li>&nbsp; &nbsp; kotlin.runCatching {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;it.declaredFields.forEach { field -&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (Modifier.isStatic(field.modifiers)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (field.type == ReflectionFactory::class.java) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;unsafe.putObject(unsafe.staticFieldBase(field), unsafe.staticFieldOffset(field), customReflectionFactory)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_AaI'));">复制代码</em></div><br />
+并且清空JVM反射数据缓存<br />
+<div class="blockcode"><div id="code_OnP"><ol><li>val classReflectionDataOffset = unsafe.objectFieldOffset(Class::class.java.getDeclaredField(&quot;reflectionData&quot;))<br />
+<li>instrumentation.allLoadedClasses.forEach {<br />
+<li>&nbsp; &nbsp; unsafe.putObjectVolatile(it, classReflectionDataOffset, null)<br />
+<li>}</ol></div><em onclick="copycode($('code_OnP'));">复制代码</em></div><br />
+然后我们把MyCustomReflectionFactory随便改改，以确认他是否正常工作<br />
+<br />
+<div class="blockcode"><div id="code_TI7"><ol><li>// Don't use object, it is not support<br />
+<li>class MyCustomReflectionFactory private constructor() : ReflectionFactoryModel() {<br />
+<li>&nbsp; &nbsp; override fun newMethodAccessor(var0: Method): MethodAccessor {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;println(var0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return super.newMethodAccessor(var0)<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_TI7'));">复制代码</em></div><br />
+
+<br />
+然后运行<br />
+<br />
+<div class="blockcode"><div id="code_n6o"><ol><li>Runnable::class.java.getDeclaredMethod(&quot;run&quot;).invoke(Runnable {<br />
+<li>&nbsp; &nbsp; println(&quot;Hello&quot;)<br />
+<li>})</ol></div><em onclick="copycode($('code_n6o'));">复制代码</em></div><br />
+
+<br />
+如果你能看到以下输出，恭喜，你已经成功接管反射了<br />
+<div class="blockcode"><div id="code_T14"><ol><li>public abstract void java.lang.Runnable.run()<br />
+<li>Hello</ol></div><em onclick="copycode($('code_T14'));">复制代码</em></div><br />
+
+<br />
+如果没有工作, hum? 看看开源仓库的 <a href="https://github.com/Karlatemp/JVMLowLevel/blob/master/src/io/github/karlatemp/jll/ApplicationStartup.kt" target="_blank">ApplicationStartup</a> 吧<br />
+<br />
+<div align="right"><i>完整文档请参阅 <a href="https://github.com/Karlatemp/JVMLowLevel/blob/master/README.MD" target="_blank">README</a></i></div><br />
+<br />
+/*<br />
+ * Copyright (c) 2018-2020 Karlatemp. All rights reserved.<br />
+ * @author Karlatemp &lt;<a href="mailto:karlatemp@vip.qq.com">karlatemp@vip.qq.com</a>&gt; &lt;<a href="https://github.com/Karlatemp" target="_blank">https://github.com/Karlatemp</a>&gt;<br />
+ * @create 2020/05/17 13:48:43<br />
+ */<br />
+<br />
+</font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>套你瘊子&nbsp; &nbsp; <b>时间: </b>2020-5-17 14:59<br />
+看不懂啊我靠，java好难学<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>崔博凯&nbsp; &nbsp; <b>时间: </b>2020-5-21 07:29<br />
+看起来好麻烦<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yunyifenghao&nbsp; &nbsp; <b>时间: </b>2020-5-21 12:00<br />
+楼主能解释下这是要干什么嘛
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

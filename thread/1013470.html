@@ -1,0 +1,156 @@
+<html>
+<head>
+<title>[1.7.10-1.12.2][CNPC]A* A-Star 迷宫寻路算法 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.7.10-1.12.2][CNPC]A* A-Star 迷宫寻路算法 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>@小明&nbsp; &nbsp; <b>时间: </b>2020-4-10 01:23<br />
+<b>标题: </b>[1.7.10-1.12.2][CNPC]A* A-Star 迷宫寻路算法<br /><div class="blockcode"><div id="code_DF1"><ol><li>//迷宫大小<br />
+<li>var dungeon_setting = {<br />
+<li> x: 100,<br />
+<li> z: 100<br />
+<li>}<br />
+<li>//tmp = 二维数组(0是空气,1是墙)<br />
+<li>//StartX = 起点坐标X<br />
+<li>//StartZ = 起点坐标Z<br />
+<li>//EndX = 终点坐标X<br />
+<li>//EndZ = 终点坐标Z<br />
+<li>function A_Star(e, tmp, StartX, StartZ, EndX, EndZ) {<br />
+<li> //寻路计时器(可省略)<br />
+<li> var test = new Date().getTime();<br />
+<li> var p = e.player;<br />
+<li> var openList = [], //开启列表<br />
+<li>&nbsp;&nbsp;closeList = [], //关闭列表<br />
+<li>&nbsp;&nbsp;result = [], //结果数组<br />
+<li>&nbsp;&nbsp;result_index; //结果数组在开启列表中的序号<br />
+<li> openList.push({<br />
+<li>&nbsp;&nbsp;x: StartX,<br />
+<li>&nbsp;&nbsp;y: StartZ,<br />
+<li>&nbsp;&nbsp;G: 0<br />
+<li> });<br />
+<li> do {<br />
+<li>&nbsp;&nbsp;//返回最后一个元素<br />
+<li>&nbsp;&nbsp;var currentPoint = openList.pop();<br />
+<li>&nbsp;&nbsp;closeList.push(currentPoint);<br />
+<li>&nbsp;&nbsp;var surroundPoint = SurroundPoint(currentPoint);<br />
+<li>&nbsp;&nbsp;for (var i in surroundPoint) {<br />
+<li>&nbsp; &nbsp;var item = surroundPoint[i]; //获得周围的四个点<br />
+<li>&nbsp; &nbsp;if (<br />
+<li>&nbsp; &nbsp; item.x &gt;= 0 &amp;&amp; //判断是否在地图上<br />
+<li>&nbsp; &nbsp; item.y &gt;= 0 &amp;&amp;<br />
+<li>&nbsp; &nbsp; item.x &lt; dungeon_setting.x &amp;&amp;<br />
+<li>&nbsp; &nbsp; item.y &lt; dungeon_setting.z &amp;&amp;<br />
+<li>&nbsp; &nbsp; tmp[item.x][item.y] != 1 &amp;&amp; //判断是否是障碍物<br />
+<li>&nbsp; &nbsp; !existList(item, closeList) &amp;&amp; //判断是否在关闭列表中<br />
+<li>&nbsp; &nbsp; tmp[item.x][currentPoint.y] != 1 &amp;&amp; //判断之间是否有障碍物，如果有障碍物是过不去的<br />
+<li>&nbsp; &nbsp; tmp[currentPoint.x][item.y] != 1) {<br />
+<li>&nbsp; &nbsp; //g 到父节点的位置<br />
+<li>&nbsp; &nbsp; //如果是上下左右g等于10<br />
+<li>&nbsp; &nbsp; var g = currentPoint.G + 10;<br />
+<li>&nbsp; &nbsp; if (!existList(item, openList)) { //如果不在开启列表中<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;//计算H，通过水平和垂直距离进行确定<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;item['H'] = Math.abs(EndX - item.x) * 10 + Math.abs(EndZ - item.y) * 10;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;item['G'] = g;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;item['F'] = item.H + item.G;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;item['parent'] = currentPoint;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;openList.push(item);<br />
+<li>&nbsp; &nbsp; } else { //存在在开启列表中，比较目前的g值和之前的g的大小<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;var index = existList(item, openList);<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;//如果当前点的g更小<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;if (g &lt; openList[index].G) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;openList[index].parent = currentPoint;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;openList[index].G = g;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;openList[index].F = g + openList[index].H;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;}<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;//如果开启列表空了，没有通路，结果为空<br />
+<li>&nbsp;&nbsp;if (openList.length == 0) {<br />
+<li>&nbsp; &nbsp;e.API.executeCommand(e.npc.world, 'title ' + p.name + ' subtitle [&quot;&quot;,{&quot;text&quot;:&quot;§4?&quot;}]');<br />
+<li>&nbsp; &nbsp;p.message('§3无路径')<br />
+<li>&nbsp; &nbsp;p.message(&quot;§a寻路耗时: &quot; + (new Date().getTime() - test) + &quot;ms&quot;);<br />
+<li>&nbsp; &nbsp;break;<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;openList.sort(sortF); //这一步是为了循环回去的时候，找出 F 值最小的, 将它从 &quot;开启列表&quot; 中移掉<br />
+<li> } while (!(result_index = existList({<br />
+<li>&nbsp; &nbsp;x: EndX,<br />
+<li>&nbsp; &nbsp;y: EndZ<br />
+<li>&nbsp;&nbsp;}, openList)));<br />
+<li> //判断结果列表是否为空<br />
+<li> if (!result_index) {<br />
+<li>&nbsp;&nbsp;result = [];<br />
+<li> } else {<br />
+<li>&nbsp;&nbsp;var currentObj = openList[result_index];<br />
+<li>&nbsp;&nbsp;do {<br />
+<li>&nbsp; &nbsp;//把路劲节点添加到result当中<br />
+<li>&nbsp; &nbsp;result.unshift({<br />
+<li>&nbsp; &nbsp; x: currentObj.x,<br />
+<li>&nbsp; &nbsp; y: currentObj.y<br />
+<li>&nbsp; &nbsp;});<br />
+<li>&nbsp; &nbsp;currentObj = currentObj.parent;<br />
+<li>&nbsp;&nbsp;} while (currentObj.x != StartX || currentObj.y != StartZ);<br />
+<li>&nbsp;&nbsp;e.API.executeCommand(e.npc.world, 'title ' + p.name + ' subtitle [&quot;&quot;,{&quot;text&quot;:&quot;§a?&quot;}]')<br />
+<li>&nbsp;&nbsp;p.message(&quot;§a寻路耗时: &quot; + (new Date().getTime() - test) + &quot;ms&quot;);<br />
+<li>&nbsp;&nbsp;p.message('§2有路径');<br />
+<li> }<br />
+<li> return result;<br />
+<li>}<br />
+<li>function distanceToFinish(xVal, zVal) {<br />
+<li> return (xVal - 50) * (xVal - 50) + (zVal - 50) * (zVal - 50);<br />
+<li>}<br />
+<li>//获取周围四个点的值<br />
+<li>function SurroundPoint(curPoint) {<br />
+<li> var x = curPoint.x,<br />
+<li>&nbsp;&nbsp;y = curPoint.y;<br />
+<li> return [{<br />
+<li>&nbsp; &nbsp;x: x,<br />
+<li>&nbsp; &nbsp;y: y - 1<br />
+<li>&nbsp;&nbsp;},<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;x: x + 1,<br />
+<li>&nbsp; &nbsp;y: y<br />
+<li>&nbsp;&nbsp;},<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;x: x,<br />
+<li>&nbsp; &nbsp;y: y + 1<br />
+<li>&nbsp;&nbsp;},<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;x: x - 1,<br />
+<li>&nbsp; &nbsp;y: y<br />
+<li>&nbsp;&nbsp;}<br />
+<li> ]<br />
+<li>}<br />
+<li>//判断点是否存在在列表中，是的话返回的是序列号<br />
+<li>function existList(point, list) {<br />
+<li> for (var i in list) {<br />
+<li>&nbsp;&nbsp;if (point.x == list[i].x &amp;&amp; point.y == list[i].y) {<br />
+<li>&nbsp; &nbsp;return i;<br />
+<li>&nbsp;&nbsp;}<br />
+<li> }<br />
+<li> return false;<br />
+<li>}<br />
+<li>//用F值对数组排序<br />
+<li>function sortF(a, b) {<br />
+<li> return b.F - a.F;<br />
+<li>}</ol></div><em onclick="copycode($('code_DF1'));">复制代码</em></div><br />
+
+<br />
+[groupid=1595]CNPC Script Studio[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Twilight_Two&nbsp; &nbsp; <b>时间: </b>2020-4-10 19:43<br />
+这玩意。。。是给npc走迷宫用的？。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>@小明&nbsp; &nbsp; <b>时间: </b>2020-4-11 11:36<br />
+<div class="quote"><blockquote><font color="#999999">Twilight_Two 发表于 2020-4-10 19:43</font><br />
+<font color="#999999">这玩意。。。是给npc走迷宫用的？。。</font></blockquote></div><br />
+可以作用于其他领域嘛 这只是个在随机地牢中 随机确认两个点 然后用寻路方法判断是否连通 如果连通 取最近一条路&nbsp;&nbsp;
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

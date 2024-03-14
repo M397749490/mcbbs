@@ -1,0 +1,74 @@
+<html>
+<head>
+<title>[已解决]请问如何拦截玩家的攻击动作 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[已解决]请问如何拦截玩家的攻击动作 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Delamer&nbsp; &nbsp; <b>时间: </b>2019-11-1 20:28<br />
+<b>标题: </b>[已解决]请问如何拦截玩家的攻击动作<br /><i class="pstatus"> 本帖最后由 Delamer 于 2019-11-2 01:12 编辑 </i><br />
+<br />
+<font size="4">版本:Spigot-1.13.2<br />
+想为玩家针对不同场景设置更长或更短的的攻击CD,但是不知道如何拦截玩家的攻击动作.<br />
+我试着使用监听器监听了伤害事件,并对伤害来源当前手中的道具设置CD,虽然道具栏对应位置出现了CD进度的提示,但是冷却结束之前玩家依然可以使用该武器进行攻击,而且这个方法在实体受到无主伤害(岩浆,摔落)时后台还会报错.<br />
+所以想请问一下大佬们,如何修改代码才能实现 &quot;在武器CD结束前拦截玩家攻击动作,使其无法手持正在冷却的武器进行攻击&quot; 的效果呢?<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp; &nbsp; @EventHandler<br />
+&nbsp; &nbsp; public void EventListener(EntityDamageByEntityEvent e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.broadcastMessage(ChatColor.YELLOW + &quot;发生伤害判定&quot;);<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;HumanEntity humanEntity = (HumanEntity) e.getDamager();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.broadcastMessage(&quot;玩家 &quot;+humanEntity.getName()+&quot; 进行了攻击&quot;);<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;humanEntity.setCooldown(humanEntity.getInventory().getItemInMainHand().getType(),40);<br />
+&nbsp; &nbsp; }<br />
+</td></table></div></div><br />
+</font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>粘兽&nbsp; &nbsp; <b>时间: </b>2019-11-1 20:58<br />
+<div class="blockcode"><div id="code_iD5"><ol><li>@EventHandler<br />
+<li>public void onDamage(EntityDamageByEntityEvent e){<br />
+<li>&nbsp; &nbsp; // 判断攻击者是否为玩家<br />
+<li>&nbsp; &nbsp; if(e.getDamager() != null &amp;&amp; e.getDamager() instanceof Player){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Player player = (Player) e.getDamager();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemStack item = player.getInventory().getItemInMainHand();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 判断主手物品是否为空<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(item == null || item.getType().equals(Material.AIR)){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 判断主手物品是否在冷却<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(player.hasCooldown(item.getType())){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.setCancelled(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 给主手物品设置冷却<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;player.setCooldown(item.getType(),40);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_iD5'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mc能吃吗&nbsp; &nbsp; <b>时间: </b>2019-11-1 21:09<br />
+嗯。。。首先，你需要判断getDamager()是不是一个HumanEntity<br />
+其实你可以直接用Player,除非你想僵尸这些生物也会有同样的效果<br />
+<br />
+其次，SetCooldown并不能直接设置玩家的攻击冷却，或许你可以使用ItemMeta类下的 addAttributeModifier() 方法来增加一个负攻击时长的属性。这里说一下MC原版冷却设定：1÷攻击间隔 比如剑攻速1.6 1÷1.6=0.625 所以剑的攻击CD就是0.625秒<br />
+<br />
+添加方法：<br />
+<div class="blockcode"><div id="code_dBe"><ol><li>new AttributeModifier(&quot;name&quot;, -1, AttributeModifier.Operation.ADD_NUMBER)</ol></div><em onclick="copycode($('code_dBe'));">复制代码</em></div><br />
+构建一个新的属性修饰符。-1是要添加的量，枚举AttributeModifier.Operation.ADD_NUMBER则是表示添加数值(或许枚举前缀错误，需要修改)<br />
+<br />
+然后,<br />
+<div class="blockcode"><div id="code_A3T"><ol><li>ItemMeta.addAttributeModifier(Attribute.GENERIC_ATTACK_SPEED, AttributeModifier modifier/*就是上面你new的*/)</ol></div><em onclick="copycode($('code_A3T'));">复制代码</em></div><br />
+之后setItemMeta就行了。在这里第一个参数就是攻速属性的枚举<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>暗影修卡&nbsp; &nbsp; <b>时间: </b>2019-11-22 20:03<br />
+六六六六六六六六
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,429 @@
+<html>
+<head>
+<title>【懒人专用|不定期更新|1.9】【CBL·pca】逻辑框架 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【懒人专用|不定期更新|1.9】【CBL·pca】逻辑框架 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2015-11-15 19:30<br />
+<b>标题: </b>【懒人专用|不定期更新|1.9】【CBL·pca】逻辑框架<br /><i class="pstatus"> 本帖最后由 pca006132 于 2015-11-28 23:23 编辑 </i><br />
+<br />
+<font size="3">简写、特殊格式:</font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>由于我写了一个生成器，并且平常的习惯关系，所以我这个教程会用到一些简写，以下是简写及其全写<br />
+gt: gametick，游戏刻，一般为0.05秒，为MC里最小的时间单位(微观延迟就是1gt内的执行顺序)<br />
+scb: scoreboard，记分板<br />
+cb: command block，命令方块<br />
+icb: impulse command block，特指普通命令方块<br />
+ccb: chain command block，连锁CB<br />
+rcb: repeating command block，循环CB(会自动激活)<br />
+AS: ArmorStand，盔甲架，经常用于标记坐标<br />
+<br />
+例子中可能用到的格式(其实是我生成器的格式来的)<br />
+icb:/rcb: 该命令是放在icb/rcb里<br />
+mark:名字 tag : 以一个指定名字、tag的AS来标记下一个CB的位置<br />
+init: 该指令只是在生成OCS的时候执行<br />
+cond: conditional，1.9CB的模式</td></table></div></div><br />
+<font size="3">简介: </font><br />
+这个帖子是继我上一个帖子——<a href="thread.html?t=519679" target="_blank">&quot;无延迟&quot;else、else if 及嵌套(不需scb)</a>，之后的一个关于1.9CB的逻辑研究。<br />
+在我们弄系统的时候，我们可能会使用if、else、while等的逻辑，如果需要嵌套的话，使用scb是比较麻烦的。<br />
+有一天，乾坤问我如何在预览版不用scb就可以做到if、else等逻辑，我就开始研究，研究到一定水平之后我就到论坛那里发帖了。然而，发帖后一天发现该方法无法解决某些问题，比如while嵌套、if里的命令需要多点时间执行等，那么就会出现时序上的问题了。<br />
+因此，我用了几天时间测试、思考等等，和CBL及新人群里的人讨论了一段时间之后，发展出这个框架，虽然不是优化得很好，但是相信比每次使用这类逻辑的时候都要重新想一次方便。如果大家发现什么漏洞、错误、更好的解决方法的话，不妨告诉我，谢谢大家！<br />
+————————————————————————————————<br />
+<font size="3">CCB的特性:</font><br />
+在了解如何做到if那些控制之前，你需要明白CCB的一些特性，不然的话是不能够明白那个系统的原理的。<br />
+首先，CCB是<font color="#ff0000">会把之前指着它的CB的信号延续下去</font>，<font color="#ff0000">无论它有没有被激活/conditional的条件是否满足</font>。<br />
+只要对着它的ICB(普通CB)，RCB(自带高频的CB)有被激活(有没有成功执行命令是完全没关系的)，或者对着它的CCB有信号传过来，它就会传递信号<br />
+第二，CCB在激活了(有红石信号激活/auto)并且满足条件(见下)的情况下就会执行命令<br />
+第三，CCB在以下情况下被称之为&quot;条件满足&quot;<br />
+&nbsp; &nbsp; 不是conditional模式<br />
+&nbsp; &nbsp; conditional模式下，前一个CB箭头对着它的箭头尾端，并且前一个CB在传递信号的时候成功执行命令<br />
+————————————————————————————————<font size="3"><br />
+模块概念:</font><br />
+一个模块就是<font color="#ff0000">一堆命令，或者是逻辑</font>，在系统里可能会经常用到/不直接放在一起的，就是一个模块。所以其实并没有什么必须拆分模块的情况这里，我们说的模块开头就是一个以AS标记的icb(命令为blockdata ~ ~ ~ {auto:0b})，透过把其auto设置为1，然后设置回去，就可以向后方的ccb发出信号。<br />
+激活的方法很简单，就是execute那个AS blockdata ~ ~ ~ {auto:1b}就可以了<br />
+一般来说呢，这个框架内，大部分模块都会&quot;返回&quot;一个信号给&quot;上一层&quot;的模块，就是用作模块之后的命令。因此，上面提到的激活命令之后一般都会有一个以AS标记的icb(命令也是blockdata ~ ~ ~ {auto:0b})，用以接收那个信号，并传递给之后的ccb。<br />
+至于<font color="#ff0000">为什么要使用模块</font>呢，在这个框架里，就是因为里面的指令<font color="#ff0000">可能会执行失败</font>，如果用cond:串子连在一起的话，后面的cb则不能执行，因此会放在模块里。<br />
+————————————————————————————————<br />
+<font size="3">框架的核心概念:</font><br />
+<font color="#ff0000">把逻辑中if、else、while等地方分拆出来，成为一个独立的&quot;模块&quot;</font><br />
+只是在if、while完结之后的地方放置一个普通的命令方块提供一个把信号暂停，等待if/while执行完毕之后继续执行之后的命令的方法。<br />
+比如说<br />
+if (testfor @a[r=5])<br />
+{<br />
+&nbsp; &nbsp; say hi<br />
+}<br />
+else<br />
+{<br />
+&nbsp; &nbsp; say bye<br />
+}<br />
+我们会把say hi、say bye分拆出来，总共会有三个模块，在最后一个}的位置，我们会放下一个普通的命令方块并且以盔甲架标记，say hi/say bye的模块中最后的位置我们会用execute那个指定的盔甲架blockdata ~ ~ ~ {auto:1b}，以激活后面的命令。<br />
+这个概念在接下来的例子会详细介绍。<br />
+————————————————————————————————<br />
+<font size="4">if的框架:</font><br />
+if(<font color="#ff0000">只有if，并且那些命令没有延迟</font>):<br />
+&nbsp; &nbsp; 条件<br />
+&nbsp; &nbsp; cond:必然能执行的命令<br />
+&nbsp; &nbsp; 之后的指令。<br />
+<br />
+if(<font color="#ff0000">有else</font>):<br />
+&nbsp; &nbsp; 重置这个if的所有的else<br />
+&nbsp; &nbsp; 条件<br />
+&nbsp; &nbsp; cond:把else部分auto:0b<br />
+&nbsp; &nbsp; cond:启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; mark: (代表else的AS)<br />
+&nbsp; &nbsp; 启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; mark: (代表if结束)<br />
+&nbsp; &nbsp; icb:blockdata ~ ~ ~ {auto:0b}<br />
+&nbsp; &nbsp; 之后的指令。<br />
+<br />
+if(<font color="#ff0000">有else if和else等</font>)<br />
+&nbsp; &nbsp; 重置这个if的所有的else<br />
+&nbsp; &nbsp; 条件<br />
+&nbsp; &nbsp; cond:把else部分auto:0b<br />
+&nbsp; &nbsp; cond:启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; mark: (代表else if的AS)<br />
+&nbsp; &nbsp; 条件<br />
+&nbsp; &nbsp; cond:把else部分auto:0b<br />
+&nbsp; &nbsp; cond:启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; .(else if的就只需要跟随之前的模式，不停重复就好)<br />
+&nbsp; &nbsp; .<br />
+&nbsp; &nbsp; .<br />
+&nbsp; &nbsp; mark: (代表else的AS)<br />
+&nbsp; &nbsp; 启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; mark: (代表if结束)<br />
+&nbsp; &nbsp; icb:blockdata ~ ~ ~ {auto:0b}<br />
+&nbsp; &nbsp; 之后的指令。<br />
+<br />
+<font size="3">注意:</font><br />
+那个模块/那些命令，<font color="#ff0000">最后必须是execute (代表if结束的AS) ~ ~ ~ blockdata ~ ~ ~ {auto:1b}</font>。不然的话后续的指令将不能执行。<br />
+如果if执行的命令不需要激活模块，并且不是循环，则不需要加入代表if结束的AS、该icb及那些命令不需要execute (代表if结束的AS) ~ ~ ~ blockdata ~ ~ ~ {auto:1b}。这样子可以优化那个系统，使其cb数及AS数更少。<br />
+如果你需要嵌套，那么启动模块的指令之后则需要放置一个盔甲架及icb，模块最后则auto:1该icb，详见模块概念<br />
+而且，<font color="#ff0000">需要嵌套的话，注意不同层次、模块的AS名字/tag不要相同</font>，不然会造成不可预计的后果<br />
+如果地图内有多个if，起名方面则需要小心一点。<br />
+<br />
+<font size="3">原理:</font><br />
+这个的原理是透过ccb在auto:0b/条件不满足的时候会传递信号，<font color="#ff0000">当前面的条件不满足，就会传递信号给后面的ccb</font>。但是<font color="#ff0000">如果条件满足了，就会把else的部分关闭</font>，令其无法执行命令。<br />
+————————————————————————————————<br />
+<font size="3">while的框架:</font><br />
+&nbsp; &nbsp; mark:(名字) while<br />
+&nbsp; &nbsp; icb:blockdata ~ ~ ~ {auto:0b}<br />
+&nbsp; &nbsp; execute代表else的AS blockdata ~ ~ ~ {auto:1b}<br />
+&nbsp; &nbsp; 条件<br />
+&nbsp; &nbsp; cond:execute代表else的AS blockdata ~ ~ ~ {auto:0b}<br />
+&nbsp; &nbsp; cond:execute代表while开头的AS blockdata ~ ~ ~ {auto:1b}<br />
+&nbsp; &nbsp; cond:启动模块(如果是肯定能执行的命令，则执行那些命令，需要注意的是所有都需要cond:，<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;并且执行失败会导致之后的命令全部不能执行)<br />
+&nbsp; &nbsp; mark:代表else的AS<br />
+&nbsp; &nbsp; execute代表while完结的AS blockdata ~ ~ ~ {auto:1b}<br />
+<br />
+注意:<br />
+如果while是在最外层(不是被别的模块启动的话)而且之后没有命令需要执行的话，则不用代表while完结的AS，也不用最后那条指令<br />
+如果地图内有多个while，起名方面则需要小心一点。<br />
+如果是do while(先执行后检测)，只需要把启动模块的指令调到条件前方就可以了<br />
+<br />
+原理:<br />
+其实是一个&quot;变形&quot;了的if，<font color="#ff0000">当if成功，则执行里面的指令并且重启while，否则就执行之后的命令。</font><br />
+<br />
+不用rcb的最主要原因是rcb有一个特性，关闭后依然会输出多一次的信号，不太靠谱<br />
+————————————————————————————————<br />
+<font size="3">模块的框架:</font><br />
+&nbsp; &nbsp; mark:模块名字<br />
+&nbsp; &nbsp; icb:blockdata ~ ~ ~ {auto:0b}<br />
+&nbsp; &nbsp; .(命令)<br />
+&nbsp; &nbsp; .<br />
+&nbsp; &nbsp; .<br />
+&nbsp; &nbsp; execute代表模块完结的AS blockdata ~ ~ ~ {auto:1b}<br />
+<br />
+<font color="#ff0000">启动模块</font>的方法其实很简单，就是<font color="#ff0000">execute 代表模块的AS blockdata ~ ~ ~ {auto:1b}</font>之后就放置一个代表模块完结的AS，icb:blockdata ~ ~ ~ {auto:0b}<br />
+<br />
+<font size="4"><font color="#ff0000"><strong>公用模块</strong></font></font>可以建立一个常用的模块当作&quot;公用模块&quot;，其建立方法一样，然而启动模块的方法就会变成<br />
+启动模块(和上面一样)<br />
+scoreboard players tag 后面的AS add 模块_end<br />
+mark:不是返回模块结束信号的AS名字<br />
+icb:blockdata ~ ~ ~ {auto:0b}<br />
+scoreboard players tag 后面的AS remove 模块_end<br />
+以下是一个例子<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>比如:<br />
+//启动while<br />
+execute @e[type=ArmorStand,name=if_test_5,tag=while0] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_2] add while0_end<br />
+//while的结束<br />
+mark:if_test_5 end_while0_2_2<br />
+icb:blockdata ~ ~ ~ {auto:0b}<br />
+scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_2] remove while0_end<br />
+<br />
+//模块while0的开始<br />
+mark:if_test_5 while0<br />
+icb:blockdata ~ ~ ~ {auto:0b}<br />
+//把else重置<br />
+execute @e[type=ArmorStand,name=if_test_5,tag=while0_else] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+//条件<br />
+testfor @a[r=10]<br />
+//把else关闭<br />
+cond:execute @e[type=ArmorStand,name=if_test_5,tag=while0_else] ~ ~ ~ blockdata ~ ~ ~ {auto:0b}<br />
+//把while0重新激活(准备下一个循环)<br />
+cond:execute @e[type=ArmorStand,name=if_test_5,tag=while0] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+//命令(也可以是激活模块)<br />
+cond:say someone here<br />
+//else<br />
+mark:if_test_5 while0_else<br />
+//回到while的结束<br />
+execute @e[type=ArmorStand,name=if_test_5,tag=while0_end] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+</td></table></div></div><br />
+这样子便不会造成混乱的情况。<br />
+<br />
+注意:<br />
+模块如果被红石块激活，则需要清除掉红石块之后才能再次执行(废话23333)<br />
+如果是&quot;最外层&quot;的模块，则不需要最后那个&quot;execute代表模块完结的AS blockdata ~ ~ ~ {auto:1b}&quot;<br />
+<br />
+原理:<br />
+<font color="#ff0000">icb</font>被blockdata ~ ~ ~ {auto:1b}之后<font color="#ff0000">会传出一次的信号</font>，来激活后续的ccb<br />
+————————————————————————————————<br />
+例子:<br />
+/*<br />
+if (testfor @e[type=Arrow])<br />
+{<br />
+&nbsp; &nbsp; say yoo<br />
+&nbsp; &nbsp; if (testfor @e[type=Item])<br />
+&nbsp; &nbsp; { <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;say arrow and item<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; else<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;say arrow<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; while (testfor @a[r=10])<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;say someone here<br />
+&nbsp; &nbsp; }<br />
+}<br />
+else<br />
+{<br />
+&nbsp; &nbsp; say oh<br />
+&nbsp; &nbsp; if (testfor @e[type=Item])<br />
+&nbsp; &nbsp; { <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;say item<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; while (testfor @a[r=10])<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;say someone here<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; say nope<br />
+}<br />
+say ok<br />
+*/<br />
+以上就是那个伪代码了<br />
+第一层if 就是检测有没有箭，有的话就说yoo；然后检测有没有物品，有的话就说arrow and item，没的话就说arrow；最后当玩家在某个地方的10格范围内就说someone here。<br />
+如果没有箭，就说oh；然后检测有没有物品，有就说item；然后就当玩家在某个地方的10格范围内就说someone here。<br />
+<br />
+以下就是那个命令(那个特殊格式就请参照开始的格式部分。此部分可以直接放进我的生成器来生成OCS放进地图)<br />
+<div class="blockcode"><div id="code_L5n"><ol><li>//就是重置所有的else(此层的else)<br />
+<li>icb:execute @e[type=ArmorStand,name=if_test_5,tag=1_1_else] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//这里就是条件<br />
+<li>testfor @e[type=Arrow]<br />
+<li>//把else关闭<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=1_1_else] ~ ~ ~ blockdata ~ ~ ~ {auto:0b}<br />
+<li>//启动2_2模块<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=2_1] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//else<br />
+<li>mark:if_test_5 1_1_else<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_2] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//if的结束<br />
+<li>mark:if_test_5 1_1_end_if<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//if之后的指令<br />
+<li>say ok<br />
+<li>/*<br />
+<li>这部分就是最&quot;外层&quot;的部分，以伪代码表示就是这样<br />
+<li>if (testfor @e[type=Arrow])<br />
+<li>{<br />
+<li>&nbsp; &nbsp; 激活2_1<br />
+<li>}<br />
+<li>else<br />
+<li>{<br />
+<li>&nbsp; &nbsp; 激活2_2<br />
+<li>}<br />
+<li>say ok<br />
+<li>*/<br />
+<li><br />
+<li>//2_1 模块的开始<br />
+<li>mark:if_test_5 2_1<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//第一条命令<br />
+<li>say yoo<br />
+<li>//进入if阶段，把else重置<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_1_else] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//条件<br />
+<li>testfor @e[type=Item]<br />
+<li>//把else关闭<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=2_1_else] ~ ~ ~ blockdata ~ ~ ~ {auto:0b}<br />
+<li>//启动3_1模块<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=3_1] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//else<br />
+<li>mark:if_test_5 2_1_else<br />
+<li>//启动3_2模块<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=3_2] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//if的结束<br />
+<li>mark:if_test_5 2_1_end_if<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//启动while<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=while0] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_1] add while0_end<br />
+<li>//while的结束<br />
+<li>mark:if_test_5 end_while0_2_1<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_1] remove while0_end<br />
+<li>//回到上一层的if的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=1_1_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li><br />
+<li>/*<br />
+<li>伪代码:<br />
+<li>say yoo<br />
+<li>if (testfor @e[type=Item])<br />
+<li>{ <br />
+<li>&nbsp; &nbsp; 激活3_1<br />
+<li>}<br />
+<li>else<br />
+<li>{<br />
+<li>&nbsp; &nbsp; 激活3_2<br />
+<li>}<br />
+<li>激活while<br />
+<li>*/<br />
+<li><br />
+<li>//2_2 模块的开始<br />
+<li>mark:if_test_5 2_2<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//第一条命令<br />
+<li>say oh<br />
+<li>//进入if阶段，把else重置<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_2_else] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//条件<br />
+<li>testfor @e[type=Item]<br />
+<li>//把else关闭<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=2_2_else] ~ ~ ~ blockdata ~ ~ ~ {auto:0b}<br />
+<li>//启动3_3模块<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=3_3] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//else<br />
+<li>mark:if_test_5 2_2_else<br />
+<li>//启动end_if(接下来那个)<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_2_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//if的结束<br />
+<li>mark:if_test_5 2_2_end_if<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//启动while<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=while0] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_2] add while0_end<br />
+<li>//while的结束<br />
+<li>mark:if_test_5 end_while0_2_2<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>scoreboard players tag @e[type=ArmorStand,name=if_test_5,tag=end_while0_2_2] remove while0_end<br />
+<li>//while后的命令<br />
+<li>say nope<br />
+<li>//回到上一层的if的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=1_1_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>/*<br />
+<li>伪代码:<br />
+<li>say oh<br />
+<li>if (testfor @e[type=Item])<br />
+<li>{ <br />
+<li>&nbsp; &nbsp; 激活3_3<br />
+<li>}<br />
+<li>激活while<br />
+<li>say nope<br />
+<li>*/<br />
+<li><br />
+<li>//模块3_1的开始<br />
+<li>mark:if_test_5 3_1<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//命令<br />
+<li>say arrow and item<br />
+<li>//回到上一层的if的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_1_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li><br />
+<li>//模块3_2的开始<br />
+<li>mark:if_test_5 3_2<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//命令<br />
+<li>say arrow<br />
+<li>//回到上一层的if的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_1_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li><br />
+<li>//模块3_3的开始<br />
+<li>mark:if_test_5 3_3<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//命令<br />
+<li>say item<br />
+<li>//回到上一层的if的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=2_2_end_if] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li><br />
+<li>//模块while0的开始<br />
+<li>mark:if_test_5 while0<br />
+<li>icb:blockdata ~ ~ ~ {auto:0b}<br />
+<li>//把else重置<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=while0_else] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//条件<br />
+<li>testfor @a[r=10]<br />
+<li>//把else关闭<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=while0_else] ~ ~ ~ blockdata ~ ~ ~ {auto:0b}<br />
+<li>//把while0重新激活(准备下一个循环)<br />
+<li>cond:execute @e[type=ArmorStand,name=if_test_5,tag=while0] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>//命令(也可以是激活模块)<br />
+<li>cond:say someone here<br />
+<li>//else<br />
+<li>mark:if_test_5 while0_else<br />
+<li>//回到while的结束<br />
+<li>execute @e[type=ArmorStand,name=if_test_5,tag=while0_end] ~ ~ ~ blockdata ~ ~ ~ {auto:1b}<br />
+<li>/*<br />
+<li>while (testfor @a[r=10])<br />
+<li>{<br />
+<li>&nbsp; &nbsp; say someone here<br />
+<li>}<br />
+<li>*/<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_L5n'));">复制代码</em></div><br />
+命令里的<br />
+//<br />
+或者是<br />
+/*<br />
+*/，就是那些指令的解释。//就是解释下面的指令，而/*至*/就是解释上一个模块的功能<br />
+<br />
+可能有人会骂我这例子的优化差，确实这个例子是很多地方可以优化的，比如根本就可以使用一个模块完成，命令数相对来说也会大幅减少，或者是第二层那些if根本就没必要弄个end_if。然而，由于我需要给大家看到一个最基本的、模块化的结构，所以我就把他们强行拆出来了。<br />
+如果只是看着那些指令的解释看到有点不舒服的话，可以去<font color="#ff0000">对照一下上面的标准</font>，及下方<font color="#ff0000">/**/里的伪代码</font>，相信会清晰很多。<br />
+<br />
+大家可以看到，我那个例子中的AS名字全部都是if_test_5，只是tag不同而已。因为我是把<font color="#ff0000">名字视作namespace</font>，而<font color="#ff0000">tag就是其实际功能</font>。这样子，即使是不同作品里用到同一个模块，我只需要把那个AS的名字修改一下，放在同一个地图的时候便不会造成混乱，不会发生错误激活的情况了。<br />
+那个tag，前方可能会看到一个奇怪的东西 x_y，这里我是把x视作层数，y视作那个层数的第y个if，这样子就对我来说比较清晰(虽然也有人说这样很麻烦)，总之大家用一个东西标记不同部分就好了√<br />
+————————————————————————————————<br />
+结尾:<br />
+毕竟这个只是一个框架，你使用这个框架会让你实现逻辑的时候方便一点，然而所需的命令数也会多一点，实体数也会多一点，所以需要根据实际情况去优化那个系统。这个框架重点在于较为简单以及没有什么延迟，你如果需要很大的优化，我就不建议你使用本框架，因为这个框架的优化程度确实严重不足。<br />
+<br />
+以下是使用本框架的作品:<br />
+<a href="thread.html?t=522701" target="_blank">http://www.mcbbs.net/thread-522701-1-1.html</a><br />
+<br />
+OOC生成器(能使用上面说过的格式，转化为OOC直接变成CB组放进地图中):<br />
+<a href="http://pan.baidu.com/s/1dD0mueH" target="_blank">http://pan.baidu.com/s/1dD0mueH</a><br />
+<br />
+最后更新: 16-11-2015 11:40<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-15 19:31<br />
+终于发了√ 马克一下慢慢看等下再评论<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>青格大D&nbsp; &nbsp; <b>时间: </b>2015-11-15 19:32<br />
+多看一眼我内分泌都要失调了。<br />
+<br />
+今天CBL高产似什么！！！大声告诉我！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>:spgbigfan:&nbsp; &nbsp; <b>时间: </b>2015-11-16 13:16<br />
+你的例子优化差！[滑稽][滑稽]
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

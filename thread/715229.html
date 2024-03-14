@@ -1,0 +1,47 @@
+<html>
+<head>
+<title>简单谈谈利用OSGi开发Sponge的模块化插件 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>简单谈谈利用OSGi开发Sponge的模块化插件 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DefineEvil&nbsp; &nbsp; <b>时间: </b>2017-8-3 22:43<br />
+<b>标题: </b>简单谈谈利用OSGi开发Sponge的模块化插件<br /><i class="pstatus"> 本帖最后由 DefineEvil 于 2017-8-3 22:49 编辑 </i><br />
+<br />
+<font size="3">不水了，发一篇教程。<br />
+<br />
+这篇教程推荐有Java基础的开发者阅读，大佬请直接略过。<br />
+<br />
+<strong><font size="5">Outline</font></strong></font><br />
+<ul><li><font size="3"><font color="Blue">前言</font></font><li><font size="3"><font color="Blue">为什么要模块化</font></font><li><font size="3">为什么选用OSGi</font><li><font size="3">关于OSGi原理和SOA简单的讲解</font><li><font size="3">回到Sponge</font><li><font size="3">范例插件</font><br />
+</ul><font size="3"><strong><font size="5"><br />
+前言</font><br />
+</strong><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>最近想开服务器，准备使用Sponge，因为community driven &amp; open source（<strike>我就是不喜欢Spigot怎么了</strike>Spigot貌似缺了点community driven）。准备用上OSGi，原因请继续阅读。OSGi的实现准备用Felix。Equinox也是一个选择，但是的很多复杂的特性都是针对Eclipse平台的，不推荐大家使用。本来已经开始写Container插件了，但是上GitHub搜了搜，发现有开发者已经做出来了，而且框架设计得很好，如果大家有兴趣的话我可以另开贴分析一下它的代码。那么我就以这个框架为例介绍，不再造轮子了。</td></table></div></div><br />
+<br />
+<strong><font size="5">为什么要模块化</font><br />
+</strong><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><font size="3">很多服主都很羡慕Hypixel，很想把Hypixel的功能搬进自己的服务器。先不提创造力的问题，只在技术层面上讨论，Hypixel不是简单的BungeeCord和Spigot堆出来的，背后肯定有一个较为成熟的分布式系统。</font><font size="3"><font size="3"><font size="3"><br />
+<br />
+</font></font>设计一个很复杂的分布式系统不是一件很简单的事。试想你需要为你的生存服务器编写经济、权限、地图管理、备份、地皮、商店、粒子、浮空文字等各种插件，或为你的小游戏服务器开发一套系统支持够弹性创建销毁房间、好友组队、防作弊等各种插件，并且要求数据共享，</font><font size="3"><font size="3">还要有良好的鲁棒性和容错机制。</font></font><font size="3"><font size="3"><font size="3"><font size="3"><font size="3"><br />
+<br />
+如果翻一翻两三年前一个大型非模块化项目的代码（如果有的话），你还能快速读懂代码并且添加功能吗。因为这个项目不是模块化的，实现不同功能的部分没有清晰界限，而Java的package只能解决一部分问题。如果这需要读懂这个项目的一部分代码，你也被迫会在类与类之间跳来跳去。如果你真的强制把视线锁定在一部分代码上面，因为你对其他部分的实现没有了解，有很大几率你新写出的代码会有bug。</font></font></font></font></font><font size="3"><font size="3"><font size="3"><font size="3"><font size="3">如果能编写合理的interface，清晰准确地划分功能与功能之间的实现，这些问题会好很多。大部分开发者都可以做到这点。可是，即使这样，你也有可能写出来很乱的代码（笑）。你还要注意另一个OO的思想：<a href="https://baike.baidu.com/item/%E9%AB%98%E5%86%85%E8%81%9A%E4%BD%8E%E8%80%A6%E5%90%88" target="_blank">高内聚，低耦合</a>。<br />
+<br />
+</font></font></font></font></font><font size="3"><font size="3"><font size="3"><font size="3"><font size="3">模块化可以解决这些问题。设计系统时，模块和模块之间的界限和模块的相互关系都很清晰，这对提升系统鲁棒性很有帮助，也可方便日后代码的维护和新功能的添加（这是你需要做的）。运行时模块间package的暴露，模块间依赖关系的处理，Dependency Injection等也很重要（这是OSGi容器需要做的）。<br />
+<br />
+</font></font></font></font></font><font size="3"><font size="3"><font size="3"><font size="3"><font size="3">Bukkit API 和 Sponge API及其实现已经有了一定程度的模块化以及热更新的支持，但OSGi的功能比还差了很多。</font></font></font></font></font></td></table></div></div></font><font size="3"><font size="3"><font size="3"><font size="3"><font size="3"><br />
+<br />
+<font color="Black">有时间继续</font>填坑。文中术语和概念可能有不准确的地方，抱歉 :(<br />
+</font></font></font></font></font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Simir&nbsp; &nbsp; <b>时间: </b>2017-8-4 11:18<br />
+坐等后续~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Tollainmear&nbsp; &nbsp; <b>时间: </b>2017-8-11 13:47<br />
+<strong>坐等更新！！！</strong>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

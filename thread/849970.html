@@ -1,0 +1,395 @@
+<html>
+<head>
+<title>俩车的 Coremod 介绍 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>俩车的 Coremod 介绍 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-3-10 21:44<br />
+<b>标题: </b>俩车的 Coremod 介绍<br /><i class="pstatus"> 本帖最后由 liach 于 2019-3-11 07:26 编辑 </i><br />
+<font size="5">导言</font><br />
+<br />
+Coremod 是 Forge 的一种机制，也是模组的一种。与其它模组相比，它们有<font color="DarkOrchid">在 Minecraft 正常启动、Minecraft 和普通模组代码被加载前提前被加载</font>的特权。<br />
+它并<font color="Purple">不等同于修改字节码</font>、ASM 或者 Mixin；这只是它的一种用途。<br />
+<br />
+<font size="5">目的</font><br />
+<br />
+Coremod 的目的多种多样：<br />
+<ul type="1" class="litype_1"><li>实现对 Minecraft 以及模组源代码的修改；<li>提取前置模组；<li>在 Minecraft 加载前对环境进行预处理；<li>等等。<br />
+</ul><br />
+虽然列表中的第一项是最常用的，<font color="DarkOrchid">但这并不代表第一项是 coremod 唯一的目的</font>。<br />
+在 1.7.10 左右，神秘时代和工业 2 实验版都有过 coremod <font color="SeaGreen">提取前置</font>。神秘时代用 coremod 提取 codechickenlib （还是 baubles，我忘了），而工业 2 提取前置数学库 ejml。<br />
+在 1.9 以前几乎是 Minecraft 中文玩家必备的 InputFix 则同时使用 coremod <font color="SeaGreen">检测操作系统</font>。<br />
+SpongeForge 的 coremod 会<font color="SeaGreen">初始化 mixin 系统</font>，以准备马上对 Minecraft 源码的修改。<br />
+<br />
+<font size="5">使用</font><br />
+<br />
+Forge coremod 系统有几个主要的类：IFMLLoadingPlugin、IFMLCallHook 和 IClassTransformer。大致骨干如下：<br />
+<div class="blockcode"><div id="code_Scl"><ol><li>public interface IFMLLoadingPlugin {<br />
+<li>&nbsp;&nbsp;@Nullable String[] getASMTransformerClass(); // 返回一个数组，包含本 coremod 的所有实现 IClassTransformer（字节码修改器）的类全名，可返回空数组或者 null<br />
+<li>&nbsp;&nbsp;@Nullable String getModContainerClass(); // 返回一个实现 IModContainer 的类的全名，可返回 null<br />
+<li>&nbsp;&nbsp;@Nullable String getSetupClass(); // 返回一个实现 IFMLCallHook 的类的全名，可返回 null<br />
+<li>&nbsp;&nbsp;void injectData(Map&lt;String, Object&gt; data); // Forge 提供接口，可获得 mcLocation、coremodList、runtimeDeobfuscationEnabled、coremodLocation 几个信息，分别是 File 类型的游戏路径、List&lt;FMLPluginWrapper&gt; 类型的封装后的 coremod 列表、Boolean 类型的是否会在运行时反混淆 Minecraft 本身、File 类型的 coremod 自身路径。<br />
+<li>&nbsp;&nbsp;@Nullable String getAccessTransformerClass(); // 推荐不要使用，用 FMLAT 这个 jar 属性替代。返回一个 AccessTransformer 子类的全名，可返回 null。<br />
+<li>}<br />
+<li><br />
+<li>public interface IFMLCallHook extends Callable&lt;Void&gt; {<br />
+<li>&nbsp;&nbsp;@Override @Nullable Void call() throws Exception; // 执行这个呼叫器的实际逻辑，必须返回 null<br />
+<li>&nbsp;&nbsp;void injectData(Map&lt;String, Object&gt; data); // 同 IFMLLoadingPlugin 的 injectData<br />
+<li>}<br />
+<li><br />
+<li>public interface IClassTransformer {<br />
+<li>&nbsp;&nbsp;byte[] transform(String name, String transformedName, byte[] basicClass); // 在此方法中对 Minecraft 的字节码进行修改，可原封不动返回<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Scl'));">复制代码</em></div>看见 IFMLLoadingPlugin 里面的几个方法都返回字符串了吗？这是为了避免意外加载类导致错误。<br />
+injectData 的实际数据可以<a href="https://github.com/MinecraftForge/MinecraftForge/blob/e6fbf39591b920532ea464d36dad24671c6d08fd/src/main/java/net/minecraftforge/fml/relauncher/CoreModManager.java#L146-L150" target="_blank">在这里找到</a>。<br />
+<br />
+<br />
+<font color="Red">稍安勿躁！请至少看完注意事项后再开始尝试实战！</font><br />
+<br />
+<br />
+<font size="5">注意事项</font><br />
+<br />
+Coremod 作为一种缺少介绍的东西，本身（不包括 asm 或者修改字节码）使用起来实际上有很多<font color="DarkOrchid">危险</font>和<font color="DarkOrchid">注意事项</font>。<br />
+<br />
+<ul type="1" class="litype_1"><li><font color="Red">Coremod 不应该加载正常模组的类或者 Minecraft 的类，甚至包括自己的 mod container 类。<font color="Black">（特别容易犯的错误，且后果很严重）</font></font><li>Coremod 构建出来的 jar 需要额外的属性。<li>Coremod 除了实现接口方法以外，最好添加一些注解信息。<li>Coremod 相关的类都要有一个没有参数的构建器。<br />
+</ul><br />
+暂时想到这么多。会看反馈添加。<br />
+<br />
+<font size="4">一、加载代码隔离</font><br />
+<div class="quote"><blockquote><font color="Red">Coremod 不应该加载</font><font color="Red"><font color="Red">正常模组的类或者 Minecraft 的类</font>，甚至包括自己的 mod container 类。</font></blockquote></div><br />
+加载正常模组以及 minecraft 代码会导致任何 coremod 无法对其进行修改，从而导致游戏崩溃。<br />
+注意： <font color="DarkOrchid">一个 coremod 的 mod container 类是在 Minecraft 正常启动之后才被创建实例的，所以也属于正常模组类而不是 coremod 类！</font><br />
+具体会有什么影响呢？<br />
+<br />
+<font size="3">例一：臭名朝著的 Sponge 与 AE 2 的冲突。</font><br />
+<br />
+罪魁祸首：（IFMLLoadingPlugin coremod 类直接实现 mod container）<br />
+<a href="https://github.com/AppliedEnergistics/Applied-Energistics-2/blob/e3bf52ff7b027d9f00d23db860040f7f6cf9af38/src/main/java/appeng/coremod/AppEngCore.java#L73" target="_blank">https://github.com/AppliedEnergistics/Applied-Energistics-2/blob/e3bf52ff7b027d9f00d23db860040f7f6cf9af38/src/main/java/appeng/coremod/AppEngCore.java#L73</a><br />
+导致问题：<br />
+<a href="https://github.com/AppliedEnergistics/Applied-Energistics-2/issues/2482" target="_blank">https://github.com/AppliedEnergistics/Applied-Energistics-2/issues/2482</a><br />
+因为 IModContainer 类被 AE 2 的 coremod 提前读取，导致 Sponge 无法修改 IModContainer 从而崩溃。AE 在拖了很久以后才修复。<br />
+<br />
+顺便一提，给 coremod 类实现 IFMLLoadingPlugin 的同时实现 IModContainer 并无任何优点。详见底下的第四小段。<br />
+<br />
+<font size="3">例二、MicdooodleCore（星系 mod 前置）的 coremod 加载 Forge 处理模组版本信息的 VersionRange 类</font><br />
+<br />
+罪魁祸首：<br />
+MicdoodleCore 加载了正常 Forge 代码中用来检测软件版本的类，而这个软件版本检测类用到 Minecraft 实现翻译功能的正常代码。<br />
+<br />
+导致问题和 u.s.knowledge 给出的合理解释：<br />
+<br />
+<a href="https://github.com/micdoodle8/MicdoodleCore/issues/10#issuecomment-342400911" target="_blank">https://github.com/micdoodle8/MicdoodleCore/issues/10#issuecomment-342400911</a><br />
+用来检测软件版本的类被提前加载，所以里面对被混淆的 Minecraft 代码的引用没被修改，导致游戏崩溃。<br />
+<br />
+<br />
+如何避免这类问题呢？一般大家就把 coremod 内容和普通 mod 的内容放到不同的包下；然而，还是不能避免不小心跨包 import 等现象。<br />
+<br />
+这里就举个自己想到的解决方案作为正面教材：利用 Gradle 构建系统提供的 source set 进行将 coremod 和普通 mod 代码隔离，避免互相引用。<br />
+<br />
+<a href="https://github.com/liachmodded/datapacks/blob/e835ee7a3ef2e8492e56ebadef5a59be2c5d7c6e/build.gradle#L73-L80" target="_blank">https://github.com/liachmodded/datapacks/blob/e835ee7a3ef2e8492e56ebadef5a59be2c5d7c6e/build.gradle#L73-L80</a><br />
+上面 coremod 的定义采用了 main source set 的编译依赖从而可以使用 forge 的 coremod 接口代码；main 在运行的时候同时运行 coremod 的代码，这样测试运行时 coremod 也会被测试。<br />
+然而，这只能隔离普通 mod 的代码。<font color="DarkOrchid">要避免误用 Minecraft 代码，还需要编写者的细心。</font><br />
+<br />
+<font size="4">二、jar 属性</font><br />
+Forge 识别的模组 jar 属性中有四个跟 coremod 相关，如下。<br />
+<a href="https://github.com/AlmuraDev/Almura/blob/36866cdcd7bb0722aa8276d8e1ed96559fbb67f9/build.gradle#L190-L193" target="_blank">https://github.com/AlmuraDev/Almura/blob/36866cdcd7bb0722aa8276d8e1ed96559fbb67f9/build.gradle#L190-L193</a><br />
+<font color="DarkOrchid"><br />
+</font><font color="DarkOrchid">有 FMLAT、FMLCorePlugin、FMLCorePluginContainsFMLMod、ForceLoadAsMod 这四个属性。</font><br />
+<br />
+<font color="DarkOrchid"><font color="Black"><font style="background-color:white">FMLAT 代替了一部分 coremod 功能，能够让模组自定义 access transformer 修改原版代码中方法和字段的可见性而不需从 coremod 中定义。Access transformer 作为源代码的一种修改，本身和 coremod 联系不大，所以这里不会多讲。</font></font><br />
+</font><br />
+<font color="DarkOrchid">FMLCorePlugin 是必备的</font>；它是 Forge 检测 coremod 的唯一途径。这里指向的类用 . 而不是 / 分隔包，同时这个类必须实现 IFMLLoadingPlugin 接口（并且要有一个没有参数的构建器）。<br />
+<br />
+FMLCorePluginContainsFMLMod 设为 true 是表示一个 jar 内除了 coremod 外有普通的用 Mod 注解的模组。<br />
+<font color="Black"><font style="background-color:white">ForceLoadAsMod 一般和 </font></font>FMLCorePluginContainsFMLMod 同时设为 true 以保证 jar 中的普通模组被正常读取，虽然实际用途我未能询证到（GitHub 默认分支改变，1.12 的老内容无法查询了）。<br />
+<br />
+这些 jar 属性最重要的是<font color="DarkOrchid">在编译环境运行时如果有错完全不会显现</font>；只有将构建的 jar 测试后才能确定到底有没有问题。<br />
+<br />
+<font size="4">三、注解信息</font><br />
+<br />
+Forge 给 coremod 提供了五个可选的注解。<br />
+<a href="https://github.com/MinecraftForge/MinecraftForge/blob/e6fbf39591b920532ea464d36dad24671c6d08fd/src/main/java/net/minecraftforge/fml/relauncher/IFMLLoadingPlugin.java#L83-L144" target="_blank">https://github.com/MinecraftForge/MinecraftForge/blob/e6fbf39591b920532ea464d36dad24671c6d08fd/src/main/java/net/minecraftforge/fml/relauncher/IFMLLoadingPlugin.java#L83-L144</a><br />
+<font color="DarkOrchid">这五个分别是 TransformerExclusions、MCVersion、Name、DependsOn、SortingIndex，都是 IFMLLoadingPlugin 的子类。这几个注解都是针对类的，只要直接放在你的 coremod 类上就行。</font><br />
+<br />
+<font color="Purple">TransformerExclusions</font>：推荐添加。给 coremod 加载器（实际上是背后的 LaunchWrapper）提供一个包名单，避免这些包里面的内容被其他 coremod 修改。可以避免其他 coremod 误改你的 coremod 内容。<br />
+<br />
+<font color="Purple">MCVersion</font>：推荐添加。指定针对的 Minecraft 版本。用来保证 coremod 安全性，因为不同版本的 Minecraft 代码一般相差很大。<br />
+<br />
+<font color="Purple">Name</font>：推荐添加。给这个 coremod 起个名字，到时候崩溃报告里面就会用这个自定义的名字表示你的 coremod。<br />
+<br />
+DependsOn：直接忽略。理论上是让 coremod 在前置存在的时候才加载，但是实际上这个功能从来没有实现过。<br />
+<br />
+<font color="Purple">SortingIndex</font>：按需添加。定义了 coremod 的读取顺序；越小优先级越高。未定义则默认为 0。<br />
+<br />
+<br />
+<font size="4">四、无参构建器</font><br />
+<br />
+<font color="DarkOrchid">Forge coremod 系统中，实现 IFMLLoadingPlugin 的类和其接口实现中返回名称的实例类都需要有无参数公开构建器。</font><br />
+Forge 在实际使用中，会直接通过反射创建这些类的一个实例，然后在创建的实例上呼叫接口方法。<br />
+<br />
+<br />
+这些被实现的接口有 IFMLLoadingPlugin、IFMLCallHook、IClassTransformer 和 IModContainer。<br />
+<br />
+<div class="quote"><blockquote>顺便一提，给 coremod 类实现 IFMLLoadingPlugin 的同时实现 IModContainer 并无任何优点</blockquote></div><br />
+原理就是这个 coremod 类如此以来就会有两个实例，一个会被当做 IFMLLoadingPlugin 保存，另一个会被当做 IModContainer 保存。<br />
+刚刚 AE 2 负面教材中的 coremod 的 log 就会录两次，metadata 也会被准备两次，得不偿失。<br />
+<br />
+<br />
+<br />
+<br />
+<font size="5">结语</font><br />
+<br />
+<br />
+这篇文章旨在给大家介绍一下 coremod 的本身，打破大家认为 coremod 等同于修改字节码的成见等。<br />
+很抱歉，本帖并不介绍 ASM、Access transformer 或者 mixin 等字节码修改工具，为的是能让大家更好理清这两种不同的概念。<br />
+<br />
+<br />
+<font size="5">友链</font><br />
+感谢 @森林蝙蝠 和 @u.s.knowledge 与我探讨 coremod 话题。<br />
+<br />
+另外森林蝙蝠有篇介绍 coremod 但是跑题了的文章。虽然没有很多关于 coremod 本质的内容，但是大篇幅介绍了字节码的修改。<a href="thread.html?t=822754" target="_blank">http://www.mcbbs.net/thread-822754-1-2.html</a><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2019-3-10 21:52<br />
+liach牛逼（破音）<br />
+<strike>怕被打死还是不安利自己的了</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-3-10 22:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14017705&amp;ptid=849970" target="_blank"><font color="#999999">gooding300 发表于 2019-3-10 21:52</font></a></font><br />
+liach牛逼（破音）<br />
+<strike>怕被打死还是不安利自己的了</strike></blockquote></div><br />
+xfl03 写过那么厉害的 custom skin loader ，做多版本开发，对 coremod 等了解很深，还是铁路 mod 重要贡献者，是大佬一枚！<br />
+<br />
+实际上我写这个文章是为了调和最后提到的两位大佬在 coremod 上的不同观念。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-3-11 07:27<br />
+感谢 us knowledge 提供 micdoodlecore 的例子！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lq2007&nbsp; &nbsp; <b>时间: </b>2019-10-17 11:29<br />
+<i class="pstatus"> 本帖最后由 lq2007 于 2019-10-17 11:30 编辑 </i><br />
+<br />
+这用的是啥背景？<br />
+我用 Dark Reader 看，眼花；正常没事<br />
+别的页面没事<br />
+<br />
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzMnw1OGRhMTU1MnwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1402832" class="xw1" target="_blank">image.png</a>
+<em class="xg1">(245.34 KB, 下载次数: 9)</em>
+</p>
+<div class="tip tip_4" id="aid1402832_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzMnw1OGRhMTU1MnwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2019-10-17 11:28 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1402832', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1402832', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1402832" aid="1402832" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201910/17/112804rk14cuo2ls8mctqk.png" file="https://attachment.mcbbs.net/forum/201910/17/112804rk14cuo2ls8mctqk.png.thumb.jpg" alt="image.png" title="image.png" w="1227" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzM3xiNWE0NWYyZnwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1402833" class="xw1" target="_blank">image.png</a>
+<em class="xg1">(170.58 KB, 下载次数: 6)</em>
+</p>
+<div class="tip tip_4" id="aid1402833_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzM3xiNWE0NWYyZnwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2019-10-17 11:29 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1402833', 1)"><img src="static/image/common/rleft.gif" class="vm" /></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1402833', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1402833" aid="1402833" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201910/17/112926ygszsre6xigdlhik.png" file="https://attachment.mcbbs.net/forum/201910/17/112926ygszsre6xigdlhik.png.thumb.jpg" alt="image.png" title="image.png" w="1135" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzNHw0NWEzNmEyMXwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1402834" class="xw1" target="_blank">image.png</a>
+<em class="xg1">(228.6 KB, 下载次数: 8)</em>
+</p>
+<div class="tip tip_4" id="aid1402834_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQwMjgzNHw0NWEzNmEyMXwxNjEzOTc4MzAyfDI0MTk0ODZ8ODQ5OTcw&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2019-10-17 11:30 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1402834', 1)"><img src="static/image/common/rleft.gif" class="vm" /></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1402834', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1402834" aid="1402834" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201910/17/113052p7atvv2qrvppejqz.png" file="https://attachment.mcbbs.net/forum/201910/17/113052p7atvv2qrvppejqz.png.thumb.jpg" alt="image.png" title="image.png" w="1074" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[15736817] = ['1402832','1402833','1402834'];
+attachimggroup(15736817);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-10-18 03:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15736817&amp;ptid=849970" target="_blank"><font color="#999999">lq2007 发表于 2019-10-17 11:29</font></a></font><br />
+这用的是啥背景？<br />
+我用 Dark Reader 看，眼花；正常没事<br />
+别的页面没事</blockquote></div><br />
+背景用的是自带中的bg2.png<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>caizhong3&nbsp; &nbsp; <b>时间: </b>2019-10-18 09:13<br />
+liach有空介绍下新更新的mixin呗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-10-18 12:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15739119&amp;ptid=849970" target="_blank"><font color="#999999">caizhong3 发表于 2019-10-18 09:13</font></a></font><br />
+liach有空介绍下新更新的mixin呗</blockquote></div><br />
+你说mixin 0.8还是原来（0.7）/fabric的mixin？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>caizhong3&nbsp; &nbsp; <b>时间: </b>2019-10-18 13:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15739531&amp;ptid=849970" target="_blank"><font color="#999999">liach 发表于 2019-10-18 12:40</font></a></font><br />
+你说mixin 0.8还是原来（0.7）/fabric的mixin？</blockquote></div><br />
+mixin 0.8&nbsp;&nbsp;用在高版本ModLauncher 上<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>caizhong3&nbsp; &nbsp; <b>时间: </b>2019-10-21 09:27<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15739531&amp;ptid=849970" target="_blank"><font color="#999999">liach 发表于 2019-10-18 12:40</font></a></font><br />
+你说mixin 0.8还是原来（0.7）/fabric的mixin？</blockquote></div><br />
+ mixin 0.8&nbsp; &nbsp;&nbsp;&nbsp;欸... 我发现论坛的帖子顺序好像有丶问题<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-10-21 10:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15752396&amp;ptid=849970" target="_blank"><font color="#999999">caizhong3 发表于 2019-10-21 09:27</font></a></font><br />
+mixin 0.8&nbsp; &nbsp;&nbsp;&nbsp;欸... 我发现论坛的帖子顺序好像有丶问题</blockquote></div><br />
+很抱歉我1.12后就弃forge了，不想在modlauncher上用mixin<br />
+<br />
+现在新的mixin都不在maven上，推荐正式0.8出了后再用。<br />
+<br />
+如果你实在要用的话要把mixin modlauncher支持部分加annotation processor上才能正确生成refmap，具体compileJava要什么参数我就不细究了（<a href="https://github.com/SpongePowered/Mixin/blob/0.8/src/ap/java/org/spongepowered/tools/obfuscation/fg3/ObfuscationServiceFG3.java" target="_blank">https://github.com/SpongePowered ... tionServiceFG3.java</a>）<br />
+在build.gradle里面设置参数可以参考这个（具体参数内容是针对fabric的，对fg3不适用） <a href="https://github.com/liachmodded/carttemplate/blob/bc9409cb25de84b2ac1bf64a7cd33471461b055e/build.gradle#L62-L75" target="_blank">https://github.com/liachmodded/c ... uild.gradle#L62-L75</a><br />
+<br />
+注：这个帖子我设置新回复优先，不然每次翻回复太麻烦<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hinata_love&nbsp; &nbsp; <b>时间: </b>2020-1-20 21:53<br />
+你好我需要coremod来驱动我的mixin&nbsp;&nbsp;我能在哪里下载coremod<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2020-1-22 12:14<br />
+<div class="quote"><blockquote><font color="#999999">hinata_love 发表于 2020-1-20 21:53</font><br />
+<font color="#999999">你好我需要coremod来驱动我的mixin&nbsp;&nbsp;我能在哪里下载coremod</font></blockquote></div><br />
+你自己写个coremod就行，在实现IFMLLoadingPlugin的类的constructor里面写个Mixins.addConfiguration(你的mixin config json路径)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hinata_love&nbsp; &nbsp; <b>时间: </b>2020-1-22 17:20<br />
+有编译好的1.8.9可用的mixin吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hinata_love&nbsp; &nbsp; <b>时间: </b>2020-1-23 15:47<br />
+你好我挂了sstap节点 配置mdk的环境 遇到了问题<br />
+<br />
+Download <a href="https://jcenter.bintray.com/org/ow2/asm/asm-debug-all/5.0.3/asm-debug-all-5.0.3.pom" target="_blank">https://jcenter.bintray.com/org/ ... debug-all-5.0.3.pom</a><br />
+<br />
+FAILURE: Build failed with an exception.<br />
+<br />
+* What went wrong:<br />
+A problem occurred configuring root project 'ClientBase'.<br />
+&gt; Could not resolve all artifacts for configuration ':classpath'.<br />
+&nbsp; &nbsp;&gt; Could not resolve org.spongepowered:mixingradle:0.6-SNAPSHOT.<br />
+&nbsp; &nbsp;&nbsp;&nbsp;Required by:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;project :<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&gt; Could not resolve org.spongepowered:mixingradle:0.6-SNAPSHOT.<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&gt; Unable to load Maven meta-data from <a href="https://repo.maven.apache.org/maven2/org/spongepowered/mixingradle/0.6-SNAPSHOT/maven-metadata.xml." target="_blank">https://repo.maven.apache.org/ma ... maven-metadata.xml.</a><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&gt; Could not get resource 'https://repo.maven.apache.org/maven2/org/spongepowered/mixingradle/0.6-SNAPSHOT/maven-metadata.xml'.<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&gt; Could not GET 'https://repo.maven.apache.org/maven2/org/spongepowered/mixingradle/0.6-SNAPSHOT/maven-metadata.xml'.<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&gt; Connect to repo.maven.apache.org:443 [repo.maven.apache.org/151.101.40.215] failed: Read timed out<br />
+<br />
+* Try:<br />
+Run with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output. Run with --scan to get full insights.<br />
+<br />
+* Get more help at <a href="https://help.gradle.org" target="_blank">https://help.gradle.org</a><br />
+<br />
+BUILD FAILED in 1m 3s<br />
+<br />
+<br />
+这种问题怎么解决。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2020-1-24 15:49<br />
+<div class="quote"><blockquote><font color="#999999">hinata_love 发表于 2020-1-23 15:47</font><br />
+<font color="#999999">你好我挂了sstap节点 配置mdk的环境 遇到了问题<br />
+<br />
+Download https://jcenter.bintray.com/org/ow2/asm/asm-d ...</font></blockquote></div><br />
+在build.gradle开头的buildscript里面的repositories定义sponge maven (https://repo.spongepowered.org/maven) 才能使用mixingradle<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2020-1-24 15:51<br />
+<div class="quote"><blockquote><font color="#999999">hinata_love 发表于 2020-1-22 17:20</font><br />
+<font color="#999999">有编译好的1.8.9可用的mixin吗</font></blockquote></div><br />
+mixin的话直接下载sponge maven最新的，mixin版本和minecraft版本脱钩(无关)<br />
+https://repo.spongepowered.org/maven/org/spongepowered/mixin/
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

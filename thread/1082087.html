@@ -1,0 +1,255 @@
+<html>
+<head>
+<title>[1.16.1] Pixel-perfect 算法实现 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.16.1] Pixel-perfect 算法实现 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>LocusAzzurro&nbsp; &nbsp; <b>时间: </b>2020-7-20 04:27<br />
+<b>标题: </b>[1.16.1] Pixel-perfect 算法实现<br /><i class="pstatus"> 本帖最后由 LocusAzzurro 于 2020-7-19 21:36 编辑 </i><br />
+<br />
+<font size="3"><strong>前言 - 什么是pixel-perfect算法</strong></font><br />
+<br />
+这个算法可以让我们在绘制像素曲线时保持1像素的宽度，在绘制的同时实时移除L形状位置上的像素。<br />
+下图左侧是正常的铅笔工具绘制的像素曲线，右侧是经过算法加持形成的曲线，中间标记出了移除的像素。<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1649411" aid="1649411" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202007/19/212439gwdszgu5qxunqq5h.png" file="https://attachment.mcbbs.net/forum/202007/19/212439gwdszgu5qxunqq5h.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1649411" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1649411_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>pixel_perfect_example.png</strong> <em class="xg1">(4.34 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY0OTQxMXw4MjQ2ZjdjMXwxNjE0MDQ0NzIzfDI0MTk0ODZ8MTA4MjA4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-7-20 04:24 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<font size="3"><strong>function实现</strong></font><br />
+<br />
+<strong>tick.json</strong><br />
+<div class="blockcode"><div id="code_n7q"><ol><li>{<br />
+<li> &quot;values&quot;: [<br />
+<li> &quot;pixel:draw&quot;<br />
+<li> ]<br />
+<li>}</ol></div><em onclick="copycode($('code_n7q'));">复制代码</em></div><br />
+
+<br />
+<strong>draw.mcfunction</strong><br />
+<div class="blockcode"><div id="code_Jj6"><ol><li>#pixel-imperfect-comparison<br />
+<li><br />
+<li>tag @a remove ip_drawing<br />
+<li>execute as @p[nbt={SelectedItem:{id:&quot;minecraft:clay_ball&quot;}}] run tag @s add ip_drawing<br />
+<li><br />
+<li>execute at @a[tag=ip_drawing] align xzy run setblock ~ ~-1 ~ white_wool<br />
+<li><br />
+<li>#pixel-perfect<br />
+<li><br />
+<li>tag @a remove drawing<br />
+<li>execute as @p[nbt={SelectedItem:{id:&quot;minecraft:slime_ball&quot;}}] run tag @s add drawing<br />
+<li><br />
+<li>execute at @e[tag=p2] if entity @a[tag=drawing,distance=..5] run particle minecraft:end_rod ~ ~0.5 ~ 0.1 0 0.1 0.005 1 force<br />
+<li><br />
+<li>execute at @a[tag=drawing] align xzy unless entity @e[tag=pixel,distance=0] run function pixel:iterate</ol></div><em onclick="copycode($('code_Jj6'));">复制代码</em></div><br />
+
+<br />
+<strong>iterate.mcfunction</strong><br />
+<div class="blockcode"><div id="code_d7f"><ol><li>#drawing @ p1<br />
+<li><br />
+<li>execute at @e[tag=p1,tag=!nodraw] run setblock ~ ~-1 ~ white_wool<br />
+<li><br />
+<li>#trace iteration<br />
+<li><br />
+<li>kill @e[tag=p1]<br />
+<li>tag @e[tag=p2] add p1<br />
+<li>tag @e[tag=p1] remove p2<br />
+<li>tag @e[tag=p3] add p2<br />
+<li>tag @e[tag=p2] remove p3<br />
+<li>execute at @p align xzy run summon armor_stand ~ ~ ~ {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[&quot;p3&quot;,&quot;pixel&quot;]}<br />
+<li><br />
+<li>#corner pixel check<br />
+<li><br />
+<li>execute at @e[tag=p2] run summon armor_stand ~1 ~ ~1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[&quot;anchor1&quot;]}<br />
+<li>execute store result score __cornerTest1 corner run execute as @e[tag=anchor1] at @e[tag=anchor1] if entity @e[distance=..1.5,tag=pixel]<br />
+<li>kill @e[tag=anchor1]<br />
+<li><br />
+<li>execute at @e[tag=p2] run summon armor_stand ~1 ~ ~-1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[&quot;anchor2&quot;]}<br />
+<li>execute store result score __cornerTest2 corner run execute as @e[tag=anchor2] at @e[tag=anchor2] if entity @e[distance=..1.5,tag=pixel]<br />
+<li>kill @e[tag=anchor2]<br />
+<li><br />
+<li>execute at @e[tag=p2] run summon armor_stand ~-1 ~ ~1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[&quot;anchor3&quot;]}<br />
+<li>execute store result score __cornerTest3 corner run execute as @e[tag=anchor3] at @e[tag=anchor3] if entity @e[distance=..1.5,tag=pixel]<br />
+<li>kill @e[tag=anchor3]<br />
+<li><br />
+<li>execute at @e[tag=p2] run summon armor_stand ~-1 ~ ~-1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[&quot;anchor4&quot;]}<br />
+<li>execute store result score __cornerTest4 corner run execute as @e[tag=anchor4] at @e[tag=anchor4] if entity @e[distance=..1.5,tag=pixel]<br />
+<li>kill @e[tag=anchor4]<br />
+<li><br />
+<li>#condition check<br />
+<li><br />
+<li>tag @e[tag=p2] add nodraw<br />
+<li><br />
+<li>execute if score __cornerTest1 corner matches 2 if score __cornerTest2 corner matches 2 if score __cornerTest3 corner matches 2 if score __cornerTest4 corner matches 2 run tag @e[tag=p2] remove nodraw<br />
+<li><br />
+<li>execute as @e[tag=p2,tag=nodraw] at @e[tag=p2,tag=nodraw] if entity @e[tag=nodraw,tag=p1,distance=..1] run tag @e[tag=p2] remove nodraw</ol></div><em onclick="copycode($('code_d7f'));">复制代码</em></div><br />
+
+<br />
+<font size="3"><strong>实现说明</strong></font><br />
+<br />
+<strong><u>循环function：</u></strong><br />
+检测手持粘液球的玩家并运行算法，一个考虑到的点是只有玩家移动了超过一格距离才会进行一次迭代计算。另外加了一些粒子标记当前计算的位置。<br />
+<br />
+<strong><u>迭代function：</u></strong><br />
+<br />
+第一部分主要是跟随玩家移动生成盔甲架，并且对齐到整数坐标便于计算。行进方式类似于贪吃蛇，用p1,p2,p3三个tag分辨生成的先后顺序。<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1649404" aid="1649404" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202007/19/211640q8bbbkmx34z1b3jd.png" file="https://attachment.mcbbs.net/forum/202007/19/211640q8bbbkmx34z1b3jd.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="379" id="aimg_1649404" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1649404_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>iteration.png</strong> <em class="xg1">(2.75 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY0OTQwNHxmNDRjYzc0MHwxNjE0MDQ0NzIzfDI0MTk0ODZ8MTA4MjA4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-7-20 04:16 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+接下来是检测三个盔甲架是否形成了一个直角，这里用的方法是在p2的盔甲架位置周围四个对角的位置分别生成盔甲架，然后检测1.5格范围内的盔甲架数量（1.5格刚好可以检测到旁边和对角，直线里比较远的则不在范围内），然后分别写入计分板备用。如果是直线，四个数值就都是2，如果是直角，会有两个2，一个1，一个3。<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1649405" aid="1649405" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202007/19/211654v7pk2y6rk7fhrrdn.png" file="https://attachment.mcbbs.net/forum/202007/19/211654v7pk2y6rk7fhrrdn.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1649405" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1649405_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>corner_check.png</strong> <em class="xg1">(13.75 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY0OTQwNXxhYWQwMmFlY3wxNjE0MDQ0NzIzfDI0MTk0ODZ8MTA4MjA4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-7-20 04:16 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+然后是条件检测，先默认p2位置的盔甲架属于直角，因此不绘制（nodraw）。然后检测三个盔甲架是否直线，如果是则移除tag。<br />
+后面的一个检测是在行进路线呈S型时进行的判断，因为刚才的行进规则，p2上的nodraw会在下一次迭代里继承到p1上，因为这个算法是保留S型里后绘制的那个像素，因此检测之前的p1上是不是已经有了nodraw，如果有就保留现在的p2位置的像素，移除p1。如果只是简单的直角，则保留nodraw，不绘制像素。<br />
+<br />
+不同情况的处理方式见下图：<br />
+黄色=移除检测；红色=确认移除；绿色=确认保留<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1649406" aid="1649406" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202007/19/211709n0vyv6kvhcfgpfvy.png" file="https://attachment.mcbbs.net/forum/202007/19/211709n0vyv6kvhcfgpfvy.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1649406" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1649406_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>condition_check.png</strong> <em class="xg1">(4.4 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY0OTQwNnxhN2Q2OTAzZXwxNjE0MDQ0NzIzfDI0MTk0ODZ8MTA4MjA4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-7-20 04:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+最后就是实际生成方块，是在每次周期开始的时候进行，如果p1最后确认为要绘制的像素，就在盔甲架下方一格位置生成方块。<br />
+<br />
+<img id="aimg_x5Vv8" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/20/l9a4DG38UuY2Toq.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+<font size="3"><strong>后话</strong></font><br />
+<br />
+前几天RMG群里有人说到Aseprite里的这个工具，有点感兴趣，于是研究了一下算法。应该只能单机用，没做多人优化，算个prototype/proof of concept吧。版本兼容的话因为1.16刚出的就顺手用了，1.15/1.14应该也可以用。（记得放进去之后先跑一下 pixel:init 创建计分板）<br />
+<br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1649412" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTY0OTQxMnxlZTAxNzcyZnwxNjE0MDQ0NzIzfDI0MTk0ODZ8MTA4MjA4Nw%3D%3D" target="_blank">pixel.zip</a>
+
+<em class="xg1">(2.9 KB, 下载次数: 0)</em>
+</span>
+<div class="tip tip_4" id="attach_1649412_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2020-7-20 04:26 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[19031547] = ['1649404','1649405','1649406','1649411'];
+attachimggroup(19031547);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xiao2&nbsp; &nbsp; <b>时间: </b>2020-7-20 08:47<br />
+<a href="thread.html?t=892788" target="_blank">https://www.mcbbs.net/thread-892788-1-1.html</a><br />
+如果来一波内部算法那岂不是又锦上添花<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=1316165" target="_blank">@00ll00</a> <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Liang66666&nbsp; &nbsp; <b>时间: </b>2020-7-20 09:15<br />
+66666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kongbaiyo&nbsp; &nbsp; <b>时间: </b>2020-7-22 22:05<br />
+补充一下：<br />
+对于更大半径的画笔 可以使用同样的方式进行补偿<br />
+如果绘制路径发现直角，那就将直角位置的整个画笔都删掉<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kayn-&nbsp; &nbsp; <b>时间: </b>2020-8-1 11:52<br />
+通俗易懂的编码，爱了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ausygendjxhx&nbsp; &nbsp; <b>时间: </b>2020-8-1 17:28<br />
+mcbbs有你更精彩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>私‘’恋&nbsp; &nbsp; <b>时间: </b>2020-8-1 21:33<br />
+通俗易懂的编码，爱了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夕阳红熊猫&nbsp; &nbsp; <b>时间: </b>2020-10-7 10:11<br />
+我一直以为pixel是神奇宝贝有关的名字XD，原来是这个意思吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>春木呱&nbsp; &nbsp; <b>时间: </b>2020-10-8 14:37<br />
+厉害还可以这样玩
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

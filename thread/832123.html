@@ -1,0 +1,123 @@
+<html>
+<head>
+<title>[编程]LaterAgent——无需命令行加载Agent|修改已加载的类[1.7+] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[编程]LaterAgent——无需命令行加载Agent|修改已加载的类[1.7+] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>深海鲸鱼座&nbsp; &nbsp; <b>时间: </b>2018-11-30 00:02<br />
+<b>标题: </b>[编程]LaterAgent——无需命令行加载Agent|修改已加载的类[1.7+]<br /><i class="pstatus"> 本帖最后由 lj2000lj 于 2018-11-30 04:05 编辑 </i><br />
+<br />
+<font size="5">_前言</font><br />
+<font size="3">&nbsp;&nbsp;该插件是一个前置Api，没有编程经验的服主们可以等其他大佬操作出有意思的插件了</font><img src="static/image/smiley/tong/sleep.png" smilieid="1450" border="0" alt="" /><br />
+<font size="3">&nbsp;&nbsp;本贴中的用语对于刚接触插件开发的开发者可能略有艰深，可以参阅下文列出的参考资料进行学习<br />
+</font><br />
+<font size="3">&nbsp;&nbsp;这段时间各种黑科技频繁出没，某P的某V，某U的某M，我一寻思是时候来点有意思的操作了【然而对于一般服主来说没什么用，对于开发者或许能方便些……</font><br />
+<font size="3">&nbsp;&nbsp;</font><br />
+<font size="3">&nbsp;&nbsp;简而言之，该插件通过调用于Java 6时（是个古董）就已经存在的Api</font><font size="3">(Instrumentation</font><font size="3">)</font><font size="3">做到在不修改服务器命令行的前提下，动态的加载Java Agent从而对已加载/未加载的Java类进行修改</font><font size="3"><br />
+</font><br />
+<font size="3">&nbsp;&nbsp;有关该Api(Instrumentation</font><font size="3">)，请参见：</font><br />
+<font size="3">&nbsp;&nbsp;<a href="https://www.ibm.com/developerworks/cn/java/j-lo-jse61/index.html" target="_blank">https://www.ibm.com/developerworks/cn/java/j-lo-jse61/index.html</a></font><br />
+<br />
+<br />
+<font size="3">&nbsp;&nbsp;由于技术限制，目前无法对已经加载的类添加或删除方法或变量</font><br />
+<font size="3"><br />
+</font><br />
+<font size="3">&nbsp;&nbsp;【这插件本来是想着自用的，不过一琢磨发出来也没啥关系，反正就一破烂轮子【笑】</font><br />
+<font size="3"><br />
+</font><br />
+<font size="5">_Api</font><br />
+<div class="blockcode"><div id="code_B35"><ol><li>AgentApi.register(transformer, true, true);<br />
+<li>// 以上代码将transformer添加至Jre提供的Instrumentation实例以便后续进行transform，并且允许该transformer重复进行transform，在这之后立即对所有已加载的类重新进行一次transform<br />
+<li>public static void register(ClassFileTransformer transformer, boolean canRetransform, boolean doRetransform)<br />
+<li>// 以上是该方法的声明<br />
+<li><br />
+<li>// 例程：<br />
+<li>package cn.apisium.demo;<br />
+<li><br />
+<li>import java.lang.instrument.ClassFileTransformer;<br />
+<li>import java.lang.instrument.IllegalClassFormatException;<br />
+<li>import java.security.ProtectionDomain;<br />
+<li><br />
+<li>import org.bukkit.plugin.java.JavaPlugin;<br />
+<li><br />
+<li>import cn.apisium.lateragent.AgentApi;<br />
+<li><br />
+<li>public class Main extends JavaPlugin implements ClassFileTransformer {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; getLogger().info(&quot;Demo&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; AgentApi.register(this, true, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 以上代码将transformer添加至Jre提供的Instrumentation实例以便后续进行transform，并且允许该transformer重复进行transform，在这之后立即对所有已加载的类重新进行一次transform<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public byte[] transform(ClassLoader loader, String className, Class&lt;?&gt; classBeingRedefined,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(className);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这一行用于调试，将会输出当前进行transform的类的名字<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 您可以在这里添加您的代码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 返回值是该类的字节码，如不进行修改可以返回null<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_B35'));">复制代码</em></div><br />
+
+<br />
+<font size="5">&nbsp;&nbsp;</font><font size="3">除此之外，您需要在plugin.yml中添加一些参数</font><br />
+<div class="blockcode"><div id="code_r6o"><ol><li><br />
+<li>depend: [LaterAgent]<br />
+<li>load: STARTUP<br />
+<li></ol></div><em onclick="copycode($('code_r6o'));">复制代码</em></div><br />
+depend参数不必多说，是将本插件作为前置插件使用<br />
+load参数确保您的插件会在大部分插件与服务端的类加载以前进行加载，从而减少需要重新进行transform的类的数量<br />
+<br />
+<font size="5">_截图/命令/配置</font><br />
+<font size="5">&nbsp;&nbsp;</font><font size="3">作为一个前置Api，该插件并没有截图/命令/配置</font><br />
+<br />
+<font size="5">_下载</font>
+<ignore_js_op>
+
+<img src="static/image/filetype/unknown.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1269239" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTI2OTIzOXwxYTU2M2JiYXwxNjEzOTcyNDg5fDI0MTk0ODZ8ODMyMTIz" target="_blank">LaterAgent-all_shrunken.jar</a>
+
+<em class="xg1">(509.88 KB, 下载次数: 19)</em>
+</span>
+<div class="tip tip_4" id="attach_1269239_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2018-11-30 00:01 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<font size="5"><br />
+</font><br />
+<font size="5">_声明/参考资料/部分源码出处</font><br />
+<font size="5">&nbsp;&nbsp;</font>本插件为非盈利性插件，免费发布，严禁销售和转卖<br />
+<font size="5"> </font><font size="5"> </font>部分插件源码来自开源项目<font size="3"><a href="https://github.com/Xyene/ASM-Late-Bind-Agent" target="_blank">https://github.com/Xyene/ASM-Late-Bind-Agent</a> 以及 Jdk 8 中的tools.jar</font><br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Akkariin&nbsp; &nbsp; <b>时间: </b>2018-11-30 02:28<br />
+♂鲸又出新作品了！<br />
+mark，以后可能要用到
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

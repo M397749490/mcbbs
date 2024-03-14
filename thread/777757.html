@@ -1,0 +1,170 @@
+<html>
+<head>
+<title>[18w03b]如何实现击杀者判定系统 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[18w03b]如何实现击杀者判定系统 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>switefaster&nbsp; &nbsp; <b>时间: </b>2018-1-29 20:41<br />
+<b>标题: </b>[18w03b]如何实现击杀者判定系统<br /><i class="pstatus"> 本帖最后由 switefaster 于 2018-1-29 20:42 编辑 </i><br />
+<br />
+唔大家好我是潜水一年的switefaster<br />
+因为昨天有人问到，又因为我实现了这个系统，所以决定发这个贴子<br />
+<div align="center"><font size="6">好，进入正题</font></div><div align="center"><font size="3">※警告：此文内容为18w03b实现，其他版本不生效作者概不负责</font></div><div align="left"><font size="2">&nbsp;&nbsp;有人看到这个标题可能会问我，击杀判定不是已经被MC内部代码实现了吗？确实，但是那是玩家死亡的击杀判定。有些情况我们不希望玩家死亡，但是在特定条件下判定击杀。就比如我们为了节省玩家掉进虚空死亡的时间，在玩家坐标小于1的时候就判定击杀，那么我们就需要知道谁击杀了玩家。</font></div><div align="left"><font size="2">我们这次只考虑玩家击杀的情况。</font></div><div align="left"><font size="2">一个很简单的思路就是，我们只要知道谁最后击中了玩家，就判定谁是击杀者（当然可以根据自己的游戏规则更改）</font></div><div align="left"><font size="2">为了记录攻击者，我们创建一个lastHitter记分板</font></div><div align="left"><font size="2">init.mcfunction</font></div><div class="blockcode"><div id="code_BGm"><ol><li>scoreboard objectives add lastHitter dummy</ol></div><em onclick="copycode($('code_BGm'));">复制代码</em></div><div align="left"><font size="2">所以我们先考虑近战击中的情况：</font></div><div align="left"><font size="2">很容易就能想到，只要知道谁是攻击者，谁是被攻击者，就能给被攻击者的最后攻击者记分板赋予一个值...</font></div><div align="left"><font size="2">等等，玩家还能作为记分板的值？</font></div><br />
+<hr class="l" /><div align="left"><font size="2">为了解决上述问题我们插入一个略显无关的教程。为了解决记录玩家的问题我们需要赋予每个玩家一个特有的id以方便在记分板中记录。</font></div><div align="left"><font size="2">我们创建一个id记分板</font></div><div align="left"><div class="blockcode"><div id="code_lag"><ol><li>scoreboard objectives add id dummy</ol></div><em onclick="copycode($('code_lag'));">复制代码</em></div>那么怎么赋予玩家id呢？</div><div align="left">很显然，我们只要给没有id的玩家赋予最高id+1的分数就行了</div><div align="left">但是考虑到最高id分数玩家可能正好不在，所以我们需要一个东西来记录最高id</div><div align="left">那为了方便我们干脆召唤一个盔甲架来持有一些特有量吧</div><div align="left"><div class="blockcode"><div id="code_x1j"><ol><li>execute unless entity @e[name=constants] run summon minecraft:armor_stand ~ ~ ~ {CustomName:&quot;[&quot;constants&quot;]&quot;,Invisible:1,NoGravity:1,Marker:1}<br />
+<li>scoreboard players add @e[name=constants] id 0<br />
+<li>scoreboard players add @e[name=constants,scores={id=0}] id 1</ol></div><em onclick="copycode($('code_x1j'));">复制代码</em></div>从上述命令我们可以看到我们召唤了一个名为costants的盔甲架。给它加上分数0以让他拥有id记分板，随后如果他的id是0那么就加上1</div><div align="left">所以如果这个盔甲架不存在的情况就会被召唤一个并且赋予id=1</div><div align="left">我之前说这是最高值其实不准确，用&quot;next&quot;可能更能贴切地表达这个盔甲架的用途。它承载着会被赋予下一个玩家的id分数</div><div align="left">我们把这几个命令写进init.mcfunction里并且放到#minecraft:load这个function tag内，以便在datapack加载时运行</div><div align="left">这时候我们写一个allocid.mcfunction</div><div align="left"><div class="blockcode"><div id="code_jqO"><ol><li>scoreboard players operation @s id = @e[name=constants,limit=1] id<br />
+<li>scoreboard players add @e[name=constants] id 1</ol></div><em onclick="copycode($('code_jqO'));">复制代码</em></div>这两行命令的意图显而易见我就不解释了</div><div align="left">然后在ticks.mcfunction内</div><div align="left"><div class="blockcode"><div id="code_KFh"><ol><li>scoreboard players add @a id 0<br />
+<li>execute as @a[scores={id=0},limit=1] run function namespace:allocid</ol></div><em onclick="copycode($('code_KFh'));">复制代码</em></div><div align="left">※ 命名空间什么的你们就随意啦</div>同样我们让玩家拥有id记分板然后让所有id=0的玩家执行allocid</div><div align="left">至于为什么要limit=1，是防止多个玩家同时没有id的情况，同时执行会出现多个玩家分得同一个id的尴尬情况，所以一个一个来</div><div align="left">把ticks.mcfunction放进#minecraft:ticks这个function tag内，以便每tick执行一次</div><div align="left">至此，id分配内容结束</div><div align="left"><hr class="l" />好了，既然id已经分配到了我们可以继续考虑攻击者的问题了。</div><div align="left">我们知道advancement（以下简称adv）可以触发攻击和被攻击事件，但是……他们只能把触发者（攻击者或被攻击者）传入reward function里面可是我们两个都需要啊？？？不过这个问题我们稍后再解决，我们先把adv写好</div><div align="left">stickhit.json</div><div align="left"><div class="blockcode"><div id="code_Et8"><ol><li>{<br />
+<li>&nbsp; &nbsp; &quot;display&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;announce_to_chat&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;hidden&quot;: true,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;show_toast&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;icon&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;item&quot;:&quot;minecraft:stick&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;description&quot;:&quot;&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;title&quot;:&quot;&quot;<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;criteria&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;bow_hit&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;trigger&quot;: &quot;minecraft:player_hurt_entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;conditions&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;damage&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;direct_entity&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;:&quot;player&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;rewards&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;function&quot;:&quot;namespace:stickhit&quot;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Et8'));">复制代码</em></div><div align="left">bestickhit.json</div><div align="left"><div class="blockcode"><div id="code_yBC"><ol><li>{<br />
+<li>&nbsp; &nbsp; &quot;display&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;announce_to_chat&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;hidden&quot;: true,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;show_toast&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;icon&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;item&quot;:&quot;minecraft:stick&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;description&quot;:&quot;&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;title&quot;:&quot;&quot;<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;criteria&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;bow_hit&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;trigger&quot;: &quot;minecraft:entity_hurt_player&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;conditions&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;damage&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;direct_entity&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;:&quot;player&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;rewards&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;function&quot;:&quot;namespace:bestickhit&quot;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_yBC'));">复制代码</em></div></div>※ 好像对齐有点怪……不管了忍一下吧</div><div align="left">前者是击中判定，后者是被击中判定。因为我的小游戏里的武器是stick所以就叫bestickhit之类的了</div><div align="left">这两个adv也没什么稀奇的我就不解释了</div><div align="left">然后我们正式把目光移向重点——reward function</div><div align="left">stickhit.mcfunction</div><div align="left"><div class="blockcode"><div id="code_c4C"><ol><li>tag @s add stickhit<br />
+<li>advancement revoke @s only namespace:stickhit</ol></div><em onclick="copycode($('code_c4C'));">复制代码</em></div>※ 超短的</div><div align="left">没错我们干的事很简单，就是tag了一下这个玩家并且移除这个adv以重复触发而已</div><div align="left">同样的，bestickhit.mcfunction</div><div align="left"><div class="blockcode"><div id="code_qic"><ol><li>tag @s add bestickhit<br />
+<li>scoreboard players set @s fromDamaged 0 #请先忽视它<br />
+<li>advancement revoke @s only namespace:bestickhit</ol></div><em onclick="copycode($('code_qic'));">复制代码</em></div>干的事也一样，至于第二行后面会提到的，先忽视就好</div><div align="left">现在我们拥有了两个玩家的标记……但是还是没法配对啊？</div><div align="left">不要怕，先看命令：</div><div align="left">stickhitrecord.mcfunction</div><div class="blockcode"><div id="code_z5O"><ol><li>scoreboard players operation @a[sort=nearest,tag=bestickhit,limit=1,distance=0.3..] lastHitter = @s id<br />
+<li>tag @s remove stickhit<br />
+<li>tag @a[sort=nearest,tag=bestickhit,limit=1,distance=0.3..] remove bestickhit</ol></div><em onclick="copycode($('code_z5O'));">复制代码</em></div><div align="left">ticks.mcfunction</div><div align="left"><div class="blockcode"><div id="code_bxU"><ol><li># ...Previous Commands...<br />
+<li>execute as @a[tag=stickhit] run function namespace:stickhitrecord</ol></div><em onclick="copycode($('code_bxU'));">复制代码</em></div></div><div align="left">我们现在看看都干了些什么</div><div align="left">我们在每tick内以所有stickhit tag拥有着的名义执行stickhitrecord，在其中我们先把离这位执行者最近的bestickhit拥有者的lastHitter记分板标为自己的id，并且移除这两人的tag。distance=0.3...意为选中玩家的距离离执行者得≥3，防止选到自己，因为自己也有可能是bestickhit拥有者啊2333</div><div align="left">至于选择最近的玩家，是因为我们只能认为通常被击中者是离攻击玩家最近的了</div><div align="left">尽管这个判定可能会造成误差，但是至少能基本确定近战的击中者了</div><div align="left"><hr class="l" /></div><div align="left">好的，我们进阶，来考虑一下如何判断远距离武器击杀吧</div><div align="left">距离肯定是行不通了，不然怎么叫远距离武器呢？</div><div align="left">所以，我们来转换一下思维</div><div align="left">如果箭拥有其主人的id，那不就好判断了吗？</div><div align="left">循着这种思路，我们先创建两个记分板</div><div align="left">init.mcfunction</div><div align="left"><div class="blockcode"><div id="code_KH2"><ol><li>scoreboard objectives add owner dummy<br />
+<li>scoreboard objectives add lifeTime dummy</ol></div><em onclick="copycode($('code_KH2'));">复制代码</em></div>为什么是两个？过会就知道了</div><div align="left">我们总得赋予这两个记分板拥有着啊</div><div align="left">ticks.mcfunction</div><div align="left"><div class="blockcode"><div id="code_obz"><ol><li>scoreboard players add @e[type=arrow] lifeTime 1<br />
+<li>execute as @e[type=arrow,scores={lifeTime=1}] at @s run scoreboard players operation @s owner = @a[sort=nearest,limit=1] id</ol></div><em onclick="copycode($('code_obz'));">复制代码</em></div>我们每tick所有箭的lifeTime+1，然后让刚出生（？）的箭把离自己的owner附上最近的人的id，很好理解吧</div><div align="left">※ 其实这个lifeTime本来是其他作用的正好能用上我就用了</div><div align="left">然后我们就可以adv触发被箭攻击事件，然后开开心心地赋予owner……等等，等adv被触发结束箭已经击中玩家消失了啊？</div><div align="left">你的笑容是不是凝固在脸上？没关系，我们还有解决的办法</div><div align="left">init.mcfunction</div><div align="left"><div class="blockcode"><div id="code_S20"><ol><li>scoreboard objectives add possiblyArrowHit dummy</ol></div><em onclick="copycode($('code_S20'));">复制代码</em></div>※ 啊不要吐槽这个命名</div><div align="left">我们创建一个新记分板（以下简称poss），板如其名，可能被箭击中。文字表述比较难表达它的作用，我们直接贴一下调用</div><div align="left">ticks.mcfunction</div><div align="left"><div class="blockcode"><div id="code_Ggb"><ol><li>execute as @e[type=arrow,scores={lifeTime=2..},nbt={inGround:0b}] at @s run scoreboard players operation @a[distance=0.1..3] possiblyArrowHit = @s owner</ol></div><em onclick="copycode($('code_Ggb'));">复制代码</em></div></div><div align="left">我们以所有还在飞行并且出生过了一段时间（？）的箭的位置，把周围3格内的玩家的poss标记成自己的owner</div><div align="left">这有什么用？</div><div align="left">先继续看</div><div align="left">bearrowhit.json</div><div align="left"><div class="blockcode"><div id="code_mE3"><ol><li>{<br />
+<li>&nbsp; &nbsp; &quot;display&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;announce_to_chat&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;hidden&quot;: true,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;show_toast&quot;: false,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;icon&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;item&quot;:&quot;minecraft:bow&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;},<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;description&quot;:&quot;&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;title&quot;:&quot;&quot;<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;criteria&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;bow_hit&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;trigger&quot;: &quot;minecraft:player_hurt_entity&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;conditions&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;damage&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;direct_entity&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;:&quot;arrow&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; },<br />
+<li>&nbsp; &nbsp; &quot;rewards&quot;: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;function&quot;:&quot;namespace:bearrowhit&quot;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_mE3'));">复制代码</em></div></div>※ 直接vscode复制过来竟然带特效 duangduangduang 前面的懒得重新复制了凑合着吧<br />
+bearrowhit.mcfunction<br />
+<div class="blockcode"><div id="code_n25"><ol><li>scoreboard players operation @s lastHitter = @s possiblyArrowHit<br />
+<li>scoreboard players set @s fromDamaged 0 # 忽视</ol></div><em onclick="copycode($('code_n25'));">复制代码</em></div>是不是有一种茅塞顿开的感觉？<br />
+没错我们把沿途所有可能击中的玩家全部标上，但是只有最终击中的那个才会被正式计入击中者<br />
+然后远程攻击判定也就到这里了<br />
+不过最后我们解决几个无关紧要的问题<br />
+1.玩家自杀怎么判断？<br />
+这个我们真没办法，但是你可以用上那个fromDamaged，每tick增加1，到一定值归位并且把满值的玩家的lastHitter清零<br />
+2.偶尔判定lastHitter就是死亡者自身，怎么办？<br />
+<div class="blockcode"><div id="code_k06"><ol><li>execute as @a run scoreboard players operation @s lastHitter -= @s id<br />
+<li>execute as @a[scores={lastHitter=1..}] run scoreboard players operation @s lastHitter += @s id<br />
+<li>execute as @a[scores={lastHitter=..-1}] run scoreboard players operation @s lastHitter += @s id</ol></div><em onclick="copycode($('code_k06'));">复制代码</em></div>这样解决……至于是什么意思，请自己揣摩吧。实在不懂的话我会在评论区解答，算一个小小的作业<br />
+3.怎么选择器选择击杀者？分数没法动态导入选择器里啊？<br />
+那就把击杀玩家分数<font color="#ff8c00">特化</font><font color="#000000">（快记笔记）</font><br />
+<div class="blockcode"><div id="code_U7s"><ol><li>scoreboard players operation @a[distance=0.3..] id -= @s lastHitter<br />
+<li>tellraw @a [{&quot;color&quot;:&quot;red&quot;,&quot;selector&quot;:&quot;@s&quot;},{&quot;color&quot;:&quot;grey&quot;,&quot;text&quot;:&quot; 被 &quot;},{&quot;color&quot;:&quot;gold&quot;,&quot;selector&quot;:&quot;@a[scores={id=0}]&quot;},{&quot;color&quot;:&quot;grey&quot;,&quot;text&quot;:&quot; 击杀了&quot;}]<br />
+<li>scoreboard players operation @a[distance=0.3..] id += @s lastHitter</ol></div><em onclick="copycode($('code_U7s'));">复制代码</em></div>像这样……我把id特化成0了。具体自己研究吧<br />
+<br />
+这个贴就发到这了，欢迎优化即提问哦!<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Deing&nbsp; &nbsp; <b>时间: </b>2018-1-30 11:54<br />
+mc的指令系统越来越像一套内置api，也许干脆搞成factorio那样会更好一点（虽然估计非常困难）<br />
+<br />
+老了老了，1.12的时候还能搞清楚个大概，1.13已经完全看不懂了，，还是继续造工厂打虫子吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⊙v⊙&nbsp; &nbsp; <b>时间: </b>2018-1-30 12:30<br />
+<i class="pstatus"> 本帖最后由 ⊙v⊙ 于 2018-1-29 19:59 编辑 </i><br />
+<br />
+<strike>小声地说...id可以考虑data get UUIDLeast/Most...</strike>这就心疼了...<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-1-30 13:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12658138&amp;ptid=777757" target="_blank"><font color="#999999">⊙v⊙ 发表于 2018-1-30 12:30</font></a></font><br />
+小声地说...id可以考虑data get UUIDLeast/Most...</blockquote></div><br />
+那是long (i64)<br />
+mc命令返回值只支持 int (i32)<br />
+不行<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>switefaster&nbsp; &nbsp; <b>时间: </b>2018-1-30 15:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12658138&amp;ptid=777757" target="_blank"><font color="#999999">⊙v⊙ 发表于 2018-1-30 12:30</font></a></font><br />
+<strike>小声地说...id可以考虑data get UUIDLeast/Most...</strike>这就心疼了...</blockquote></div><br />
+正如pca所说，我在exe的这个功能刚出现时我就试过了。显然是存不下UUID的……并且当遇到超出数据范围或无法获取的类型（string）或错误的路径时，我没记错的话会存入0值<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kongbaiyo&nbsp; &nbsp; <b>时间: </b>2018-2-2 09:11<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12658655&amp;ptid=777757" target="_blank"><font color="#999999">switefaster 发表于 2018-1-30 15:26</font></a></font><br />
+正如pca所说，我在exe的这个功能刚出现时我就试过了。显然是存不下UUID的……并且当遇到超出数据范围或无 ...</blockquote></div><br />
+string会存入字符串长度<br />
+直接存UUIDLeast的话会直接到记分板可存储的最大值<br />
+↑wiki说的<br />
+可以乘0.0000000001来存 但这样有可能撞id 233<br />
+<div class="blockcode"><div id="code_RiB"><ol><li>execute as @a store result score @s thrower run data get entity @s UUIDMost 0.0000000001</ol></div><em onclick="copycode($('code_RiB'));">复制代码</em></div><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>switefaster&nbsp; &nbsp; <b>时间: </b>2018-2-2 09:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12666587&amp;ptid=777757" target="_blank"><font color="#999999">kongbaiyo 发表于 2018-2-2 09:11</font></a></font><br />
+string会存入字符串长度<br />
+直接存UUIDLeast的话会直接到记分板可存储的最大值<br />
+↑wiki说的</blockquote></div><br />
+这么看来还是我的id系统稳定一点……毕竟UUID*10^-10碰撞率太平均23333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ali1340653579&nbsp; &nbsp; <b>时间: </b>2018-2-2 16:56<br />
+好贴啊好贴
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,713 @@
+<html>
+<head>
+<title>[spigot]有关视野、身位的判断——可见|瞄头|背刺 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[spigot]有关视野、身位的判断——可见|瞄头|背刺 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ir.Nep&nbsp; &nbsp; <b>时间: </b>2019-12-5 18:59<br />
+<b>标题: </b>[spigot]有关视野、身位的判断——可见|瞄头|背刺<br /><i class="pstatus"> 本帖最后由 Ir.Nep 于 2019-12-5 19:33 编辑 </i><br />
+<br />
+<div align="center"><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font size="4"><font color="#800080">前言</font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td>该教程适用于1.8以上<br />
+有spigot基础和向量方面知识会更好理解<br />
+贴中配了少许图片以助理解<br />
+<br />
+教程中所有功能都已经整合在一个类中，代码在本楼最下方。<br />
+<br />
+P.S. 排 版 杀 我<br />
+P.S.S. 吞 码 鬼 才Discuss<br />
+</td></tr></table><br />
+</div></td></tr></table><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font face="微软雅黑"><font size="4"><font color="#4169e1">Part 0、为判断的视觉化做准备</font></font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>有时候思考问题如果仅靠数据的计算和大脑的模拟，不仅耗时烧脑，还容易出错。<br />
+因此如果我们能将代码工作过程<font color="#ff00ff">视觉化(可视化)</font>，往往有助于我们解决问题。<br />
+P.S: 若Part 0看不懂，建议直接转到Part 4使用已经整合好的类，因为Part 1/2/3中做的工作，其实并没有比Part 0多多少。<br />
+<br />
+在视野/身位判断这个问题中，最重要的就是让视线可视化<strike>就像在眼睛上装个红外射线</strike><br />
+因此我们先准备两个在MC中绘制线段的函数。<br />
+要画线段，就得知道起点和终点<br />
+于是我们写下<br />
+<div class="blockcode"><div id="code_Q1i"><ol><li>public void drawLine(Location start, Location end){}</ol></div><em onclick="copycode($('code_Q1i'));">复制代码</em></div><br />
+根据初中平面向量知识，在平面中若有A、B两点，用B点坐标减去A点坐标，我们将得到一条从A射向B的射线（向量）。<br />
+于是得到<br />
+<div class="blockcode"><div id="code_DZ8"><ol><li>Vector ray = end.clone().substract(start).toVector();<br />
+<li></ol></div><em onclick="copycode($('code_DZ8'));">复制代码</em></div>其中ray为从A射向B的射线<br />
+clone()是复制终点<br />
+substract(start)是对复制后的终点进行减法操作，减去起点start后得到射线<br />
+toVector()将得到的射线转为向量。<br />
+<br />
+我们将这个向量称为<font color="#0000ff">偏移向量</font><br />
+因为我们要绘制的是起点到终点这条射线上的数个点<br />
+所以我们还要根据要绘制的点的数量，让偏移向量每次只从起点向终点移动一小段距离<br />
+<br />
+假设我们每隔0.1个距离单位就绘制一个点，那么我们一共要绘制(射线长度/间隔)个点<br />
+<div class="blockcode"><div id="code_zcA"><ol><li>double dotCount = ray.length() / 0.1;</ol></div><em onclick="copycode($('code_zcA'));">复制代码</em></div>得到要绘制的点的数量以后，我们还要得到<font color="#0000ff">单位偏移向量</font>，即每绘制完一个点之后，向终点移动的向量。<br />
+<div class="blockcode"><div id="code_jf4"><ol><li>Vector offsetUnit = ray.multiply(1 / times);</ol></div><em onclick="copycode($('code_jf4'));">复制代码</em></div>有了起点、单位偏移向量、绘制点数，我们就可以开始绘制线段了。<br />
+<div class="blockcode"><div id="code_ypU"><ol><li>// 当还有需要绘制的点的时候执行<br />
+<li>for(; times &gt; 0; times--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0, 0, 0, 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;currentLoc.add(offsetUnit);<br />
+<li>}</ol></div><em onclick="copycode($('code_ypU'));">复制代码</em></div><br />
+整合一下我们得到<br />
+<div class="blockcode"><div id="code_U1o"><ol><li><br />
+<li>public void drawLine(Location start, Location end) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 不同世界无法画线<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(start.getWorld() != end.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Vector offsetUnit = end.clone().subtract(start).toVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;double times = offsetUnit.length() / 0.1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;offsetUnit.multiply(1 / times);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawLine(start, offsetUnit, times);<br />
+<li>}<br />
+<li><br />
+<li>public void drawLine(Location start, Vector offsetUnit, double times) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Location currentLoc = start.clone();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 避免绘制线段过短<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(times &lt; 1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; times = 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(; times &gt; 0; times--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0, 0, 0, 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; currentLoc.add(offsetUnit);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_U1o'));">复制代码</em></div>接下来的Part 1/2/3中出现的drawLine都是以上两个函数<br />
+将不再重复声明<br />
+<br />
+有了可视化的支持，我们可以大胆开搞了</td></table></div></div></td></tr></table><br />
+</div></td></tr></table><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font face="微软雅黑"><font size="4"><font color="#4169e1">Part 1、判断目标是否以背示人</font></font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+我们先从最简单的背部判定开始<br />
+要知道目标是否以背示人，就是要知道目标是不是背朝我们这边<br />
+背朝我们这边=面朝另一边=面向方向跟<font color="#800080">我们和目标之间的偏移向量</font>的方向一样<br />
+<br />
+<strong>可视化的<font color="#800080">我们和目标之间的偏移向量</font></strong>：<br />
+<div class="blockcode"><div id="code_VTz"><ol><li>drawLine(player, target);</ol></div><em onclick="copycode($('code_VTz'));">复制代码</em></div>
+<ignore_js_op>
+
+<img id="aimg_1416631" aid="1416631" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/171941a4o98k3233sx6fo2.png" file="https://attachment.mcbbs.net/forum/201912/05/171941a4o98k3233sx6fo2.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="374" id="aimg_1416631" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416631_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(73.46 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjYzMXw4ZGM5MjlmY3wxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:19 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<strong>可视化的目标视线：</strong><div class="blockcode"><div id="code_M11"><ol><li>drawLine(target.getEyeLocation(), target.getLocation().getDirection().multiply(0.2), 100)</ol></div><em onclick="copycode($('code_M11'));">复制代码</em></div><br />
+
+<ignore_js_op>
+
+<img id="aimg_1416632" aid="1416632" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/172058nd0n0dd9xd05dzqn.png" file="https://attachment.mcbbs.net/forum/201912/05/172058nd0n0dd9xd05dzqn.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1416632" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416632_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(170.8 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjYzMnxlODcwNWM4ZXwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:20 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<strong>两条线段同时绘制：</strong><br />
+
+<ignore_js_op>
+
+<img id="aimg_1416633" aid="1416633" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/172326e7nist8r7rds8d75.png" file="https://attachment.mcbbs.net/forum/201912/05/172326e7nist8r7rds8d75.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="369" id="aimg_1416633" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416633_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(118.51 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjYzM3w0Mzk0ODRiYnwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:23 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1416634" aid="1416634" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/172345i3hhyhhrhgyyeeie.png" file="https://attachment.mcbbs.net/forum/201912/05/172345i3hhyhhrhgyyeeie.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="292" id="aimg_1416634" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416634_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(150.39 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjYzNHwwYjRjYzUxYnwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:23 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+可以很明显看出两条线之间有一个<strong>角度</strong><br />
+意味着我们可以通过这两条线之间的夹角来判断目标是否背对我们<br />
+即<div class="blockcode"><div id="code_A44"><ol><li>// 获取观察者位置<br />
+<li>Location loc_player = player.getLocation();<br />
+<li><br />
+<li>// 获取目标的位置<br />
+<li>Location loc_target = target.getLocation();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>// 和平面坐标系上 B点坐标减去A点坐标得到A-&gt;B 一样<br />
+<li>// 得到空间坐标中起点射向终点的偏移向量<br />
+<li>Vector ray = loc_target.subtract(loc_player).toVector();<br />
+<li><br />
+<li>// 只考虑平面偏移<br />
+<li>ray.setY(0);<br />
+<li><br />
+<li>// 获取目标视线的方向<br />
+<li>Vector lookingVec_target = loc_target.getDirection();<br />
+<li><br />
+<li>// 只考虑平面方向<br />
+<li>lookingVec_target.setY(0);<br />
+<li><br />
+<li>// 得到两向量夹角，注意单位，若不加Math.toDegrees则为弧度制<br />
+<li>double angle = Math.toDegrees(ray.angle(lookingVec_target));</ol></div><em onclick="copycode($('code_A44'));">复制代码</em></div><br />
+由初中/高中向量知识知求两向量夹角应确保向量<strong>从同一起点出发</strong><br />
+所以上面代码得到的angle为图中<strong>右侧</strong>角<br />
+
+<ignore_js_op>
+
+<img id="aimg_1416639" aid="1416639" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/173822xw6bwsmohg3mwwbg.png" file="https://attachment.mcbbs.net/forum/201912/05/173822xw6bwsmohg3mwwbg.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="475" id="aimg_1416639" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416639_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>无标题.png</strong> <em class="xg1">(6.54 KB, 下载次数: 1)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjYzOXw1MmFjNDU1MXwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:38 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+Vector类的angle方法使用Math.acos，因此总是返回[0, π)，我们就不需要去考虑所得角度是否为劣弧<br />
+<br />
+至此，我们只需要定一个角度，来确定目标是否背向我们，这里默认为60°角<br />
+只要angle &lt; 60，即上图右侧那个角小于60°，我们就认为目标背对我们<br />
+<br />
+</td></table></div></div></td></tr></table><br />
+</div></td></tr></table><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font color="#4169e1"><font face="微软雅黑"><font size="4">Part 2、判断目标是否在视野内/可见</font></font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<strong>一个目标能被我们看到的前提：<br />
+</strong><ul><li><strong>目标处于我们的视野内</strong><li><strong>从目标位置到我们的眼睛处没有阻碍物（方块/实体）</strong><br />
+</ul><br />
+1、首先是目标是否处于视野内的判断：<br />
+由于我们的视觉器官的物理限制，我们只能看到在我们面前一定角度内的东西。<br />
+<div class="blockcode"><div id="code_y3F"><ol><li>drawLine(player.getEyeLocation(), target.getEyeLocation());</ol></div><em onclick="copycode($('code_y3F'));">复制代码</em></div><br />
+<strong>可视化的观察者视线以及偏移向量：</strong><br />
+
+<ignore_js_op>
+
+<img id="aimg_1416646" aid="1416646" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/175740dwczulxxxsewagww.png" file="https://attachment.mcbbs.net/forum/201912/05/175740dwczulxxxsewagww.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1416646" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416646_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(347.25 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjY0NnxiY2I4OWE0ZHwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:57 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1416647" aid="1416647" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201912/05/175805rjzh7c6jzzf7v6b7.png" file="https://attachment.mcbbs.net/forum/201912/05/175805rjzh7c6jzzf7v6b7.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="529" id="aimg_1416647" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1416647_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(111.65 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxNjY0N3wzM2U2NDg5OHwxNjE0MDAyNzc2fDI0MTk0ODZ8OTMwNTU4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-12-5 17:58 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+可以看到偏移向量和我们的视线向量之间有一个夹角，当这个夹角大到一定程度的时候，目标就会像第二张图一样超出视野。<br />
+由此我们写下第一个判断<br />
+<div class="blockcode"><div id="code_xIY"><ol><li>// 获取观察者眼睛位置<br />
+<li>// 该变量将作为起点、中间判断点使用<br />
+<li>Location loc_start = entity.getEyeLocation();<br />
+<li><br />
+<li>// 和平面坐标系上 B点坐标减去A点坐标得到A-&gt;B 一样<br />
+<li>// 得到空间坐标中起点射向终点的向量<br />
+<li>Vector ray = target.getLocation().subtract(loc_start).toVector();<br />
+<li>// 注意对参数loc先克隆后使用，避免影响其在其他函数的作用<br />
+<li><br />
+<li>// 首先判断观察者是否可能看得见目标<br />
+<li>//<br />
+<li>// 获取观察者视线向量<br />
+<li>Vector lookingVec = entity.getLocation().getDirection();<br />
+<li><br />
+<li>// 获取观察者视线向量与射线向量之间的夹角<br />
+<li>// 注意单位为弧度角<br />
+<li>// 这里也可以用pitch和yaw判断，自行把握<br />
+<li>float angle = lookingVec.angle(ray);<br />
+<li>// 如果角度超出了观察者视野最大角度<br />
+<li>if(Math.toDegrees(angle) &gt; FOV) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 就认为观察者看不见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>}</ol></div><em onclick="copycode($('code_xIY'));">复制代码</em></div><br />
+
+<br />
+2、从目标位置到我们的眼睛处是否有阻碍物的判断：<br />
+从我们绘制的线段可以看出，如果偏移向量的路径上有阻碍物，那么有阻碍物的那个地方的线段我们是看不见的，意味着我们可以采取和绘制线段一样的方法<br />
+<div class="blockcode"><div id="code_Or8"><ol><li>// 根据观察者和目标的距离<br />
+<li>// 得到一路上要判断是否有视野阻碍物的次数<br />
+<li>double checkTimes = ray.length() / SPACING;<br />
+<li><br />
+<li>// 若距离过近，就只进行1次判断<br />
+<li>if(checkTimes &lt; 1) {<br />
+<li>&nbsp; &nbsp; checkTimes = 1;<br />
+<li>}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>// 得到每次判断之后向目标位置移动的向量，即单位偏移向量<br />
+<li>Vector offsetUnit = ray.multiply(1 / checkTimes);<br />
+<li></ol></div><em onclick="copycode($('code_Or8'));">复制代码</em></div>将绘制线段上各点(即生成粒子)部分的代码换成判断是否有阻碍物的代码<br />
+[spoiler]<br />
+<div class="blockcode"><div id="code_tYF"><ol><li><br />
+<li>// 每次判断后所需判断次数减一，直到最后到达目标位置<br />
+<li>for(; checkTimes &gt; 0; checkTimes--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 通过材质判断当前所在位置的方块是否可以透视<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 也可以用org.bukkit.util.BlockIterator或LivingEntity的getLineOfSight<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch(loc_start.getBlock().getType()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 添加你认为能透视的材质 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 这里我就举几个很常见的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;case AIR:&nbsp;&nbsp;// 空气 <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;case WATER: // 流水<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;case GRASS: // 小草<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 如果该方块的材质符合以上任意一项<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 就跳出switch进行下一步判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 如果该方块的材质我们觉得不能透视<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 就返回false，即观察者看不见目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 实体判断就用spigot原生函数了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获取判断点处的实体列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Collection&lt;Entity&gt; entityList = loc_start.getWorld().getNearbyEntities(loc_start, 0.1, 0.1, 0.1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获取判断点处的实体数量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int count = entityList.size();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 如果列表里面包含观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(entityList.contains(entity)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //周围实体数量减一<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; count--;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 如果列表里面包含目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(entityList.contains(target)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //周围实体数量减一<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; count--;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 如果列表里还有其他生物<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(count &gt; 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 就认为观察者看不见目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 向目标位置移动<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;loc_start.add(ray);<br />
+<li>}</ol></div><em onclick="copycode($('code_tYF'));">复制代码</em></div><br />
+此处只进行了头部可见性的判断，其他部位也是一样的判断流程<br />
+多点判断意味着成倍消耗，准确性和性能自行把握<br />
+<br />
+</td></table></div></div></td></tr></table><br />
+</div></td></tr></table><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font color="#4169e1"><font face="微软雅黑"><font size="4">Part 3、判断目标的头是否在视野中心</font></font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>由Part 2中第一项判断知，玩家视线在目标头部时，视线向量和玩家眼睛到目标头部的偏移向量之间的夹角是很小的，我们默认他为5°。<br />
+<br />
+但和Part 2不同，大部分目标的头部都很小，若目标离得有一定距离，误差会有所增加。<br />
+<br />
+因此Part 3我们要多考虑一个变量：距离<br />
+这个变量很好获取<br />
+<div class="blockcode"><div id="code_kN2"><ol><li>double distance = loc_entity_eye.distance(loc_target_head);</ol></div><em onclick="copycode($('code_kN2'));">复制代码</em></div>根据常识我们知道，距离越远，目标看起来就越小。近则反之。<br />
+而目标越小，视线和偏移向量之间所允许的最大夹角就越小<br />
+即两者成反比：距离 * 最大夹角 = 常数<br />
+得最大夹角 = 常数 / 距离<br />
+设常数为25<br />
+<div class="blockcode"><div id="code_Czd"><ol><li>double fov_focus_fixed = 25 / distance;</ol></div><em onclick="copycode($('code_Czd'));">复制代码</em></div>求得修正后的最大夹角，与angle进行判断后，再进行Part 2中第2部分的判断<br />
+<br />
+类似的，Part 2中如果要追求更高的精确度，也可以进行距离修正。</td></table></div></div><br />
+</td></tr></table><br />
+</div></td></tr></table><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:80%"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#b7e0fa"><tr><td><div align="center"><font color="#4169e1"><font face="微软雅黑"><font size="4">Part 4、以上功能代码</font></font></font></div></td></tr></table><br />
+<hr class="l" /><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#FFFFEE"><tr><td><font style="background-color:rgb(255, 255, 255)">使用ViewCheckUtil.instance.xxx()或自行添加静态修饰符<br />
+</font><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_xsp"><ol><li><br />
+<li>import java.util.Collection;<br />
+<li><br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.Particle;<br />
+<li>import org.bukkit.entity.Entity;<br />
+<li>import org.bukkit.entity.LivingEntity;<br />
+<li>import org.bukkit.util.Vector;<br />
+<li><br />
+<li>/**<br />
+<li> * 有关视野的判断<br />
+<li> * 只做了一点点微小的工作<br />
+<li> * <br />
+<li> * 自行判断要不要异线程工作<br />
+<li> * <br />
+<li> * @author Ir.Nep<br />
+<li> *<br />
+<li> */<br />
+<li>public class ViewCheckUtil {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final ViewCheckUtil instance = new ViewCheckUtil();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 视野阻碍判断的间隔 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final double SPACING = 0.2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 视野最大角度 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final float FOV = 60;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 聚焦视野最大角度基数 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final float FOV_FOCUS_NORMAL = 25;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 露出背部的最大角度 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final float ANGLE_BACK = 60;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 观察者是否能看得见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param entity 观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param loc 目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param toIgnore 要忽略的实体列表(不要传入观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return boolean 希望能看到我吧<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean isTargetLocationInSight(LivingEntity entity, Location loc, Entity...toIgnore) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 不同世界无法判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(entity.getWorld() != loc.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者眼睛位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 该变量将作为起点、中间判断点使用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_entity_eye = entity.getEyeLocation();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 和平面坐标系上 B点坐标减去A点坐标得到A-&gt;B 一样<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到空间坐标中起点射向终点的向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector ray = loc.clone().subtract(loc_entity_eye).toVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 注意对参数loc先克隆后使用，避免影响其在其他函数的作用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 首先判断观察者是否可能看得见目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者视线向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector lookingVec = entity.getLocation().getDirection();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者视线向量与射线向量之间的夹角<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 注意单位为弧度角<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这里也可以用pitch和yaw判断，自行把握<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; float angle = lookingVec.angle(ray);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 如果角度超出了观察者视野最大角度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(Math.toDegrees(angle) &gt; FOV) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 就认为观察者看不见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 根据观察者和目标位置的距离<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到一路上要判断是否有视野阻碍物的次数<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; double checkTimes = ray.length() / SPACING;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 若距离过近，就只进行1次判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(checkTimes &lt; 1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;checkTimes = 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到每次判断之后向目标位置移动的向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ray.multiply(1 / checkTimes);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 每次判断后所需判断次数减一，直到最后到达目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for(; checkTimes &gt; 0; checkTimes--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 通过材质判断当前所在位置的方块是否可以透视<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 也可以用org.bukkit.util.BlockIterator或LivingEntity的getLineOfSight<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;switch(loc_entity_eye.getBlock().getType()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 添加你认为能透视的材质 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 这里我就举几个很常见的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case AIR:&nbsp;&nbsp;// 空气 <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case WATER: // 流水<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case GRASS: // 小草<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 如果该方块的材质符合以上任意一项<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 就跳出switch进行下一步判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 如果该方块的材质我们觉得不能透视<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 就返回false，即观察者看不见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 实体判断就用spigot原生函数了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 获取判断点处的实体列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Collection&lt;Entity&gt; entityList = loc_entity_eye.getWorld().getNearbyEntities(loc_entity_eye, 0.1, 0.1, 0.1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 获取判断点处的实体数量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int count = entityList.size();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 如果列表里面包含观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(entityList.contains(entity)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//周围实体数量减一<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;count--;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(toIgnore != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(Entity entityToIgnore : toIgnore) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(entityList.contains(entityToIgnore)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;count--;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 如果列表里还有其他生物<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(count &gt; 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 就认为观察者看不见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 向目标位置移动<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;loc_entity_eye.add(ray);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 当所有判断点都通过了以后<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 就认为观察者能看见目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 观察者是否能看得见目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param entity 观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param target 目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return boolean 希望能看到我吧<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean isTargetInSight(LivingEntity entity, Entity target) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 不同世界无法判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(entity.getWorld() != target.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取目标位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_target = target.getLocation();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 若目标非活物，这里只判断底部<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 若目标是活物，则同时检查目标的头和脚以减小误差<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 可以再加上几个身体的判断，服务器资源的消耗和判断的准确性自己把握<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return isTargetLocationInSight(entity, loc_target, target) || (target instanceof LivingEntity ? isTargetLocationInSight(entity, loc_target.add(0, ((LivingEntity) target).getEyeHeight(), 0), target) : false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 观察者是否在盯着目标的头看<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param entity 观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param target 目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return boolean 盯久了会害羞所以还是false比较好<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean isLookingHead(LivingEntity entity, LivingEntity target) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 不同世界无法判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(entity.getWorld() != target.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者眼睛的位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_entity_eye = entity.getEyeLocation();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者视线向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector lookingVec = loc_entity_eye.getDirection();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取目标头的位置, 大概没有眼睛不在头上的生物吧？！<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 有的话就改改 TODO<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_target_head = target.getEyeLocation();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; double distance = loc_entity_eye.distance(loc_target_head);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到空间坐标中起点射向终点的向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector ray = loc_target_head.subtract(loc_entity_eye).toVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者视线向量与射线向量之间的夹角<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; float angle = (float) Math.toDegrees(ray.angle(lookingVec));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; double fov_focus_fixed = FOV_FOCUS_NORMAL / distance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 如果角度超出了聚焦视野最大角度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(angle &gt; fov_focus_fixed) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 就认为观察者没有盯着目标的头看<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 判断目标是否能被观察者看见<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return isTargetInSight(entity, target);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 观察者在目标的身后<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param entity 观察者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param target 目标<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return boolean 是否在身后<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean isBehind(LivingEntity entity, LivingEntity target) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 不同世界无法判断<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(entity.getWorld() != target.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取观察者位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_entity = entity.getLocation();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取目标的位置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location loc_target = target.getLocation();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 和平面坐标系上 B点坐标减去A点坐标得到A-&gt;B 一样<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到空间坐标中起点射向终点的向量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector ray = loc_target.subtract(loc_entity).toVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 只考虑平面偏移<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ray.setY(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取目标正视的方向<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector lookingVec_target = loc_target.getDirection();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 只考虑平面方向<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lookingVec_target.setY(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 得到两向量夹角<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; double angle = Math.toDegrees(ray.angle(lookingVec_target));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 若射线方向跟目标面向方向夹角小于露出背部的最大角度就认为是背对了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这里我没有判断目标是否在观察者视野里，背对背也是存在的情况<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return angle &lt; ANGLE_BACK;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void drawLine(Location start, Location end) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 不同世界无法画线<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(start.getWorld() != end.getWorld()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vector offsetUnit = end.clone().subtract(start).toVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; double times = offsetUnit.length() / 0.2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; offsetUnit.multiply(1 / times);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; drawLine(start, offsetUnit, times);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void drawLine(Location start, Vector offsetUnit, double times) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location currentLoc = start.clone();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 避免绘制线段过短<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(times &lt; 1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;times = 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for(; times &gt; 0; times--) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0, 0, 0, 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;currentLoc.add(offsetUnit);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_xsp'));">复制代码</em></div><font style="background-color:rgb(255, 255, 255)"></td></table></div></div></font></td></tr></table><br />
+</div></td></tr></table><br />
+</div><br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[15907128] = ['1416631','1416632','1416633','1416634','1416639','1416646','1416647'];
+attachimggroup(15907128);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huanmeng_cn&nbsp; &nbsp; <b>时间: </b>2019-12-5 19:24<br />
+收藏就对了，说不定以后用得上！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云云大魔王&nbsp; &nbsp; <b>时间: </b>2019-12-5 21:16<br />
+这样子说是不是能弄一个（小游戏）别的玩家（或boss）在看你的时候显示“危”<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Lao_Ge&nbsp; &nbsp; <b>时间: </b>2019-12-5 21:49<br />
+谢谢，这个对我很有帮助<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>字幕kall&nbsp; &nbsp; <b>时间: </b>2019-12-6 19:19<br />
+感谢分享，我最近还琢磨怎么弄这个面向的判断来着，想到要用到向量 但是还没什么思路 突然发现这个帖子 醍醐灌顶<img src="static/image/smiley/tong/cowry.png" smilieid="1452" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>asjkdaskljda&nbsp; &nbsp; <b>时间: </b>2019-12-6 20:29<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" />学习了，有空玩一玩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Kenneth_z&nbsp; &nbsp; <b>时间: </b>2019-12-7 08:25<br />
+收藏了 以后用得上<img src="static/image/smiley/rabbit/20.gif" smilieid="670" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>平平平平海&nbsp; &nbsp; <b>时间: </b>2019-12-9 17:37<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" />怎么想到的嗷<br />
+这是人干的事嘛
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

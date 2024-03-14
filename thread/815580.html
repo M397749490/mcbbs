@@ -1,0 +1,271 @@
+<html>
+<head>
+<title>[机制]插件加载器 —— 前置API,加快插件开发速度[1.7.10] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[机制]插件加载器 —— 前置API,加快插件开发速度[1.7.10] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>azbh111&nbsp; &nbsp; <b>时间: </b>2018-8-19 11:43<br />
+<b>标题: </b>[机制]插件加载器 —— 前置API,加快插件开发速度[1.7.10]<br /><i class="pstatus"> 本帖最后由 azbh111 于 2018-8-19 12:06 编辑 </i><br />
+<br />
+<font size="5"><strong>关于本插件</strong></font><br />
+<br />
+<font size="3">本人开发各种插件时，发现总是会做很多重复烦人的工作</font><br />
+<br />
+<font size="3">以下列举一些重复烦人的工作，并提供框架下优化后的代码(学霸食用，学渣直接看帖子结尾吧)</font><br />
+<br />
+<font size="3">?&nbsp; &nbsp; 配置文件的 生成/读取/重载/保存</font><br />
+<br />
+<div class="blockcode"><div id="code_xgy"><ol><li>// 一个自定义配置文件<br />
+<li>@Inject(args = &quot;{.}/plugins/Clann/configItem.conf&quot;)<br />
+<li>ConfigWrapper configWrapper;<br />
+<li>// 配置采用注入的方式<br />
+<li>@Configure(value = &quot;modules.autoSave.interval&quot;, comment = &quot;间隔(s)&quot;)<br />
+<li>private long saveInterval = 600; //10分钟保存一次<br />
+<li>// 重载插件时的回调<br />
+<li>@ReLoad<br />
+<li>public void reload() {<br />
+<li>&nbsp; &nbsp; // doSomething<br />
+<li>}</ol></div><em onclick="copycode($('code_xgy'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 自定义数据的 创建/读取/保存</font><br />
+<br />
+<div class="blockcode"><div id="code_B7o"><ol><li>// 定义一个数据文件<br />
+<li>@Ignore<br />
+<li>@Inject(args = {&quot;{.}/data/clann/blocklog&quot;})<br />
+<li>FileDataHolder dataFile;<br />
+<li><br />
+<li>// 读取数据<br />
+<li>@Load<br />
+<li>public void load() {<br />
+<li>&nbsp; &nbsp; if (!dataFile.exist()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dataFile.save(this);<br />
+<li>&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dataFile.fill(this);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li>// 保存数据<br />
+<li>public void save() {<br />
+<li>&nbsp; &nbsp; dataFile.save(this);<br />
+<li>}</ol></div><em onclick="copycode($('code_B7o'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 数据库连接的.... </font><br />
+<br />
+<div class="blockcode"><div id="code_Ssa"><ol><li>// 创建一个数据库连接，(本框架使用h2数据库)<br />
+<li>@Inject(id = AutoBackup.dataSourceId, args = &quot;${Clann:modules.backupInv.jdbcUrl}&quot;)<br />
+<li>SqlSource sqlSource;<br />
+<li><br />
+<li>// 创建一个PreparedStatement<br />
+<li>@Inject(depends = {AutoBackup.dataSourceId}, args = {AutoBackup.dataSourceId<br />
+<li>&nbsp; &nbsp; , &quot;SELECT id,created,player,temp,invId FROM &quot; + BackupTable.tableName<br />
+<li>&nbsp; &nbsp; + &quot; where player=? and temp=1 order by id desc limit 1&quot;})<br />
+<li>private PreparedStatement getTemp;<br />
+<li><br />
+<li>// 创建一个数据库表<br />
+<li>@Inject(id = BackupTable.tableName, depends = AutoBackup.dataSourceId)<br />
+<li>@Table(BackupTable.tableName)<br />
+<li>public class BackupTable implements Pojo {<br />
+<li>&nbsp; &nbsp; public static final String tableName = &quot;clann_invbackup&quot;;<br />
+<li>&nbsp; &nbsp; // some column define<br />
+<li>}</ol></div><em onclick="copycode($('code_Ssa'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 插件加载时，各种java对象的初始化，装配....</font><br />
+<br />
+<div class="blockcode"><div id="code_r61"><ol><li>// 依赖注入,实现Listener的Service会自动注册监听器<br />
+<li>@Service(successMsg = &quot;检测到MOD:应用能源，监听器**&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, needClass = &quot;appeng.core.AppEng&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, enableConfigPath = &quot;enable&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, comment = &quot;是否启用&quot;)<br />
+<li>public class Appliedenergistics2 implements Listener {<br />
+<li>&nbsp; &nbsp; // 依赖注入<br />
+<li>&nbsp; &nbsp; @Inject<br />
+<li>&nbsp; &nbsp; AEFixer plugin;<br />
+<li>&nbsp; &nbsp; @Inject<br />
+<li>&nbsp; &nbsp; WorldUtils worldUtils;<br />
+<li>&nbsp; &nbsp; @Inject<br />
+<li>&nbsp; &nbsp; TileEntityUtils tileEntityUtils;<br />
+<li>&nbsp; &nbsp; @Inject<br />
+<li>&nbsp; &nbsp; NBTCompoundUtils nbtCompoundUtils;<br />
+<li><br />
+<li>&nbsp; &nbsp; // 配置注入<br />
+<li>&nbsp; &nbsp; @Configure(value = &quot;singleController&quot;, comment = &quot;是否禁止CPU相邻放置(防止网络规模过大)&quot;)<br />
+<li>&nbsp; &nbsp; private boolean singleController = true;<br />
+<li>&nbsp; &nbsp; @Configure(value = &quot;protectWorkingCPU&quot;, comment = &quot;是否禁止破坏正在工作的CPU(总感觉有问题)&quot;)<br />
+<li>&nbsp; &nbsp; private boolean protectWorkingCPU = true;<br />
+<li>&nbsp; &nbsp; @Configure(value = &quot;safeCPU&quot;, comment = &quot;是否禁止CPU跨区块放置(刷物品)&quot;)<br />
+<li>&nbsp; &nbsp; private boolean safeCPU = true;<br />
+<li><br />
+<li>&nbsp; &nbsp; // 插件生命周期<br />
+<li>&nbsp; &nbsp; @Load<br />
+<li>&nbsp; &nbsp; private void load(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do something<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // 插件生命周期<br />
+<li>&nbsp; &nbsp; @Reload<br />
+<li>&nbsp; &nbsp; private void reload(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do something<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // 插件生命周期<br />
+<li>&nbsp; &nbsp; @UnLoad<br />
+<li>&nbsp; &nbsp; private void unload(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do something<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>}</ol></div><em onclick="copycode($('code_r61'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 根据各种条件判断是启用某个功能</font><br />
+<br />
+<div class="blockcode"><div id="code_gGb"><ol><li>// Class.forName(&quot;appeng.core.AppEng&quot;)不抛异常<br />
+<li>// 配置文件中 enable为true<br />
+<li>// 插件Essentials存在<br />
+<li>// 物品DIAMOND存在(可用来判断mod是否存在)<br />
+<li>// AEFixer实例化的Service存在<br />
+<li>// 满足以上条件才会加载此Service<br />
+<li>@Service(successMsg = &quot;检测到MOD:应用能源，监听器**&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, needClass = &quot;appeng.core.AppEng&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, enableConfigPath = &quot;enable&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, comment = &quot;是否启用&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, needPlugin = &quot;Essentials&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, needItemType = &quot;DIAMOND&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;, depend = AEFixer.class)<br />
+<li>public class Appliedenergistics2 {<br />
+<li>}</ol></div><em onclick="copycode($('code_gGb'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 制作指令时，无限if else，各种参数解析，权限判断简直烦死，</font><br />
+<br />
+<div class="blockcode"><div id="code_ZUV"><ol><li>// 指令/pluginloader reload [&lt;plugin&gt;]的实现类<br />
+<li>@Service<br />
+<li>public class LoaderCommand extends ICommand {<br />
+<li><br />
+<li>&nbsp; &nbsp; public LoaderCommand() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(&quot;PluginLoader&quot;, &quot;pluginloader&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // @CommandAnnotation可以控制这条指令执行所需权限，是否要OP，是否必须玩家才能执行<br />
+<li>&nbsp; &nbsp; // 会自动解析参数<br />
+<li>&nbsp; &nbsp; // 这只是个例子<br />
+<li>&nbsp; &nbsp; // 实现指令，不需要op权限，有mplayer的玩家才能执行 /pluginloader tp &lt;x&gt; &lt;y&gt; &lt;z&gt; [&lt;world&gt;]<br />
+<li>&nbsp; &nbsp; // 没有world参数时，为当前世界<br />
+<li>&nbsp; &nbsp; @CommandAnnotation(permission = &quot;mplayer&quot;, needOp = false, mustPlayer = true, args = &quot;&lt;x&gt; &lt;y&gt; &lt;z&gt; [&lt;world&gt;]&quot;, des = &quot;重载插件&quot;)<br />
+<li>&nbsp; &nbsp; public void tp(@Sender Player sender, int x, int y, int z, @OptionalParam World world) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;world = sender.getWorld();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do something<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // 实现/pluginloader reload [&lt;plugin&gt;]<br />
+<li>&nbsp; &nbsp; @CommandAnnotation(args = &quot;[&lt;plugin&gt;]&quot;, des = &quot;重载插件&quot;)<br />
+<li>&nbsp; &nbsp; public void reload(@Sender CommandSender sender, @OptionalParam String plugin) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (plugin == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;plugin = &quot;&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;logger.info(&quot;开始重载插件{}&quot;, plugin);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender.sendMessage(&quot;开始重载插件&quot; + plugin);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Stopwatch watch = Stopwatch.createStarted();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;List&lt;ServiceHolder&gt; services = BeanContext.getServices();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String pluginId = plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;services.stream()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .forEach(s -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!StringUtils.isEmpty(pluginId) &amp;&amp; !s.getPlugin().getId().equalsIgnoreCase(pluginId)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//重载默认配置文件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;s.getPlugin().setConfigNode(s.getPlugin().getConfigLoader().load());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;long count = ConfigUtils.injectConfigure(s.getPlugin().getConfigNode(), s.getHandle());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (count &gt; 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; logger.info(&quot;重载配置:&quot; + s.getId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (Throwable e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;logger.error(&quot;配置注入失败:&quot; + s.getId(), e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; });<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LoaderUtils.invokeMethods(services, Reload.class, &quot;reload&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.plugin.saveConfig();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;watch.stop();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender.sendMessage(&quot;重载完毕,耗时&quot; + watch.elapsed(TimeUnit.MILLISECONDS) + &quot;ms&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_ZUV'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; mns的混淆名查找，记不住啊。。。神烦</font><br />
+<br />
+<div class="blockcode"><div id="code_SSa"><ol><li>// 假设服务器是多线，怎么能知道玩家连接的是服务器的哪个ip呢<br />
+<li>// 这里使用反射拿到玩家对应的nettyChannel，反射使用的名字全是为混淆的名字，会根据1.7.10的混淆规则自动映射混淆的方法<br />
+<li>public String getServerIp(Player p) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//常规方式<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WrapClass&lt;? extends Player&gt; wc = ClassUtils.wrap(p.getClass());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WrapField wentity = wc.getField(&quot;entity&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WrapField wplayerNetServerHandler = ClassUtils.wrap(wentity.getType()).getField(&quot;playerNetServerHandler&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WrapField wnetManager = ClassUtils.wrap(wplayerNetServerHandler.getType()).getField(&quot;netManager&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WrapMethod wchannel = ClassUtils.wrap(wnetManager.getType()).getMethod(&quot;channel&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;io.netty.channel.Channel channel0 = (Channel) wchannel.invoke(wnetManager.get(wplayerNetServerHandler.get(wentity.get(p))));<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//快捷方式，链式调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;io.netty.channel.Channel channel = Invoker.of(p)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .get(&quot;entity&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .get(&quot;playerNetServerHandler&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .get(&quot;netManager&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .invoke(&quot;channel&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .get();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return channel.localAddress().toString().replaceFirst(&quot;/&quot;, &quot;&quot;).split(&quot;:&quot;, 2)[0];<br />
+<li>}</ol></div><em onclick="copycode($('code_SSa'));">复制代码</em></div><br />
+<font size="3">?&nbsp; &nbsp; 等等。。。。。</font><br />
+<br />
+<font size="3">鉴于以上情况，特开发了这个插件框架来加快插件开发速度，并最大程度优化以上情况</font><br />
+<br />
+<font size="4"><strong>ps：此后本人所有其他插件均会直接依赖此插件</strong></font><br />
+<br />
+<font size="5"><strong>关于Minecraft版本</strong></font><br />
+<br />
+<font size="3">因为本人只在1.7.10下开服，所以目前只支持1.7.10</font><br />
+<br />
+<font size="5"><strong>指令</strong></font><br />
+<br />
+<font size="3">只有一个指令 /pluginloader reload [&lt;plugin&gt;]&nbsp; &nbsp; 用于重载所有/指定插件的插件（当然前提是在此框架下开发的插件）</font><br />
+<br />
+<font size="5"><strong>下载</strong></font><br />
+<br />
+<font size="3">因为打包了很多类库，所以很大Orz。。</font><br />
+<br />
+最近很穷啊，希望各位大佬在笑纳时顺便评分赏赏金粒吧<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><br />
+<br />
+地址<br />
+链接:<a href="https://pan.baidu.com/s/1saTd4ADpyT7D-uIJGJLEAg" target="_blank">https://pan.baidu.com/s/1saTd4ADpyT7D-uIJGJLEAg</a>&nbsp;&nbsp;密码:7a88<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>神奈川归尘&nbsp; &nbsp; <b>时间: </b>2018-8-19 11:51<br />
+非优秀禁止使用回复可见<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoQQQa&nbsp; &nbsp; <b>时间: </b>2018-8-24 12:13<br />
+网盘炸了呀<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoQQQa&nbsp; &nbsp; <b>时间: </b>2018-8-24 12:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13254994&amp;ptid=815580" target="_blank"><font color="#999999">xiaoQQQa 发表于 2018-8-24 12:13</font></a></font><br />
+网盘炸了呀</blockquote></div><br />
+好像是我的问题......<br />
+没事了非常优秀<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dafd&nbsp; &nbsp; <b>时间: </b>2018-8-24 12:17<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>play7770&nbsp; &nbsp; <b>时间: </b>2019-6-28 14:39<br />
+66666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>play7770&nbsp; &nbsp; <b>时间: </b>2019-6-28 15:24<br />
+6666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>youqing123&nbsp; &nbsp; <b>时间: </b>2019-7-8 13:43<br />
+有个有没有UTF-8呢<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>azbh111&nbsp; &nbsp; <b>时间: </b>2019-7-8 16:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14851555&amp;ptid=815580" target="_blank"><font color="#999999">youqing123 发表于 2019-7-8 13:43</font></a></font><br />
+有个有没有UTF-8呢</blockquote></div><br />
+和编码没关系 <br />
+此插件已弃坑 <br />
+用新的SpringBootPlugin<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>虎牙安言&nbsp; &nbsp; <b>时间: </b>2019-9-3 12:04<br />
+bbs有你更精彩
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

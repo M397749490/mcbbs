@@ -1,0 +1,87 @@
+<html>
+<head>
+<title>[1.16.x][Fabric开发教程#2]添加新的药水配方 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.16.x][Fabric开发教程#2]添加新的药水配方 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Mocoder&nbsp; &nbsp; <b>时间: </b>2020-8-3 20:33<br />
+<b>标题: </b>[1.16.x][Fabric开发教程#2]添加新的药水配方<br /><i class="pstatus"> 本帖最后由 Mocoder 于 2020-8-4 21:03 编辑 </i><br />
+<br />
+<div align="left"><div align="left"><font face="Helvetica"><font size="2"><font color="#000000"><strong>本文</strong><strong>Minecraft</strong><strong>游戏文件采用</strong><strong>Yarn</strong><strong>反混淆</strong></font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000"><br />
+</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">绪论</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">Minecraft自1.12版本起，采用了json文件作为合成配方以及烧炼配方的存储方法，这使得自定义合成及烧炼变得简单。然而酿造配方仍然写死在源代码里，且不允许直接向相关的类BrewingRecipeRegistry中加入代码来增加及改变配方，因为相关函数registerPotionRecipe，相关类BrewingRecipeRegistry.Recipe均不为public</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">在原版数据包的开发中（<a href="https://zhangshenxing.gitee.io/vanillamodtutorial/" target="_blank">https://zhangshenxing.gitee.io/vanillamodtutorial/#9.5_NBT酿造</a>），采用了“偷天换日”的方案。但是这样做在Mod开发里并不方便。现在我们手里有相关代码，就可以开始改造BrewingRecipeRegistry类，使得它能够被成功注入自定义代码。</font></font></font></div><div align="left"><hr class="l" /></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">注入方案</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">在作者个人开发的Mod Carbonate（汽水）（<a href="thread.html?t=1092796" target="_blank">https://www.mcbbs.net/thread-1092796-1-1.html</a>）里，首先需要将水瓶和糖做成糖水，这涉及到修改原版药水配方；而加入药水（划掉）快乐水，则涉及到增加药水配方。</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">在查找一番后，在 <a href="https://forums.spongepowered.org/t/mixin-how-to-shadow-a-field-with-private-inner-class/30163" target="_blank">https://forums.spongepowered.org/t/mixin-how-to-shadow-a-field-with-private-inner-class/30163</a> 找到了可行的方案：利用反射机制强制访问private方法</font></font></font></div><div align="left"><hr class="l" /></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">强制访问</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">在BrewingRecipeMixin类中，加入成员brr</font></font></font></div><div align="left"><div class="blockcode"><div id="code_y9o"><ol><li>private static Class brr=BrewingRecipeRegistry.class;<br />
+<li></ol></div><em onclick="copycode($('code_y9o'));">复制代码</em></div><br />
+</div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">用以获取待修改的类本身，接下来加入成员addPotion获取私有方法registerPotionRecipe：</font></font></font></div><div align="left"><div class="blockcode"><div id="code_ZGI"><ol><li> private static Method addPotion;<br />
+<li><br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;addPotion = brr.getDeclaredMethod(&quot;registerPotionRecipe&quot;, Potion.class, Item.class,Potion.class);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (NoSuchMethodException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_ZGI'));">复制代码</em></div><br />
+</div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">此时的addPotion就可以作为方法registerPotionRecipe使用，只需要调用addPotion.invoke方法。</font></font></font></div><div align="left"><hr class="l" /></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">泛型注入</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">BrewingRecipeRegistry.Recipe是一个泛型类，这个类的泛型在编译期会被擦除，但是反射在运行期运行，所以并不能直接利用反射向药水列表添加新药水以及注入registerPotionRecipe进行改变药水配方的操作，因为药水列表和方法registerPotionRecipe均用到了Recipe泛型类。</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">得不到Recipe的泛型实例，但是可以通过反射获得Recipe类本身。</font></font></font></div><div align="left"><div class="blockcode"><div id="code_GcF"><ol><li>private static Class recp;<br />
+<li><br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;recp = Class.forName(&quot;net.minecraft.recipe.BrewingRecipeRegistry$Recipe&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (ClassNotFoundException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_GcF'));">复制代码</em></div><br />
+</div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">这样，利用泛型的类型推导，就可以成功使用recp字段的方法构造Recipe的实例。</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">并加入BrewingRecipeRegistry中的药水列表POTION_RECIPES:</font></font></font></div><div align="left"><div class="blockcode"><div id="code_qK1"><ol><li>private static Field pr;<br />
+<li><br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pr = brr.getDeclaredField(&quot;POTION_RECIPES&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pr.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (NoSuchFieldException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_qK1'));">复制代码</em></div><br />
+</div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">POTION_RECIPES是一个List对象，我们需要获得List类，并获得其add方法用于添加药水配方，来修改原版的registerPotionRecipe方法。</font></font></font></div><div align="left"><div class="blockcode"><div id="code_QA2"><ol><li>private static Class listClass= List.class;<br />
+<li><br />
+<li>&nbsp; &nbsp; private static Method add;<br />
+<li><br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;add = listClass.getDeclaredMethod(&quot;add&quot;,Object.class);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (NoSuchMethodException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_QA2'));">复制代码</em></div><br />
+</div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">其中add的参数是Object.class，是因为List是一个泛型类，未初始化时无法获取类型，因此使用所有类的基类Object.class来匹配泛型</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000"><br />
+</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">快乐地修改</font></font></font></div><div align="left"><font face="Helvetica"><font size="2"><font color="#000000">现在可以修改了</font></font></font></div><div align="left"><div class="blockcode"><div id="code_XwW"><ol><li>@Overwrite<br />
+<li>&nbsp; &nbsp; private static void registerPotionRecipe(Potion input, Item item, Potion output) throws Exception{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(item==Items.SUGAR)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;add.invoke(pr.get(new Object()),recp.getDeclaredConstructors()[0].newInstance(input, Ingredient.ofItems(Items.SUGAR), SUGAR_DRINK));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;add.invoke(pr.get(new Object()),recp.getDeclaredConstructors()[0].newInstance(input, Ingredient.ofItems(item), output));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Inject(method=&quot;registerDefaults&quot;,at=@At(&quot;RETURN&quot;))<br />
+<li>&nbsp; &nbsp; private static void rdInj(CallbackInfo ci) throws Exception{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;addPotion.invoke(null,SUGAR_DRINK,CDOBOTTLE,AWKWARD_COLA);<br />
+<li>&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_XwW'));">复制代码</em></div><font color="#ff0000">注意：反射里面使用的方法名在发布时需要改成混淆后的名字！！！</font></div><br />
+</div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2678378225&nbsp; &nbsp; <b>时间: </b>2020-8-3 21:56<br />
+很不错~~~~~
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,573 @@
+<html>
+<head>
+<title>[mod开发高级教程]维度生成 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[mod开发高级教程]维度生成 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2015-12-3 17:17<br />
+<b>标题: </b>[mod开发高级教程]维度生成<br /><i class="pstatus"> 本帖最后由 xiweihai 于 2015-12-5 01:52 编辑 </i><br />
+<br />
+先说明一下mc的创建新世界是靠一个叫<font style="background-color:rgb(247, 247, 247)"></font><font style="background-color:rgb(247, 247, 247)"></font><font style="background-color:rgb(247, 247, 247)">WorldProvider</font>的类，然后每个维度（也就是世界）都有一个独立的id，比如说mc的三个世界id分别是-1,0,1当然这个世界也不列外，你只需要提供一个世界供应者和chunk供应者就能生成一个独立的维度，很幸运的是，保存地图数据玩家数据等等，mc都已经帮完成了，当然其中也有毕竟困难的地方也就是地形生成，这个我后面会说道。<br />
+<br />
+首先我们先写一个世界供应者稍后注册世界会用到（不要在意中二的类命），代码如下<br />
+<div class="blockcode"><div id="code_VMT"><ol><li>/**<br />
+<li> * 生成世界<br />
+<li> * @author xwh<br />
+<li> *<br />
+<li> */<br />
+<li>public class WorldProviderPollute extends WorldProvider{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 注册世界和维度id和设置管理者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void registerWorldChunkManager()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldChunkMgr = new WorldChunkManager(worldObj);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.dimensionId = 21;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 设置世界时间的函数，你设置world时间会调用这个函数,我设置是平常时间两倍速度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void setWorldTime(long time)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; worldObj.getWorldInfo().setWorldTime(time/2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 返回世界时间，同理<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public long getWorldTime() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return worldObj.getWorldInfo().getWorldTime()*2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 返回天空颜色，三个值是rgb值我也不知道为啥要用Vec3表示...，mc源码就是这样<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@SideOnly(Side.CLIENT)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public Vec3 getSkyColor(Entity cameraEntity, float partialTicks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Vec3.createVectorHelper(0.20000000298023224D, 0.029999999329447746D, 0.029999999329447746D);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 返回chunk供应者后面会写到<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public IChunkProvider createChunkGenerator()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new ChunkProviderPollute(this.worldObj, this.worldObj.getSeed();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 是否是平常世界<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public boolean isSurfaceWorld()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * 世界存档文件夹名称<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public String getDimensionName()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;pulluteWorld-&quot;+dimensionId;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_VMT'));">复制代码</em></div><font size="5">说明：</font><br />
+<font size="3">&nbsp; &nbsp; 这个就是所谓的世界供应者，待会需要在mod入口注册,每个方法都有说明不过多解释</font><br />
+<font size="3">&nbsp; &nbsp; 当然这个类里面有很多返回各种参数的方法，比如说云朵高度，雾的颜色你可以重新那个方法自己定义</font><font size="3"><br />
+</font>然后我们需要写一个WorldTeleporter类，这是因为mc一个坑爹的机制后面会讲到<br />
+<div class="blockcode"><div id="code_tXI"><ol><li>public class WorldTeleporterPollute extends Teleporter{<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public WorldTeleporterPollute(WorldServer p_i1963_1_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(p_i1963_1_);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean placeInExistingPortal(Entity p_77184_1_, double p_77184_2_,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;double p_77184_4_, double p_77184_6_, float p_77184_8_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void placeInPortal(Entity p_77185_1_, double p_77185_2_,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;double p_77185_4_, double p_77185_6_, float p_77185_8_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean makePortal(Entity p_85188_1_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void removeStalePortalLocations(long p_85189_1_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_tXI'));">复制代码</em></div><font size="5">说明：</font><br />
+<font size="3">这个类主要的作用就是传送门的管理以及传送时需要用到，当然现在我们忽略不计后面的章节会讲</font><br />
+<font size="3">但是搞这样一个空白的类有什么意义呢，别急意义一定是有的，为什么不能用travelToDimension这个方法直接传送呢，</font><br />
+<font size="3">因为如果你调用这个传送的话，是可以传送到这个世界，但是传送到新维度后，会生成一个传送门有把你传送会以前的世界了，</font><br />
+<font size="3">这样的结果就是你永远传不过去2333，所以我们要写一个这样的类</font><br />
+<br />
+然后需要写一个chunk供应者，作用就是提供每个chunk里面的方块,代码如下<div class="blockcode"><div id="code_cIO"><ol><li>/**<br />
+<li> * @author xwh<br />
+<li> *chunk供应<br />
+<li> */<br />
+<li>public class ChunkProviderPollute implements IChunkProvider{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/** RNG. */<br />
+<li>&nbsp; &nbsp; private Random rand;<br />
+<li>&nbsp; &nbsp; private NoiseGeneratorOctaves noiseGeneratorOctaves;<br />
+<li>&nbsp; &nbsp; /** Reference to the World object. */<br />
+<li>&nbsp; &nbsp; private World worldObj;<br />
+<li>&nbsp; &nbsp; private WorldType field_147435_p;<br />
+<li>&nbsp; &nbsp; private MapGenScatteredFeature scatteredFeatureGenerator = new MapGenScatteredFeature();<br />
+<li>&nbsp; &nbsp; private BiomeGenBase[] biomesForGeneration;<br />
+<li>&nbsp; &nbsp; double[] genBuff;<br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param worldObj 世界<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param seed 地图种子<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param mapFeaturesEnabled 是否生成基本结构<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public ChunkProviderPollute(World worldObj, long seed)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.worldObj = worldObj;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.field_147435_p = worldObj.getWorldInfo().getTerrainType();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.rand = new Random(seed);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.noiseGeneratorOctaves = new NoiseGeneratorOctaves(this.rand, 16);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.genBuff = new double[16*16];<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 生成地<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param x<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param z<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param blocks<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void generation(int x, int z, Block[] blocks)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.genBuff = this.noiseGeneratorOctaves.generateNoiseOctaves(this.genBuff,x*16,0,z*16, 16, 1,16, 1000, 8000, 1000);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i=0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//遍历每个生成的高度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(double d:genBuff){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //根据幅度的大小取一个合适的高度,太高了会导致数组溢出太低了效果不好，自己看着办,在高度60米左右的地方生成基本地形<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int by=(int) (60+d/8000);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //生成地面以及地下的方块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for(int in=0;in&lt;by;in++){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int bi =(i * 256)| in;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//在最下面两层生成基岩<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(in&lt;2){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blocks[bi]=Blocks.bedrock;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}else if(in&gt;=by-2){//最上面两层生成泥土<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blocks[bi]=Blocks.dirt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}else{//中间生成原石<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blocks[bi]=Blocks.stone;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int bi =(i * 256)| by;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//顶层生成草地<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;blocks[bi]=blocks[bi]=Blocks.grass;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; i++;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public Chunk loadChunk(int p_73158_1_, int p_73158_2_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.provideChunk(p_73158_1_, p_73158_2_);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 返回chunk，你可以在里面生成基本地形<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public Chunk provideChunk(int x, int z)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.rand.setSeed((long)x * 341873128712L + (long)z * 132897987541L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block[] ablock = new Block[65536];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] abyte = new byte[65536];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.generation(x, z, ablock);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.biomesForGeneration = this.worldObj.getWorldChunkManager().loadBlockGeneratorData(this.biomesForGeneration, x * 16, z * 16, 16, 16);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] abyte1 = chunk.getBiomeArray();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int k = 0; k &lt; abyte1.length; ++k)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;abyte1[k] = (byte)this.biomesForGeneration[k].biomeID;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunk.generateSkylightMap();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return chunk;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li><br />
+<li>&nbsp; &nbsp; public boolean chunkExists(int p_73149_1_, int p_73149_2_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 这个是添加结构的时候要用到的回调函数<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void populate(IChunkProvider provider, int x, int z)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public boolean saveChunks(boolean p_73151_1_, IProgressUpdate p_73151_2_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void saveExtraData() {}<br />
+<li>&nbsp; &nbsp; public boolean unloadQueuedChunks()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public boolean canSave()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public String makeString()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;RandomLevelSource&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 返回某个位置的实体列表<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public List getPossibleCreatures(EnumCreatureType p_73155_1_, int p_73155_2_, int p_73155_3_, int p_73155_4_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BiomeGenBase biomegenbase = this.worldObj.getBiomeGenForCoords(p_73155_2_, p_73155_4_);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return p_73155_1_ == EnumCreatureType.monster &amp;&amp; this.scatteredFeatureGenerator.func_143030_a(p_73155_2_, p_73155_3_, p_73155_4_) ? this.scatteredFeatureGenerator.getScatteredFeatureSpawnList() : biomegenbase.getSpawnableList(p_73155_1_);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public ChunkPosition func_147416_a(World p_147416_1_, String p_147416_2_, int p_147416_3_, int p_147416_4_, int p_147416_5_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public int getLoadedChunkCount()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 0;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 多重结构生成回调<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void recreateStructures(int p_82695_1_, int p_82695_2_) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_cIO'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+<font size="5">说明：</font><br />
+<font size="3">&nbsp; &nbsp;&nbsp; &nbsp; 这个类是重点部分，他将提供这个世界每个chunk中的方法，也就是基本地形生成都是在这里面进行的</font><br />
+<font size="3">&nbsp; &nbsp;&nbsp; &nbsp;</font><font style="background-color:rgb(247, 247, 247)">provideChunk</font><font color="#000000">当玩家在这个世界移动到一个没到过的chunk时，会加载这个函数，返回chunk加载到世界上，而一个chunk的大小是多少呢，<font style="background-color:white">16*16*256</font>，也就是</font><font style="background-color:rgb(247, 247, 247)">65536</font><font color="#000000">需要注意的是数组储存的顺序是xzy,所以头一位储存的是x，第二位是z，第三和第四是z，故一个在chunk里面x坐标为5z坐标为11y坐标为156可以用16进制这样表达<font style="background-color:white">0x5b9c</font>，至于那个</font><font style="background-color:rgb(247, 247, 247)">abyte</font><font style="background-color:white">是该方块所处于的生物群系id</font><br />
+<font size="3"><font style="background-color:white">noiseGeneratorOctaves</font>介绍：</font><font size="3">这个是实现自然地形主要的算法，柏林噪音，，大致就是生成一段起伏不定的波浪状频谱，然后利用这个模拟地形第一个参数是储存起伏不定的噪音坐标的数组，然后就是噪音xyz开始的位子，xyz生成的大小，xyz生成的幅度，越大上下起伏的落差就越大<br />
+一个噪声函数基本上是一个种子随机发生器。它需要一个整数作为参数，然后根据这个参数返回一个随机数。如果你两次都传同一个参数进来，它就会产生两次相同的数。这条规律非常重要，否则柏林函数只是生成一堆垃圾。<br />
+这里的一张图展现了噪声函数的一个例子。X轴上每个点被赋予一个0到1之间的随机数。</font><font size="3">
+<ignore_js_op>
+
+<img id="aimg_854554" aid="854554" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201512/05/011320aprkprko1rs7mu99.gif" file="https://attachment.mcbbs.net/forum/201512/05/011320aprkprko1rs7mu99.gif" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="289" id="aimg_854554" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_854554_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>perlin_02.gif</strong> <em class="xg1">(1.37 KB, 下载次数: 20)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=ODU0NTU0fDQyOTZhNjFhfDE2MTM4NzkxNDh8MjQxOTQ4Nnw1Mjc2MDY%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2015-12-5 01:13 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+通过在值之间平滑的插值，我们定义了一个带有一个非整参数的连续函数。我们将会在后面的内容中讨论多种插值方式</font><br />
+<font size="3"><br />
+</font><br />
+<font size="3"><br />
+</font><br />
+<br />
+<font size="5">下面就是最后的注册世界了</font><br />
+<font size="5"><div class="blockcode"><div id="code_KZ9"><ol><li>DimensionManager.registerProviderType(21, WorldProviderPollute.class, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; DimensionManager.registerDimension(21,21);</ol></div><em onclick="copycode($('code_KZ9'));">复制代码</em></div>在mod初始化的时候加上这样的代码就行了，注意这3个21是世界的id</font><br />
+<font size="5">然后如何传送到这个世界呢</font><br />
+<font size="5"><div class="blockcode"><div id="code_dS4"><ol><li>if(entity instanceof EntityPlayerMP){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; scm.transferPlayerToDimension((EntityPlayerMP) entity, 21, teleporter);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; scm.transferEntityToWorld(entity, 21,(WorldServer) world,MinecraftServer.getServer().worldServerForDimension(21),teleporter);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_dS4'));">复制代码</em></div><font size="5">实体传送和玩家传送的方法</font><br />
+需要注意的是传送前判断一下world instanceof WorldServer道理应该都懂吧，这样的操作只能在</font><font size="5">Server进行</font><font size="5"><br />
+</font><br />
+<div align="center"><font size="5">运行截图</font></div><br />
+<font size="5"><div align="center"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><img id="aimg_Asj9G" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="700" height="350" src="http://i12.tietuku.com/e625466bf2f7ba26.png" onmouseover="img_onmouseoverfunc(this)" onclick="zoom(this)" style="cursor:pointer" border="0" alt="" /></td></table></div></div></div><div align="center"><a href="thread.html?t=527605" target="_blank">索引</a><br />
+</div><br />
+</font><font size="3"><font size="3"><br />
+</font></font><br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[9431962] = ['854554'];
+attachimggroup(9431962);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2015-12-5 00:04<br />
+<i class="pstatus"> 本帖最后由 xiweihai 于 2015-12-5 01:44 编辑 </i><br />
+<br />
+已更新代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RothBlink&nbsp; &nbsp; <b>时间: </b>2015-12-12 17:05<br />
+请问这个具体应该写在哪里？<br />
+DimensionManager.registerProviderType(21, WorldProviderPollute.class, true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; DimensionManager.registerDimension(21,21);<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RothBlink&nbsp; &nbsp; <b>时间: </b>2015-12-14 11:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9472534&amp;ptid=527606" target="_blank"><font color="#999999">RothBlink 发表于 2015-12-12 17:05</font></a></font><br />
+请问这个具体应该写在哪里？<br />
+DimensionManager.registerProviderType(21, WorldProviderPollute.class, tru ...</blockquote></div><br />
+我找到了应该mod的load里面但是下面的代码怎么添加。<img src="static/image/smiley/mc_mob_food_plants/skeleton.gif" smilieid="851" border="0" alt="" />求解释啊求解释啊。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2015-12-14 14:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9482753&amp;ptid=527606" target="_blank"><font color="#999999">RothBlink 发表于 2015-12-14 11:44</font></a></font><br />
+我找到了应该mod的load里面但是下面的代码怎么添加。求解释啊求解释啊。 ...</blockquote></div><br />
+醉了，在mod初始化函数里面加上啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RothBlink&nbsp; &nbsp; <b>时间: </b>2015-12-14 15:39<br />
+大神回我了好开心！<img src="static/image/smiley/rabbit/18.gif" smilieid="668" border="0" alt="" />试了下可以了，但是<br />
+if(entity instanceof EntityPlayerMP){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; scm.transferPlayerToDimension((EntityPlayerMP) entity, 21, teleporter);<br />
+这一段还没有添加成功在load里面总是会失败。现在继承地狱门这个类然后勉强可以进入到这个世界里面去。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2015-12-14 15:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9483395&amp;ptid=527606" target="_blank"><font color="#999999">RothBlink 发表于 2015-12-14 15:39</font></a></font><br />
+大神回我了好开心！试了下可以了，但是<br />
+if(entity instanceof EntityPlayerMP){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ...</blockquote></div><br />
+这是传送玩家的方法，这个你加到初始化函数里面肯定报错，你传送玩家时在调用，另外那个实体传送有问题，我看mc源码传送实体是这样子的，<br />
+要在这个世界删除掉实体，然后复制实体在另外一个世界生成来实现的，不过传送玩家这样是可以的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RothBlink&nbsp; &nbsp; <b>时间: </b>2015-12-14 18:31<br />
+所以只能传送玩家么。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2015-12-14 18:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9484066&amp;ptid=527606" target="_blank"><font color="#999999">RothBlink 发表于 2015-12-14 18:31</font></a></font><br />
+所以只能传送玩家么。。。</blockquote></div><br />
+
+<ignore_js_op>
+
+<img id="aimg_859659" aid="859659" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201512/14/185614xbtinoeooa5t585u.png" file="https://attachment.mcbbs.net/forum/201512/14/185614xbtinoeooa5t585u.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_859659" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_859659_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>655G)550J6W9S}_Q3]4YZ)V.png</strong> <em class="xg1">(34.37 KB, 下载次数: 6)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=ODU5NjU5fGFjNTkxZWNlfDE2MTM4NzkxNDh8MjQxOTQ4Nnw1Mjc2MDY%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2015-12-14 18:56 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+当然可以传送实体，其实实现原理就是把实体从这个世界删除，然后复制实体，再另外一个世界生成来实现实体传送。另外，不再回答此贴任何问题<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[9484219] = ['859659'];
+attachimggroup(9484219);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1606140786&nbsp; &nbsp; <b>时间: </b>2015-12-17 00:14<br />
+好高级哇，完全看不懂{:10_492:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 16:28<br />
+我新建了一个世界把地狱里岩浆都改成了水。<br />
+不过有点暗<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 16:34<br />
+还有请问如何添加生物群系？<br />
+地狱里全是僵尸和小白<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 16:51<br />
+一个无聊的世界<br />
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=ODc1NTk3fGIzZjlmMTIyfDE2MTM4NzkxNDh8MjQxOTQ4Nnw1Mjc2MDY%3D&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid875597" class="xw1" target="_blank">捕获.png</a>
+<em class="xg1">(179.04 KB, 下载次数: 15)</em>
+</p>
+<div class="tip tip_4" id="aid875597_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=ODc1NTk3fGIzZjlmMTIyfDE2MTM4NzkxNDh8MjQxOTQ4Nnw1Mjc2MDY%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2016-1-14 16:50 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_875597', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_875597', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+<p class="mbn xg2">一个用调试模式作为Chunk的世界</p>
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_875597" aid="875597" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201601/14/165020p8oblbtloyta9j0c.png" file="https://attachment.mcbbs.net/forum/201601/14/165020p8oblbtloyta9j0c.png.thumb.jpg" alt="一个用调试模式作为Chunk的世界" title="一个用调试模式作为Chunk的世界" w="610" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[9626140] = ['875597'];
+attachimggroup(9626140);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2016-1-14 17:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9626140&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-1-14 16:51</font></a></font><br />
+一个无聊的世界</blockquote></div><br />
+噗呲，这真的好简单，建议里深入了解下地形生成算法，以及结构生成算法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2016-1-14 17:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9626064&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-1-14 16:34</font></a></font><br />
+还有请问如何添加生物群系？<br />
+地狱里全是僵尸和小白</blockquote></div><br />
+new 世界供应者的时候加上一个自定义生物群系，然后可以在生物群系里定义刷怪<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 17:51<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9484219&amp;ptid=527606" target="_blank"><font color="#999999">xiweihai 发表于 2015-12-14 18:58</font></a></font><br />
+当然可以传送实体，其实实现原理就是把实体从这个世界删除，然后复制实体，再另外一个世界生成来实现实体 ...</blockquote></div><br />
+我看这个函数竟然学会如何复制实体了<br />
+也是醉了<br />
+如果创建玩家实体时间过长游戏不会崩掉吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiweihai&nbsp; &nbsp; <b>时间: </b>2016-1-14 17:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9626515&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-1-14 17:51</font></a></font><br />
+我看这个函数竟然学会如何复制实体了<br />
+也是醉了<br />
+如果创建玩家实体时间过长游戏不会崩掉吗 ...</blockquote></div><br />
+你真的有认真看源码么，玩家是有个专门存放的地方，能直接操作，而实体不行，故实体需要用复制的方法实现传送，而玩家直接改变玩家的世界就行了复制玩家也是醉了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 18:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9626551&amp;ptid=527606" target="_blank"><font color="#999999">xiweihai 发表于 2016-1-14 17:52</font></a></font><br />
+你真的有认真看源码么，玩家是有个专门存放的地方，能直接操作，而实体不行，故实体需要用复制的方法实现 ...</blockquote></div><div class="quote"><blockquote>if (!this.worldObj.isRemote &amp;&amp; !this.isDead)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.theProfiler.startSection(&quot;changeDimension&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;MinecraftServer minecraftserver = MinecraftServer.getServer();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int j = this.dimension;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;WorldServer worldserver = minecraftserver.worldServerForDimension(j);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;WorldServer worldserver1 = minecraftserver.worldServerForDimension(dimensionId);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.dimension = dimensionId;<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (j == 1 &amp;&amp; dimensionId == 1)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; worldserver1 = minecraftserver.worldServerForDimension(0);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.dimension = 0;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.removeEntity(this);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.isDead = false;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.theProfiler.startSection(&quot;reposition&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;minecraftserver.getConfigurationManager().transferEntityToWorld(this, j, worldserver, worldserver1);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.theProfiler.endStartSection(&quot;reloading&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Entity entity = EntityList.createEntityByName(EntityList.getEntityString(this), worldserver1);<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (entity != null)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; entity.copyDataFromOld(this);<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (j == 1 &amp;&amp; dimensionId == 1)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockPos blockpos = this.worldObj.getTopSolidOrLiquidBlock(worldserver1.getSpawnPoint());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;entity.moveToBlockPosAndAngles(blockpos, entity.rotationYaw, entity.rotationPitch);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; worldserver1.spawnEntityInWorld(entity);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.isDead = true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.theProfiler.endSection();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;worldserver.resetUpdateEntityTick();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;worldserver1.resetUpdateEntityTick();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.worldObj.theProfiler.endSection();</blockquote></div><br />
+
+<br />
+好像没有<br />
+if(XXX instanceof EntityPlayer)<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 18:24<br />
+Entity类的travelToDimension<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-1-14 18:31<br />
+能让指南针乱转吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AFP&nbsp; &nbsp; <b>时间: </b>2016-1-31 19:33<br />
+ Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);&nbsp; &nbsp;这行会报错啊，Chunk的括号里只能是(world,x,z)或者(world,primer,x,z)啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AFP&nbsp; &nbsp; <b>时间: </b>2016-2-2 15:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9626767&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-1-14 18:31</font></a></font><br />
+能让指南针乱转吗</blockquote></div><br />
+求教一下你的是1.8版本吗，我的chunkprovider中 Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);&nbsp; &nbsp;这行会报错啊，Chunk的括号里只能是(world,x,z)或者(world,primer,x,z)……我看了源码里面也只有这两种，求看看你的chunkprovider是什么样的，现在一直不能生成地形<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-2-2 16:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9756406&amp;ptid=527606" target="_blank"><font color="#999999">AFP 发表于 2016-2-2 15:54</font></a></font><br />
+求教一下你的是1.8版本吗，我的chunkprovider中 Chunk chunk = new Chunk(this.worldObj, ablock, abyte, ...</blockquote></div><br />
+你可以看看末地的代码，或者地狱。多翻翻源代码没什么坏处<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AFP&nbsp; &nbsp; <b>时间: </b>2016-2-2 16:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9756481&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-2-2 16:03</font></a></font><br />
+你可以看看末地的代码，或者地狱。多翻翻源代码没什么坏处</blockquote></div><br />
+看过了，里面用的是Chunk(world, chunkprimer, x,z)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-2-2 16:16<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9756497&amp;ptid=527606" target="_blank"><font color="#999999">AFP 发表于 2016-2-2 16:06</font></a></font><br />
+看过了，里面用的是Chunk(world, chunkprimer, x,z)</blockquote></div><br />
+那你用他的算法不就行了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AFP&nbsp; &nbsp; <b>时间: </b>2016-2-2 20:36<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9756612&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-2-2 16:16</font></a></font><br />
+那你用他的算法不就行了</blockquote></div><br />
+解决了，我用新建生物群系的方法解决了，顺便还解决了刷怪的问题，谢谢<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xxj2003&nbsp; &nbsp; <b>时间: </b>2016-2-2 21:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9758753&amp;ptid=527606" target="_blank"><font color="#999999">AFP 发表于 2016-2-2 20:36</font></a></font><br />
+解决了，我用新建生物群系的方法解决了，顺便还解决了刷怪的问题，谢谢<br />
+ ...</blockquote></div><br />
+对了，请问你做的什么世界？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AFP&nbsp; &nbsp; <b>时间: </b>2016-2-2 21:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9759152&amp;ptid=527606" target="_blank"><font color="#999999">xxj2003 发表于 2016-2-2 21:18</font></a></font><br />
+对了，请问你做的什么世界？</blockquote></div><br />
+我做的是一个叫冰川时代的世界全是冰泥土和冰方块（我自己做的方块）然后加到我的mod里，既然问题解决了，接下来就要继续学做生物了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1606140786&nbsp; &nbsp; <b>时间: </b>2016-2-3 01:33<br />
+不错的作品！<br />
+收藏先~<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1664963825&nbsp; &nbsp; <b>时间: </b>2019-10-2 14:27<br />
+大神能留个联系方式吗，有问题想问一下，我扣扣2955050541<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>青千审计&nbsp; &nbsp; <b>时间: </b>2019-10-26 14:33<br />
+markmarkmark<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>806768&nbsp; &nbsp; <b>时间: </b>2020-1-1 00:37<br />
+我竟然看不懂？？？？！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qwq执范&nbsp; &nbsp; <b>时间: </b>2020-5-10 15:23<br />
+来考古<img src="static/image/smiley/tong/chigua.png" smilieid="1464" border="0" alt="" />，lznb<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Frankkkk____&nbsp; &nbsp; <b>时间: </b>2020-6-22 10:37<br />
+宝藏帖子！果断收藏
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

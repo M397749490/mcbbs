@@ -1,0 +1,1007 @@
+<html>
+<head>
+<title>[Bukkit]详解发包机制|实现发送Title|反射 NMS - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[Bukkit]详解发包机制|实现发送Title|反射 NMS <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天启-麒麟&nbsp; &nbsp; <b>时间: </b>2020-8-3 09:40<br />
+<b>标题: </b>[Bukkit]详解发包机制|实现发送Title|反射 NMS<br /><i class="pstatus"> 本帖最后由 天启-麒麟 于 2020-8-4 22:11 编辑 </i><br />
+<br />
+<div align="center"><font size="7"><font color="#00bfff"><strong>详解NMS发包机制</strong></font></font></div><div align="left"><strong><font size="6">写在前面：</font></strong></div><div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><font size="4"><strong>一、本文适合：</strong></font></div><div align="left">&nbsp; &nbsp; 1.<font color="#ff00ff">有Java基础</font>&nbsp;&nbsp;(基础语法|面向对象|继承|接口|封装-非必须)</div><div align="left">&nbsp; &nbsp; 2.<font color="#ff0000"><strong>有Bukkit开发基础</strong></font></div><div align="left">&nbsp; &nbsp; 3.想要深入了解NMS中的发包，通过反射技术实现大多数版本通用发包代码</div><div align="left"><font size="4"><strong>二、IDE(集成开发环境)：</strong></font>IntelliJ IDEA&nbsp; &nbsp;不推荐使用Ec或其他IDE(不过你用了又有谁知道呢)</div><div align="left"><font size="4"><strong>三、Spigot版本：</strong></font>Spigot-1.12.2</div><div align="left">&nbsp; &nbsp;&nbsp; &nbsp;<font size="4"><strong>Bukkit API：</strong></font><a href="https://bukkit.windit.net/javadoc/" target="_blank">https://bukkit.windit.net/javadoc/</a></div><div align="left">&nbsp; &nbsp;&nbsp; &nbsp;<font size="2"><strike>好吧发包技术和API没有半毛钱关系</strike></font></div><div align="left"><strong><font size="4">四、</font></strong>本文发包代码<font color="#000000">不借助任何工具API(ProtocolLib)</font>，如果有需要可以查看<a href="thread.html?t=568714" target="_blank">ProtocolLib怎么玩|使用ProtocolLib收发包</a></div><div align="left"><strong><font size="4">五、</font></strong>本文会把每一行用到的代码都做解析</div><div align="left"><strong><font size="4">六、</font></strong>本文不是一个bbs不赞成的纯Java教程</div><div align="left">附：西方有个人说：A picture is worth thousand words(一图值千言) 所以我会在这个教程里面能用上图片的，绝对不废话</div><div align="left"><font size="5"><font color="#000000"><strong>如果本文有地方有错误，请您及时指出！谢谢！</strong></font></font></div><div align="left">ps.本文虽然排版简陋，难以入目，但是内容上还是比较有深度和技术含量的。我会尽量以内容上的精致instead of外观上的满足。</div><div align="left">难以理解的抽象的东西，会尽量贴近生活去讲解，使抽象的东西变得不抽象，使难以理解的东西变得好理解</div></td></table></div></div><br />
+<div align="left"><strong><font size="6"><font color="#000000">本文将要向你介绍：</font></font></strong></div><div align="left">&nbsp; &nbsp; Java基础--面向对象之多态|<font color="#ff0000"><strong>Reflect反射技术</strong></font></div><div align="left">&nbsp; &nbsp; 发包机制--介绍|使用NMS的优点</div><div align="left">&nbsp; &nbsp; 发包机制--思路分析|问题解决</div><div align="left">&nbsp; &nbsp; <font color="#ff0000"><strong>发包机制--代码实现</strong></font></div><br />
+<strong>为什么在NMS发包教程上讲解Java基础：</strong>因为某些读者可能Java基础并不是特别的好，没有学到反射之类的技术。为了让这类开发者更快的不借助API实现反射全版本发包，提供了Java基础---多态|Reflect反射的快速入门 深入理解。为那些会的读者也可以加深一下印象，不会到了后面出现看不懂代码的情况。<br />
+<font color="#ff00ff">如果已经有这些基础且能灵活运用的开发者，可以直接跳过Java基础，直接看NMS发包<br />
+<strong>本文涉及到的Java基础都是实现发包需要用到的</strong></font><div align="left"><strong><font size="6">Java基础强化</font></strong></div><div align="left"><font size="5"><strong>一、多态深入讲解</strong></font></div><div align="left"><font color="#ff0000"><strong>面向对象三大特征：封装性、继承性、多态性</strong></font></div><div align="left">其中：继承(extends OR implements)是多态性的前提</div><div align="left">我想各位肯定都学过前两个特征。没学过？<strike>那还不赶紧去学</strike></div><div align="left">多态在面向对象中是一个非常重要的技术特征，如果没有了多态，面向对象就失去了他的典征(典型特征)</div><div align="left">其重要性好比如：服务器与服务器的核心&nbsp;&nbsp;如果一个服务器没有了核心，那你还开什么服务器</div><br />
+<div align="left">什么是多态？</div><br />
+<div align="left">他并不是有多种状态</div><div align="left">多态，字面上的意思就是多种形态&nbsp; &nbsp;简单来说，多态是<font size="5"><strong>具有多种表现形态的特征</strong></font></div><div align="left">我们首先来画一个图</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1664674" aid="1664674" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/02/154107m3z2fe7t6utcyc1z.png" file="https://attachment.mcbbs.net/forum/202008/02/154107m3z2fe7t6utcyc1z.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1664674" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1664674_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(27.78 KB, 下载次数: 9)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDY3NHxkZmYzZjYxMXwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-2 15:41 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+</div><div align="left">图中有三个类(我们把圆当成一个类)，学生类 员工类 和人类</div><div align="left">学生类继承了人类，员工类继承了人类</div><div align="left">我们先只来看学生和人类</div><div align="left">来举个栗子：</div><div align="left">小明是<strong><font color="#ff00ff">一个学生</font></strong>，他肯定也是<strong><font color="#ff00ff">一个人类</font></strong>。<font size="3">&nbsp;&nbsp;你不能说他不是人吧&nbsp; &nbsp;&nbsp; &nbsp;同理 员工肯定也是人<strike>(</strike></font><strike><font size="1">当然有老板不把员工当人的 拖欠工资 要求加班) 咳 扯远了</font></strike></div><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<strong><font color="#ff00ff">学生形态 </font><font color="#ff0000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#ff00ff">人类形态</font></strong></font></div><div align="left">小明是一个对象，他既有<font color="#0000ff">学生形态</font>，也有<font color="#0000ff">人类形态</font>。</div><div align="left"><font size="5"><font color="#ff00"><strong>一个对象拥有多种形态</strong></font></font><font size="3"><font color="#000000">我们称为：</font></font><strong>对象的多态</strong></div><br />
+<div align="left">那么...多态怎么使用呢？</div><br />
+<div align="left">在Java代码当中，我们体现多态就是一句话:</div><div align="left"><font size="5"><font color="#006400"><strong>父类引用指向子类对象</strong></font></font></div><div align="left">父类引用：父类的引用数据类型的变量(指针)</div><div align="left">子类对象：new子类new出来的对象(也叫实例)</div><div align="left">格式：</div><div align="left">父类名称 对象名 = new 子类名称();</div><div align="left">接口名称 对象名 = new 实现类名称();</div><br />
+<div align="left">用刚刚的例子体现：</div><div align="left"><div class="blockcode"><div id="code_bs7"><ol><li> Human XiaoMing = new Student(); </ol></div><em onclick="copycode($('code_bs7'));">复制代码</em></div></div><br />
+<div align="left">Human：父类引用</div><div align="left">new Student()：子类对象</div><div align="left">其实也可以把它理解为： 用Human类型的变量存储Student对象</div><div align="left">用父类类型的变量存储子类对象<br />
+</div><br />
+<div align="left">多态中成员变量及方法使用特征</div><div align="left">用一段代码来讲解：</div><div align="left"><div class="blockcode"><div id="code_Qxo"><ol><li>public class Human{<br />
+<li>&nbsp; &nbsp; public String name = &quot;Human&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp; public void show(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;我是父类&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Qxo'));">复制代码</em></div></div><div class="blockcode"><div id="code_DJV"><ol><li>public class Student extends Human {<br />
+<li>&nbsp; &nbsp; public String name = &quot;Student&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void show(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;我是子类&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_DJV'));">复制代码</em></div><div class="blockcode"><div id="code_Pku"><ol><li>public class Test {<br />
+<li>&nbsp; &nbsp; public static void main(String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Human human = new Student();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(human.name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;human.show();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Pku'));">复制代码</em></div><br />
+<div align="left">这一段代码，我写了三个类，一个Human 一个Student 一个Test测试类</div><div align="left">其中Student extends Human</div><br />
+<div align="left">我在测试类中使用多态：父类引用指向子类对象</div><div align="left">然后通过对象名.变量名获取子类父类共有的成员变量，并打印输出</div><div align="left">通过对象名.方法名调用子类父类共有的成员方法</div><br />
+<div align="left">(你们猜猜结果是啥)</div><br />
+<div align="left">结果：</div><div align="left"><div class="blockcode"><div id="code_H06"><ol><li>Human<br />
+<li>我是子类<br />
+<li></ol></div><em onclick="copycode($('code_H06'));">复制代码</em></div></div><br />
+<div align="left"><font size="4"><font color="#000000"><strong>多态中，成员变量的访问特点没有任何变化</strong></font></font>，看结果 返回的是Human，是Human类中的name的值，所以多态中成员变量的访问特点和普通的成员变量访问没什么区别</div><br />
+<div align="left">我们来看方法，我们是不是通过多态的父类引用指向子类对象的对象名来调用的子类父类共有的成员方法。如果我们不使用多态就这么写</div><div align="left">Human human = new Human();</div><div align="left">human.show();</div><div align="left">是不是肯定是调用的Human类的show方法</div><br />
+<div align="left">我们来看使用多态的结果，哎？他怎么返回的是&quot;我是子类&quot;，调用的是子类的show方法呢？这个，其实就是多态的作用</div><div align="left"><font size="5"><font color="#ff0000"><strong>多态中，对于成员方法来说，子类父类共有的成员方法，通过多态的对象名调用这个方法，就会调用子类的方法</strong></font></font></div><div align="left">记住一句话：<strong><font size="5">等号右边new的是谁，调用的就是谁的方法，如果没有，就向上找</font></strong>。</div><div align="left">啥意思呢？</div><div align="left">就是看</div><div align="left">Human human = new Student();</div><div align="left">等号左边是不是new的是一个Student类的对象，那么我们使用 human.show(); 的时候，优先调用的就是Student类中的show方法</div><div align="left">如果Student也就是子类没有这个方法的时候，他就会向上找(找到他的父类Human)，调用父类的show方法</div><br />
+思考题：<br />
+<div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>那么问题来了：</div><div align="left">如果我子类有一个特有的方法，而父类没有这个方法，通过多态对象名调用这个方法，他会执行子类那个特有的方法么。</div><br />
+<div align="left">(思考...)</div><br />
+<div align="left">我们自己手写代码来试验试验，如果可以，那就证明可以这么干，如果不可以，那肯定有原因。</div><div align="left">那我们还是用刚才的代码，往子类(Student)中添加一个study方法，里面打印输出&quot;我爱学习！&nbsp; &nbsp;study...&quot;</div><div align="left"><div class="blockcode"><div id="code_ZaO"><ol><li>public class Human{<br />
+<li>&nbsp; &nbsp; public String name = &quot;Human&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp; public void show(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;我是父类&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_ZaO'));">复制代码</em></div></div><div class="blockcode"><div id="code_fan"><ol><li>public class Student extends Human {<br />
+<li>public String name = &quot;Student&quot;;<br />
+<li><br />
+<li>@Override<br />
+<li>public void show(){<br />
+<li>System.out.println(&quot;我是子类&quot;);<br />
+<li>}<br />
+<li><br />
+<li>public void study(){<br />
+<li>System.out.println(&quot;我爱学习！ study...&quot;);<br />
+<li>}<br />
+<li>}</ol></div><em onclick="copycode($('code_fan'));">复制代码</em></div><div class="blockcode"><div id="code_N6q"><ol><li>public class Test {<br />
+<li>public static void main(String[] args) {<br />
+<li>Human human = new Student();<br />
+<li>human.study();<br />
+<li>}<br />
+<li>}</ol></div><em onclick="copycode($('code_N6q'));">复制代码</em></div><div align="left">然而，你会发现，哎？他咋报错了？这不是有方法么？？难道我的名字写错了？？？!%$^@*#X$x？？？？？</div><div align="left">不不不，这个东西，其实涉及到了一点JVM的东西。</div><br />
+我们都知道，Java程序在运行的时候，JVM虚拟机会先在内存中申请一块供Java程序运行的内存，然后他又把这个内存分成了五个区域，分别是：<br />
+1.栈 Stack<br />
+2.堆 Heap<br />
+3.方法区 Method Area<br />
+4.本地方法栈 Native Method Stack<br />
+5.寄存器 pc Register<br />
+
+<ignore_js_op>
+
+<img id="aimg_1664757" aid="1664757" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/02/163628iqmui5802omos90s.jpg" file="https://attachment.mcbbs.net/forum/202008/02/163628iqmui5802omos90s.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1664757" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1664757_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1596357387000.jpg</strong> <em class="xg1">(64.35 KB, 下载次数: 9)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDc1N3w4ZjI0MjI3NXwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-2 16:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+在这里，我们只研究栈，堆和方法区，因为只有这三个是我们现在用到了的<br />
+后面两个在JVM和JVM调优那块才会有大用(不过那是JavaEE的很深入的内容了，如果不是搞开发，肯定不用学)<br />
+<br />
+我们来看一张图<br />
+
+<ignore_js_op>
+
+<img id="aimg_1664760" aid="1664760" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/02/163749zocmgdt5b33mookk.png" file="https://attachment.mcbbs.net/forum/202008/02/163749zocmgdt5b33mookk.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1664760" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1664760_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(111.44 KB, 下载次数: 6)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDc2MHxhMTRiNThhZHwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-2 16:37 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+不要吐槽为什么这个帖子里面的图片画的都这么难看，没错，都是我画的，都是我的锅左侧是代码，右侧是内存图解。内存我只画了栈，堆，方法区<br />
+<br />
+当我们在编译(就是javac)这个.java结尾的文件的时候，JVM编译到了<br />
+human.study(); 的时候，他会上这个对象的引用数据类型也就是Human类中查找有没有这个study方法，如果有 编译成功 如果没有 编译失败<br />
+那么我们Human类中有没有study方法呢？答案肯定是没有，所以你写的这个代码，他编译都不可能通过，谈何运行时运行new出来的子类的study方法呢？<br />
+这个其实是属于动态版定的一个知识<br />
+动态绑定语句的编译、运行原理：我们假设 Father ft=new Son();&nbsp;&nbsp;ft.say();&nbsp;&nbsp;Son继承自Father，重写了say()。<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1：编译：我们知道，向上转型时，用父类引用执行子类对象，并可以用父类引用调用子类中重写了的同名方法。但是不能调用子类中新增的方法，为什么呢？<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<strong><font size="4">因为在代码的编译阶段，编译器通过 声明对象的类型（即引用本身的类型） 在方法区中该类型的方法表中查找匹配的方法（最佳匹配法：参数类型最接近的被调用），如果有则编译通过。</font></strong>（这里是根据声明的对象类型来查找的，所以此处是查找 Father类的方法表，而Father类方法表中是没有子类新增的方法的，所以不能调用。）<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;编译阶段是确保方法的存在性，保证程序能顺利、安全运行。<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2：运行：我们又知道，ft.say()调用的是Son中的say()，这不就与上面说的，查找Father类的方法表的匹配方法矛盾了吗？不，这里就是动态绑定机制的真正体现。<br />
+摘自<strong><font color="#000"><a href="http://www.cnblogs.com/ygj0930/p/6554103.html" target="_blank">http://www.cnblogs.com/ygj0930/p/6554103.html</a></font>&nbsp; &nbsp; 感谢大佬！</strong></td></table></div></div><br />
+<br />
+<br />
+多态的向上转型，向下转型<br />
+<br />
+1.向上转型：<br />
+向上转型，其实就是我们说多态的一句话：<font size="5"><strong>父类引用指向子类对象</strong></font><br />
+Human human = new Student();<br />
+2.向下转型：自动转换是向上转型了，那么向下转型肯定就是<font size="4"><strong>强制类型转换</strong></font>喽！<br />
+<br />
+具体写法：<br />
+来一个多态先<div class="blockcode"><div id="code_lnU"><ol><li>// 向上转型<br />
+<li>Human human = new Student();<br />
+<li>// 我们如果想要把human重新转换成Student怎么办？ 很简单<br />
+<li>Student student = (Student) human;<br />
+<li>// 因为是强制类型转换，不加写括号会报错，如果你要把一个不是学生的对象，转换成学生，这怎么可能成功？<br />
+<li>// 例：&nbsp;&nbsp;错误写法！！！<br />
+<li>Human human = new Employee();<br />
+<li>Student student = (Student) Employee;</ol></div><em onclick="copycode($('code_lnU'));">复制代码</em></div>一开始举得栗子<br />
+员工和学生都继承人类<br />
+那我如果想把员工的对象转换成学生对象，他不报错他干啥？(人家员工都有老板虐待了 别再让员工遭受老师的折磨了=-=)<br />
+<br />
+这个地方我们可以判断一下，如果是学生对象，那就转换，如果不是，那就不转换<br />
+怎么实现呢？<br />
+Java为我们提供了一个关键字，叫做<font size="5"><font color="#ff0000"><strong>instanceof</strong></font></font>，这其实可以拆成两个词，第一个instance实例(对象)，第二个of，是、关于(反正就那意思)<br />
+这个关键字可以判断这个对象是不是这个引用数据类型的<br />
+格式：<br />
+<font size="4"><font color="#000000"><strong>对象名 instanceof 类名</strong></font></font><br />
+他可以看做一个逻辑运算符，这个东西返回的是一个boolean值，(不会吧不会吧？你连布尔值都没学过？赶紧去学吧。)<br />
+我们写一个代码来用一下这个instanceof关键字<div class="blockcode"><div id="code_hF7"><ol><li>Human human = new Student();<br />
+<li>// 运用instanceof关键字判断这个human是不是Student类型的<br />
+<li>if (human instanceof Student){<br />
+<li>&nbsp; &nbsp; // 是就执行这里面的代码<br />
+<li>&nbsp; &nbsp; Student student = (Student) human;<br />
+<li>}<br />
+<li>// 不是就不执行<br />
+<li><br />
+<li>//再来一个代码：<br />
+<li>Human human2 = new Employee();<br />
+<li>if (human2 instanceof Student){<br />
+<li>&nbsp; &nbsp; Student stu = (Student) human;<br />
+<li>}</ol></div><em onclick="copycode($('code_hF7'));">复制代码</em></div>第一段代码肯定是可以转换成功的<br />
+第二段代码肯定是转换不成功的，因为human2不是Student类型的还是那句话 你不能把不是学生的人把他强制弄成学生吧。<br />
+<br />
+补充：<br />
+<font size="2"><font color="#808080"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>这段代码显得有点冗余，因为我们看啊，这两段代码里面都有一个公共部分就是if判断语句<br />
+那我们是不是可以把这个if从这两段代码中抽取出来，封装到一个方法中去呢？&nbsp; &nbsp;你要连这个都不知道 你封装没学吧<br />
+这个就是一个更面向对象的一个方式写<br />
+抽取重复代码抽取出来的一个方法：</font></font><div class="blockcode"><div id="code_EKz"><ol><li>public Student ifInstanceof(Object instance){<br />
+<li>&nbsp; &nbsp; if (instance instanceof Student) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (Student) instance;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_EKz'));">复制代码</em></div><font size="2"><font color="#808080">然后再调用就好了<br />
+其实这个还是有一个复用性很强的一种写法</font></font><div class="blockcode"><div id="code_NNs"><ol><li>public E ifInstance(Object instance, Class&lt;E&gt; cls){<br />
+<li>&nbsp; &nbsp; if(instance != null &amp;&amp; instance.getClass().getName().equalsIgnoreCase(cls.getName())){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (E) instance;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_NNs'));">复制代码</em></div><font size="2"><font color="#808080">这种写法是以后写框架的时候常用的一种写法，框架要求代码的耦合性要非常的低。<br />
+了解了解装个*就行，这个用到了反射技术，一会就讲到。</td></table></div></div></font><br />
+</font><br />
+那么我们的多态就讲完了。接下来开始非常<strike>致命</strike>有趣且好玩的Reflect反射。<br />
+<br />
+<font size="5"><font color="#000000"><strong>二、反射技术(机制)</strong></font></font><br />
+1.在程序<font size="5"><font color="#ff0000"><strong>运行时</strong></font></font>，对于任意一个类，都可以知道他的属性和方法，对于任意一个对象，都能调用任意一个方法或属性。<br />
+这种动态的获取信息和动态调用对象的方法，我们称为Java的反射机制<br />
+简单来说，<font size="5"><font color="#ff0000"><strong>将类中的各种信息封装为各个对象</strong></font></font>，我们叫做反射 <font size="5"><font color="#000000"><strong>反射：强调的是运行时，也就是说我们在运行之前，并不知道要干什么</strong></font></font><br />
+反射的好处：<br />
+&nbsp; &nbsp;&nbsp;&nbsp;1.可以在程序运行中，操作这些对象<br />
+&nbsp; &nbsp;&nbsp;&nbsp;2.可以降低程序的耦合性，提高程序的可扩展性<br />
+<br />
+在学习之前，希望你们先自己看一看Class类的介绍和成员方法<br />
+2.通过反射获取类信息<br />
+(1)如何获取Class对象<br />
+在Java中，代码一共有三个阶段<br />
+&nbsp; &nbsp; 1.Source源代码阶段<br />
+&nbsp; &nbsp; 2.Class字节码文件阶段<br />
+&nbsp; &nbsp; 3.Runtime运行时阶段<br />
+继续不多说，上图<br />
+
+<ignore_js_op>
+
+<img id="aimg_1664834" aid="1664834" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/02/173756y4k3v1moztt252az.jpg" file="https://attachment.mcbbs.net/forum/202008/02/173756y4k3v1moztt252az.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1664834" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1664834_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1596361075000.jpg</strong> <em class="xg1">(79.06 KB, 下载次数: 15)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDgzNHw4YmE1MWQ1NHwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-2 17:37 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+Source源代码阶段他是在硬盘上的<br />
+而Class类文件阶段和Runtime运行时阶段是在内存中的<br />
+这三个阶段，我们有三种分别对应的获取Class类对象的方式<br />
+<font size="5"><strong>First：Source源代码阶段：</strong></font><br />
+Class中的静态方法<br />
+<font size="4"><font color="#000000"><strong>static Class forName(&quot;全类名&quot;) </strong></font></font>&nbsp; &nbsp;(在JavaDoc中Class是有泛型的，而且是一个特别不大正常的泛型&lt;?&gt; 或者是&lt;? extends Xxxx&gt; 还有&lt;? super Xxx&gt;)<br />
+这个地方我们不带泛型就好<br />
+参数：<br />
+字符串，全类名：包名.类名&nbsp; &nbsp; (你别告诉我你不知道包是啥)<br />
+如：<div class="blockcode"><div id="code_JAA"><ol><li>Class cls = Class.forName(&quot;cn.kylin.main&quot;);</ol></div><em onclick="copycode($('code_JAA'));">复制代码</em></div>cn.kylin 就是包名&nbsp;&nbsp;main就是类名<br />
+通过这个方法可以返回一个Class对象，注意：名字不要起class，因为class是一个关键字<br />
+<br />
+<font size="5"><strong>Second：Class类文件阶段</strong></font><br />
+直接通过<br />
+<font size="5"><font color="#000000"><strong>类名.class获取就行</strong></font></font><br />
+例：<br />
+Class clazz = main.class;<br />
+<br />
+<font size="5"><strong>Third：Runtime运行时阶段</strong></font><br />
+Object类中有一个方法是getClass()，返回一个Class对象，我们都知道，Object是所有类的父类，也就是说 Object类中有的方法所有的类都有，我们可以直接通过<br />
+<font size="5"><font color="#000000"><strong>对象.getClass(); 来获取Class类对象</strong></font></font><br />
+如：<br />
+Student stu = new Student();<br />
+Class cls = stu.getClass();<br />
+<br />
+EASY！<br />
+<br />
+<br />
+(2)如何通过Class对象操作类中的变量，方法，构造方法<br />
+变量，英文名称叫<strong>Field</strong><br />
+方法，英文名叫<strong>Method</strong><br />
+构造方法，英文名叫<strong>Constructor</strong><br />
+一图值千言，再放个图(懒得排版了，这个md排版还好看一点)<br />
+
+<ignore_js_op>
+
+<img id="aimg_1665055" aid="1665055" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/02/205215tz6spj9brdvbqprq.jpg" file="https://attachment.mcbbs.net/forum/202008/02/205215tz6spj9brdvbqprq.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1665055" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665055_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1596372734000.jpg</strong> <em class="xg1">(74.54 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTA1NXw5YTM0YjMwMHwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-2 20:52 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+补充：Class中有一个方法<font size="4"><strong>cast(Object obj) 把这个obj对象强转为这个Class对象的类型</strong></font><br />
+<br />
+我们获取到了封装变量的类Field&nbsp;&nbsp;封装方法的类Method 封装构造方法的类Constructor<br />
+需要知道这几个对象怎么用啊<br />
+<font size="4"><font color="#000000"><strong>Field：<br />
+get(Object obj)&nbsp;&nbsp;传进去一个对象，返回这个变量在对象中的值<br />
+set(Object obj, Objec value)&nbsp;&nbsp;传进去一个对象还有一个值，设置这个变量在对象中的value<br />
+<br />
+Method：<br />
+invoke(Object obj, Object... args)&nbsp;&nbsp;传进去一个对象，和这个方法的参数列表&nbsp;&nbsp;后面的Object... args 是可变参数，传几个都可以，不传都行<br />
+<br />
+Constructor：<br />
+newInstance(Object... args)&nbsp;&nbsp;传进去这个构造方法的参数列表</strong></font></font><br />
+<br />
+具体的学完了 我们通过一个案例来学习怎么使用<br />
+案例：<div class="blockcode"><div id="code_Fh5"><ol><li>// Person类<br />
+<li>public class Person {<br />
+<li>&nbsp; &nbsp; public String name;<br />
+<li>&nbsp; &nbsp; public int age;<br />
+<li>&nbsp; &nbsp; private String gender;<br />
+<li>&nbsp; &nbsp; public int a;<br />
+<li>&nbsp; &nbsp; protected int b;<br />
+<li>&nbsp; &nbsp; int c;<br />
+<li>&nbsp; &nbsp; private int d;<br />
+<li><br />
+<li>&nbsp; &nbsp; public Person(String name, int age, String gender, int a, int b, int c, int d) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.name = name;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.age = age;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.gender = gender;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.a = a;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.b = b;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.c = c;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.d = d;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public Person() {<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void eat(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;eat...&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void eat(String food){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;eat...&quot; + food);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public String toString() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;Person{&quot; +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;name='&quot; + name + '\'' +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, age=&quot; + age +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, gender='&quot; + gender + '\'' +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, a=&quot; + a +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, b=&quot; + b +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, c=&quot; + c +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;, d=&quot; + d +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; '}';<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li><br />
+<li>// 测试类<br />
+<li>public class Test {<br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获取Person的Class对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Class personClass = Person.class;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 调用getField获取方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field a = personClass.getField(&quot;a&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Person p = new Person();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 调用Field中的get方法，传进去一个Person对象，我们并没有给a赋值，所以返回的是默认值：0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(a.get(p));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;=======我是一条华丽的分割线======&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 调用getFields方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field[] fields = personClass.getFields();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 遍历fields<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (Field field : fields) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(field);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 可以发现，只获取到了public修饰的变量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 调用Declared的两个方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;=======我是一条华丽的分割线======&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field privateGender = personClass.getDeclaredField(&quot;gender&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 打印一下这个变量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(privateGender);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field[] declaredFields = personClass.getDeclaredFields();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (Field privateField : declaredFields) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(privateField);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;=======我是一条华丽的分割线======&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 既然我们能获取私有变量，那我们是不是能设置私有变量的值呢？如果能，那肯定要逆天啊！<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当然是可以的，不然set方法是吃素的？<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 我们把p对象的private String gender设置成&quot;女&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field gender = personClass.getDeclaredField(&quot;gender&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 但是我们会发现，他报错了！！！报了一个IllegalAccessException 这个其实就是权限不通过的错误<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 反射更为逆天的就是，你设置一下，他就可以忽视权限的检查&nbsp;&nbsp;反射大法好！！！<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;gender.setAccessible(true);&nbsp;&nbsp;// 设置为true，就是忽略权限的检查，就不会报错了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;gender.set(p,&quot;女&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;修改后gender：&quot; + gender.get(p));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;=======我是一条华丽的分割线======&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 接下来是一系列的方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获取指定名称指定参数列表的方法 这里我们Person中的eat有两个重载的方法 分别调用一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 无参eat<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Method eat1 = personClass.getMethod(&quot;eat&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获取带参eat<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Method eat2 = personClass.getMethod(&quot;eat&quot;, String.class);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 分别执行一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;eat1.invoke(p);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;eat2.invoke(p,&quot;Meat&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 没问题，都执行成功了，Declared也差不多<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;=======我是一条华丽的分割线======&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 下面是构造方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 分别获取空参构造和全参构造<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Constructor con1 = personClass.getConstructor();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Constructor con2 = personClass.getConstructor(String.class, int.class, String.class, int.class, int.class, int.class, int.class);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 分别创建实例对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Person p1 = (Person) con1.newInstance();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Person p2 = (Person) con2.newInstance(&quot;狗皮张&quot;,21,&quot;人妖&quot;,1,2,3,4);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(p1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(p2);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Fh5'));">复制代码</em></div>代码里面注释写的很清楚了已经，没有啥要解释的了<br />
+<br />
+好的，那么我们的Java基础铺垫好了之后，开始进入我们今天的正题------NMS发包机制<br />
+<br />
+<font size="6"><font color="#000000"><strong>NMS发包机制--介绍|使用NMS的优点</strong></font></font><br />
+NMS是什么？包又是什么？<br />
+我们先来聊聊包<br />
+Minecraft中 客户端Client和服务器Server之间的通信，全部以<font size="4"><font color="#000000"><strong>数据包来往的方式</strong></font></font>进行，但是呢Bukkit他又没有给收发包的API，原因？<strike>我也不知道</strike><br />
+<font size="4"><font color="#000000"><strong>NMS就是net.minecraft.server 包</strong></font></font> 简称NMS(别问我为啥去这个怪异的名字<strike>听着像是骂人</strike>都取首字母不就粗来了么=-=)<br />
+<font size="4"><strong>每一种数据包都被封装为一个Packet的实现类放在net.minecraft.server.版本 包下</strong></font>，他的命名为：Packet+类型+(Out/In)+内容<br />
+类型主要分为四种<br />
+<br />
+Login - 加入服务器时.(与登录插件无关)<br />
+Status - Ping与MOTD等<br />
+Play - 游戏内容<br />
+Handshake - 握手包<br />
+<br />
+<br />
+其中我们最常用的就是Play了<br />
+<font size="4"><strong>Out就是输出，传出数据包(发包)In就是输入，传入数据包(收包)</strong></font><br />
+我们今天要讲的就是不通过任何API(点名ProtocolLib)来实现各个版本都能使用的发包代码<br />
+<br />
+<font size="4"><font color="#000000">首先我们来讲一下为什么不使用API，也就是不使用API进行收发包的好处：</font></font><br />
+<strike>你用手指头想想都知道</strike><br />
+1. 对外依赖减弱&nbsp; &nbsp;&nbsp;&nbsp;(为啥？&nbsp;&nbsp;你这如果用了API你这插件肯定会有前置，他不就对外依赖了么)<br />
+2. 代码减小耦合性&nbsp; &nbsp;你想想，你自己写的代码是不是可以随意更改，可以自己修改代码依赖的模块，而你如果使用给定的API的话，你是不是不能修改API的代码，他是不是代码依赖性就更高了？<br />
+3. <font size="4"><strong>提高自己的技术</strong></font><br />
+你说不使用API收发包有这么多好处，最主要的还能提高自己的技术，何乐而不为呢？<br />
+弊端：<br />
+较为麻烦。<br />
+<font size="6"><font color="#000000"><strong>发包机制--思路分析|问题解决</strong></font></font><br />
+Bukkit API中，我们也不知道为什么，他<strike>居心险恶的</strike>并没有给收发包的API<br />
+所以就使我们的收发包变得特别的麻烦<br />
+<font size="4"><strong>既然没有给我们直接能用的，那我们是不是要自己去找呢？</strong></font><br />
+首先我们想，给玩家收发包，是不是肯定和玩家有关系，那么我们去Player类中寻找，但是你看，<font size="4"><font color="#000000"><strong>Player</strong></font></font>他是一个抽象类，所以我们要找他的子类。<font size="4"><font color="#000000"><strong>CraftPlayer</strong></font></font>，然后我们继续找，<strong>CraftPlayer</strong>有一个方法<font size="4"><font color="#000000"><strong>getHandle</strong></font></font>他返回的是一个<font size="4"><font color="#000000"><strong>EntityPlayer</strong></font></font>，想必和这个类应该有点关系，然后我们再去EntityPlayer类中找，然后我们会发现有一个成员变量的类型的是<font size="5"><font color="#ff0000"><strong>PlayerConnection</strong></font></font>，翻译过来就是 <font size="4"><font color="#ff0000"><strong>玩家连接</strong></font></font> 哎？这个东西里面肯定有点啥可以发包的东西，我们再去PlayerConnection类中寻找，最后发现一个方法的名字就是<font size="4"><font color="#ff0000"><strong>sendPacket(Packet packet) </strong></font></font>里面传入一个Packet(是一个接口)的实现类对象，大功告成！<br />
+
+<ignore_js_op>
+
+<img id="aimg_1665416" aid="1665416" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/073358y0m6mwgwl6kq8xme.png" file="https://attachment.mcbbs.net/forum/202008/03/073358y0m6mwgwl6kq8xme.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1665416" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665416_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(73.19 KB, 下载次数: 15)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTQxNnwxMzEwMzIwM3wxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 07:33 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+真是得来全<strike>不</strike>费工夫<br />
+然后我们就可以调用里面的这东西进行发包了。<font size="4"><font color="#000000"><strong>真的吗？</strong></font></font><br />
+<br />
+我们在查看Spigot核心里面的一些东西的时候，有一个net包，下面有minecraft包，下面还有server包，再下一个？啥东西？V1_12_R1<br />
+这个包名其实就是版本号，我们再查看 org.bukkit.craftbukkit包下，也有一个V1_12_R1包(版本不同可能不一样)<br />
+<font size="4"><font color="#000000"><strong>我们是不是可以明白，两个包下的东西，每一个版本的包名都是不一样的</strong></font></font><br />
+包名不一样又怎么了？<br />
+包名不一样 比如说你在这里写了一个V1_12_R1&nbsp;&nbsp;<br />
+<font size="5"><font color="#000000"><strong>结果服务器使用的时候，他的版本不大一样，是V1_12_R2 了，这服务器不就找不到这个包下的class文件了么，他就会抛出ClassNotFoundException类找不到异常。</strong></font></font><br />
+<br />
+而我们目前知道的需要用到的类(接口) CraftPlayer在cb(craftbukkit).版本 包下EntityPlayer PlayerConnection Pocket 在NMS.版本 包下，我们会发现如果我们导入(import)这些类 是不是如果版本变了，他会找不到这些类了呢？<br />
+<br />
+怎么办呢？&nbsp;&nbsp;这个时候使用<font size="4"><font color="#000000"><strong>反射</strong></font></font>是明智的选择(当然你也可以判断版本)<br />
+使用反射问题就迎刃而解了！<br />
+<br />
+首先我们分析一下该从哪里写起，我们<font size="4"><strong>要发包 就要调用PlayerConnection中的sendPocket</strong></font>方法，但是里面<font size="4"><strong>需要传入一个Pocket实现类对象</strong></font>，Pocket那些实现类我们刚才说了，全部在NMS.版本包下，比如我们想要给玩家发一个Title(虽然高版本Bukkit在Player类中提供了sendTitle方法)，然后我们判断，他是什么类型的啊？Play游戏内容类型的，然后他是发包还是收包呢？发包Out 内容是啥呢？Title<br />
+所以这个包类的名称就是PacketPlayerOutTitle<br />
+然后我们进去看一眼，他里面有四个构造方法<br />
+
+<ignore_js_op>
+
+<img id="aimg_1665425" aid="1665425" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/074237ja3ddl7d8dk939hl.png" file="https://attachment.mcbbs.net/forum/202008/03/074237ja3ddl7d8dk939hl.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1665425" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665425_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(28.6 KB, 下载次数: 6)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTQyNXw2MWJhYjdiY3wxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 07:42 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+我们要看肯定要用最多参数的那一个<br />
+PacketPlayOutTitle() - 无参<br />
+PacketPlayOutTitle(EnumTitleAction, IChatBaseComponent) - 类型枚举、基础交流类<br />
+PacketPlayOutTitle(EnumTitleAction, IChatBaseComponent,int,int,int) - 类型枚举、基础交流类、淡入时间、停留时间、淡出时间PacketPlayOutTitle(int,int,int) - 淡入时间、停留时间、淡出时间<br />
+然后我们发现这里面要传进去一个<font size="4"><strong>EnumTitleAction</strong></font>(<font size="4"><font color="#000000"><strong>他在高版本的时候已经是PacketPlayOutTitle的内部枚举了</strong></font></font>)那我们是不是要获取一下这东西，怎么获取呢？我们看看源码<br />
+
+<ignore_js_op>
+
+<img id="aimg_1665426" aid="1665426" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/074547oya63h0w56qa33hs.png" file="https://attachment.mcbbs.net/forum/202008/03/074547oya63h0w56qa33hs.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="574" id="aimg_1665426" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665426_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(26.21 KB, 下载次数: 6)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTQyNnxhMGRhMDBmZXwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 07:45 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+哦！我们需要<font size="4"><strong>通过反射获取他的a方法</strong></font>，然后再<font size="4"><font color="#000000"><strong>通过反射创建一个这个的对象，执行这个方法，传进去我们要的类型TITLE</strong></font></font>，简单！<br />
+我们再来看<strong><font size="4"><font color="#000000">IChatBaseComponent</font></font></strong>：这个是bc包下的，他有子类为ChatBaseComponent，这个类还有一个子类<font size="4"><strong>ChatComponentText</strong></font>，那肯定是使用这个无疑了(<font size="4"><strong>多态</strong></font>)，为什么？因为这个ChatComponentText他有一个构造方法的参数为String<br />
+
+<ignore_js_op>
+
+<img id="aimg_1665427" aid="1665427" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/074833m8ju2yijmy5mxvy7.png" file="https://attachment.mcbbs.net/forum/202008/03/074833m8ju2yijmy5mxvy7.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="414" id="aimg_1665427" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665427_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(2.83 KB, 下载次数: 14)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTQyN3w3OWVkMDY1OXwxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 07:48 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+这个传入一个<font size="5"><strong>TITLE要显示的内容</strong></font>，这不就好了么？<br />
+分析完毕，然后我们代码实现一下<br />
+<strong><font size="5">发包机制--代码实现</font></strong><br />
+首先明确两个小点：<br />
+我们<strong><font size="4">getPlayer</font></strong>的虽然获取的是Player，但是其实<font size="5"><font color="#ff0000"><strong>所有的Player都是CraftPlayer对象(多态) Server也是 getServer得到的是CraftServer对象</strong></font></font><br />
+首先我们想：这里面有好多类呢，我们一个个获取他们的Class是不是太麻烦了点，他们的获取的代码其实都是差不多的，比如我想获取一个CraftPlayer的Class对象<br />
+<div class="blockcode"><div id="code_qad"><ol><li> //首先获取版本号，怎么获取呢<br />
+<li>String version = Bukkit.getServer().getClass().getPackage().subString(Bukkit.getServer().getClass().getPackage().lastIndexOf(&quot;.&quot;) + 1);<br />
+<li>// 或者是<br />
+<li>String version = Bukkit.getServer().getClass().getPackage().split(&quot;.&quot;)[3];<br />
+<li>Class craftPlayer = Class.forName(&quot;org.bukkit.craftbukkit.&quot; + version + &quot;.CraftBukkit&quot;);<br />
+<li></ol></div><em onclick="copycode($('code_qad'));">复制代码</em></div><br />
+对吧，你会发现，如果我获取需要的所有的Class对象，其中<font size="4"><font color="#000000"><strong>冗余</strong></font></font>(重复)的代码非常的多，那么我们是不是可以把重复的代码<font size="5"><strong>共性抽取</strong></font>，<font size="5"><strong>封装</strong></font>为一个方法?<br />
+注意：建议<font size="5"><strong>在开服的时候就把所有的Class对象都获取出来然后在有需要的时候我们就用</strong></font>，这样可以在使用的时候 大大提升插件的性能<br />
+<br />
+那么我们写两个方法<br />
+我为了偷懒直接把主类注册监听器了<br />
+<div class="blockcode"><div id="code_IHE"><ol><li>public class SendTitle extends JavaPlugin implements Listener {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.getPluginManager().registerEvents(this,this);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getNmsClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String version = Bukkit.getServer().getClass().getPackage().getName().split(&quot;.&quot;)[3];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;net.minecraft.server.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getCbClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String version = Bukkit.getServer().getClass().getPackage().getName().split(&quot;.&quot;)[3];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;org.bukkit.craftbukkit.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_IHE'));">复制代码</em></div>为什么要抛出异常而不是直接在方法内try-catch了：我们要告诉调用者这个方法他有异常，要小心(虽然调用者是我们自己)<br />
+但是我们会发现，这段代码还不是那么的完美，为什么？因为他也有<font size="4"><strong>冗余</strong></font>的代码啊，而且很<font size="5"><strong>浪费性能</strong></font>，为什么？因为他在每次调用这个获取Class对象的方法的时候，他都会获取一次version，获取version的步骤是不是非常的繁琐？是不是浪费性能？ 那么我们改一下<br />
+<div class="blockcode"><div id="code_VI5"><ol><li>public class SendTitle extends JavaPlugin implements Listener {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.getPluginManager().registerEvents(this,this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;version = Bukkit.getServer().getClass().getPackage().getName().split(&quot;.&quot;)[3];<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; // 在外面声明一个String变量，用来存储version，然后在onEnable类中只获取一次<br />
+<li>&nbsp; &nbsp; String version;<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getNmsClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;net.minecraft.server.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getCbClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;org.bukkit.craftbukkit.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_VI5'));">复制代码</em></div>是不是变得比较的简洁，而且这个代码还美。<br />
+然后我们开始写获取Class的，我们想，获取Class是不是只用获取一次就够了？(你不会<strike>傻乎乎</strike>的每次发送Title都获取一次Class吧)那怎么获取呢?<br />
+我们写一个方法，开服的时候调用他(我为了偷懒，所有的代码都在主类里面写了，<font size="4"><font color="#000000"><strong>建议开发插件的时候分开写，然后把方法修饰上static就行，修饰了static他就是静态方法，静态方法可以直接通过类名.静态方法名调用</strong></font></font>)<br />
+<div class="blockcode"><div id="code_M19"><ol><li>// 我们目前只需要获取这几个Class对象就好，放在外面他的作用域更大了，整个类都能调用了<br />
+<li>&nbsp; &nbsp; Class iChatBaseComponent;<br />
+<li>&nbsp; &nbsp; Class chatComponentText;<br />
+<li>&nbsp; &nbsp; Class packet;<br />
+<li>&nbsp; &nbsp; Class packetPlayOutTitle;<br />
+<li>&nbsp; &nbsp; Class enumTitleAction;<br />
+<li><br />
+<li>&nbsp; &nbsp; public void getAllClass(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;iChatBaseComponent = getNmsClass(&quot;IChatBaseComponent&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chatComponentText = getNmsClass(&quot;ChatComponentText&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;packet = getNmsClass(&quot;Packet&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;packetPlayOutTitle = getNmsClass(&quot;PacketPlayOutTitle&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 因为EnumTitleAction这个枚举是PacketPlayOutTitle中的内部枚举，如果你看过内部类编译出来的class文件的名字的话，应该会知道<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;enumTitleAction = getNmsClass(&quot;PacketPlayOutTitle$EnumTitleAction&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (ClassNotFoundException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_M19'));">复制代码</em></div><br />
+然后在onEnable方法中调用他<br />
+<div class="blockcode"><div id="code_K2W"><ol><li>@Override<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.getPluginManager().registerEvents(this,this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;version = Bukkit.getServer().getClass().getPackage().getName().split(&quot;.&quot;)[3];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getAllClass();<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_K2W'));">复制代码</em></div>没毛病，然后就开始写我们最关键的，也就是最重要的一部分，实现发包，我们写一个方法吧，需要传入Player p对象，然后在有需要的时候直接调用这个方法传入一个Player对象就好了<br />
+<div class="blockcode"><div id="code_zh5"><ol><li>// var3为渐入时间/s&nbsp;&nbsp;var4是停留时间/s&nbsp;&nbsp;var5是渐出时间/s<br />
+<li>&nbsp; &nbsp; public void sendTitle(Player p, String title,int var3, int var4, int var5){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 1. 获取ChatComponentText对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object chatComponentTextInstance = chatComponentText.getConstructor(String.class).newInstance(title);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 2. 获取EnumTitleAction枚举TITLE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object enumTITLE = enumTitleAction.getMethod(&quot;a&quot;, String.class).invoke(enumTitleAction.getConstructor().newInstance(), &quot;TITLE&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 3. 创建PacketPlayOutTitle对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object packetPlayOutTitleInstance = packetPlayOutTitle.getConstructor(enumTitleAction, iChatBaseComponent, int.class, int.class, int.class).newInstance(enumTITLE, chatComponentTextInstance, var3, var4, var5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 4. 使用CraftPlayer.class.cast(p) 把p对象强转一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object craftPlayer = getCbClass(&quot;CraftPlayer&quot;).cast(p);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 5. 调用CraftPlayer中的getHandle方法获取EntityPlayer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object entityPlayer = craftPlayer.getClass().getMethod(&quot;getHandle&quot;).invoke(craftPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 6. 获取EntityPlayer中的成员变量PlayerConnection对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object playerConnection = entityPlayer.getClass().getField(&quot;playerConnection&quot;).get(entityPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 7. 调用sendPacket方法，传进去PacketPlayOutTitle对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerConnection.getClass().getMethod(&quot;sendPacket&quot;,packet).invoke(playerConnection,packetPlayOutTitleInstance);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException | ClassNotFoundException | NoSuchFieldException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_zh5'));">复制代码</em></div><font size="4"><font color="#ff00ff"><strong>由于页面的原因，代码可能有点变形，你们可以粘贴到自己的IDE上查看代码</strong></font></font><br />
+<br />
+反射学好了，这代码绝对能看懂，其实翻来覆去就是那几个东西，我这里举了一个发送Title的例子，其他的包都在NMS下面，举一反三就好。<br />
+不过在高版本，Bukkit API在Player类中整了一个sendTitle的方法，所以高版本如果要发送Title就不需要发包这么麻烦了<br />
+<br />
+我们监听一个玩家进入服务器的事件 PlayerJoinEvent，然后调用sendTitle给他发送一个Title<br />
+<div class="blockcode"><div id="code_jYK"><ol><li>@EventHandler<br />
+<li>&nbsp; &nbsp; public void onPlayerJoin(PlayerJoinEvent e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sendTitle(e.getPlayer(), ChatColor.GREEN + &quot;欢迎欢迎！&quot;,1,3,1);<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_jYK'));">复制代码</em></div><br />
+最后的最后，整个类的代码：<div class="blockcode"><div id="code_gbr"><ol><li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li>import org.bukkit.event.EventHandler;<br />
+<li>import org.bukkit.event.Listener;<br />
+<li>import org.bukkit.event.player.PlayerJoinEvent;<br />
+<li>import org.bukkit.plugin.java.JavaPlugin;<br />
+<li><br />
+<li>import java.lang.reflect.InvocationTargetException;<br />
+<li><br />
+<li>public class SendTitle extends JavaPlugin implements Listener {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.getPluginManager().registerEvents(this,this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;version = Bukkit.getServer().getClass().getPackage().getName().split(&quot;.&quot;)[3];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getAllClass();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; // 在外面声明一个String变量，用来存储version，然后在onEnable类中只获取一次<br />
+<li>&nbsp; &nbsp; String version;<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getNmsClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;net.minecraft.server.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public Class getCbClass(String name) throws ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Class.forName(&quot;org.bukkit.craftbukkit.&quot; + version + &quot;.&quot; + name);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // 我们目前只需要获取这几个Class对象就好，放在外面他的作用域更大了，整个类都能调用了<br />
+<li>&nbsp; &nbsp; Class iChatBaseComponent;<br />
+<li>&nbsp; &nbsp; Class chatComponentText;<br />
+<li>&nbsp; &nbsp; Class packet;<br />
+<li>&nbsp; &nbsp; Class packetPlayOutTitle;<br />
+<li>&nbsp; &nbsp; Class enumTitleAction;<br />
+<li><br />
+<li>&nbsp; &nbsp; public void getAllClass(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;iChatBaseComponent = getNmsClass(&quot;IChatBaseComponent&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chatComponentText = getNmsClass(&quot;ChatComponentText&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;packet = getNmsClass(&quot;Packet&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;packetPlayOutTitle = getNmsClass(&quot;PacketPlayOutTitle&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 因为EnumTitleAction这个枚举是PacketPlayOutTitle中的内部枚举，如果你看过内部类编译出来的class文件的名字的话，应该会知道<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;enumTitleAction = getNmsClass(&quot;PacketPlayOutTitle$EnumTitleAction&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (ClassNotFoundException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; // var3为渐入时间/s&nbsp;&nbsp;var4是停留时间/s&nbsp;&nbsp;var5是渐出时间/s<br />
+<li>&nbsp; &nbsp; public void sendTitle(Player p, String title,int var3, int var4, int var5){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 1. 获取ChatComponentText对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object chatComponentTextInstance = chatComponentText.getConstructor(String.class).newInstance(title);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 2. 获取EnumTitleAction枚举TITLE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object enumTITLE = enumTitleAction.getMethod(&quot;a&quot;, String.class).invoke(enumTitleAction.getConstructor().newInstance(), &quot;TITLE&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 3. 创建PacketPlayOutTitle对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object packetPlayOutTitleInstance = packetPlayOutTitle.getConstructor(enumTitleAction, iChatBaseComponent, int.class, int.class, int.class).newInstance(enumTITLE, chatComponentTextInstance, var3, var4, var5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 4. 使用CraftPlayer.class.cast(p) 把p对象强转一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object craftPlayer = getCbClass(&quot;CraftPlayer&quot;).cast(p);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 5. 调用CraftPlayer中的getHandle方法获取EntityPlayer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object entityPlayer = craftPlayer.getClass().getMethod(&quot;getHandle&quot;).invoke(craftPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 6. 获取EntityPlayer中的成员变量PlayerConnection对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object playerConnection = entityPlayer.getClass().getField(&quot;playerConnection&quot;).get(entityPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 7. 调用sendPacket方法，传进去PacketPlayOutTitle对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerConnection.getClass().getMethod(&quot;sendPacket&quot;,packet).invoke(playerConnection,packetPlayOutTitleInstance);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException | ClassNotFoundException | NoSuchFieldException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; public void onPlayerJoin(PlayerJoinEvent e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sendTitle(e.getPlayer(), ChatColor.GREEN + &quot;欢迎欢迎！&quot;,1,3,1);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_gbr'));">复制代码</em></div><br />
+我们会发现，<font size="5"><font color="#000000"><strong>没有一个import是导入的带版本号的包</strong></font></font>，这就使得我们的发包在几乎全版本(不确定1.13+能否使用，因为1.13的时候Bukkit API大改)<br />
+<br />
+<font size="4"><font color="#00bfff"><strong>如果觉得好，请不要吝啬你的人气和金粒，你们的支持是我最大的动力。</strong></font></font><br />
+<strike>明目张胆的要人气</strike><br />
+
+<ignore_js_op>
+
+<img id="aimg_1665474" aid="1665474" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/093647zi4o2s9oovt742bb.png" file="https://attachment.mcbbs.net/forum/202008/03/093647zi4o2s9oovt742bb.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="371" id="aimg_1665474" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1665474_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(8.38 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NTQ3NHxhNGUwODZmY3wxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 09:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+[groupid=1427][IRCN]红墨青城[/groupid]
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDc1MXwxY2MzODUyY3wxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1664751" class="xw1" target="_blank">image.png</a>
+<em class="xg1">(111.44 KB, 下载次数: 6)</em>
+</p>
+<div class="tip tip_4" id="aid1664751_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NDc1MXwxY2MzODUyY3wxNjE0MDQ3NTk1fDI0MTk0ODZ8MTA5MjA2Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2020-8-2 16:32 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1664751', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1664751', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1664751" aid="1664751" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/202008/02/163225r33g7tx3030t6dhv.png" file="https://attachment.mcbbs.net/forum/202008/02/163225r33g7tx3030t6dhv.png.thumb.jpg" alt="image.png" title="image.png" w="1817" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[19263118] = ['1664674','1664751','1664757','1664760','1664834','1665055','1665416','1665425','1665426','1665427','1665474'];
+attachimggroup(19263118);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HotPe_e&nbsp; &nbsp; <b>时间: </b>2020-8-3 10:06<br />
+看了一半 突然看到了一个问题<br />
+<br />
+这里没有变量名 2333<br />
+<div class="quote"><blockquote>public class Human{<br />
+&nbsp; &nbsp; public String = &quot;Human&quot;;<br />
+<br />
+&nbsp; &nbsp; public void show(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;我是父类&quot;);<br />
+&nbsp; &nbsp; }<br />
+}</blockquote></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天启-麒麟&nbsp; &nbsp; <b>时间: </b>2020-8-3 10:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19275430&amp;ptid=1092067" target="_blank"><font color="#999999">HotPe_e 发表于 2020-8-3 10:06</font></a></font><br />
+看了一半 突然看到了一个问题<br />
+<br />
+这里没有变量名 2333</blockquote></div><br />
+感谢感谢我是直接在帖子上敲得，我也没发现<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CyanBillows&nbsp; &nbsp; <b>时间: </b>2020-8-3 17:39<br />
+对初学者很友好，受教了XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RE_OVO&nbsp; &nbsp; <b>时间: </b>2020-8-3 19:30<br />
+为什么要花这么多时间去反射发包呢，直接ProtocolLib不香吗<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天启-麒麟&nbsp; &nbsp; <b>时间: </b>2020-8-3 20:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19286494&amp;ptid=1092067" target="_blank"><font color="#999999">RE_OVO 发表于 2020-8-3 19:30</font></a></font><br />
+为什么要花这么多时间去反射发包呢，直接ProtocolLib不香吗</blockquote></div><br />
+不使用API的好处肯定是有的啊，使用别的API使你的插件对外依赖十分严重，如果不使用API还可以提高自己的技术，多香<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-3 20:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19286494&amp;ptid=1092067" target="_blank"><font color="#999999">RE_OVO 发表于 2020-8-3 19:30</font></a></font><br />
+为什么要花这么多时间去反射发包呢，直接ProtocolLib不香吗</blockquote></div><br />
+不使用plib研究截包、改包的确没意思，但是playerConnetion发包是很实用的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RE_OVO&nbsp; &nbsp; <b>时间: </b>2020-8-4 12:01<br />
+<i class="pstatus"> 本帖最后由 RE_OVO 于 2020-8-4 12:03 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19287141&amp;ptid=1092067" target="_blank"><font color="#999999">天启-麒麟 发表于 2020-8-3 20:07</font></a></font><br />
+不使用API的好处肯定是有的啊，使用别的API使你的插件对外依赖十分严重，如果不使用API还可以提高自己的 ...</blockquote></div><br />
+当大量需要数据包操作的时候，再反射，你就知道酸爽了。<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" />这玩意会写就行了，实际操作还是上ProtocolLib优雅，代码可读性高，况且ProtocolLib和Vault这种类似，已经是MC服务器不可或缺的插件了。<br />
+<br />
+* 真要研究还得看TinyProtocol(ProtocolLib的简化版): <a href="https://github.com/dmulloy2/ProtocolLib/tree/master/TinyProtocol" target="_blank">https://github.com/dmulloy2/ProtocolLib/tree/master/TinyProtocol</a><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天启-麒麟&nbsp; &nbsp; <b>时间: </b>2020-8-4 12:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19296426&amp;ptid=1092067" target="_blank"><font color="#999999">RE_OVO 发表于 2020-8-4 12:01</font></a></font><br />
+当大量需要数据包操作的时候，再反射，你就知道酸爽了。这玩意会写就行了，实际操作还是上Protocol ...</blockquote></div><br />
+他大量数据包操作你只要多获取几个Class对象，然后再通过各种稀奇古怪的反射硬倒腾，就好了，虽然没有那么优雅=-=但是他也不算太麻烦啊<img src="static/image/smiley/tong/goodge.png" smilieid="1467" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RE_OVO&nbsp; &nbsp; <b>时间: </b>2020-8-4 15:44<br />
+<i class="pstatus"> 本帖最后由 RE_OVO 于 2020-8-4 15:56 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19296811&amp;ptid=1092067" target="_blank"><font color="#999999">天启-麒麟 发表于 2020-8-4 12:20</font></a></font><br />
+他大量数据包操作你只要多获取几个Class对象，然后再通过各种稀奇古怪的反射硬倒腾，就好了，虽然没有那 ...</blockquote></div><br />
+大佬的世界果然不一样！<br />
+反射操作！高端！彳亍！用别人类库！不行！<br />
+<br />
+1. 浪费时间，你反射花半天时间慢慢获取那几个对象绕来绕去，我几行代码就能搞定，能够更加专注实现需要的功能<br />
+2. 代码全是try catch throws，频繁检查反射抛出错误(这里就假定大神您能够写个反射工具类简化吧，毕竟是大神，不麻烦！)<br />
+3. 非基础数据类型读取。有些数据包的成员是非基础数据类型，属于NMS类，好家伙，你得把这个也反射，这还没完，有些是一个类套一个类，你就慢慢反射去吧，嘻嘻。而ProtocolLib全包装好了，我直接调用包装类写入就行，会自动转换。特别是1.13/1.14 NMS大改之后，一堆数据包都是这样。不过毕竟是大神你，反射就完事了！<br />
+<br />
+*咱也别争了，等会版主来了<br />
+<img src="static/image/smiley/rabbit/44.gif" smilieid="694" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-8-4 15:56<br />
+教程很详细 但是也太过于详细<br />
+<br />
+不必从Java底层开始讲<br />
+也不必过多赘述开发基础<br />
+洋洋洒洒大半篇 还没有做目录引导<br />
+<br />
+但是内容详实值得肯定<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋韵&nbsp; &nbsp; <b>时间: </b>2020-10-2 20:24<br />
+楼主您好，我是一名Java新手，非常感谢你带来的教程<br />
+<br />
+不过在你帖子里直接复制下来的代码在我这里运行不了（可能是我的问题）<br />
+我改成了这样才能运行↓ （其实我也不知道为什么）<br />
+sendTitle方法<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<br />
+<div class="blockcode"><div id="code_Wxi"><ol><li>public void sendTitle(Player p, String title,int var3, int var4, int var5){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Enum[] enumConstants = enumTitleAction.getEnumConstants();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Object enumTITLE =&nbsp;&nbsp;null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (Enum enum1 : enumConstants) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String name = enum1.name();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (name.equals(&quot;TITLE&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; enumTITLE = enum1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Object chatComponentTextInstance = chatComponentText.getConstructor(String.class).newInstance(title);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Object packetPlayOutTitleInstance = packetPlayOutTitle.getConstructor(enumTitleAction, iChatBaseComponent, int.class, int.class, int.class).newInstance(enumTITLE, chatComponentTextInstance, var3, var4, var5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Object craftPlayer = getCbClass(&quot;entity.CraftPlayer&quot;).cast(p);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object entityPlayer = craftPlayer.getClass().getMethod(&quot;getHandle&quot;).invoke(craftPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object playerConnection = entityPlayer.getClass().getField(&quot;playerConnection&quot;).get(entityPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerConnection.getClass().getMethod(&quot;sendPacket&quot;,packet).invoke(playerConnection,packetPlayOutTitleInstance);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (Exception e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_Wxi'));">复制代码</em></div></td></table></div></div><br />
+<br />
+我还只是个新手，不太懂反射这块，所以也不能完全肯定您的代码一定存在问题<br />
+不过有一点错误可以肯定的是，CraftPlayer应该在<br />
+org.bukkit.craftbukkit.版本.entity 里面<br />
+而非<br />
+org.bukkit.craftbukkit.版本<br />
+<br />
+最后，还是非常感谢你的教程，已评分了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋韵&nbsp; &nbsp; <b>时间: </b>2020-10-2 20:32<br />
+刚才又看了一下感觉可能是这一段代码出了问题<br />
+<strong>Object enumTITLE = enumTitleAction.getMethod(&quot;a&quot;, String.class).invoke(enumTitleAction.getConstructor().newInstance(), &quot;TITLE&quot;);</strong><br />
+我在运行的时候后台会<strong>NoSuchMethodException</strong>报错<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天启-麒麟&nbsp; &nbsp; <b>时间: </b>2020-10-7 18:41<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=20004608&amp;ptid=1092067" target="_blank"><font color="#999999">秋韵 发表于 2020-10-2 20:32</font></a></font><br />
+刚才又看了一下感觉可能是这一段代码出了问题<br />
+Object enumTITLE = enumTitleAction.getMethod(&quot;a&quot;, String. ...</blockquote></div><br />
+试试getDeclaredMethod()？不知道你用的啥版本的Spigot呢，但是这个异常大致有两个原因<br />
+1. 这个名叫a传进去一个String类型的方法，不存在<br />
+2.这个方法他修饰了private<br />
+如果是第二个可以用getDeclaredMethod()解决，别忘写一下忽略检查<br />
+第一个....去看看源码是啥方法改一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qse&nbsp; &nbsp; <b>时间: </b>2020-11-22 11:28<br />
+<i class="pstatus"> 本帖最后由 qse 于 2020-11-22 11:55 编辑 </i><br />
+<div class="blockcode"><div id="code_mhQ"><ol><li>Object enumTITLE = enumTitleAction.getMethod(&quot;a&quot;, String.class).invoke(enumTitleAction.getConstructor().newInstance(), &quot;TITLE&quot;);</ol></div><em onclick="copycode($('code_mhQ'));">复制代码</em></div>高版本的NMS中EnumTitleAction枚举里是没有a方法的，都2020年了，还拿1.12的NMS做演示，有点坑了……<div class="blockcode"><div id="code_UV7"><ol><li>Object chatComponentTextInstance = chatComponentTextClass.getConstructor(String.class).newInstance(title);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//enumTITLE = &quot;TITLE&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object enumTITLE = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (Enum currentEnum : (Enum[]) enumTitleActionClass.getEnumConstants()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String name = currentEnum.name();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (name.equals(&quot;TITLE&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;enumTITLE = currentEnum;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object packetPlayOutTitleInstance = packetPlayOutTitleClass.getConstructor(enumTitleActionClass, iChatBaseComponentClass, int.class, int.class, int.class).newInstance(enumTITLE, chatComponentTextInstance, fadeInTime, stayTime, fadeOutTime);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//Player -&gt; CraftPlayer -&gt; EntityPlayer -&gt; PlayerConnection<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object craftPlayer = getCBClass(&quot;entity.CraftPlayer&quot;).cast(p);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object entityPlayer = craftPlayer.getClass().getMethod(&quot;getHandle&quot;).invoke(craftPlayer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Object playerConnection = entityPlayer.getClass().getField(&quot;playerConnection&quot;).get(entityPlayer);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;playerConnection.getClass().getMethod(&quot;sendPacket&quot;, packetClass).invoke(playerConnection,packetPlayOutTitleInstance);</ol></div><em onclick="copycode($('code_UV7'));">复制代码</em></div><br />
+这段代码可以在1.16的Spigot上正常运行<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1347473112&nbsp; &nbsp; <b>时间: </b>2020-12-14 22:41<br />
+努力学习<br />
+。。。。。。。。。。。。。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

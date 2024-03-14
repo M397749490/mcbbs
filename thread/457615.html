@@ -1,0 +1,105 @@
+<html>
+<head>
+<title>[MC源码解读] [1.8] 挖掘效率 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[MC源码解读] [1.8] 挖掘效率 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>etflly&nbsp; &nbsp; <b>时间: </b>2015-6-20 13:02<br />
+<b>标题: </b>[MC源码解读] [1.8] 挖掘效率<br /><i class="pstatus"> 本帖最后由 etflly 于 2015-6-21 23:50 编辑 </i><br />
+<div class="quote"><blockquote>本文最初发表于我的<a href="http://etflly.me/?p=94" target="_blank">个人博客</a></blockquote></div><br />
+为了使各种变量函数看起来更清晰，本文中所引用的源代码，均为在<a href="http://etflly.me/?p=9" target="_blank">MCP反编译</a>的基础上进行了进一步的反混淆，可能与刚反编译出的代码不同。<br />
+另外本文基于Minecraft 1.8的源码，在其他版本中可能和本文所述不符。<br />
+<br />
+<strong><font size="4">挖掘机制</font></strong><br />
+<div align="left">在<font face="Consolas, Courier New, monospace">net.minecraft.client.multiplayer.PlayerControllerMP</font>中，挖掘进度存由<font face="Consolas, Courier New, monospace">float</font>型变量<font face="Consolas, Courier New, monospace">curBlockDamageMP</font>保存，初始为0，每1游戏刻根据挖掘工具、挖掘方块、玩家位置等因素增加一定值（后文称这个值为<font face="Consolas, Courier New, monospace">挖掘效率</font>），增加至1时方块被破坏。每个游戏刻只能破坏一个方块。</div><div align="left">破坏两个方块之间有5游戏刻的冷却时间。但是，在非创造模式下，如果<font face="Consolas, Courier New, monospace">挖掘效率&gt;=1</font>，将不会有这个冷却，比如效率V的铲子可以一下子破坏很多土方块。在创造模式下，通过连点的方式（连续点鼠标）也可以无视这个冷却。</div><br />
+<strong><font size="4">挖掘效率计算</font></strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">挖掘效率由net.minecraft.block.Block的getPlayerRelativeBlockHadrdness函数给出，其定义如下</font></p><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_UQq"><ol><li>public float getPlayerRelativeBlockHardness(EntityPlayer playerIn, World worldIn, BlockPos pos)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; float blockHardness = this.getBlockHardness(worldIn, pos);<br />
+<li>&nbsp; &nbsp; return blockHardness &lt; 0.0F ? 0.0F : (!playerIn.canHarvestBlock(this) ? playerIn.getEfficiency(this) / blockHardness / 100.0F : playerIn.getEfficiency(this) / blockHardness / 30.0F);<br />
+<li>}</ol></div><em onclick="copycode($('code_UQq'));">复制代码</em></div><p style="line-height:28px;text-indent:nullem;text-align:left"></td></table></div></div></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">其中getBlockHardness()函数所求的是方块的硬度，当硬度为负数则代表不能被破坏（挖掘效率为0），比如基岩，当硬度为0的时候，挖掘效率为无穷大。canHarvestBlock()函数的含义是所用工具是否能收割此方块（即破坏方块后得到物品），因为涉及很多关于工具、方块、材料的内容，不作进一步展开。getEfficiency()定义如下</font></p><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_s8u"><ol><li>public float getEfficiency(Block block)<br />
+<li>{<br />
+<li>&nbsp; &nbsp; float efficiency = this.inventory.getStrVsBlock(block); // 工具原有效率<br />
+<li><br />
+<li>&nbsp; &nbsp; if (efficiency &gt; 1.0F) // 效率附魔<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int enchantmentLevel = EnchantmentHelper.getEfficiencyModifier(this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemStack item = this.inventory.getCurrentItem();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (enchantmentLevel &gt; 0 &amp;&amp; item != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;efficiency += (float)(enchantmentLevel * enchantmentLevel + 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; if (this.isPotionActive(Potion.digSpeed)) // 挖掘增益buff<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;efficiency *= 1.0F + (float)(this.getActivePotionEffect(Potion.digSpeed).getAmplifier() + 1) * 0.2F;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; if (this.isPotionActive(Potion.digSlowdown)) // 挖掘减益debuff<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;float slowDownModifier = 1.0F;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch (this.getActivePotionEffect(Potion.digSlowdown).getAmplifier())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slowDownModifier = 0.3F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slowDownModifier = 0.09F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 2:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slowDownModifier = 0.0027F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 3:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slowDownModifier = 8.1E-4F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;efficiency *= slowDownModifier;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; if (this.isInsideOfMaterial(Material.water) &amp;&amp; !EnchantmentHelper.getAquaAffinityModifier(this)) // 玩家是否在水中<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;efficiency /= 5.0F;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; if (!this.onGround) // 玩家是否着地<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;efficiency /= 5.0F;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; return efficiency;<br />
+<li>}</ol></div><em onclick="copycode($('code_s8u'));">复制代码</em></div><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,"></td></table></div></div><br />
+综合以上代码，可以得到</font>挖掘效率<font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">的公式为</font><br />
+<div class="blockcode"><div id="code_pZx"><ol><li>挖掘效率 = (工具效率 + 附魔修正值 ) * 增益修正值 * 减益修正值 / 水中修正值 / 悬空修正值 / 硬度 / 收割修正值<br />
+<li></ol></div><em onclick="copycode($('code_pZx'));">复制代码</em></div><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">式中几个值的计算方式如下：</font></p><ul><li>工具效率：如果没有用工具或者所用工具不适用于挖所挖方块（比如用铲子砍树），工具效率为1；铲子、稿子、斧头对适用方块的效率与工具的材料有关（木2，石4，铁6，钻8，金12）；剑对网的效率为15，对草、花、瓜、树叶等效率为1.5；剪刀对树叶和网的效率为15，对羊毛的效率为5。<li>附魔修正值：如果工具效率为1，附魔修正值为0；否则为“效率附魔等级的平方 + 1”。<li>增益修正值：即“急迫”buff。值为“1 + 增益等级 * 0.2 ”。<li>减益修正值：即“挖掘疲劳”debuff。值为0.3^(减益等级)，最大为0.3^4=8.1e-3。不过原版游戏中貌似只出现了挖掘疲劳III，修正值为2.7e-2。<li>水中修正值：如果玩家在水中为5，否则为1。水下速掘附魔会移除此修正值。<li>悬空修正值：如果玩家脚离地为5，否则为1。<li>收割修正值：如果此工具（或空手）可以在破坏此方块后得到物品，为30，否则为100。<br />
+</ul><strong><br />
+<font size="4">示例</font></strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">为了进一步说明挖掘速度的算法，我们来举几个例子</font></p><strong>急迫II效率V钻石镐挖圆石</strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">钻石镐挖圆石的工具效率为8，效率V的附魔修正值为5^2+1=26，急迫II的修正值为1+2*0.2=1.4，圆石的硬度为2，收割修正值为30（稿子可以收集圆石）。</font></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">综合起来挖掘效率为(8+26)*1.4/2/30=0.7933，需要2T破坏，两次破坏之间还会触发5T的冷却，总计7T可以破坏一个圆石。</font></p><strong>急迫II效率V钻石镐挖石头</strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">石头的硬度是1.5，本例其他部分与上例相同。故挖掘效率为(8+26)*1.4/1.5/30=1.0578，需要1T破坏，不会触发5T冷却，总计1T破坏一个石头。</font></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">从这两个例子可以看出如果造石机想要高效率，必然是要生成石头而不是圆石，而且需要急迫II效率V钻石镐做支持，少任意一个条件都会使效率大大下降。</font></p><strong>达到1T破坏草方块所需要钻石铲的最低附魔</strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">钻石铲挖草方块的工具效率为8，设附魔等级为x，附魔修正值为x^2+1，草方块的硬度为0.6，收割修正值为30。可得不等式(8+x^2+1)/0.6/30&gt;=1，解得x&gt;=3。</font><i>然而，由于浮点数计算误差，x=3时游戏会认为效率是0.99999994，不足1，所以要2T才能破坏一个草方块，还会触发5T延迟</i>。</p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">另外泥土方块的硬度为0.5，相应不等式为(8+x^2+1)/0.5/30&gt;=1，解得x&gt;2。</font></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">本例可以看出铲子</font>附魔效率III（不考虑草方块）或IIII（快速挖草方块）<font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">就可以了，更高的附魔基本上是在浪费修理花费的等级……而考虑到快速破坏泥土经常会导致误操作，可以附魔效率II作为“精修铲”。</font></p><strong>被蜘蛛网黏在空中时徒手破坏蜘蛛网</strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">徒手的工具效率为1，悬空修正5，蜘蛛网的硬度为4（牛逼蛛网硬比石头），由于徒手不能收集蛛网，收割修正为100。综合起来挖掘效率为1/5/4/100=1/2000，也就是2000T=100s可以逃脱。</font></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">另外，如果改为用剑，由于剑可以收割网（获得线），收割修正改为30，而且剑对网的效率为15，故挖掘效率为15/5/30=0.1，只要10T就可以逃脱。</font></p><strong>在海底遗迹没有杀死远古守卫者的情况下站在海底用效率V钻石镐挖海晶石</strong><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">钻石镐挖海晶石效率为8，效率V的附魔修正值为5^2+1=26，远古守卫者给予的挖掘疲劳III的减益修正值为0.0027，水中修正值为5，收割修正值为30。挖掘效率即(8+26)*0.027/5/30=0.00612，大约163T=8.2s可以挖掉一个方块。</font></p><p style="line-height:28px;text-indent:nullem;text-align:left"><font face="Helvetica, Tahoma, Arial, STXihei, 华文细黑,">就算你在旁边先建个信标加急迫II的buff，那么挖掘效率也只是0.00612*1.4=0.008568，仍需要116.7T=5.8s才能挖掉一个方块。</font></p><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鳥妖&nbsp; &nbsp; <b>时间: </b>2015-6-20 13:42<br />
+天哪，看不懂。。。。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ricky31415&nbsp; &nbsp; <b>时间: </b>2015-6-20 13:51<br />
+太久没碰java，都忘得差不多了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>821938089&nbsp; &nbsp; <b>时间: </b>2015-6-20 14:11<br />
+圆石挖掘效率算式错了<br />
+(8+26)*1.4/2/100=0.7933（错的）<br />
+(8+26)*1.4/2/30=0.7933（对的）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MODlover&nbsp; &nbsp; <b>时间: </b>2016-8-1 12:48<br />
+用钻石镐挖石头很明显是亏的
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,995 @@
+<html>
+<head>
+<title>如何讓自製怪物有可以打開GUI的功能? - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>如何讓自製怪物有可以打開GUI的功能? <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 00:54<br />
+<b>标题: </b>如何讓自製怪物有可以打開GUI的功能?<br /><i class="pstatus"> 本帖最后由 lycorisrad 于 2020-5-6 00:59 编辑 </i><br />
+<br />
+不好意思新手第一次發文，最近想寫出像女僕模組一樣的自製生物，但是都找不到方法讓自製的生物有可以打開gui的功能，請問各位大大有方法可解嗎?還是有資源範例可以看呢?我找了很多模組的源碼，但是自己試了一遍還是不行，求助!!<br />
+<br />
+<font style="background-color:rgb(247, 247, 247)">EntityCentaur</font>.class<br />
+<div class="blockcode"><div id="code_xNc"><ol><li>package hiro.mod.entity;<br />
+<li><br />
+<li>import javax.annotation.Nonnull;<br />
+<li>import javax.annotation.Nullable;<br />
+<li>import javax.swing.Icon;<br />
+<li><br />
+<li>import hiro.mod.Main;<br />
+<li>import hiro.mod.api.IMonsterTask;<br />
+<li>import hiro.mod.api.MonsterAPI;<br />
+<li>import hiro.mod.api.MonsterAbstract;<br />
+<li>import hiro.mod.api.event.MonsterInteractEvent;<br />
+<li>import hiro.mod.capability.MonsterNumHandler;<br />
+<li>import hiro.mod.capability.MonsterNumSerialzer;<br />
+<li>import hiro.mod.config.GeneralConfig;<br />
+<li>import hiro.mod.init.ItemInit;<br />
+<li>import hiro.mod.util.handlers.MonsterGuiHandler;<br />
+<li>import net.minecraft.entity.EntityAgeable;<br />
+<li>import net.minecraft.entity.EntityLivingBase;<br />
+<li>import net.minecraft.entity.SharedMonsterAttributes;<br />
+<li>import net.minecraft.entity.ai.EntityAIAttackMelee;<br />
+<li>import net.minecraft.entity.ai.EntityAIBase;<br />
+<li>import net.minecraft.entity.ai.EntityAIFollowOwner;<br />
+<li>import net.minecraft.entity.ai.EntityAIFollowParent;<br />
+<li>import net.minecraft.entity.ai.EntityAILeapAtTarget;<br />
+<li>import net.minecraft.entity.ai.EntityAILookIdle;<br />
+<li>import net.minecraft.entity.ai.EntityAIMate;<br />
+<li>import net.minecraft.entity.ai.EntityAIPanic;<br />
+<li>import net.minecraft.entity.ai.EntityAISwimming;<br />
+<li>import net.minecraft.entity.ai.EntityAITempt;<br />
+<li>import net.minecraft.entity.ai.EntityAIWanderAvoidWater;<br />
+<li>import net.minecraft.entity.ai.EntityAIWatchClosest;<br />
+<li>import net.minecraft.entity.passive.EntityCow;<br />
+<li>import net.minecraft.entity.player.EntityPlayer;<br />
+<li>import net.minecraft.init.Blocks;<br />
+<li>import net.minecraft.init.Items;<br />
+<li>import net.minecraft.item.Item;<br />
+<li>import net.minecraft.item.ItemFood;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraft.network.datasync.DataParameter;<br />
+<li>import net.minecraft.network.datasync.DataSerializers;<br />
+<li>import net.minecraft.network.datasync.EntityDataManager;<br />
+<li>import net.minecraft.util.DamageSource;<br />
+<li>import net.minecraft.util.EnumHand;<br />
+<li>import net.minecraft.util.ResourceLocation;<br />
+<li>import net.minecraft.util.SoundEvent;<br />
+<li>import net.minecraft.util.text.TextComponentTranslation;<br />
+<li>import net.minecraft.world.World;<br />
+<li>import net.minecraftforge.common.MinecraftForge;<br />
+<li>import net.minecraftforge.common.capabilities.ICapabilityProvider;<br />
+<li><br />
+<li>public class EntityCentaur extends MonsterAbstract implements ICapabilityProvider{<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static final DataParameter&lt;Integer&gt; EXP = EntityDataManager.createKey(EntityCentaur.class, DataSerializers.VARINT);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static final DataParameter&lt;String&gt; TASK = EntityDataManager.createKey(EntityCentaur.class, DataSerializers.STRING);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li><br />
+<li>&nbsp; &nbsp; private static final int Priority_Task =5;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp; @Nullable<br />
+<li>&nbsp; &nbsp; private EntityAIBase taskAI;<br />
+<li>&nbsp; &nbsp; public boolean guiOpened;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Nonnull<br />
+<li>&nbsp; &nbsp; private IMonsterTask task = MonsterAPI.getIdleTask();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public EntityCentaur(World worldIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(worldIn);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.setSize(0.9F, 2.0F);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@SuppressWarnings(&quot;unchecked&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; protected void initEntityAI() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.tasks.addTask(1, new EntityAISwimming(this));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(2, this.aiSit);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(4, new EntityAILeapAtTarget(this, 0.4F));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(5, new EntityAIAttackMelee(this, 1.0D, true));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(6, new EntityAIFollowOwner(this, 1.0D, 10.0F, 2.0F));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(7, new EntityAIMate(this, 1.0D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(8, new EntityAIWanderAvoidWater(this, 1.0D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(10, new EntityAIWatchClosest(this, EntityPlayer.class, 8.0F));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(10, new EntityAILookIdle(this));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(1, new EntityAIPanic(this, 2.0D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(2, new EntityAIMate(this, 10D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(3, new EntityAITempt(this, 1.25D, ItemInit.COPPER_INGOT, false));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(4, new EntityAIFollowParent(this, 1.25D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(5, new EntityAIWanderAvoidWater(this, 1.0D));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(6, new EntityAIWatchClosest(this, EntityPlayer.class, 6.0F));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.tasks.addTask(7, new EntityAILookIdle(this));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public IMonsterTask getTask() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return MonsterAPI.findTask(new ResourceLocation(this.dataManager.get(TASK)))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;.or( MonsterAPI.getIdleTask());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; protected void applyEntityAttributes()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super.applyEntityAttributes();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.getEntityAttribute(SharedMonsterAttributes.MOVEMENT_SPEED).setBaseValue(0.30000001192092896D);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.isTamed())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(20.0D);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.getEntityAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(8.0D);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.getAttributeMap().registerAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).setBaseValue(2.0D);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp; public float getEyeHeight() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return 2.6F;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public MonsterAbstract createChild(EntityAgeable ageable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return new EntityCentaur(world);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected SoundEvent getAmbientSound() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getAmbientSound();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected SoundEvent getHurtSound(DamageSource source) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getHurtSound(source);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected SoundEvent getDeathSound() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getDeathSound();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; private boolean monsteropenGui(EntityPlayer player) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(!world.isRemote) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.openGui(hiro.mod.Main.instance, MonsterGuiHandler.MainGui.MAIN.getId(), world, this.getEntityId(),0 , 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void attackEntityWithRangedAttack(EntityLivingBase target, float distanceFactor) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO Auto-generated method stub<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void setSwingingArms(boolean swingingArms) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO Auto-generated method stub<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean canBeCollidedWith() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public int getExp() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO Auto-generated method stub<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_xNc'));">复制代码</em></div>MonsterGuiHandler.class<br />
+<div class="blockcode"><div id="code_naG"><ol><li>package hiro.mod.util.handlers;<br />
+<li><br />
+<li>import javax.annotation.Nullable;<br />
+<li><br />
+<li>import hiro.mod.entity.EntityCentaur;<br />
+<li>import hiro.mod.inventory.MonsterMainContainer;<br />
+<li>import net.minecraft.entity.Entity;<br />
+<li>import net.minecraft.entity.player.EntityPlayer;<br />
+<li>import net.minecraft.world.World;<br />
+<li>import net.minecraftforge.fml.common.network.IGuiHandler;<br />
+<li>import scala.reflect.internal.Trees.New;<br />
+<li><br />
+<li>public class MonsterGuiHandler&nbsp;&nbsp;implements IGuiHandler{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Nullable<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Object getServerGuiElement(int guiId, EntityPlayer player,World world,int entityId,int taskIndex,int startRow) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Entity entity = world.getEntityByID(entityId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(guiId == MainGui.MAIN.getId() &amp;&amp; entity instanceof EntityCentaur) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new MonsterMainContainer(player.inventory, (EntityCentaur) entity,taskIndex);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Nullable<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Object getClientGuiElement(int guiId, EntityPlayer player,World world,int entityId,int taskIndex,int startRow) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Entity entity = world.getEntityByID(entityId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(guiId == MainGui.MAIN.getId() &amp;&amp; entity instanceof EntityCentaur) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new MonsterMainContainer(player.inventory, (EntityCentaur) entity,taskIndex); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public enum MainGui{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; MAIN(1),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; INVENTORY(2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; private int id;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; MainGui(int id){this.id=id;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public int getId() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return id;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} <br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_naG'));">复制代码</em></div>MonsterMainContainer.class<br />
+<div class="blockcode"><div id="code_Ii7"><ol><li>package hiro.mod.inventory;<br />
+<li><br />
+<li>import java.awt.Container;<br />
+<li><br />
+<li>import javax.annotation.Nonnull;<br />
+<li>import javax.annotation.Nullable;<br />
+<li><br />
+<li>import hiro.mod.api.IMonsterTask;<br />
+<li>import hiro.mod.api.MonsterAPI;<br />
+<li>import hiro.mod.entity.EntityCentaur;<br />
+<li>import hiro.mod.network.simpleimpl.ChangeMonsterTaskMessage;<br />
+<li>import hiro.mod.proxy.CommonProxy;<br />
+<li>import net.minecraft.enchantment.EnchantmentHelper;<br />
+<li>import net.minecraft.entity.player.EntityPlayer;<br />
+<li>import net.minecraft.inventory.EntityEquipmentSlot;<br />
+<li>import net.minecraft.inventory.IInventory;<br />
+<li>import net.minecraft.inventory.Slot;<br />
+<li>import net.minecraft.item.ItemArmor;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraftforge.fml.relauncher.Side;<br />
+<li>import net.minecraftforge.fml.relauncher.SideOnly;<br />
+<li>import net.minecraftforge.items.CapabilityItemHandler;<br />
+<li>import net.minecraftforge.items.IItemHandler;<br />
+<li>import net.minecraftforge.items.SlotItemHandler;<br />
+<li><br />
+<li>public class MonsterMainContainer extends net.minecraft.inventory.Container{<br />
+<li> private static final EntityEquipmentSlot[] VALID_EQUIPMENT_SLOTS = new EntityEquipmentSlot[]{EntityEquipmentSlot.HEAD, EntityEquipmentSlot.CHEST, EntityEquipmentSlot.LEGS, EntityEquipmentSlot.FEET};&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li> public EntityCentaur monster;<br />
+<li> public int taskIndex;<br />
+<li> public IMonsterTask task;<br />
+<li> <br />
+<li> public MonsterMainContainer (IInventory playerInventory,EntityCentaur monster,int taskIndex) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; addPlayerSlots(playerInventory);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.monster = monster;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(0 &lt; taskIndex &amp;&amp; taskIndex &lt; MonsterAPI.getTasks().size()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.taskIndex = taskIndex;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.taskIndex =0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task = MonsterAPI.getTasks().get(this.taskIndex);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;monster.guiOpened = true;<br />
+<li> }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li> @Override<br />
+<li> public void detectAndSendChanges() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;monster.guiOpened = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;super.detectAndSendChanges();<br />
+<li> }<br />
+<li> <br />
+<li> @Override<br />
+<li> public void onContainerClosed(EntityPlayer playerIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;monster.guiOpened = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(playerIn.world.isRemote) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CommonProxy.INSTANCE.sendToServer(new ChangeMonsterTaskMessage(monster.getUniqueID(), task));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;super.onContainerClosed(playerIn);<br />
+<li> }<br />
+<li> <br />
+<li> @Override<br />
+<li> public boolean canInteractWith(@Nonnull EntityPlayer playerIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return this.monster.getOwnerId() != null &amp;&amp; this.monster.getOwnerId().equals(playerIn.getUniqueID())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &amp;&amp; this.monster.isEntityAlive() &amp;&amp; this.monster.getDistance(playerIn) &lt; 5.0F;<br />
+<li> } <br />
+<li> private void addPlayerSlots(IInventory playerInventory) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//玩家物品欄<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (int i=0 ; i&lt;3 ;++i) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(int j1=0;j1&lt;9;++j1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.addSlotToContainer(new Slot(playerInventory, j1 + (i+ 1) * 9, 8 + j1 * 18, 84 + i * 18));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for(int i1=0;i1&lt;9;++i1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.addSlotToContainer(new Slot(playerInventory, i1, 8 + i1 * 18, 142));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li> }<br />
+<li> private void addEntityArmorAndHandSlots(EntityCentaur BasicMonster) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;IItemHandler itemHandler = BasicMonster.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;// 占用 0-3<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;addArmorSlot(BasicMonster, itemHandler);<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;// 占用 4-5<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;addHandSlot(itemHandler);<br />
+<li> }<br />
+<li><br />
+<li> private void addArmorSlot(EntityCentaur BasicMonster, IItemHandler itemHandler) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;for (int k = 0; k &lt; 4; ++k) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final EntityEquipmentSlot entityequipmentslot = VALID_EQUIPMENT_SLOTS[k];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.addSlotToContainer(new SlotItemHandler(itemHandler, 3 - k, 8, 8 + k * 18) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public int getSlotStackLimit() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public boolean isItemValid(@Nonnull ItemStack stack) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return stack.getItem().isValidArmor(stack, entityequipmentslot, BasicMonster) &amp;&amp; super.isItemValid(stack);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public boolean canTakeStack(EntityPlayer playerIn) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemStack itemstack = this.getStack();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (itemstack.isEmpty() || playerIn.isCreative() || !EnchantmentHelper.hasBindingCurse(itemstack)) &amp;&amp; super.canTakeStack(playerIn);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Nullable<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @SideOnly(Side.CLIENT)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public String getSlotTexture() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return ItemArmor.EMPTY_SLOT_NAMES[entityequipmentslot.getIndex()];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li> }<br />
+<li><br />
+<li> private void addHandSlot(IItemHandler itemHandler) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;this.addSlotToContainer(new SlotItemHandler(itemHandler, 4, 80, 62));<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;this.addSlotToContainer(new SlotItemHandler(itemHandler, 5, 98, 62) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@SideOnly(Side.CLIENT)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public String getSlotTexture() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;minecraft:items/empty_armor_slot_shield&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li> }<br />
+<li><br />
+<li><br />
+<li> @Nonnull<br />
+<li> @Override<br />
+<li> public ItemStack transferStackInSlot(EntityPlayer playerIn, int index) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;ItemStack itemstack = ItemStack.EMPTY;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;Slot slot = this.inventorySlots.get(index);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;if (slot != null &amp;&amp; slot.getHasStack()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ItemStack itemstack1 = slot.getStack();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;itemstack = itemstack1.copy();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (index &lt; 6) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!this.mergeItemStack(itemstack1, 6, this.inventorySlots.size(), true)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return ItemStack.EMPTY;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else if (!this.mergeItemStack(itemstack1, 0, 6, false)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return ItemStack.EMPTY;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (itemstack1.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slot.putStack(ItemStack.EMPTY);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; slot.onSlotChanged();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;return itemstack;<br />
+<li> }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Ii7'));">复制代码</em></div>MonsterMainContianerGui.class<br />
+<div class="blockcode"><div id="code_G68"><ol><li>package hiro.mod.client.gui;<br />
+<li><br />
+<li>import hiro.mod.api.MonsterAbstract;<br />
+<li>import hiro.mod.client.gui.inventory.AbstractMonsterGuiContainer;<br />
+<li>import hiro.mod.entity.EntityCentaur;<br />
+<li>import hiro.mod.inventory.MonsterMainContainer;<br />
+<li>import net.minecraft.client.renderer.GlStateManager;<br />
+<li>import net.minecraft.client.resources.I18n;<br />
+<li>import net.minecraft.entity.SharedMonsterAttributes;<br />
+<li>import net.minecraft.entity.player.InventoryPlayer;<br />
+<li>import net.minecraftforge.fml.relauncher.Side;<br />
+<li>import net.minecraftforge.fml.relauncher.SideOnly;<br />
+<li><br />
+<li>import static hiro.mod.util.handlers.MonsterGuiHandler.MainGui.MAIN;<br />
+<li><br />
+<li>import java.util.Locale;<br />
+<li>@SideOnly(Side.CLIENT)<br />
+<li>public class MonsterMainContainerGui extends AbstractMonsterGuiContainer{<br />
+<li>&nbsp; &nbsp;public MonsterMainContainerGui(InventoryPlayer inventory,EntityCentaur monster,int taskIndex) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(new MonsterMainContainer(inventory, monster, taskIndex), MAIN.getId());<br />
+<li>&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;public void drawCustomScreen(int mouseX, int mouseY, float partialTicks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; int i = this.guiLeft;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; int j = this.guiTop;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; GlStateManager.pushMatrix();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; mc.renderEngine.bindTexture(BACKGROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; GlStateManager.disableLighting();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 80, j + 10, 178, 93, 9, 9);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 80, j + 22, 188, 93, 9, 9);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 105, j + 10, 178, 104, 64, 9);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 105, j + 22, 178, 104, 64, 9);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 107, j + 12, 180, 114, (int) (64 * monster.getHealth() / monster.getMaxHealth()), 5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; double armorNum = monster.getEntityAttribute(SharedMonsterAttributes.ARMOR).getAttributeValue();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; drawTexturedModalRect(i + 107, j + 24, 180, 120, (int) (64 * (armorNum % 20.00000000001) / 20), 5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; GlStateManager.enableLighting();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; GlStateManager.popMatrix();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; fontRenderer.drawString(String.valueOf(Math.round(monster.getHealth())), i + 91, j + 11, 0x555555, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; fontRenderer.drawString(String.valueOf(Math.round(armorNum)), i + 91, j + 23, 0x555555, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; fontRenderer.drawString(I18n.format(&quot;gui.touhou_little_monster.info.attack&quot;, DECIMAL_FORMAT.format(monster.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).getAttributeValue())), i + 80, j + 35, 0x555555, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; fontRenderer.drawString(I18n.format(&quot;gui.touhou_little_monster.info.experience&quot;, monster.getExp()), i + 80, j + 46, 0x555555, false);<br />
+<li>&nbsp; &nbsp;}<br />
+<li>@Override<br />
+<li>&nbsp; &nbsp;public void drawCustomBackground(int mouseX, int mouseY, float partialTicks) {<br />
+<li>&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;public void drawCustomTooltips(int mouseX, int mouseY, float partialTicks) {<br />
+<li>&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;public int getRenderPotionStartXOffset() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; return 0;<br />
+<li>&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;public String getGuiName() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; return MAIN.name().toLowerCase(Locale.US);<br />
+<li>&nbsp; &nbsp;}<br />
+<li>}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li></ol></div><em onclick="copycode($('code_G68'));">复制代码</em></div>MonsterInteractEvent.class<br />
+<div class="blockcode"><div id="code_vuZ"><ol><li>package hiro.mod.api.event;<br />
+<li><br />
+<li>import hiro.mod.api.MonsterAbstract;<br />
+<li>import net.minecraft.entity.player.EntityPlayer;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraft.world.World;<br />
+<li>import net.minecraftforge.fml.common.eventhandler.Cancelable;<br />
+<li>import net.minecraftforge.fml.common.eventhandler.Event;<br />
+<li>import scala.tools.reflect.Eval;<br />
+<li><br />
+<li>@Cancelable<br />
+<li>public class MonsterInteractEvent extends Event{<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private World world;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private MonsterAbstract monster;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private EntityPlayer player;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private ItemStack stack;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public MonsterInteractEvent(EntityPlayer player,MonsterAbstract monster,ItemStack stack)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.world = player.getEntityWorld();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.player = player;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.stack = stack;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.monster = monster;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; public EntityPlayer getplayer() {return player;}<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public World getworld() {return world;}<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public MonsterAbstract getmonsterid() {return monster;}<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public ItemStack getstack() {return stack;}<br />
+<li>}</ol></div><em onclick="copycode($('code_vuZ'));">复制代码</em></div>Main.calss<br />
+<div class="blockcode"><div id="code_dh8"><ol><li>package hiro.mod;<br />
+<li><br />
+<li>import hiro.mod.init.BlockInit;<br />
+<li>import hiro.mod.objects.blocks.BlockBase;<br />
+<li>import hiro.mod.proxy.CommonProxy;<br />
+<li>import hiro.mod.tabs.HiroTab;<br />
+<li>import hiro.mod.util.Reference;<br />
+<li>import hiro.mod.util.handlers.RegistryHandler;<br />
+<li>import net.minecraft.creativetab.CreativeTabs;<br />
+<li>import net.minecraftforge.fml.common.Mod;<br />
+<li>import net.minecraftforge.fml.common.Mod.EventHandler;<br />
+<li>import net.minecraftforge.fml.common.Mod.Instance;<br />
+<li>import net.minecraftforge.fml.common.SidedProxy;<br />
+<li>import net.minecraftforge.fml.common.event.FMLInitializationEvent;<br />
+<li>import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;<br />
+<li>import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;<br />
+<li><br />
+<li><br />
+<li>@Mod(modid = Reference.MODID,name = Reference.NAME, version = Reference.VERSION)<br />
+<li>public class Main {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final CreativeTabs Hirotab = new HiroTab(&quot;hiro's tab&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Mod.Instance<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static Main instance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@SidedProxy(clientSide = Reference.CLIENT, serverSide = Reference.COMMON)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static CommonProxy proxy;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void preInit(FMLPreInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; RegistryHandler.preInitRegistries();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; proxy.registerTileEntities();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp; &nbsp; public static void init(FMLPostInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; RegistryHandler.initRegistries(event);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp; &nbsp; public static void postInit(FMLInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; RegistryHandler.postInitRegistries(event);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_dh8'));">复制代码</em></div>AbstractMonsterGuiContainer.class<br />
+<div class="blockcode"><div id="code_LlR"><ol><li>package hiro.mod.client.gui.inventory;<br />
+<li><br />
+<li>import java.text.DecimalFormat;<br />
+<li>import java.util.Arrays;<br />
+<li>import java.util.Collection;<br />
+<li>import java.util.concurrent.ScheduledExecutorService;<br />
+<li>import java.util.concurrent.ScheduledThreadPoolExecutor;<br />
+<li>import java.util.concurrent.TimeUnit;<br />
+<li><br />
+<li>import org.apache.commons.lang3.concurrent.BasicThreadFactory;<br />
+<li>import org.lwjgl.opengl.GL11;<br />
+<li><br />
+<li>import hiro.mod.api.IMonsterTask;<br />
+<li>import hiro.mod.api.MonsterAPI;<br />
+<li>import hiro.mod.entity.EntityCentaur;<br />
+<li>import hiro.mod.inventory.MonsterMainContainer;<br />
+<li>import hiro.mod.proxy.CommonProxy;<br />
+<li>import hiro.mod.util.Reference;<br />
+<li>import hiro.mod.util.handlers.MonsterGuiHandler;<br />
+<li>import net.minecraft.client.gui.GuiButtonImage;<br />
+<li>import net.minecraft.client.gui.GuiButtonToggle;<br />
+<li>import net.minecraft.client.gui.ScaledResolution;<br />
+<li>import net.minecraft.client.gui.inventory.GuiContainer;<br />
+<li>import net.minecraft.client.gui.inventory.GuiInventory;<br />
+<li>import net.minecraft.client.renderer.GlStateManager;<br />
+<li>import net.minecraft.client.renderer.RenderHelper;<br />
+<li>import net.minecraft.client.resources.I18n;<br />
+<li>import net.minecraft.init.Blocks;<br />
+<li>import net.minecraft.init.Items;<br />
+<li>import net.minecraft.item.Item;<br />
+<li>import net.minecraft.item.ItemStack;<br />
+<li>import net.minecraft.potion.Potion;<br />
+<li>import net.minecraft.potion.PotionEffect;<br />
+<li>import net.minecraft.util.ResourceLocation;<br />
+<li>import net.minecraft.util.text.TextFormatting;<br />
+<li>import net.minecraftforge.fml.relauncher.Side;<br />
+<li>import net.minecraftforge.fml.relauncher.SideOnly;<br />
+<li><br />
+<li>@SideOnly(Side.CLIENT)<br />
+<li>public abstract class AbstractMonsterGuiContainer extends GuiContainer{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat(&quot;0.0&quot;);<br />
+<li>&nbsp; &nbsp; protected static final ResourceLocation BACKGROUND = new ResourceLocation(Reference.MODID, &quot;textures/gui/inventory_main.png&quot;);<br />
+<li>&nbsp; &nbsp; private static final ResourceLocation SIDE = new ResourceLocation(Reference.MODID, &quot;textures/gui/inventory_side.png&quot;);<br />
+<li>&nbsp; &nbsp; private static final ResourceLocation ICON = new ResourceLocation(Reference.MODID, &quot;textures/gui/inventory_icon.png&quot;);<br />
+<li>&nbsp; &nbsp; private static ItemStack BARRIER = new ItemStack(Blocks.BARRIER);<br />
+<li>&nbsp; &nbsp; private static ScheduledExecutorService timer;<br />
+<li>&nbsp; &nbsp; private static int taskPageIndex;<br />
+<li>&nbsp; &nbsp; protected MonsterMainContainer container;<br />
+<li>&nbsp; &nbsp; protected EntityCentaur monster;<br />
+<li>&nbsp; &nbsp; private int guiId;<br />
+<li>&nbsp; &nbsp; private int taskPageTotal;<br />
+<li>&nbsp; &nbsp; private GuiButtonToggle togglePickup;<br />
+<li>&nbsp; &nbsp; private GuiButtonToggle toggleHome;<br />
+<li><br />
+<li>&nbsp; &nbsp; public AbstractMonsterGuiContainer(MonsterMainContainer inventorySlotsIn, int guiId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(inventorySlotsIn);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.guiId = guiId;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.container = inventorySlotsIn;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.monster = container.monster;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.taskPageTotal = (MonsterAPI.getTasks().size() - 1) / 6;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; public abstract void drawCustomBackground(int mouseX, int mouseY, float partialTicks);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; public abstract void drawCustomScreen(int mouseX, int mouseY, float partialTicks);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; public abstract void drawCustomTooltips(int mouseX, int mouseY, float partialTicks);<br />
+<li><br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp; public abstract String getGuiName();<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void initGui() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.buttonList.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.labelList.clear();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.initGui();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = this.guiLeft;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int j = this.guiTop;<br />
+<li><br />
+<li> <br />
+<li> <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.buttonList.add(new GuiButtonImage(BUTTON.MAIN.ordinal(), i + 6, j - 25, 22,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 22, 234, 234, 0, BACKGROUND));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.buttonList.add(new GuiButtonImage(BUTTON.INVENTORY.ordinal(), i + 34, j - 25, 22,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 22, 234, 234, 0, BACKGROUND));<br />
+<li><br />
+<li>&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GuiButtonImage leftSwitch = new GuiButtonImage(BUTTON.TASK_LEFT_SWITCH.ordinal(), i - 70, j + 150, 7,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 11, 177, 0, 16, SIDE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GuiButtonImage rightSwitch = new GuiButtonImage(BUTTON.TASK_RIGHT_SWITCH.ordinal(), i - 17, j + 150, 7,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 11, 165, 0, 16, SIDE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;leftSwitch.visible = taskPageIndex &gt; 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;rightSwitch.visible = taskPageIndex &lt; taskPageTotal;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.buttonList.add(leftSwitch);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.buttonList.add(rightSwitch);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int k = 0; k &lt; 6; k++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (k + taskPageIndex * 6 &gt;= MonsterAPI.getTasks().size()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (MonsterAPI.getTasks().get(k + taskPageIndex * 6) == container.task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.buttonList.add(new GuiButtonImage(k + BUTTON.values().length, i - 70, j + 23 + 21 * k, 60,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;20, 98, 0, 0, SIDE));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.buttonList.add(new GuiButtonImage(k + BUTTON.values().length, i - 70, j + 23 + 21 * k, 60,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;20, 98, 20, 20, SIDE));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void drawScreen(int mouseX, int mouseY, float partialTicks) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.drawScreen(mouseX, mouseY, partialTicks);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawCustomScreen(mouseX, mouseY, partialTicks);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = this.guiLeft;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int j = this.guiTop;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean xInRange;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean yInRange;<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String currentModeName = TextFormatting.DARK_GRAY + I18n.format(container.task.getTranslation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;fontRenderer.drawString(currentModeName, (float) (i - 39 - fontRenderer.getStringWidth(currentModeName) / 2), j + 9, 0xffffff, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String pageText = String.format(&quot;%s%d/%d&quot;, TextFormatting.DARK_GRAY, taskPageIndex + 1, this.taskPageTotal + 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;fontRenderer.drawString(pageText, (float) (i - 39 - fontRenderer.getStringWidth(pageText) / 2), j + 151, 0xffffff, false);<br />
+<li><br />
+<li> <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int k = 0; k &lt; 6; k++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (k + taskPageIndex * 6 &gt;= MonsterAPI.getTasks().size()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IMonsterTask task = MonsterAPI.getTasks().get(k + taskPageIndex * 6);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;drawItemStack(task.getIcon(), i - 68, j + 25 + 21 * k);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String name = I18n.format(task.getTranslation());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;fontRenderer.drawString(name, i - 32 - fontRenderer.getStringWidth(name) / 2.0f, j + 29 + 21 * k, 0xdddddd, false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mc.renderEngine.bindTexture(ICON);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawModalRectWithCustomSizedTexture(i + 8, j + 170, 0, 0, 14, 14, 256, 256);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawModalRectWithCustomSizedTexture(i + 29, j + 170, 14, 0, 14, 14, 256, 256);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawModalRectWithCustomSizedTexture(i + 50, j + 170, 28, 0, 14, 14, 256, 256);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawModalRectWithCustomSizedTexture(i + 71, j + 170, 42, 0, 14, 14, 256, 256);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int k = 2; k &lt; 6; k++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;drawItemStack(BARRIER, i + 49 + 21 * k, j + 169);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int spacing = 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Collection&lt;PotionEffect&gt; effects = monster.getActivePotionEffects();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (PotionEffect effect : effects) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (effect.getDuration() &lt;= 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Potion potion = effect.getPotion();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int startX = i + 178 + getRenderPotionStartXOffset();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int startY = j + 5 + spacing;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;spacing += 12;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;GlStateManager.pushMatrix();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;GlStateManager.translate(startX, startY - 1.5, 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;GlStateManager.scale(0.6, 0.6, 0.6);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.mc.getTextureManager().bindTexture(INVENTORY_BACKGROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (potion.hasStatusIcon()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int index = potion.getStatusIconIndex();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.drawTexturedModalRect(0, 0, index % 8 * 18, 198 + index / 8 * 18, 18, 18);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;GlStateManager.popMatrix();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;potion.renderInventoryEffect(i, j, effect, mc);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!potion.shouldRenderInvText(effect)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (effect.getDuration() &gt; 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; fontRenderer.drawString(String.format(&quot;%s %s %s %s%s&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;effect.getPotion().isBadEffect() ? TextFormatting.RED : TextFormatting.RESET,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;I18n.format(effect.getEffectName()),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;I18n.format(&quot;enchantment.level.&quot; + (effect.getAmplifier() + 1)),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;TextFormatting.GRAY,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Potion.getPotionDurationString(effect, 1.0f)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ), startX + 9, startY, 0xffffffff, true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = this.guiLeft;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int j = this.guiTop;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawDefaultBackground();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GlStateManager.color(1, 1, 1, 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mc.getTextureManager().bindTexture(BACKGROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawTexturedModalRect(i + 3, j - 28, 0, 193, 168, 32);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mc.getTextureManager().bindTexture(SIDE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawTexturedModalRect(i - 76, j, 0, 0, 89, this.ySize);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mc.getTextureManager().bindTexture(BACKGROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawTexturedModalRect(i, j, 0, 0, this.xSize, this.ySize);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;drawCustomBackground(mouseX, mouseY, partialTicks);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mc.getTextureManager().bindTexture(BACKGROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawTexturedModalRect(i + 3 + 28 * (guiId - 1), j - 28, 28 * (guiId - 1), 224, 28, 32);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(Items.WRITABLE_BOOK.getDefaultInstance(), i + 9, j - 19);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(Item.getItemFromBlock(Blocks.CHEST).getDefaultInstance(), i + 37, j - 19);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(new ItemStack(Items.DYE, 1, 4), i + 65, j - 19);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(BARRIER, i + 93, j - 19);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(BARRIER, i + 121, j - 19);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.drawItemStack(BARRIER, i + 149, j - 19);<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ScaledResolution res = new ScaledResolution(mc);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;double scaleW = mc.displayWidth / res.getScaledWidth_double();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;double scaleH = mc.displayHeight / res.getScaledHeight_double();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GL11.glScissor((int) ((i + 26) * scaleW), (int) ((j + 87.5) * scaleH), (int) (49 * scaleW), (int) (70 * scaleH));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GL11.glEnable(GL11.GL_SCISSOR_TEST);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GuiInventory.drawEntityOnScreen(i + 51, j + 70, 28,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; (float) (i + 51) - mouseX, (float) (j + 70 - 45) - mouseY, monster);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GL11.glDisable(GL11.GL_SCISSOR_TEST);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li> <br />
+<li>&nbsp; &nbsp; private void drawItemStack(ItemStack stack, int x, int y) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;RenderHelper.enableGUIStandardItemLighting();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GlStateManager.translate(0.0F, 0.0F, 32.0F);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.zLevel = 200.0F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.itemRender.zLevel = 200.0F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.itemRender.renderItemAndEffectIntoGUI(stack, x, y);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.zLevel = 0.0F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.itemRender.zLevel = 0.0F;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;RenderHelper.disableStandardItemLighting();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; abstract public int getRenderPotionStartXOffset();<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int getXSize() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (monster.getActivePotionEffects().size() &lt;= 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getXSize() + getRenderPotionStartXOffset();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int i = 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (PotionEffect effect : monster.getActivePotionEffects()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; i += effect.getDuration();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (i == 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return super.getXSize() + getRenderPotionStartXOffset();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.getXSize() + 128 + getRenderPotionStartXOffset();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li> <br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onGuiClosed() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;timer.shutdownNow();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.onGuiClosed();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; public enum BUTTON {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MAIN(MonsterGuiHandler.MainGui.MAIN.getId()),<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;INVENTORY(MonsterGuiHandler.MainGui.INVENTORY.getId());<br />
+<li><br />
+<li> <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private int guiId;<br />
+<li><br />
+<li> <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BUTTON(int guiId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.guiId = guiId;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public int getGuiId() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return guiId;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_LlR'));">复制代码</em></div><br />
+
+<br />
+麻煩了!!<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2020-5-6 01:15<br />
+你的 EntityCentaur.class 没有调用 EntityPlayer#openGui。参考这个：<br />
+<a href="https://github.com/TartaricAcid/TouhouLittleMaid/blob/415433b0b235b765bd963a6be1534c8afa7117ab/src/main/java/com/github/tartaricacid/touhoulittlemaid/entity/passive/EntityMaid.java#L672-L689" target="_blank">https://github.com/TartaricAcid/ ... Maid.java#L672-L689</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 01:40<br />
+<div class="quote"><blockquote><font color="#999999">3TUSK 发表于 2020-5-6 01:15</font><br />
+<font color="#999999">你的 EntityCentaur.class 没有调用 EntityPlayer#openGui。参考这个：<br />
+https://github.com/TartaricAcid/T ...</font></blockquote></div><br />
+我調用他的processinteract還是一樣沒有效果，我覺得我需要一個最簡單的範例讓我能搞清楚其原理，非常感謝大大幫忙。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hanbofeng&nbsp; &nbsp; <b>时间: </b>2020-5-6 05:51<br />
+？看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>飞翔之歌&nbsp; &nbsp; <b>时间: </b>2020-5-6 08:50<br />
+你是想往机器里塞东西吗？<br />
+使用Capability<br />
+你的自制怪物又不是玩家，何来的打开GUI?<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 09:54<br />
+<i class="pstatus"> 本帖最后由 lycorisrad 于 2020-5-6 09:59 编辑 </i><br />
+<div class="quote"><blockquote><font color="#999999">飞翔之歌 发表于 2020-5-6 08:50</font><br />
+<font color="#999999">你是想往机器里塞东西吗？<br />
+使用Capability<br />
+你的自制怪物又不是玩家，何来的打开GUI? ...</font></blockquote></div><br />
+
+<br />
+我是想讓自製怪物可以像原版的馬一樣，按shift+右鍵可以打開物品欄或是功能鍵，但是弄不出來，我不知道entity. Class應該放什麼東西，或是我少加了哪些class，還是感謝回答。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>飞翔之歌&nbsp; &nbsp; <b>时间: </b>2020-5-6 10:32<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18061999&amp;ptid=1039046" target="_blank"><font color="#999999">lycorisrad 发表于 2020-5-6 09:54</font></a></font><br />
+我是想讓自製怪物可以像原版的馬一樣，按shift+右鍵可以打開物品欄或是功能鍵，但是弄不出來，我不知道en ...</blockquote></div><br />
+你需要添加一个GUI<br />
+思路是：<br />
+监听玩家互动事件，如果被互动的对象是你的怪物，就打开GUI。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MaxSeth&nbsp; &nbsp; <b>时间: </b>2020-5-6 10:48<br />
+<i class="pstatus"> 本帖最后由 12356789onetwo 于 2020-5-6 10:53 编辑 </i><br />
+<br />
+Entity类里有个叫<font color="#170591">processInitialInteract</font>的方法，覆写这个方法应该就能在右键时候打开gui<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:01<br />
+<div class="quote"><blockquote><font color="#999999">飞翔之歌 发表于 2020-5-6 10:32</font><br />
+<font color="#999999">你需要添加一个GUI<br />
+思路是：<br />
+监听玩家互动事件，如果被互动的对象是你的怪物，就打开GUI。<br />
+</font></blockquote></div><br />
+對我已經有寫出Gui的class了，然後照你的思路是指這串代碼嗎？如果是的話我試過了還是沒有用。我不知道是怎麼回事，還是感謝幫忙，我試試看打掉重寫一遍。<br />
+<br />
+@Override<br />
+&nbsp; &nbsp; public boolean processInteract(EntityPlayer player, @Nullable EnumHand hand) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 必须是主手<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (hand == EnumHand.MAIN_HAND) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;boolean isYourMaid = this.isTamed() &amp;&amp; this.getOwnerId() != null &amp;&amp; this.getOwnerId().equals(player.getUniqueID());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ItemStack itemstack = player.getHeldItem(hand);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (isYourMaid) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 事件系统实现更清晰的交互<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 利用短路原理，逐个触发对应的交互事件<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return MinecraftForge.EVENT_BUS.post(new InteractMaidEvent(player, this, itemstack))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;|| itemstack.interactWithEntity(player, this, EnumHand.MAIN_HAND)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;|| openMaidGui(player);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return tamedMaid(itemstack, player);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+&nbsp; &nbsp; }<br />
+<br />
+/**<br />
+&nbsp; &nbsp;&nbsp;&nbsp;* 打开 GUI<br />
+&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+&nbsp; &nbsp;&nbsp;&nbsp;* @return 该逻辑是否成功应用<br />
+&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+&nbsp; &nbsp; private boolean openMaidGui(EntityPlayer player) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 否则打开 GUI<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!world.isRemote) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.openGui(TouhouLittleMaid.INSTANCE, MaidGuiHandler.MAIN_GUI.MAIN.getId(), world, this.getEntityId(), LittleMaidAPI.getTasks().indexOf(task), 0);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+&nbsp; &nbsp; }<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>飞翔之歌&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18063713&amp;ptid=1039046" target="_blank"><font color="#999999">lycorisrad 发表于 2020-5-6 11:01</font></a></font><br />
+對我已經有寫出Gui的class了，然後照你的思路是指這串代碼嗎？如果是的話我試過了還是沒有用。我不知道是 ...</blockquote></div><br />
+思路就是这个了<br />
+如果你是在开发环境测试的，那么请重新召唤一个测试。因为名字会变（Forge使用的是随机名字/UUID）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:09<br />
+<div class="quote"><blockquote><font color="#999999">12356789onetwo 发表于 2020-5-6 10:48</font><br />
+<font color="#999999">Entity类里有个叫processInitialInteract的方法，覆写这个方法应该就能在右键时候打开gui ...</font></blockquote></div><br />
+謝謝幫忙，你的意思是說entity.class要實現觸發gui，重點就是這個processInteract函數嗎？也就是說任何mob或是entity只要加上這個函數就可以打開任何gui？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>飞翔之歌&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:15<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18063890&amp;ptid=1039046" target="_blank"><font color="#999999">lycorisrad 发表于 2020-5-6 11:09</font></a></font><br />
+謝謝幫忙，你的意思是說entity.class要實現觸發gui，重點就是這個processInteract函數嗎？也就是說任何mo ...</blockquote></div><br />
+不不不。<br />
+这个函数会在实体被右键时调用。<br />
+你可以借此打开GUI<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:15<br />
+<i class="pstatus"> 本帖最后由 lycorisrad 于 2020-5-6 11:16 编辑 </i><br />
+<div class="quote"><blockquote><font color="#999999">飞翔之歌 发表于 2020-5-6 11:07</font><br />
+<font color="#999999">思路就是这个了<br />
+如果你是在开发环境测试的，那么请重新召唤一个测试。因为名字会变（Forge使用的是随机名 ...</font></blockquote></div><br />
+
+<br />
+非常感謝幫忙我已經抓到重點了，因為我以為entity. Class還要加一些其他東西才能實現觸發gui。但我照搬女僕作者的代碼還是沒法實現，可能需要再改一些東西。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>飞翔之歌&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18064038&amp;ptid=1039046" target="_blank"><font color="#999999">lycorisrad 发表于 2020-5-6 11:15</font></a></font><br />
+非常感謝幫忙我已經抓到重點了，因為我以為entity. Class還要加一些其他東西才能實現觸發gui。但我照搬女 ...</blockquote></div><br />
+EntityPlayer.openGUI();可以用于打开GUI<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 11:21<br />
+<div class="quote"><blockquote><font color="#999999">飞翔之歌 发表于 2020-5-6 11:17</font><br />
+<font color="#999999">EntityPlayer.openGUI();可以用于打开GUI</font></blockquote></div><br />
+我懂了就是下面這代碼的方法，可以打開自己設計的gui，另外還有一個問題想問，如果怪物用蛋生不出來是為什麼？是錯誤嗎？還是要重開世界。<br />
+<br />
+/**<br />
+&nbsp; &nbsp;&nbsp;&nbsp;* 打开 GUI<br />
+&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+&nbsp; &nbsp;&nbsp;&nbsp;* @return 该逻辑是否成功应用<br />
+&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+&nbsp; &nbsp; private boolean openMaidGui(EntityPlayer player) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 否则打开 GUI<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!world.isRemote) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.openGui(TouhouLittleMaid.INSTANCE, MaidGuiHandler.MAIN_GUI.MAIN.getId(), world, this.getEntityId(), LittleMaidAPI.getTasks().indexOf(task), 0);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+&nbsp; &nbsp; }<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2020-5-6 12:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18064176&amp;ptid=1039046" target="_blank"><font color="#999999">lycorisrad 发表于 2020-5-6 11:21</font></a></font><br />
+我懂了就是下面這代碼的方法，可以打開自己設計的gui，另外還有一個問題想問，如果怪物用蛋生不出來是為 ...</blockquote></div><div class="quote"><blockquote>可以打開自己設計的gui</blockquote></div><br />
+其实我一开始就提到了 EntityPlayer#openGui 来着。你往下翻一点就能看到了……<br />
+<br />
+<hr class="l" /><br />
+<br />
+怪物蛋刷不出怪可能是因为你注册实体的时候没有考虑进去蛋。<br />
+<br />
+<div class="blockcode"><div id="code_HT1"><ol><li>@SubscribeEvent<br />
+<li>public static void registerEntity(RegistryEvent.Register&lt;EntityEntry&gt; event) {<br />
+<li>&nbsp;&nbsp;event.getRegistry().register(EntityEntryBuilder.create()<br />
+<li>&nbsp; &nbsp; .entity(MyEntity.class)<br />
+<li>&nbsp; &nbsp; .id(new ResourceLocation(&quot;my_mod_id&quot;, &quot;my_entity_id&quot;), 1)<br />
+<li>&nbsp; &nbsp; .name(&quot;my_entity_name&quot;)<br />
+<li>&nbsp; &nbsp; .tracker(16, 80, true)<br />
+<li>&nbsp; &nbsp; .egg(0x00FF00, 0x0000FF) // 第一个是 primary color，第二个是 secondary color，两个共同决定刷怪蛋什么颜色。格式是 RGB。<br />
+<li>&nbsp; &nbsp; .build());<br />
+<li>}</ol></div><em onclick="copycode($('code_HT1'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lycorisrad&nbsp; &nbsp; <b>时间: </b>2020-5-6 12:59<br />
+<i class="pstatus"> 本帖最后由 lycorisrad 于 2020-5-6 13:00 编辑 </i><br />
+<div class="quote"><blockquote><font color="#999999">3TUSK 发表于 2020-5-6 12:18</font><br />
+<font color="#999999">其实我一开始就提到了 EntityPlayer#openGui 来着。你往下翻一点就能看到了……<br />
+<br />
+<hr class="l" /><br />
+</font></blockquote></div><br />
+
+<br />
+對我知道，因為我本身就是仿照女僕作者寫的entity. Class所以他那串我其實有看到，只是不懂他的邏輯，還有我套用他的那串代碼也沒有效果，所以我不知道打開gui的關鍵點在哪。<br />
+最後即使我都打好了就變成我怪物生不出來，所以蠻苦惱的，已經有一個禮拜都找不到方法，快放棄了QWQ<br />
+還好你有解答我要不然卡蠻久的，真的非常感謝你寫這麼詳細，我回去試試看。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

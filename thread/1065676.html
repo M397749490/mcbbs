@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>如何动态注册物品 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>如何动态注册物品 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>纪华裕&nbsp; &nbsp; <b>时间: </b>2020-6-28 08:53<br />
+<b>标题: </b>如何动态注册物品<br /><i class="pstatus"> 本帖最后由 纪华裕 于 2020-6-28 08:53 编辑 </i><br />
+<br />
+<font style="font-size:32px"><strong>如何动态注册物品</strong></font><br />
+<br />
+<font style="font-size:16px">通常我们会在<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">RegistryEvent</font></font>中注册我们的物品，但是我们真的只能在这个事件中注册物品吗？</font><br />
+<br />
+<font style="font-size:16px">今天，我们将从不带<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">forge</font></font>污染的代码（Fabric1.15.2）出发，探索，这个问题的答案。</font><br />
+<br />
+<font style="font-size:24px"><strong>动态注册</strong></font><br />
+<br />
+<font style="font-size:16px">首先，我们打开了原版用于注册物品的文件<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">net.minecraft.item.Items</font></font>。我们可以看到所有的物品都是通过这个方法注册的。</font><br />
+<br />
+<div class="blockcode"><div id="code_N6a"><ol><li><br />
+<li>private static Item register(Identifier id, Item item) {<br />
+<li>&nbsp;&nbsp;if (item instanceof BlockItem) {<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;((BlockItem)item).appendBlocks(Item.BLOCK_ITEMS, item);<br />
+<li>&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp;&nbsp;return (Item)Registry.register(Registry.ITEM, (Identifier)id, item);<br />
+<li>}</ol></div><em onclick="copycode($('code_N6a'));">复制代码</em></div><br />
+<font style="font-size:16px">查看这个方法的实现，其实就是向<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Registry.ITEM</font></font>里add了后面两个参数。现在我们看一下，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Registry.ITEM</font></font>有啥。这东西是一个叫做<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">DefaultedRegistry</font></font>的类。通过检查这个类，我们惊奇的发现，似乎没有任何一个东西给注册表加锁，那是不是意味着我们可以在任何时候注册这个物品？</font><br />
+<br />
+<font style="font-size:16px">话不多说试一下就知道了。</font><br />
+<br />
+<font style="font-size:16px">做一个如下的物品B：</font><br />
+<br />
+<div class="blockcode"><div id="code_w0K"><ol><li><br />
+<li>public static final Item B = new Item(new Item.Settings().group(ItemGroup.MISC)) {<br />
+<li>&nbsp; &nbsp; public boolean postMine(ItemStack stack, World world, BlockState state, BlockPos pos, LivingEntity miner) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (miner instanceof PlayerEntity) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Registry.register(Registry.ITEM, new Identifier(Reference.MOD_ID, &quot;a&quot;), A);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>};</ol></div><em onclick="copycode($('code_w0K'));">复制代码</em></div><br />
+<font style="font-size:16px">这个物品的作用，就是在玩家挖掘一个方块之后注册物品A。</font><br />
+<br />
+<font style="font-size:16px">立刻，我们启动游戏开始实验。的确如此，在我们使用物品B挖掘完一个方块中，物品A**了，不过很遗憾，物品A没有任何材质。F3+H重载却依旧没有。</font><br />
+<br />
+<font style="font-size:16px"><strong>为什么？</strong> 我们明明注册了这个物品？不急仔细寻找一番。</font><br />
+<br />
+<font style="font-size:24px"><strong>加载材质</strong></font><br />
+<br />
+<font style="font-size:16px">我们发现所有的物品材质都会通过<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ItemModels#getModel</font></font>方法获取，时候我们这个物品的材质没有加载进这个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">model</font></font>集中呢？事不宜迟，现在我们打一个断点试一下。</font><br />
+<br />
+<font style="font-size:16px">的确，我们无论我们怎么重载，这个物品A都没有加入<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">models</font></font>，我们可能需要想一个办法将其加入集合中。很简单，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">putModel</font></font>方法可以帮到我们，只需要调用这个方法我们就可以完成工作了。</font><br />
+<br />
+<font style="font-size:16px">在客户端调用该方法。</font><br />
+<br />
+<div class="blockcode"><div id="code_UjX"><ol><li><br />
+<li>MinecraftClient.getInstance().getItemRenderer().getModels().putModel(ExampleMod.A,new ModelIdentifier(Registry.ITEM.getId(ExampleMod.A),&quot;inventory&quot;));<br />
+<li></ol></div><em onclick="copycode($('code_UjX'));">复制代码</em></div><br />
+<font style="font-size:16px">当然，你可能需要使用网络发包来解决这个调用问题。之后我们发现，动态注册的物品依旧没有材质，但是我们使用 F3+H 重载后出现了材质。</font><br />
+<br />
+<font style="font-size:24px"><strong>更进一步</strong></font><br />
+<br />
+<font style="font-size:16px">有没办法让材质直接出现，而不通过重载？</font><br />
+<br />
+<font style="font-size:16px">我们发现，Minecraft 只会加载需要的模型，也就是说，在材质加载时如果我们有这个物品，那么这个物品就能被加载模型，这也就是为什么我们需要在游戏启动时那个事件加载物品。所以说让材质直接出现可能需要魔改更多的内容。</font><br />
+<br />
+<font style="font-size:24px"><strong>回到开始</strong></font><br />
+<br />
+<font style="font-size:16px">我们讨论了这么多在 Fabric 下，可以动态注册物品吗？那在 Forge 下呢？ 我们注意到 Forge 魔改了原版的注册，而 Forge 的注册表里有一个 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">isFrozen</font></font> 的字段。 我们很遗憾的看到 Forge 会自我封闭这个注册表，但是这也不是代表我们没有可能动态注册，我们注意到有一个<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">unfreeze</font></font>的方法，这个应该可以让注册表解冻。大家可以在有空的时候探索一二。</font><br />
+<br />
+<font style="font-size:16px">你可以在这里找到代码。<a href="https://github.com/jihuayu/DynamicReg" target="_blank">Github</a></font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kiritorr&nbsp; &nbsp; <b>时间: </b>2020-6-28 09:31<br />
+顶一顶~~~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>many先生&nbsp; &nbsp; <b>时间: </b>2020-8-4 14:54<br />
+这么好的贴子没人顶吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>月杀233&nbsp; &nbsp; <b>时间: </b>2020-8-12 20:16<br />
+支持jihuayu<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>洞穴夜莺&nbsp; &nbsp; <b>时间: </b>2020-8-12 22:32<br />
+那么如果运行一半移除个物品<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>洞穴夜莺&nbsp; &nbsp; <b>时间: </b>2020-8-12 22:33<br />
+那如果运行一半移除个方块<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>many先生&nbsp; &nbsp; <b>时间: </b>2020-8-16 13:11<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19299483&amp;ptid=1065676" target="_blank"><font color="#999999">many先生 发表于 2020-8-4 14:54</font></a></font><br />
+这么好的贴子没人顶吗？</blockquote></div><br />
+我支持一下算灌水？到底是谁没读版规？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>b13314367057&nbsp; &nbsp; <b>时间: </b><span title="2021-2-21 10:39">前天&nbsp;10:39</span><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19451314&amp;ptid=1065676" target="_blank"><font color="#999999">洞穴夜莺 发表于 2020-8-12 22:32</font></a></font><br />
+那么如果运行一半移除个物品</blockquote></div><br />
+如果你想动态移除一个物品，首先，你需要将所有关于这个物品的引用赋值null，然后等待gc销毁对象，最后还要解决序列化异常，所以几乎不可能<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>董继晨&nbsp; &nbsp; <b>时间: </b><span title="2021-2-21 12:00">前天&nbsp;12:00</span><br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

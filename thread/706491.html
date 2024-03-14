@@ -1,0 +1,78 @@
+<html>
+<head>
+<title>在插件通过发包（ProtocolLib）打开牌子界面（Sign GUI） - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>在插件通过发包（ProtocolLib）打开牌子界面（Sign GUI） <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>trychen&nbsp; &nbsp; <b>时间: </b>2017-7-14 22:22<br />
+<b>标题: </b>在插件通过发包（ProtocolLib）打开牌子界面（Sign GUI）<br /><i class="pstatus"> 本帖最后由 trychen 于 2017-7-15 08:34 编辑 </i><br />
+<br />
+<div align="left"><strong><font size="4">用处：</font></strong></div><div align="left"><ul><li>通过 Sign 作为输入密码的方式<li>作为高级的输入方式<li>显示提示<br />
+</ul></div><br />
+<div align="left"><font size="4"><strong>知识前提：</strong></font></div><ul><li>掌握 Bukkit API<li>知道关于“包”的基本概念<li>ProtocolLib 的基本使用<br />
+</ul><br />
+<font size="4"><strong>基本实现原理：</strong></font><br />
+<ul type="1" class="litype_1"><li><font size="2">创建包 (BLOCK_CHANGE)，让客户端把玩家的最底下 (new Location(player.getLocation().getX(), 0, player.getLocation().getZ())) 基岩误设置为一个牌子；</font><li><font size="2">创建包 (UPDATE_SIGN)，更新牌子的内容为我们想显示的内容；</font><li><font size="2">创建包 (OPEN_SIGN_ENTITY)，让服务器打开牌子的UI</font><li><font size="2">发送上面的全部包，完成打开 Sign GUI</font><br />
+</ul><br />
+<font size="4"><strong>准备工作：</strong></font><br />
+<ul><li><font size="2">创建一个 Bukkit</font> 的项目，并导入 ProtocolLib 插件作为依赖库<li>创建一个类用于存储我们生成的 Sign 归属者 (signLocation2Player)<li>在上述类中创建方法 public boolean openSignGUI(Player player, String[] lines) 或 fun Player.openSignGUI():boolean<li>Go！<br />
+</ul><br />
+<br />
+<strong>初始化变量：</strong><br />
+<div class="blockcode"><div id="code_edU"><ol><li>ProtocolManager manager = ProtocolLibrary.getProtocolManager();</ol></div><em onclick="copycode($('code_edU'));">复制代码</em></div>组为了让大家看的更清晰，代码尽量拆分的更短！下面开始创建 BLOCK_CHANGE 包：<br />
+<div class="blockcode"><div id="code_gZs"><ol><li>PacketContainer blockChange = manager.createPacket(PacketType.Play.Server.BLOCK_CHANGE);<br />
+<li>blockChange.getBlockPositionModifier().write(0, blockPosition);<br />
+<li>blockChange.getBlockData().write(0, WrappedBlockData.createData(Material.SIGN_POST));</ol></div><em onclick="copycode($('code_gZs'));">复制代码</em></div>这样，ProtocolLib 就会创建一个 BLOCK_CHANGE 包，并修改里面的 BlockPosition 等变量为我们需要的内容，达到伪造一个牌子的效果。接着我们要创建 <font size="2">UPDATE_SIGN 包来更新我们需要的内容：</font><br />
+<div class="blockcode"><div id="code_RPb"><ol><li>PacketContainer updateSign = manager.createPacket(UPDATE_SIGN);<br />
+<li>updateSign.getBlockPositionModifier().write(0, blockPosition);<br />
+<li>updateSign.getChatComponentArrays().write(0, new WrappedChatComponent[]{WrappedChatComponent.fromText(lines[0]), WrappedChatComponent.fromText(lines[1]), WrappedChatComponent.fromText(lines[2]), WrappedChatComponent.fromText(lines[3])});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</ol></div><em onclick="copycode($('code_RPb'));">复制代码</em></div><i><strong>这个包需要注意的是，版本差异较大，旧版本（1.8 || Older）可能是通过NBT来修改，这就需要以下方法：</strong></i><br />
+<div class="blockcode"><div id="code_RzY"><ol><li>PacketContainer updateSign = manager.createPacket(UPDATE_SIGN);<br />
+<li>updateSign.getBlockPositionModifier().write(0, blockPosition);</ol></div><em onclick="copycode($('code_RzY'));">复制代码</em></div>然后我们发送一个打开Sign GUI的包即可完成创建包了：<br />
+<div class="blockcode"><div id="code_doq"><ol><li>PacketContainer open = manager.createPacket(OPEN_SIGN_ENTITY);<br />
+<li>open.getBlockPositionModifier().write(0, blockPosition);</ol></div><em onclick="copycode($('code_doq'));">复制代码</em></div>最后我们就可以把上述包都发送给玩家：<br />
+<div class="blockcode"><div id="code_lQ7"><ol><li>manager.sendServerPacket(player, blockChange);</ol></div><em onclick="copycode($('code_lQ7'));">复制代码</em></div><strong>这样我们就完成了打开牌子的UI</strong><br />
+<br />
+<strong><font size="4">监听关闭我们打开的牌子</font></strong><br />
+如果你是想通过牌子来修改某些东西，那我们就需要读取牌子修改后的内容，这时我们就需要通过监听包。<br />
+一般的实现原理：<br />
+<ul><li><strong>如果你不想监听，也要把客户端发过来的属于你打开的牌子的 UPDATE_SIGN 取消掉，否则服务器会发现对应方块不是一个牌子</strong><li>玩家在完成修改任意一个牌子后，客户端会发送包 (UPDATE_SIGN) 给服务器，其中包含了牌子修改后的数据（ESC 或 完成 都将发送）<li>客户端发送的 UPDATE_SIGN 包 (PlayInUpdateSign) 中，包含了牌子的坐标，我们可以通过牌子的坐标和玩家确定是否是我们创建的牌子<br />
+</ul><br />
+<font size="4"><strong>开始监听</strong></font><br />
+<ul type="1" class="litype_1"><li>在发送牌子后，存储玩家和坐标到一个 Map&lt;Player, <font style="background-color:rgb(247, 247, 247)">BlockPosition</font>&gt; map = new HashMap&lt;&gt;() ; //留意线程是否安全<li>通过以下代码<strong>在 onEnable 中</strong>注册监听 UPDATE_SIGN<br />
+</ul><div class="blockcode"><div id="code_E8V"><ol><li>&lt;blockquote&gt;manager.addPacketListener(this.packetListener = new PacketAdapter(plugin, new PacketType[]{PacketType.Play.Client.UPDATE_SIGN}) {</ol></div><em onclick="copycode($('code_E8V'));">复制代码</em></div>以上代码纯手撸（这编辑器还吞格式，恶心），可能有写错，欢迎提出。<br />
+<br />
+<strong><font size="4">总结</font></strong><br />
+这样你就使用 ProtocolLib 打开了 Sign GUI，本教程更希望你能掌握 ProtocolLib 的基本使用。<br />
+<br />
+<font size="4"><strong><i><u>本文未仔细校验</u></i></strong></font><br />
+<font size="4"><strong></strong></font><br />
+<font size="4"><strong></strong></font><br />
+[groupid=1181]Unknown Domain[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>星&nbsp; &nbsp; <b>时间: </b>2017-7-14 22:38<br />
+支持 最近正好在研究这方面东西 遇到了一些小问题 ~<br />
+<br />
+顺便来一顶 混乱帽 <img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><img src="static/image/smiley/tong/cowry.png" smilieid="1452" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HanMaDaDa&nbsp; &nbsp; <b>时间: </b>2017-7-16 08:11<br />
+支持 最近正好在研究这方面东西 遇到了一些小问题 ~<br />
+<br />
+顺便来一顶 混乱帽 <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>syn614211648&nbsp; &nbsp; <b>时间: </b>2017-7-27 19:51<br />
+自从梨子的ProtocolLib的教程贴子开始就感受到了发包的神奇，直到现在发包也是我的一个心梗 [捂脸]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JackC92&nbsp; &nbsp; <b>时间: </b>2017-7-31 16:49<br />
+打开牌子一定要有个Block牌子？我咋记得不用的啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sky015121&nbsp; &nbsp; <b>时间: </b>2017-12-27 12:50<br />
+感谢楼主分享，希望以后有多多此类教程，论坛上的教程真的太少了，国内的开发环境真的是艰难<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RainIFunS&nbsp; &nbsp; <b>时间: </b>2018-8-14 01:38<br />
+包...真是个可怕的东西 心塞....<img src="static/image/smiley/rabbit/59.gif" smilieid="709" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

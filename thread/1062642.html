@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>记一次解决Disabling terminal...unsupported environment的经历 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>记一次解决Disabling terminal...unsupported environment的经历 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2020-6-16 00:03<br />
+<b>标题: </b>记一次解决Disabling terminal...unsupported environment的经历<br /><i class="pstatus"> 本帖最后由 a1294790523 于 2020-6-16 00:10 编辑 </i><br />
+<br />
+<h1>太长不看版：</h1><br />
+<p>下载Jna的核心jar，然后将里面除了META-INF的文件夹拖进服务端核心即可：<br />
+<a href="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.5.0/jna-5.5.0.jar">https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.5.0/jna-5.5.0.jar</a><br />
+如果仍然没有解决，请参考梨子的解决帖：<a href="https://www.mcbbs.net/thread-548550-1-1.html">https://www.mcbbs.net/thread-548550-1-1.html</a><br />
+安装Microsoft Visual C++ 2008 SP1 Redistributable包</p><br />
+<p><hr class="l" /></p><br />
+<h1>起因</h1><br />
+<p>某天闲着无聊想组一个1.12的纯Forge服务端和朋友玩，但是发现在服务端使用Tab补全时不管用，只会输出Tab字符。<br />
+奇怪的我翻了翻日志，发现第一行有这么一行warning：<div class="quote"><blockquote>2020-06-15 22:51:47,089 main WARN Disabling terminal, you're running in an unsupported environment.</blockquote></div>我当时就？？？了，因为从来没遇到这种情况，只好上网冲浪搜索看看</p><br />
+<h1>解决经过</h1><br />
+<p>排在首页的结果都是Forge论坛内的，满心欢喜的我打开一看，结果里面都是“此版本已不受支持，请升级MC版本”。<br />
+不过老天不负有心人，总算是让我在这个paper的issue里面看见了曙光：<div class="quote"><blockquote>1.14.3 unsupported environment terminal<br />
+<a href="https://github.com/PaperMC/Paper/issues/2257">https://github.com/PaperMC/Paper/issues/2257</a></blockquote></div>虽然说这个issue最后是通过PR解决的，但是我在回复中注意到了这个：<div class="quote"><blockquote>Minecrell:<br />
+TCA prints a proper stack trace for this when debug logging is enabled:<br />
+<a href="https://github.com/Minecrell/TerminalConsoleAppender/blob/23ac053d5a401761555f55cc6bb668a9f3474ad6/src/main/java/net/minecrell/terminalconsole/TerminalConsoleAppender.java#L241-L246">https://github.com/Minecrell/TerminalConsoleAppender/blob/23ac053d5a401761555f55cc6bb668a9f3474ad6/src/main/java/net/minecrell/terminalconsole/TerminalConsoleAppender.java#L241-L246</a><br />
+Right now I can't remember exactly how to enable debug logging. I believe it's not in log4j2.xml since it runs before logging configuration is initialized (you can see that because of the different log layout).<br />
+So it's probably one of the system properties: <a href="https://logging.apache.org/log4j/2.x/manual/configuration.html#SystemProperties">https://logging.apache.org/log4j/2.x/manual/configuration.html#SystemProperties</a></blockquote></div>通过查看代码可以发现当LOGGER.isDebugEnabled()返回true时输出带stacktrace的异常信息，从此总算有个入手点了，那么，怎么让LOGGER.isDebugEnabled()==true呢？</p><br />
+<p>通过搜索，发现只需要让日志等级为DEBUG即可，于是愉悦地打开服务端核心jar，编辑内部的log4j2_server.xml修改日志级别，然后删除在META-INF的校验文件，启动一看：</p><br />
+<p><div class="quote"><blockquote>2020-06-15 22:59:04,831 main WARN Disabling terminal, you're running in an unsupported environment. java.lang.IllegalStateException: Unable to create a system terminal<br />
+at org.jline.terminal.TerminalBuilder.doBuild(TerminalBuilder.java:273)<br />
+at org.jline.terminal.TerminalBuilder.build(TerminalBuilder.java:219)<br />
+at net.minecraftforge.server.terminalconsole.TerminalConsoleAppender.initializeTerminal(TerminalConsoleAppender.java:243)<br />
+at net.minecraftforge.server.terminalconsole.TerminalConsoleAppender.&lt;init&gt;(TerminalConsoleAppender.java:213)<br />
+at net.minecraftforge.server.terminalconsole.TerminalConsoleAppender.createAppender(TerminalConsoleAppender.java:368)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)<br />
+at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)<br />
+at java.lang.reflect.Method.invoke(Unknown Source)<br />
+at org.apache.logging.log4j.core.config.plugins.util.PluginBuilder.build(PluginBuilder.java:132)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.createPluginObject(AbstractConfiguration.java:952)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.createConfiguration(AbstractConfiguration.java:892)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.createConfiguration(AbstractConfiguration.java:884)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.doConfigure(AbstractConfiguration.java:508)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.initialize(AbstractConfiguration.java:232)<br />
+at org.apache.logging.log4j.core.config.AbstractConfiguration.start(AbstractConfiguration.java:244)<br />
+at org.apache.logging.log4j.core.LoggerContext.setConfiguration(LoggerContext.java:545)<br />
+at org.apache.logging.log4j.core.LoggerContext.reconfigure(LoggerContext.java:617)<br />
+at org.apache.logging.log4j.core.LoggerContext.reconfigure(LoggerContext.java:634)<br />
+at org.apache.logging.log4j.core.LoggerContext.start(LoggerContext.java:229)<br />
+at org.apache.logging.log4j.core.impl.Log4jContextFactory.getContext(Log4jContextFactory.java:242)<br />
+at org.apache.logging.log4j.core.impl.Log4jContextFactory.getContext(Log4jContextFactory.java:45)<br />
+at org.apache.logging.log4j.LogManager.getContext(LogManager.java:174)<br />
+at org.apache.logging.log4j.LogManager.getLogger(LogManager.java:618)<br />
+at net.minecraft.launchwrapper.LogWrapper.configureLogging(LogWrapper.java:14)<br />
+at net.minecraft.launchwrapper.LogWrapper.log(LogWrapper.java:28)<br />
+at net.minecraft.launchwrapper.Launch.launch(Launch.java:94)<br />
+at net.minecraft.launchwrapper.Launch.main(Launch.java:28)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)<br />
+at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)<br />
+at java.lang.reflect.Method.invoke(Unknown Source)<br />
+at net.minecraftforge.fml.relauncher.ServerLaunchWrapper.run(ServerLaunchWrapper.java:70)<br />
+at net.minecraftforge.fml.relauncher.ServerLaunchWrapper.main(ServerLaunchWrapper.java:34)<br />
+Suppressed: <font color="Red">java.lang.NoClassDefFoundError: com/sun/jna/win32/StdCallLibrary</font><br />
+at java.lang.ClassLoader.defineClass1(Native Method)<br />
+at java.lang.ClassLoader.defineClass(Unknown Source)<br />
+at java.security.SecureClassLoader.defineClass(Unknown Source)<br />
+at java.net.URLClassLoader.defineClass(Unknown Source)<br />
+at java.net.URLClassLoader.access$100(Unknown Source)<br />
+at java.net.URLClassLoader$1.run(Unknown Source)<br />
+at java.net.URLClassLoader$1.run(Unknown Source)<br />
+at java.security.AccessController.doPrivileged(Native Method)<br />
+at java.net.URLClassLoader.findClass(Unknown Source)<br />
+at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+at sun.misc.Launcher$AppClassLoader.loadClass(Unknown Source)<br />
+at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+at org.jline.terminal.impl.jna.win.JnaWinSysTerminal.&lt;clinit&gt;(JnaWinSysTerminal.java:25)<br />
+at org.jline.terminal.impl.jna.JnaSupportImpl.winSysTerminal(JnaSupportImpl.java:26)<br />
+at org.jline.terminal.TerminalBuilder.doBuild(TerminalBuilder.java:297)<br />
+... 33 more<br />
+Caused by: <font color="Red">java.lang.ClassNotFoundException: com.sun.jna.win32.StdCallLibrary</font><br />
+at java.net.URLClassLoader.findClass(Unknown Source)<br />
+at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+at sun.misc.Launcher$AppClassLoader.loadClass(Unknown Source)<br />
+at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+... 48 more<br />
+Suppressed: java.lang.UnsupportedOperationException<br />
+at org.jline.terminal.impl.jansi.JansiSupportImpl.winSysTerminal(JansiSupportImpl.java:104)<br />
+at org.jline.terminal.TerminalBuilder.doBuild(TerminalBuilder.java:305)<br />
+... 33 more</blockquote></div>好家伙，没找到类，肯定是Forge忘记打包了，通过一番搜索找到这个类是一个叫jna的库里面的：<a href="https://github.com/java-native-access/jna">https://github.com/java-native-access/jna</a><br />
+在里面找到了jna核心jar的下载地址：<a href="https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.5.0/jna-5.5.0.jar">https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.5.0/jna-5.5.0.jar</a></p><br />
+<p>那么怎么让java载进这个jar呢？</p><br />
+<p>最简单粗暴的方法就是将里面的类拖进服务端核心里面：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1620238" aid="1620238" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202006/15/232606mija9bf4wdg8gf3o.jpg" file="https://attachment.mcbbs.net/forum/202006/15/232606mija9bf4wdg8gf3o.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1620238" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1620238_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM截图20200615232552.jpg</strong> <em class="xg1">(60.97 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTYyMDIzOHw1MzMzMWI3NXwxNjE0MDM5NzgyfDI0MTk0ODZ8MTA2MjY0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-6-15 23:26 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</p><br />
+<p>至此问题解决</p><br />
+<h1>相关链接：</h1><br />
+<p>服务器出现关于org.fusesource.jansi.WindowsAnsiOutputStream的错误之解决办法<br />
+<a href="https://www.mcbbs.net/thread-548550-1-1.html">https://www.mcbbs.net/thread-548550-1-1.html</a></p><script type="text/javascript" reload="1">
+aimgcount[18578295] = ['1620238'];
+attachimggroup(18578295);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qiuzz&nbsp; &nbsp; <b>时间: </b>2020-6-17 04:18<br />
+???????????????????????????????????<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>310749832&nbsp; &nbsp; <b>时间: </b>2020-6-19 15:22<br />
+感谢分享
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,521 @@
+<html>
+<head>
+<title>1.14/1.15 自然生成（刷怪）机制 详解 / 刷怪塔背后的原理以及效率提升（基于反编... - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.14/1.15 自然生成（刷怪）机制 详解 / 刷怪塔背后的原理以及效率提升（基于反编... <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>betacat&nbsp; &nbsp; <b>时间: </b>2020-5-8 15:45<br />
+<b>标题: </b>1.14/1.15 自然生成（刷怪）机制 详解 / 刷怪塔背后的原理以及效率提升（基于反编...<br /><i class="pstatus"> 本帖最后由 betacat 于 2020-5-11 17:00 编辑 </i><br />
+<br />
+本贴前大半部分主要是理论概念，如果对具体细节没什么兴趣，可直接翻到后半段，会讲如何提升刷怪场效率<br />
+<br />
+刚入门的萌新，最近再尝试解读mc的程序；看没人讲1.14/1.15的刷怪机制开个讨论贴发一下我的理解<br />
+1.4/1.5 中没有单独的刷怪这一说法，统一执行自然生成：<br />
+自然生成执行在 1gt中 tick数增加以后基本随即发生（在区块加载更新后，卸载更新前）在计划刻之前<br />
+MC中有五大类生物（可移实体）：<table cellspacing="0" class="t_table" style="width:50%"><tr><td>生物类型</td><td>标签 </td><td>上限常数 </td><td>和平 </td><td> 动物</td><td> 例子（生种种类）</td></tr><tr><td> 怪物</td><td>monster </td><td>70 </td><td><font color="#ff0000">F</font></td><td><font color="#ff0000">F</font></td><td> 僵尸，爬行者等</td></tr><tr><td> 生物</td><td>creature </td><td>10 </td><td>T</td><td>T</td><td> 猪，牛，马等</td></tr><tr><td> 环境</td><td>ambient </td><td>15 </td><td>T</td><td><font color="#ff0000">F</font></td><td> 蝙蝠等</td></tr><tr><td> 水生生物</td><td>water_creature </td><td>15 </td><td>T</td><td>T</td><td> 鳕鱼等</td></tr><tr><td> 杂项</td><td>misc </td><td>15 </td><td>T</td><td><font color="#ff0000">F</font></td><td> 箭，火球</td></tr></table><strong>其中misc类的生物在自然生成中均被直接略过</strong><br />
+<br />
+<font size="4">自然生成的逻辑：</font><br />
+<br />
+<font size="3"><font color="#222222"><font face="&amp;quot;">遍历已加载的区块：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 遍历四大生物类型：</font></font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font face="&amp;quot;"><font color="#222222">&nbsp;&nbsp;</font><font color="#006400">&nbsp;&nbsp;1. 如果是<strong>生物 </strong>则仅当当前游戏tick计数为400的倍数时进行生成，否则略过（即现实中每20s进行一次）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 2. </font></font><font color="#222222"><font face="&amp;quot;">检测是否超出<strong>该类型的生物上限</strong>（<strong>上限=上限</strong></font></font><strong>常数*加载了的区块数/17^2</strong><font color="#222222"><font face="&amp;quot;">）（是则略过该类型）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; <font size="3">3</font></font></font><font face="&amp;quot;"><font size="3"><font color="#222222">. 否：开始以</font><font color="#ff0000">该区块为起点</font><font color="#222222">的一次刷怪：</font></font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.1.</font></font><font face="&amp;quot;"><font color="#222222"> 随机抽取区块内一方块作为起点（</font><strong><font color="#ff0000">先抽取x，z；然后获取最高非空气方块，y选定为[0,</font></strong></font><font face="&amp;quot;"><strong><font color="#ff0000">最高非空气方块</font></strong></font><font face="&amp;quot;"><strong><font color="#ff0000">高度+1]中一值</font></strong><font color="#222222">），设位置为pos</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.2 </font></font><font face="&amp;quot;"><font color="#222222">若3.1选中</font><strong><font color="#222222">方</font><font color="#ff0000">块为简单完整方块或y=0则直接终止</font></strong></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp;&nbsp;<font size="3">&nbsp;&nbsp;3.3 </font></font></font><font face="&amp;quot;"><font size="3"><font color="#222222">进行三次</font><strong><font color="#ff0000">成群刷怪（生成）</font></strong></font><font color="#222222">：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.1 在pos上的x与z分别加上<strong>[-5, 5]</strong>的随机数得到p</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font face="&amp;quot;"><font color="#222222">&nbsp; &nbsp; 3.3.2 </font><strong><font color="#ff0000">根据新得到的位置的生物群系在当前生物类型中选择一种生物</font></strong><font color="#222222">（如，当前生物类型是monster，pos为沙漠群系，则可能选定为僵尸）；随后，随机生成一个数size，该生物组群下限&lt;=size&lt;=该生物组群上限；（此处选择的生物种类的权重和组群上下限均与群系相关）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.3 跳到3.3.5</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.4 在p上</font></font><font color="#222222"><font face="&amp;quot;">的x与z分别加上[-5, 5]的随机数得到新的p （size&gt;=1）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">3.3.5 </font></font><font color="#222222"><font face="&amp;quot;">测试刷怪是否合理：包括所在的生物群系，区块是否被加载，玩家距离&lt;=128（如果是任意距离均刷出的则无视该条），碰撞箱检测（初始位置一定是方块正中心）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.6 若测试失败，size=size-1, 跳回 3.3.4； 通过则在p的正中心刷出该生物，方向角随机，俯仰角为0</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.7 如距玩家小于等于128，设置怪物基础属性</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font face="&amp;quot;"><font color="#222222">&nbsp; &nbsp; 3.3.8 累计 </font><font color="#ff0000"><strong>在3.中成功刷出生物的次数大于等于4则立即终止</strong>3.</font><font color="#222222"> 开始下个生物类型或下区块的计算 （即每个区块发起的刷怪每tick最多刷出4只怪，故跨区块很有帮助）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.9 size = size - 1，跳回3.3.4 （即本次成群刷怪进行size次的刷出尝试）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; PS: <strong><font size="3">3.3简单概括就是：先在起点上进行一次游走，根据游走到的点的群系确定此次成群生成的具体生物种类和尝试次数，每次游走范围为11x11的正方形，游走后进行一次尝试</font></strong></font></font><font color="#222222"><font face="&amp;quot;"><br />
+<br />
+</font></font><br />
+<font face="Microsoft YaHei, Arial, Helvetica, sans-serif"><font color="#222222">小结：</font></font><br />
+<font face="&amp;quot;"><font color="#222222">&nbsp; &nbsp; 1. </font><strong><font color="#ff0000">最高非空气方块对刷怪成功概率影响极大</font></strong><font color="#222222">，下图是第一次方块选定的成功率和</font><strong>最高非空气方块</strong><font color="#222222">的高度的关系（百分比），这次尝试很关键，因为一旦失败则这个游戏刻中一这个区块为起点的刷怪机会会被直接浪费掉！</font></font><br />
+
+<ignore_js_op>
+
+<img id="aimg_1591397" aid="1591397" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/11/044724g3c9k4qnp3k9vikl.jpg" file="https://attachment.mcbbs.net/forum/202005/11/044724g3c9k4qnp3k9vikl.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1591397" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1591397_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>6.jpg</strong> <em class="xg1">(33.96 KB, 下载次数: 5)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU5MTM5N3w1ZDhkNWExOXwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-11 04:47 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+.<font color="#222222"><font face="&amp;quot;"> </font></font><font color="#222222"><font face="&amp;quot;"><br />
+</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp;2. <strong>生物群系会影响刷怪种类，如果在群系边缘则影响成功率（注意：不同群系对生成怪物种类的权重是不同的）</strong></font></font><br />
+<font face="&amp;quot;"><font color="#222222">&nbsp; &nbsp; 3. </font><strong><font color="#ff0000">区块交界点刷怪数可能更多 （尤其是对单生物种类刷怪塔，如史莱姆农场）</font></strong></font><br />
+<font color="#222222"><font face="&amp;quot;"><br />
+</font></font><br />
+<font color="#222222"><font face="&amp;quot;"><br />
+</font></font><br />
+<font color="#222222"><font face="&amp;quot;">5/9 更新：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">补充对3.3.5 中测试的分析：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.1. 存在玩家</font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.2.</font></font><font face="&amp;quot;"><strong><font color="#ff0000">最近玩家 和 世界（本维度）出生点的距离均大于24</font></strong><font color="#222222"> （L2测度）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.3. p没有离开当前区块或到达的区块被加载了（要求实体可被计算，旧称强加载）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.4. 确保被选中的生成对象不是 杂项Mob</font></font><br />
+<font face="&amp;quot;"><font color="#222222">3.3.5.5. </font><strong><font color="#222222">对象是</font><font color="#ff0000">可以在任意距离生成</font><font color="#222222">（潜影贝或掠夺者） 或者</font><font color="#ff0000">与玩家的距离&lt;=128 计算点为脚底中心</font></strong><font color="#222222">（L2测度）</font></font><br />
+<font face="&amp;quot;"><font color="#222222">3.3.5.6. 群系测试，</font><strong><font color="#ff0000">目标刷怪点所在群系支持该种生物生成</font></strong><font color="#222222">； 如3.3.1中p在沙漠群系，且随机选中了僵尸进行成群刷怪（沙漠群系允许刷出僵尸），随后经过几次随机游走p进入了蘑菇岛群系（</font></font><font color="#222222">MushroomFieldShoreBiome和MushroomFieldShoreBiome仅允许哞菇（蘑菇牛）和蝙蝠的自然生成<font face="&amp;quot;">），则此次检测失败进入下次游走尝试 ；<strong>即由于抵达位置的群系问题也可能终止刷怪</strong></font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.7. 位置限制测试：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.5.7.1. 如为无限制生成生物（幻魔者，狐狸，熊猫等）则略过该测试</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.5.7.2. 检测是否超出世界边界</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.5.7.3. 如果为<strong>水生生物则检测该方块和正上方方块为水或含水方块，且上方不是一个完整方块</strong></font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.5.7.4. 下方方块是否允许刷出该种怪：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">部分方块有特殊定义如：<strong>栅栏，基岩等禁止任何生成</strong>；冰上仅允许北极熊的生成</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 其他无特殊定义则要求：<strong>该方块上方是完整的 且 自发光等级&lt;14</strong> （萤石为15，熔炉为13）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 3.3.5.7.5. 检测刷出和上方方块是否：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 均不是完整方块</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font face="&amp;quot;"><font color="#222222">&nbsp; &nbsp; </font><strong><font color="#ff0000">均不会发出红石信号</font></strong><font color="#222222">；讲台，红石火把，红石粉，红石块，压力板，观察者，绑线钩，比较器，中继器等均属于可以发出红石信号的故会阻止生成</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 均不为流体（包括流动中的）</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; <strong>均不是铁轨</strong></font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.8. <strong>检测是否满足生成限制：此步骤与生成的生物种类有关</strong></font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 如，小白，僵尸，女巫，爬行者均属于 <strong>可在黑暗中生成</strong>：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 可在黑暗中生成检测：</font></font><br />
+<font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">不为和平模式</font></font><br />
+<font color="#222222"><font face="&amp;quot;"> </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 随机在0-31中选一个整数，如该点天光大于这个被选中数则直接失败 （<strong>天光15 则50%直接失败，天光0则0%直接失败</strong>）</font></font><br />
+<font color="#222222"><font face="&amp;quot;"> </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 随机在0-7中选一个整数，如果该点光线强度小于等于该整数则成功 （<strong>光线强度&gt;7则100%失败，0则100%成功</strong>）</font></font><br />
+<font color="#222222"><font face="&amp;quot;"> </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; </font></font><font color="#222222"><font face="&amp;quot;">&nbsp; &nbsp; 光线强度：（雷雨天时天光-10后）天光和方块光的最大值</font></font><br />
+<font color="#222222"><font face="&amp;quot;">3.3.5.9. 检测是否存在碰撞箱冲突</font></font><br />
+<br />
+注意：红石块所在方块不可以刷怪，但是其上表面（上方方块）可以刷怪<br />
+<br />
+5/10 更新：<br />
+由此我们可以计算出以某个特定点为起点向x，z方向上的游走概率（在一次成群刷怪中，被选中的概率），同时也可看作空间中一点刷出概率与其周围同y值点被选为刷怪起点的相关程度<br />
+
+<ignore_js_op>
+
+<img id="aimg_1589513" aid="1589513" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/09/140458ocz9v5x15sl6mxxt.jpg" file="https://attachment.mcbbs.net/forum/202005/09/140458ocz9v5x15sl6mxxt.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1589513" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1589513_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.jpg</strong> <em class="xg1">(134.8 KB, 下载次数: 8)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4OTUxM3xjZjdmMjM2ZXwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-9 14:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+右边的图例是百分比，中心点为9.67%；网格为5x5<br />
+这张图是如果中心点被选为起点，游走到周围点的概率（x，z上加减量）<br />
+同时也是一点刷怪概率与其周围同y值点被选为刷怪起点概率的相关性的图：中心点刷怪的概率 = 对同y值点被选为刷怪起点的概率 和 此图 的卷积 = 对 （其图中各个点被选为刷怪起点的概率 * 该点在图中所示值）求和 （个点被选为刷怪起点的概率=1/（该点最高非空气方块y值+1））<br />
+<br />
+由此可见决定一点刷怪几率的主要是以其为中心的10x10的区域；其次是20x20的区域，其余几乎没有影响了<br />
+<br />
+<br />
+同理，我们可以算出在一个区块中的开始的一次成群选中各个点的概率<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1589512" aid="1589512" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/09/140458n44nysvvyygrnfqi.jpg" file="https://attachment.mcbbs.net/forum/202005/09/140458n44nysvvyygrnfqi.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1589512" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1589512_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2.jpg</strong> <em class="xg1">(135.18 KB, 下载次数: 1)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4OTUxMnwyNDRmYzcwOHwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-9 14:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+该图的网格为一个区块，表示从中心区块开始的一次刷怪中的一次成群刷怪时各个点刷出怪物的期望（简单理解就是刷出概率）<br />
+可以看出，本区块中选中中心6x6的概率最高，其次是留在本区块，离开本区块后概率均在2%一下，基本只可能抵达周围紧贴的区块<br />
+或者可以理解为，一个区块内一点的刷怪概率主要还是取决于该区块的平均最高非空气方块的高度，其次是周围紧邻的区块<br />
+<br />
+从此可以看出，在做刷怪塔/农场的时候：<br />
+1. y值很重要，基础刷怪效率随y上升下降速度很快<br />
+2. 一定保证刷怪平台周围一个区块的最高非空气方块要高于刷怪平台<br />
+3. 如果刷怪平台只有一个区块，区块中心的6x6是刷怪的核心区域<br />
+4. 由于1.14/1.15 由一个区块发起的刷怪至多每tick刷出4只，在刷怪面积有限的情况下，跨区块刷怪平台会提升效率<br />
+<br />
+附加：<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1589510" aid="1589510" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/09/140458vr667trgr6ry06py.jpg" file="https://attachment.mcbbs.net/forum/202005/09/140458vr667trgr6ry06py.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1589510" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1589510_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>3.jpg</strong> <em class="xg1">(131.82 KB, 下载次数: 5)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4OTUxMHxkMWVhOTJiN3wxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-9 14:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+仅有一个区块下的叠加刷出概率（该区块周围区块的最高非空气方块均低于本区块）最高概率为4.94%，最低1.8%<br />
+
+<ignore_js_op>
+
+<img id="aimg_1589511" aid="1589511" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/09/140458veh4bg9rjr64yhrr.jpg" file="https://attachment.mcbbs.net/forum/202005/09/140458veh4bg9rjr64yhrr.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1589511" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1589511_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>4.jpg</strong> <em class="xg1">(129.55 KB, 下载次数: 2)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4OTUxMXxiNmYzMGNlZXwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-9 14:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+周围一圈区块（3x3的区块的中心区块）的最高非空气方块均于本区块同高，最高概率为6.25%，最低为6.24%<br />
+<br />
+如果周围两圈区块（5x5的区块的中心区块）的最高非空气方块均于本区块同高，则概率均为6.25%，但为提高0.01%的概率填充额外的16个区块显然不划算，故推荐填充周围一个区块<br />
+<br />
+注意：本次更新讨论的均是在同一y值下的游走概率，实际刷怪概率要乘上y值被选中的概率<br />
+<br />
+<font size="4"><strong>总结：</strong></font><br />
+<font size="3">&nbsp; &nbsp; 1. <font color="#ff0000">最高<strong>非空气</strong>方块会对以它为中心的周围<strong>10x10范围</strong>内的刷怪成功率产生<strong>很大影响</strong></font>，对周围<strong>20x20范围有显著影响</strong>，最远影响到40x40范围</font><br />
+<font size="3">&nbsp; &nbsp; 2. 跨生物群系时会造成怪物刷出失败，故<font color="#ff0000">尽可能保证同群系</font> （刷怪种类的选择在第一次游走，故刷怪面积向外5格会对其有明显影响，向外10格都有可以看的出来的影响）</font><br />
+<font size="3">&nbsp; &nbsp; 3. <strong>每个区块每个tick的怪物是有上限的（4只） （指，由此区块发起的刷怪，怪物可能生成在其他区块） </strong>也就是说，<font color="#ff0000">刷怪塔需要尽可能多的占用区块</font>，比如做在四个区块的交界点上；此条对单种类刷怪塔影响极大</font><br />
+<font size="3">&nbsp; &nbsp; 4. <strong>区块刷怪成功率受周围8区块影响显著</strong>，<strong><font color="#ff0000">尤其是外界5格</font></strong>，对任意区块内的优化，均建议拓展到刷怪平台所在区块外5格的所有方块 尤其是最高非空气方块的影响</font><font size="3">&nbsp; &nbsp; 5. 挂机点需于刷怪平台最近点在24格以上，最远不超过128格（超过128的怪物会直接被删除，故处死地必须也在128格内否则不会有掉落物）；在以此为前提的情况下，尽量不要违反1.</font><br />
+<font size="3"><br />
+</font><br />
+<font size="3">5/11更新：</font><br />
+<br />
+说了这么多理论，我们来看看实例吧<br />
+<font size="3"><br />
+</font><br />
+<font size="3">1. y0 史莱姆农场 效率提升</font><br />
+1.13以后很多大佬们都推荐做空置域以后破基岩做y0的史莱姆农场；但是，y0史莱姆农场不是说做了空置域和随便找个地方肝出一片y0就可以达到最高的效率了的<br />
+<br />
+首先从一个经典的y0史莱姆农场开始 （参考黑山大叔与李芒果版，绿框是BBOR模组，材质包搜索XeKr）<br />
+
+<ignore_js_op>
+
+<img id="aimg_1591911" aid="1591911" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/11/152044hlzjfz5kocfuofqo.jpg" file="https://attachment.mcbbs.net/forum/202005/11/152044hlzjfz5kocfuofqo.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1591911" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1591911_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>7.jpg</strong> <em class="xg1">(204.13 KB, 下载次数: 5)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU5MTkxMXxhYzc0OTEwMnwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-11 15:20 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+非常经典的单区块设计，效率在5000/h左右（因为只是演示，做的比较随便，收集部分并不好，故实际可能更高点）<br />
+中心用整个史莱姆区块来刷出史莱姆，随后靠铁傀儡的吸引处死<br />
+先老调重提的说几个很多人已经提过的注意点：<br />
+&nbsp; &nbsp; 1. 点亮整个区域，如果亮度小于7则会刷出可再黑暗中生成的怪物（如僵尸等），占用刷怪上限还指不定会搞出自爆<br />
+&nbsp; &nbsp; 2. 史莱姆区块内<strong>不得有基岩</strong>等，或<strong>自发光亮度大于13</strong>的方方块，因为这些方块上都没法生成任何东西（理论上点亮的熔炉是最好的选择。。。）<br />
+&nbsp; &nbsp; 3. 点亮区块的火把尽可能少，因为火把会增加最高高度是的该点作为起点的概率降低33%；尽量在区块靠边的5格（区块中心的6x6最好别放）<br />
+避开上述的几个坑，基本5000/h的效率就已经可以保证了，也就是大约每小时一行的粘液块，基本可以满足单人生存的要求了<br />
+<br />
+现在来看存在的问题：<br />
+1. 怪物种类错误：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1591948" aid="1591948" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/11/161334uul9cxcc6zb16bjk.jpg" file="https://attachment.mcbbs.net/forum/202005/11/161334uul9cxcc6zb16bjk.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1591948" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1591948_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1589184815000.jpg</strong> <em class="xg1">(131.63 KB, 下载次数: 5)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU5MTk0OHxhNjZiODZlMnwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-11 16:13 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+首先，如果史莱姆区块最外圈的5格被选为刷怪起点，那么第一次游走（红色箭头）的时候就有可能里看史莱姆区块，则本次游走就作废了；<br />
+因为系统会在第一次游走的到达点的可选刷怪类型中选取本次游走的刷怪类型，所以一旦离开了史莱姆区块本次游走就不可能选择史莱姆作为刷怪种类了，就算有很大概率这次游走会回到史莱姆区块内（蓝色箭头）<br />
+因此，<strong>多连史莱姆区块对单区块的史莱姆农场也有加成</strong>！<br />
+
+<ignore_js_op>
+
+<img id="aimg_1591954" aid="1591954" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/11/162620b58e5emv5yzqmkef.png" file="https://attachment.mcbbs.net/forum/202005/11/162620b58e5emv5yzqmkef.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="683" id="aimg_1591954" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1591954_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(278.1 KB, 下载次数: 7)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU5MTk1NHw5NTJjOWQ4OXwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-11 16:26 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+比如这样，在这种两个史莱姆区块连在一起的情况下，就算第一次游走离开了刷怪用的史莱姆区块，也可能选定史莱姆作为刷怪种类，这样当游走再回到区块内的时候就可以成功刷出史莱姆了！<br />
+连在一起的史莱姆区块出现概率也并不小，如果临近的8个区块中有3个是史莱姆区块，效率就可以提到5400+/h，所以只要选址注意一下，就可以白嫖接近10%的效率了！！！<br />
+<br />
+2. 单区块刷怪成功上限<br />
+因为1.14后每个区块每游戏刻最多成功刷出4只怪；也就是就算成功选到了正确的y值方块，又选到了史莱姆作为刷怪种类，也最多刷出4只史莱姆！<br />
+而<strong><font color="#ff0000">向外多破一格的基岩</font></strong>即可显著提升效率<br />
+
+<ignore_js_op>
+
+<img id="aimg_1591958" aid="1591958" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/11/163849mgbzlhbs8b8pb708.png" file="https://attachment.mcbbs.net/forum/202005/11/163849mgbzlhbs8b8pb708.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1591958" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1591958_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(254.09 KB, 下载次数: 4)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU5MTk1OHxiNDRmODg4OXwxNjE0MDMzNTkzfDI0MTk0ODZ8MTA0MTExNw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-11 16:38 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+因为就算是史莱姆区块外的方块被选定为刷怪起点，也有很大机率会进入史莱姆区块内，然后刷出史莱姆；不但提供额外的12%的刷怪尝试机会也可以将最大刷出量提升到36只<br />
+简单的向外<strong>多破一格</strong>即可将效率提升到<strong>8600/h （纯粹的单区块） 或 8750/h（外侧有3ge史莱姆区块）</strong>；<strong>额外的20%的破基岩工作可以带来额外的 72% / 62% 效率</strong><font color="#000000">；最高有效的范围是区块外5格，效率可以提到10000+/h（已经基本顶到ai诱导式的上限了），超过5格的就算被选为了起点也不可能在第一次游走的时候抵达史莱姆区块，也就不可能选史莱姆作为游走刷怪种类；</font><br />
+<font size="3"><font color="#000000"><br />
+</font></font><br />
+<font size="3"><font color="#000000">1. 史莱姆农场如果还没有开始动工，在做之前可以先找找有没有多个连在一起的史莱姆区块，</font><font color="#ff0000">选一个临近8格史莱姆区块多的史莱姆区块作史莱姆农场的刷怪平台，可以直接白嫖10%的效率</font></font><br />
+<font size="3"><font color="#000000">2. 不论有没有做好，都可以</font><font color="#ff0000">做1chunk+1block的刷怪平台</font><font color="#000000">，虽然会有额外的20%破基岩工作（只用破掉y1以及以上的基岩），但是可以产生</font><font color="#ff0000">额外的72%的效率</font><font color="#000000">！</font></font><br />
+<font size="3"><font color="#000000">3. 如果是双维度的，处死效率有保证的话且17x17区块内所有史莱姆区块都已经利用上了，那么可以考虑破掉周围5格的基岩</font></font><br />
+<script type="text/javascript" reload="1">
+aimgcount[18109330] = ['1589510','1589511','1589512','1589513','1591397','1591911','1591948','1591954','1591958'];
+attachimggroup(18109330);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>betacat&nbsp; &nbsp; <b>时间: </b>2020-5-9 02:13<br />
+如果看得人多的话我就再整理一下不同群系下生物的权重和种群大小，还有其他类型的生物的生成限制检测<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BIGWHITE_&nbsp; &nbsp; <b>时间: </b>2020-5-9 08:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118770&amp;ptid=1041117" target="_blank"><font color="#999999">betacat 发表于 2020-5-9 02:13</font></a></font><br />
+如果看得人多的话我就再整理一下不同群系下生物的权重和种群大小，还有其他类型的生物的生成限制检测 ...</blockquote></div><br />
+建议优化一下排版 有些地方可以用表格 有些地方调整字体大小及颜色 观感更好一些qwq<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>田鑫是你爹&nbsp; &nbsp; <b>时间: </b>2020-5-9 14:41<br />
+<img src="static/image/smiley/mc_mob_food_plants/red_apple.gif" smilieid="845" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Drowned64&nbsp; &nbsp; <b>时间: </b>2020-5-9 17:58<br />
+<img src="static/image/smiley/mc_mob_food_plants/crop.gif" smilieid="833" border="0" alt="" />，我天天背Wiki居然还看不懂<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>betacat&nbsp; &nbsp; <b>时间: </b>2020-5-9 19:04<br />
+<div class="quote"><blockquote><font color="#999999">Drowned 发表于 2020-5-9 17:58</font><br />
+<font color="#999999">，我天天背Wiki居然还看不懂</font></blockquote></div><br />
+emmm<br />
+刚入坑的萌新，不大会写教程，写的有点不大好理解<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>六月奈&nbsp; &nbsp; <b>时间: </b>2020-5-9 19:23<br />
+请使用编辑功能补充本帖内容，而不是在本楼回复<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>betacat&nbsp; &nbsp; <b>时间: </b>2020-5-10 01:27<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18133503&amp;ptid=1041117" target="_blank"><font color="#999999">六月奈 发表于 2020-5-9 19:23</font></a></font><br />
+请使用编辑功能补充本帖内容，而不是在本楼回复</blockquote></div><br />
+ok，已更改<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>asd12017&nbsp; &nbsp; <b>时间: </b>2020-5-10 10:37<br />
+谢谢大佬的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2878wa&nbsp; &nbsp; <b>时间: </b>2020-5-10 14:07<br />
+<img src="static/image/smiley/rabbit/64.gif" smilieid="714" border="0" alt="" />这就很强了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huliyang&nbsp; &nbsp; <b>时间: </b>2020-5-10 21:57<br />
+mcbbs有你更精彩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>0-zero-0&nbsp; &nbsp; <b>时间: </b>2020-5-12 02:04<br />
+是数据化大佬，好久没看到这样的帖子了!<img src="static/image/smiley/tong/kiss.png" smilieid="1434" border="0" alt="" />i了i了<strike>虽然都知道的差不多了，但还是绝对支持！</strike><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>一意孤行21&nbsp; &nbsp; <b>时间: </b>2020-5-12 08:51<br />
+看不懂。。。。只能看一些主播门视频教学才勉强看得懂<img src="static/image/smiley/tong/sleep.png" smilieid="1450" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huahule&nbsp; &nbsp; <b>时间: </b>2020-5-12 12:38<br />
+太专业了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ohservers&nbsp; &nbsp; <b>时间: </b>2020-5-12 13:00<br />
+太专业了~~~~~~~~~~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>v3stiny&nbsp; &nbsp; <b>时间: </b>2020-5-12 13:07<br />
+太狠了把~~~~~~~~~~~~~~~~~~~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>709525791&nbsp; &nbsp; <b>时间: </b>2020-5-12 14:40<br />
+龟龟。这太专业了吧！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1518802173&nbsp; &nbsp; <b>时间: </b>2020-5-13 23:33<br />
+有些看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zhiange&nbsp; &nbsp; <b>时间: </b>2020-5-15 08:48<br />
+膜拜大佬~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>siry冷月&nbsp; &nbsp; <b>时间: </b>2020-7-14 20:29<br />
+硬核内容支持一波等我有分值了就来评分<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>siry冷月&nbsp; &nbsp; <b>时间: </b>2020-7-14 20:35<br />
+对了问一下，我做的刷怪塔为何效率奇慢而且只刷蜘蛛？（基岩版最新版，高度为70左右）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kunkun520&nbsp; &nbsp; <b>时间: </b>2020-7-29 20:38<br />
+mcbbs有你更精彩！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zmx762038&nbsp; &nbsp; <b>时间: </b>2020-7-30 11:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118770&amp;ptid=1041117" target="_blank"><font color="#999999">betacat 发表于 2020-5-9 02:13</font></a></font><br />
+如果看得人多的话我就再整理一下不同群系下生物的权重和种群大小，还有其他类型的生物的生成限制检测 ...</blockquote></div><br />
+为神魔我一句也看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lmess_him&nbsp; &nbsp; <b>时间: </b>2020-7-30 18:37<br />
+太专业了~~~~~~~~~~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>FFFRX&nbsp; &nbsp; <b>时间: </b>2020-7-31 11:06<br />
+谢谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ab2395475096&nbsp; &nbsp; <b>时间: </b>2020-7-31 13:32<br />
+MCBBS有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangjj123&nbsp; &nbsp; <b>时间: </b>2020-7-31 15:24<br />
+厉害啊 这就去建个试试<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ouiola&nbsp; &nbsp; <b>时间: </b>2020-7-31 18:18<br />
+tql，好专业<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>氧气瓶Oxygen&nbsp; &nbsp; <b>时间: </b>2020-8-1 16:37<br />
+大佬讲的我只知道低y.....<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>baba9&nbsp; &nbsp; <b>时间: </b>2020-8-2 21:09<br />
+过于专业，字太多了，看不下去，不好意思<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>king797937&nbsp; &nbsp; <b>时间: </b>2020-8-3 03:34<br />
+请问下有《你的名字》的材质吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2102941569&nbsp; &nbsp; <b>时间: </b>2020-8-3 05:05<br />
+11111111111111111111111111111<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2633193509&nbsp; &nbsp; <b>时间: </b>2020-8-10 16:05<br />
+太强了，有一个疑问，不过简单完整方块包括楼梯和半砖吗，如果半砖的话，下半砖不算上半砖算吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JunYun&nbsp; &nbsp; <b>时间: </b>2020-8-12 14:12<br />
+nb&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lovexyn0827&nbsp; &nbsp; <b>时间: </b>2020-8-19 14:21<br />
+同款史莱姆农场，无额外游走效率8300<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>庄拾弎&nbsp; &nbsp; <b>时间: </b>2020-8-21 02:24<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w1039923275&nbsp; &nbsp; <b>时间: </b>2020-8-23 21:34<br />
+6666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>高速&nbsp; &nbsp; <b>时间: </b>2020-8-25 00:09<br />
+这么好的帖子 已经很少见了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kayn-&nbsp; &nbsp; <b>时间: </b>2020-8-25 00:14<br />
+大佬的算法就是与众不同，太强了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoxinyang&nbsp; &nbsp; <b>时间: </b>2020-8-25 11:29<br />
+厉害了，厉害了，学到了，学到了（脑子说我会了，手说你在逗我！）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>四月天44&nbsp; &nbsp; <b>时间: </b>2020-8-25 13:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18174222&amp;ptid=1041117" target="_blank"><font color="#999999">一意孤行21 发表于 2020-5-12 08:51</font></a></font><br />
+看不懂。。。。只能看一些主播门视频教学才勉强看得懂</blockquote></div><br />
+我也是hhh<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1663691965&nbsp; &nbsp; <b>时间: </b>2020-8-25 14:57<br />
+听不懂很迷茫<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wangpy&nbsp; &nbsp; <b>时间: </b>2020-8-25 21:21<br />
+这都有人讲，我貌似来对地方了，bbs6p<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夕阳红熊猫&nbsp; &nbsp; <b>时间: </b>2020-10-8 09:58<br />
+看着这个东西，除了第一个的刷怪半径表，其他都好难理解XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>春木呱&nbsp; &nbsp; <b>时间: </b>2020-10-8 10:11<br />
+好厉害，原来还可以这么玩的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>XYJerryLZY&nbsp; &nbsp; <b>时间: </b>2020-10-8 10:38<br />
+萌新看不懂啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>春木呱&nbsp; &nbsp; <b>时间: </b>2020-10-8 11:14<br />
+厉害还可以这样玩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Residual_Love&nbsp; &nbsp; <b>时间: </b>2020-10-8 19:46<br />
+欢迎新人！多看版规哦！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pigred&nbsp; &nbsp; <b>时间: </b>2020-10-10 15:14<br />
+感谢楼主分享经验<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lovexyn0827&nbsp; &nbsp; <b>时间: </b>2020-10-11 16:24<br />
+总结的很好，值得顶上去。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CloudOutland&nbsp; &nbsp; <b>时间: </b>2020-10-12 01:34<br />
+&nbsp; &nbsp; &nbsp; &nbsp; MCBBS有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>趁微风不噪&nbsp; &nbsp; <b>时间: </b>2020-10-12 11:26<br />
++16666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>硕啊硕&nbsp; &nbsp; <b>时间: </b>2020-10-12 19:34<br />
+视频看着好快啊&nbsp;&nbsp;好复杂的工程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>硕啊硕&nbsp; &nbsp; <b>时间: </b>2020-10-12 19:34<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18172558&amp;ptid=1041117" target="_blank"><font color="#999999">0-zero-0 发表于 2020-5-12 02:04</font></a></font><br />
+是数据化大佬，好久没看到这样的帖子了!i了i了<strike>虽然都知道的差不多了，但还是绝对支持！</strike><br />
+ ...</blockquote></div><br />
+看不懂。。。。只能看一些主播门视频教学才勉强看得懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>硕啊硕&nbsp; &nbsp; <b>时间: </b>2020-10-12 19:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18120392&amp;ptid=1041117" target="_blank"><font color="#999999">BIGWHITE_ 发表于 2020-5-9 08:26</font></a></font><br />
+建议优化一下排版 有些地方可以用表格 有些地方调整字体大小及颜色 观感更好一些qwq ...</blockquote></div><br />
+刚入坑的萌新，不大会写教程，写的有点不大好理解<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2464772426&nbsp; &nbsp; <b>时间: </b>2020-10-13 12:16<br />
+刷怪容易了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>917hhhh&nbsp; &nbsp; <b>时间: </b>2020-11-9 06:54<br />
+感谢楼主分享，楼主加油<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>badday&nbsp; &nbsp; <b>时间: </b>2020-11-13 17:03<br />
+感谢楼主分享~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1670272896&nbsp; &nbsp; <b>时间: </b>2020-11-13 19:09<br />
+666&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>王老师1999&nbsp; &nbsp; <b>时间: </b>2020-12-29 15:15<br />
+感觉不错呦 收藏了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>T_xiaoye&nbsp; &nbsp; <b>时间: </b>2020-12-30 10:52<br />
+好家伙，看的我是一脸懵<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>晚安_永别&nbsp; &nbsp; <b>时间: </b>2020-12-31 23:07<br />
+学习到好多东西，以前都不知道哦<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>无毒金克拉&nbsp; &nbsp; <b>时间: </b>2021-1-1 00:31<br />
+感谢大佬，涨姿势了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>13196299608&nbsp; &nbsp; <b>时间: </b>2021-1-1 09:09<br />
+谢谢大佬的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GuShiUik&nbsp; &nbsp; <b>时间: </b>2021-1-1 19:45<br />
+谢谢大大，长知识了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ckingcool&nbsp; &nbsp; <b>时间: </b>2021-1-2 02:25<br />
+不错啊，学习了，谢谢。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>知了个心&nbsp; &nbsp; <b>时间: </b>2021-1-5 03:16<br />
+<br />
+<br />
+感谢分享！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MCfeiqiu&nbsp; &nbsp; <b>时间: </b>2021-1-5 22:52<br />
+看不懂，我废了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DaYaLi&nbsp; &nbsp; <b>时间: </b>2021-1-5 23:30<br />
+代入感好强，我已经开始困了，zzzz<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2814434181&nbsp; &nbsp; <b>时间: </b>2021-1-6 16:28<br />
+感觉好复杂呀<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mengxingshifen&nbsp; &nbsp; <b>时间: </b>2021-1-28 12:45<br />
+看不懂但是明白很专业<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>763706012&nbsp; &nbsp; <b>时间: </b>2021-2-4 20:43<br />
+9999999999999<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>cxl5201314&nbsp; &nbsp; <b>时间: </b>2021-2-6 19:53<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

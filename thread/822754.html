@@ -1,0 +1,457 @@
+<html>
+<head>
+<title>Coremod导论—从切比雪夫多项式说起 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Coremod导论—从切比雪夫多项式说起 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2018-10-5 00:18<br />
+<b>标题: </b>Coremod导论—从切比雪夫多项式说起<br /><i class="pstatus"> 本帖最后由 森林蝙蝠 于 2019-7-27 23:11 编辑 </i><br />
+<br />
+<font color="Black">所谓的coremod，是forge提供的代码注入机制，用来方便开发者修改原版代码或者控制mod加载用的，要实现coremod，首先应该实现IFMLLoadingPlugin接口：<br />
+<br />
+<i>public class </i>WarhammerLoader <i>implements </i>IFMLLoadingPlugin {<br />
+&nbsp; &nbsp; <i>public </i>String[] getASMTransformerClass(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//代码注入需要用到asm，你的asm操作一般在IClassTransformer中进行，这个类用来获取实现了IClassTransformer的类<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//LaunchClassLoader.registerTransformer()中IClassTransformer的实现会被ClassLoader加载<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return new </i>String[]{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;com.forestbat.warhammer.asm.ChebishevTransformer&quot;,&quot;com.forestbat.warhammer.asm.ParentTransformer&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;};<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>String getModContainerClass(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//用来获取实现了ModContainer的类<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>&quot;com.forestbat.warhammer.asm.WarhammerModContainer&quot;;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>String getSetupClass(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//用来获取实现了IFMLCallHook的类<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public void </i>injectData(Map&lt;String,Object&gt; data){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//注入一些重要的数据，例如MC路径<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data.put(&quot;mcLocation&quot;, File mcDir);//MC路径<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data.put(&quot;coremodList&quot;, List loadPlugins);//coremod表单<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data.put(&quot;runtimeDeobfuscationEnabled&quot;, !deobfuscatedEnvironment);//确认运行时反混淆开启<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data.put(&quot;coremodLocation&quot;, File location);//coremod路径&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>String getAccessTransformerClass()<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//AccessTransformer用来改变类的访问权限，例如从public改成private，forge已经自带<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>&quot;net.minecraftforge.fml.common.asm.transformers.AccessTransformer&quot;;<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+<strong><font size="4">getASMTransformerClass()</font></strong><br />
+众所周知，Optifine的快速渲染是使用了自己的sin和cos算法，但可惜optifine是不开源的，那我们能不能实现自己的算法，以图对原版的算法实现优化呢？答案是肯定的。<br />
+在这里跟大家介绍一下切比雪夫逼近：<a href="https://baike.baidu.com/item/%E5%88%87%E6%AF%94%E9%9B%AA%E5%A4%AB%E5%A4%9A%E9%A1%B9%E5%BC%8F/9390867" target="_blank">切比雪夫多项式（百度百科）</a><br />
+比起泰勒公式，切比雪夫的优势在于可以以更低的次数逼近目标函数，降低运算量。出于简洁，使用第一类切比雪夫多项式去逼近sin（x），也就是sin（x）=aT0（x）+bT1(x)+cT2(x)+……这样的形式。<br />
+为了保证精度，我们选用六次切比雪夫逼近式，可以达到误差限4e-7，远高于原版算法的精度1e-6级别，最后的公式如下：<br />
+</font><div class="blockcode"><div id="code_l1f"><ol><li>&lt;font color=&quot;Black&quot;&gt;sin = (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* value - 0.0002715666) * value + 1.000026227) * value;<br />
+<li>//value是传入的弧度参数，范围为（0，π/2），其他角度都可以通过诱导公式变过来<br />
+<li>&lt;/font&gt;</ol></div><em onclick="copycode($('code_l1f'));">复制代码</em></div><font color="Black">什么你问我怎么算出来的？取特殊点（例如sin（pi/6）=1/2）带入你的逼近多项式，得到一个7元一次方程组，然后求解这个方程组对应的矩阵（如何用Excel求逆矩阵和矩阵相乘可百度），即可得出a，b，c等相应系数。<br />
+<br />
+好的，式子得到了，那么是时候将其置入游戏体验一下了。<br />
+如果你只是给自己的mod用一下，就不会有接下来的东西，直接声明一个static方法调用即可；如果你像我一样的“大公无私”，想让原版游戏的算法也变成这样大家一起用，下面的内容或许就很重要了。<br />
+准备好的了话，请看下面↓↓↓或<a href="https://paste.ubuntu.com/p/sxpMbwRSJ9/" target="_blank">这里</a></font><div class="blockcode"><div id="code_l2h"><ol><li>&lt;font color=&quot;Black&quot;&gt;public class ChebishevTransformer implements IClassTransformer {<br />
+<li>//IClassTransformer：MC自带的launchwrapper工具所提供的类转换接口<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public byte[] transform(String name, String transformedName, byte[] basicClass) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (transformedName.equals(&quot;net.minecraft.util.math.MathHelper&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;FMLLog.log.warn(&quot;[Transforming...]&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//在这里输出一个告警信息，告诉大家你在做什么，可选项<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassNode classNode=new ClassNode(ASM5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//声明一个ASM5的classNode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassReader classReader=new ClassReader(basicClass);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//声明一个读取basicClass的classReader<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classReader.accept(classNode,0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//让classReader接收到要修改的classNode/classVisitor，以产生事件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;List&lt;MethodNode&gt; methodNodeList=new ArrayList&lt;&gt;(classNode.methods);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//由于我们的目标是要修改方法，因此要遍历一下MethodNode，将其保存在list中<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(MethodNode methodNode:methodNodeList)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (methodNode.name.equals(&quot;func_76126_a(F)F&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//上文的transformedName是转换后的类名，因为你看到的代码是根据notch name反混淆出来的，methodName是它的srg name，&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//(F)F指参数为float，返回float<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; methodNode.instructions.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //清除methodNode下的结构<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; methodNode.instructions.add(new InsnNode(FLOAD))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //添加你自己的实现，FLOAD代表传入float参数，其在ASM中规定的操作码（Opcode）是23<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; methodNode.instructions.add(new MethodInsnNode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(ACC_PUBLIC + ACC_STATIC, &quot;Lcom/forestbat/warhammer/asm/ChebishevTransformer&quot;, &quot;sin&quot;, &quot;(F)D&quot;, false));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //添加上你自己的实现，ACC_PUBLIC，ACC_STATIC是ASM中public和static的操作码（分别是0x0001和0x0008）；<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //“Lcom/forestbat/warhammer/asm/ChebishevTransformer”是owner参数，表明方法的源头类；<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //“sin”是name参数，表明我们的方法名；<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //“(F)D”是“float形参，返回double”的description（描述符）；<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //false表明了owner类（不是）一个接口，若是，则为true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; methodNode.instructions.add(new InsnNode(DRETURN));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //DRETURN代表返回double值，其操作码是175<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassWriter classWriter = new ClassWriter(2); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//声明一个classWriter写入内容，参数2的意义是COMPUTE_FRAMES，自动计算局部变量与操作数栈<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//每当方法被调用一次栈上就会生成一个帧，帧又被分为局部变量和操作数栈，COMPUTE_FRAMES会帮你自动计算，但会拖慢性能<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;classNode.accept(classWriter);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//classNode接收classWriter做参数，向方法内部生成二进制代码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return classWriter.toByteArray();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return basicClass;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//返回被修改的basicClass<br />
+<li>}<br />
+<li>&lt;/font&gt;</ol></div><em onclick="copycode($('code_l2h'));">复制代码</em></div><font color="Black"><i>//我们自己的sin方法<br />
+public static double </i>sin(<i>float </i>value){<br />
+&nbsp; &nbsp; <i>if</i>(value&gt;=0&amp;&amp;value&lt;=PI/2)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return&nbsp;&nbsp;</i>(((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * value - 0.0002715666) * value + 1.000026227) * value;<br />
+<br />
+&nbsp; &nbsp; <i>if</i>(value&lt;0){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i><i>-sin</i>(-value);<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>else</i>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp; <i>return </i><i>sin</i>((<i>float</i>)(value%PI));<br />
+&nbsp; &nbsp; }<br />
+}<br />
+首先解释下，为什么basicClass的类型是byte[]——因为basicClass在这里指的是未加载的类字节码，字节码本质上还是一串字节，因此类型是byte[]。<br />
+asm修改字节码的步骤是固定的，ClassReader读取basicClass（使之可被修改），接收ClassNode（来自asm的tree api）/ClassVisitor（来自asm的core api），而ClassNode/ClassVisitor又会接受ClassWriter，将开发者的改动通过ClassWriter写入Class中，最后返回修改后的basicClass。<br />
+<br />
+tree api的性能低于core api，我们不妨康康core api的写法：<br />
+<i>public class </i>ParentTransformer <i>implements </i>IClassTransformer {//一个修改父类的轮子<br />
+&nbsp; &nbsp; <i>private static </i>String <i>parentName</i>;<br />
+&nbsp; &nbsp; <i>private static </i>String[] <i>baseInterfaces</i>;<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+</font><font color="Black">&nbsp; &nbsp; <i>public byte</i>[] transform(String name, String transformedName, <i>byte</i>[] basicClass) {<br />
+</font><font color="Black"><i>&nbsp; &nbsp;&nbsp; &nbsp;if</i>(<i>baseInterfaces</i>!=<i>null </i>&amp;&amp; <i>parentName</i>!=<i>null</i>){</font><br />
+<font color="Black">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassReader classReader = <i>new </i>ClassReader(basicClass);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassWriter classWriter = <i>new </i>ClassWriter(2);//2代表自动计算栈帧<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassVisitor classVisitor = <i>new </i>ClassVisitor(ASM5, classWriter) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>public void </i>visit(<i>int </i>version, <i>int </i>access, String name, String signature, String superName, String[] interfaces) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <i>super</i>.visit(52, access, transformedName, <i>null</i>, <i>null</i>, <i>null</i>);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //52代表Java8，access代表public/private/protected，superName即父类，由于我们要修改父类，因此原类不应有父类，否则会发生错误<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classReader.accept(classVisitor, 2);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classWriter.visit(52, 0x0001, transformedName, <i>null</i>,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <i>setParentName</i>(transformedName, <i>parentName</i>), <i>setInterfacesName</i>(transformedName, <i>baseInterfaces</i>));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classWriter.toByteArray();<br />
+</font><font color="Black">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>basicClass;</font><br />
+<font color="Black">&nbsp; &nbsp; }</font><br />
+<font color="Black">&nbsp; &nbsp; else return basicClass;<br />
+</font><br />
+<font color="Black">&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public static </i>String setParentName(String transformedName,String parentName){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ParentTransformer.<i>parentName</i>=parentName;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>parentName;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public static </i>String[] setInterfacesName(String transformedName,String[] baseInterfaces) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ParentTransformer.<i>baseInterfaces</i>=baseInterfaces;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>for </i>(String baseInterface : baseInterfaces) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>try </i>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ClassReader classReader = <i>new </i>ClassReader(baseInterface);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>if </i>(classReader.getItemCount() == 0)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>return </i>baseInterfaces;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<i>catch </i>(IOException e){FMLLog.<i>bigWarning</i>(&quot;No any interfaces!&quot;);}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+}<strong><font size="4"><br />
+</font></strong><br />
+<strong><font size="4">getModContainerClass()</font></strong><br />
+每一个被@Mod注解标记从而被认为是mod的mod，都会有自己的ModContainer，如无意外将会在FMLModContainer类中进行处理，读取@Mod注解中的信息，但是开发者也可以自己改写ModContainer。<br />
+<i>public class </i>YourModContainer <i>implements </i>ModContainer {<br />
+&nbsp; &nbsp; <i>private </i>ModMetadata modMetadata;<br />
+&nbsp; &nbsp; <i>private boolean </i>enabled=<i>true</i>;<br />
+&nbsp; &nbsp; <i>private </i>VersionRange versionRange;<br />
+&nbsp; &nbsp; <i>private </i>ModContainer modContainer;<br />
+&nbsp; &nbsp; <i>public </i>String getModId(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>MOD_ID;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>String getName(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>MOD_NAME;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>String getVersion(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>VERSION;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>File getSource(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Path path= Paths.<i>get</i>(&quot;.minecraft&quot;,&quot;mods&quot;,getName());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>path.toFile();<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>ModMetadata getMetadata(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>modMetadata; //ModMetaData就是mod的“标签”，由@Mod注解信息决定，也可以由玩家自己编写<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override&nbsp; &nbsp; <br />
+<i>&nbsp; &nbsp; public void </i>bindMetadata(MetadataCollection mc) {<br />
+&nbsp; &nbsp; <i>try </i>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ModMetadata metadata = mc.getMetadataForId(&quot;Gregtech&quot;, Maps.<i>newConcurrentMap</i>());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>if </i>(metadata != <i>null </i>&amp; metadata.dependencies.contains(&quot;ic2&quot;))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;getUpdateUrl().openConnection();<br />
+&nbsp; &nbsp; }<i>catch </i>(IOException e){<i>LOGGER</i>.info(&quot;IC2 WebSite Error!&quot;);}}<br />
+<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public void </i>setEnabledState(<i>boolean </i>enabled) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>this</i>.enabled=enabled;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>Set&lt;ArtifactVersion&gt; getRequirements(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>modMetadata.requiredMods;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>List&lt;ArtifactVersion&gt; getDependencies(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>modMetadata.dependencies;<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public </i>List&lt;ArtifactVersion&gt; getDependants(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public boolean </i>registerBus(EventBus bus, LoadController controller) {&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bus.unregister(ForgeRegistries.BIOMES);//从EventBus移除所有生物群系，当然这么做很扯淡<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;controller.getActiveModList().remove(&quot;titan&quot;);//从活跃加载mod列表中移除泰坦，换句话说，禁用了泰坦<br />
+<i>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true</i>;&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public boolean </i>shouldLoadInEnvironment() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return false</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>String getSortingRules() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//forge使用的是拓扑排序（TopologicalSort），当然你可以写一个自己的<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>return “com.yourmod.yourSortList&quot;</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public boolean </i>matches(Object mod) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>mod.equals(YourMod.<i>INSTANCE</i>);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Object getMod() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>YourMod.<i>INSTANCE</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>ArtifactVersion getProcessedVersion() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return new </i>DefaultArtifactVersion(YourMod.VERSION);<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public boolean </i>isImmutable(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return false</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>String getDisplayVersion() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>YourMod.VERSION;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>VersionRange acceptableMinecraftVersionRange() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>try </i>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;versionRange=VersionRange.<i>createFromVersionSpec</i>(&quot;[1.12,1.12.2]&quot;);//限定你的mod版本范围是1.12-1.12.2<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<i>catch </i>(InvalidVersionSpecificationException e){FMLLog.<i>bigWarning</i>(&quot;No 1.12!&quot;);}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>versionRange;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Nullable<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Certificate getSigningCertificate() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Certificate[] certificates = getClass().getProtectionDomain().getCodeSource().getCertificates();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>certificates != <i>null </i>? certificates[0] : <i>null</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Map&lt;String, String&gt; getCustomModProperties() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//向description中添加自己的信息，forge本身不一定会作出处理，这一部分由开发者自行处理，与下文descriptor并不一样<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Class&lt;?&gt; getCustomResourcePackClass() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Map&lt;String, String&gt; getSharedModDescriptor() {Map&lt;String, String&gt; descriptor = Maps.<i>newHashMap</i>();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;modsystem&quot;, &quot;FML&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;id&quot;, getModId());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;version&quot;, getDisplayVersion());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;name&quot;, getName());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;url&quot;, modMetadata.url);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;descriptor.put(&quot;description&quot;, modMetadata.description);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>descriptor;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <i>public </i>Disableable canBeDisabled(){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>Disableable.NEVER;//设置其不会被禁用<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>String getGuiClassName() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>List&lt;String&gt; getOwnedPackages() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return null</i>;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>URL getUpdateUrl() {&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<i>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try </i>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <i>return new </i>URL(&quot;https://minecraft.curseforge.com/projects/botania/files/2524591&quot;);//方便所以打了个botania的更新链接<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<i>catch </i>(MalformedURLException e){}&nbsp; &nbsp;<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public int </i>getClassVersion() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>return </i>52;//52代表Java8<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>public void </i>setClassVersion(<i>int </i>version){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+<font size="4"><strong>getSetupClass（）</strong></font><br />
+由于IFMLCallHook这个接口的调用时间非常早，类似于.NET Core的startup接口，所以这里不应该出现MC本身的代码（因为MC代码的反混淆还在IFMLCallHook之后）<br />
+<i>&nbsp; &nbsp; public class </i>WarhammerHook <i>implements </i>IFMLCallHook {<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public void </i>injectData(Map&lt;String, Object&gt; data) {&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;liveEnv = (Boolean)data.get(&quot;runtimeDeobfuscationEnabled&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;cl = (LaunchClassLoader) data.get(&quot;classLoader&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;File mcDir = (File)data.get(&quot;mcLocation&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;fmlLocation = (File)data.get(&quot;coremodLocation&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassPatchManager.INSTANCE.setup(FMLLaunchHandler.side());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;FMLDeobfuscatingRemapper.INSTANCE.setup(mcDir, cl, (String) data.get(&quot;deobfuscationFileName&quot;));&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @Override<br />
+&nbsp; &nbsp; <i>public </i>Void call() <i>throws </i>Exception {&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Class&lt;?&gt; classTitan=Class.forName(&quot;titan(or its obfuscate name)&quot;,false, (LaunchClassLoader)cl) //LaunchClassLoader是MC自带的类加载器&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CodeSource codeSource = classTitan.getProtectionDomain().getCodeSource();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Files.delete(Paths.get(codeSource.getLocation().toURI())); //探测到泰坦所在的类后删除它<br />
+}<br />
+</font><font color="Black">}</font><br />
+<font color="Black"><br />
+</font><br />
+<font size="4"><strong><font color="Black">最后</font></strong></font><br />
+<font color="Black">我们的东西已经写完了，应该加载到游戏中使之生效。</font><br />
+<font color="Black">打开你的build.gradle文件，向里面写入这样一段：</font><br />
+<div class="blockcode"><div id="code_uUE"><ol><li>jar {<br />
+<li>&nbsp; &nbsp; manifest {<br />
+<li>//实现了IFMLLoadingPlugin的类（你的coremod类）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;attributes 'FMLCorePlugin': 'com.forestbat.warhammer.asm.WarhammerLoader'<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;attributes 'FMLCorePluginContainsFMLMod': 'true'<br />
+<li>//access transformer配置文件，一般是modid_at.cfg，放在resources/META_INF文件夹下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;attributes 'FMLAT': 'warhammer_at.cfg'<br />
+<li>//https://github.com/Ipsis/Woot/blob/1_12/src/main/resources/META-INF/woot_at.cfg（woot的AT配置文件）<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_uUE'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+<font color="Black">———————————————————————— 分割线 ——————————————————————————<br />
+如有需要继续更新ITweaker相关<br />
+<br />
+</font>[groupid=128]HAYO Studio[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NoName德里奇&nbsp; &nbsp; <b>时间: </b>2018-10-5 07:15<br />
+这很数学.jpg<br />
+蝙蝠出品，必属精品。<img src="static/image/smiley/mc_mob_food_plants/notch_square.gif" smilieid="840" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-10-5 09:50<br />
+完全可以只考虑0~pi/4，然后用ax+bx^3+cx^5逼近吧？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2018-10-5 09:52<br />
+1.13 要换成用 JavaScript 写 Mod 了？太恐怖了……<br />
+<br />
+是不是还要再内嵌个 V8 和 Webkit……<br />
+<br />
+咳咳……<br />
+<br />
+<br />
+<br />
+切比雪夫我听都没听过，只能仰望<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2018-10-5 10:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13376617&amp;ptid=822754" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-10-5 09:50</font></a></font><br />
+完全可以只考虑0~pi/4，然后用ax+bx^3+cx^5逼近吧？</blockquote></div><br />
+可以，不过这样需要再推一遍cos（）的逼近，而且当时也没有考虑的太深。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2018-10-5 10:23<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13376620&amp;ptid=822754" target="_blank"><font color="#999999">langyo 发表于 2018-10-5 09:52</font></a></font><br />
+1.13 要换成用 JavaScript 写 Mod 了？太恐怖了……<br />
+<br />
+是不是还要再内嵌个 V8 和 Webkit……</blockquote></div><br />
+是coremod，不是mod。<br />
+typescript会编译成JS，所以你也可以用TS去编。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-3-3 18:24<br />
+个人表示modcontainer类应该和coremod其他部分分开，与普通mod的代码放一起。不然和sponge有兼容问题。<br />
+<br />
+同时修改字节码的内容最好放独立的sourceset，和mod主体避免出现coremod导致classloading的现象。<br />
+<br />
+还有最好别在coremod写法中唐突地插入一段fast math，混淆了主题。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-3-3 18:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13980598&amp;ptid=822754" target="_blank"><font color="#999999">liach 发表于 2019-3-3 18:24</font></a></font><br />
+个人表示modcontainer类应该和coremod其他部分分开，与普通mod的代码放一起。不然和sponge有兼容问题。<br />
+<br />
+同 ...</blockquote></div><br />
+前两者会注意，但第三条有必要说下，其实整篇文章是从fastmath那部分扩写出来的，所以会有切比雪夫多项式的论述。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1016746326&nbsp; &nbsp; <b>时间: </b>2019-3-8 08:51<br />
+很有用，收藏了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>roj234&nbsp; &nbsp; <b>时间: </b>2019-3-12 23:43<br />
+为什么我测试了却StackOverFlow<br />
+sin输入的是啥？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-3-13 00:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14026425&amp;ptid=822754" target="_blank"><font color="#999999">roj234 发表于 2019-3-12 23:43</font></a></font><br />
+为什么我测试了却StackOverFlow<br />
+sin输入的是啥？</blockquote></div><br />
+你是不是输入了一个特别大的数？sin一般的参数是介于0-2pi的，如果太大就会无限递归，从而引发爆栈。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>roj234&nbsp; &nbsp; <b>时间: </b>2019-3-13 12:46<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14026723&amp;ptid=822754" target="_blank"><font color="#999999">森林蝙蝠 发表于 2019-3-13 00:05</font></a></font><br />
+你是不是输入了一个特别大的数？sin一般的参数是介于0-2pi的，如果太大就会无限递归，从而引发爆栈。 ...</blockquote></div><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(float i=0;i&lt;3.1;i+=0.0001f){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;double a = sin(i);<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-3-13 22:14<br />
+<i class="pstatus"> 本帖最后由 森林蝙蝠 于 2019-3-13 22:36 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14028049&amp;ptid=822754" target="_blank"><font color="#999999">roj234 发表于 2019-3-13 12:46</font></a></font><br />
+for(float i=0;i</blockquote></div><br />
+public static double sin(float value){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//修复程序，直接return，恢复正常<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//原因在于主公式sin= (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* value - 0.0002715666) * value + 1.000026227) * value 处没有return，导致程序找不到出口就这么爆栈了<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(value&gt;=0&amp;&amp;value&lt;=PI/2)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return&nbsp;&nbsp;(((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* value - 0.0002715666) * value + 1.000026227) * value;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(value&lt;0&amp;&amp;value&gt;=-PI/2){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return sin(-value);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return sin((float)(value-PI));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>roj234&nbsp; &nbsp; <b>时间: </b>2019-3-14 18:48<br />
+<i class="pstatus"> 本帖最后由 roj234 于 2019-3-14 18:56 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14030164&amp;ptid=822754" target="_blank"><font color="#999999">森林蝙蝠 发表于 2019-3-13 22:14</font></a></font><br />
+public static double sin(float value){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//修复程序，直接return，恢复正常<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// ...</blockquote></div><br />
+!Thank u&nbsp; &nbsp; <br />
+<br />
+<img id="aimg_DgFi3" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2019/03/14/5c8a3351cedfe.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-3-14 19:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14033355&amp;ptid=822754" target="_blank"><font color="#999999">roj234 发表于 2019-3-14 18:48</font></a></font><br />
+!Thank u</blockquote></div><br />
+问一下，你这个origin time是哪个算法的？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>roj234&nbsp; &nbsp; <b>时间: </b>2019-3-16 23:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14033473&amp;ptid=822754" target="_blank"><font color="#999999">森林蝙蝠 发表于 2019-3-14 19:17</font></a></font><br />
+问一下，你这个origin time是哪个算法的？</blockquote></div><br />
+Math.sin()<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>月杀233&nbsp; &nbsp; <b>时间: </b>2020-4-19 20:36<br />
+蝙蝠出品，必出精品（狗头）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1373733703ld&nbsp; &nbsp; <b>时间: </b>2021-2-9 17:50<br />
+111111111111<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Calelitspt&nbsp; &nbsp; <b>时间: </b>2021-2-10 20:38<br />
+henyoukoazhi,xuedaol
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

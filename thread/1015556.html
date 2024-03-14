@@ -1,0 +1,2448 @@
+<html>
+<head>
+<title>python3 读取并修改文件 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>python3 读取并修改文件 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-4-11 21:50<br />
+<b>标题: </b>python3 读取并修改文件<br />python3 是否有方法可以读取并修改例如原版末地船的 nbt 或者 command storage 等文件？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阴阳师元素祭祀&nbsp; &nbsp; <b>时间: </b>2020-4-11 21:50<br />
+<i class="pstatus"> 本帖最后由 阴阳师元素祭祀 于 2020-4-11 22:35 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17529101&amp;ptid=1015556" target="_blank"><font color="#999999">(=°ω°)丿 发表于 2020-4-11 22:24</font></a></font><br />
+那你就帮我把 <a href="https://pca006132.neocities.org/tutorials/nbt/format.html" target="_blank">https://pca006132.neocities.org/tutorials/nbt/format.html</a> 里的 python nbt 库下载下来 ...</blockquote></div><br />
+因为不会下载<br />
+所以..请原谅我这样发文件<br />
+<a href="https://github.com/twoolie/NBT" target="_blank">https://github.com/twoolie/NBT</a><br />
+<br />
+是重要的协议：<br />
+<div class="quote"><blockquote> Copyright (c) 2010-2013 Thomas Woolford and contributors<br />
+<br />
+ Permission is hereby granted, free of charge, to any person obtaining a copy<br />
+ of this software and associated documentation files (the &quot;Software&quot;), to deal<br />
+ in the Software without restriction, including without limitation the rights<br />
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br />
+ copies of the Software, and to permit persons to whom the Software is<br />
+ furnished to do so, subject to the following conditions:<br />
+<br />
+ The above copyright notice and this permission notice shall be included in<br />
+ all copies or substantial portions of the Software.<br />
+<br />
+ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br />
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br />
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br />
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br />
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br />
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br />
+ THE SOFTWARE.</blockquote></div><br />
+nbt/__init__.py<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_OYE"><ol><li><br />
+<li>__all__ = [&quot;nbt&quot;, &quot;world&quot;, &quot;region&quot;, &quot;chunk&quot;]<br />
+<li>from . import *<br />
+<li><br />
+<li># Documentation only automatically includes functions specified in __all__.<br />
+<li># If you add more functions, please manually include them in doc/index.rst.<br />
+<li><br />
+<li>VERSION = (1, 5, 0)<br />
+<li>&quot;&quot;&quot;NBT version as tuple. Note that the major and minor revision number are <br />
+<li>always present, but the patch identifier (the 3rd number) is only used in 1.4.&quot;&quot;&quot;<br />
+<li><br />
+<li>def _get_version():<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Return the NBT version as string.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; return &quot;.&quot;.join([str(v) for v in VERSION])<br />
+<li></ol></div><em onclick="copycode($('code_OYE'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+nbt/chunk.py<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_JW9"><ol><li><br />
+<li>&quot;&quot;&quot;<br />
+<li>Handles a single chunk of data (16x16x128 blocks) from a Minecraft save.<br />
+<li>For more information about the chunck format:<br />
+<li>https://minecraft.gamepedia.com/Chunk_format<br />
+<li>&quot;&quot;&quot;<br />
+<li><br />
+<li>from io import BytesIO<br />
+<li>from struct import pack<br />
+<li>import array<br />
+<li>import nbt<br />
+<li><br />
+<li><br />
+<li># Legacy numeric block identifiers<br />
+<li># mapped to alpha identifiers in best effort<br />
+<li># See https://minecraft.gamepedia.com/Java_Edition_data_values/Pre-flattening<br />
+<li># TODO: move this map into a separate file<br />
+<li><br />
+<li>block_ids = {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;0: 'air',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;1: 'stone',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;2: 'grass_block',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;3: 'dirt',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;4: 'cobblestone',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;5: 'oak_planks',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;6: 'sapling',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;7: 'bedrock',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;8: 'flowing_water',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;9: 'water',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;10: 'flowing_lava',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;11: 'lava',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;12: 'sand',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;13: 'gravel',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;14: 'gold_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;15: 'iron_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;16: 'coal_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;17: 'oak_log',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;18: 'oak_leaves',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;19: 'sponge',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;20: 'glass',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;21: 'lapis_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;24: 'sandstone',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;30: 'cobweb',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;31: 'grass',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;32: 'dead_bush',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;35: 'white_wool',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;37: 'dandelion',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;38: 'poppy',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;39: 'brown_mushroom',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;40: 'red_mushroom',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;43: 'stone_slab',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;44: 'stone_slab',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;47: 'bookshelf',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;48: 'mossy_cobblestone',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;49: 'obsidian',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;50: 'torch',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;51: 'fire',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;52: 'spawner',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;53: 'oak_stairs',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;54: 'chest',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;56: 'diamond_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;58: 'crafting_table',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;59: 'wheat',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;60: 'farmland',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;61: 'furnace',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;62: 'furnace',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;63: 'sign',&nbsp;&nbsp;# will change to oak_sign in 1.14<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;64: 'oak_door',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;65: 'ladder',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;66: 'rail',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;67: 'cobblestone_stairs',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;72: 'oak_pressure_plate',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;73: 'redstone_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;74: 'redstone_ore',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;78: 'snow',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;79: 'ice',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;81: 'cactus',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;82: 'clay',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;83: 'sugar_cane',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;85: 'oak_fence',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;86: 'pumpkin',<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;91: 'lit_pumpkin',<br />
+<li>&nbsp; &nbsp; 101: 'iron_bars',<br />
+<li>&nbsp; &nbsp; 102: 'glass_pane',<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>def block_id_to_name(bid):<br />
+<li>&nbsp; &nbsp; try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = block_ids[bid]<br />
+<li>&nbsp; &nbsp; except KeyError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = 'unknown_%d' % (bid,)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;print(&quot;warning: unknown block id %i&quot; % bid)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;print(&quot;hint: add that block to the 'block_ids' map&quot;)<br />
+<li>&nbsp; &nbsp; return name<br />
+<li><br />
+<li><br />
+<li># Generic Chunk<br />
+<li><br />
+<li>class Chunk(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Class for representing a single chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, nbt):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.chunk_data = nbt['Level']<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.coords = self.chunk_data['xPos'],self.chunk_data['zPos']<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_coords(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return the coordinates of this chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (self.coords[0].value,self.coords[1].value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a representation of this Chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;Chunk(&quot;+str(self.coords[0])+&quot;,&quot;+str(self.coords[1])+&quot;)&quot;<br />
+<li><br />
+<li><br />
+<li># Chunk in Region old format<br />
+<li><br />
+<li>class McRegionChunk(Chunk):<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, nbt):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunk.__init__(self, nbt)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.blocks = BlockArray(self.chunk_data['Blocks'].value, self.chunk_data['Data'].value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_max_height(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 127<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_block(self, x, y, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = block_id_to_name(self.blocks.get_block(x, y, z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return name<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_block(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for y in range(0, 128):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(0, 16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for x in range(0, 16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;yield self.get_block(x, y, z)<br />
+<li><br />
+<li><br />
+<li># Section in Anvil new format<br />
+<li><br />
+<li>class AnvilSection(object):<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, nbt, version):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.names = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.indexes = []<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Is the section flattened ?<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# See https://minecraft.gamepedia.com/1.13/Flattening<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if version == 0 or version == 1343:&nbsp;&nbsp;# 1343 = MC 1.12.2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._init_array(nbt)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif version == 1631:&nbsp;&nbsp;# MC 1.13<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._init_index(nbt)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise NotImplementedError()<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Section contains 4096 blocks whatever data version<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert len(self.indexes) == 4096<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; # Decode legacy section<br />
+<li>&nbsp; &nbsp; # Contains an array of block numeric identifiers<br />
+<li><br />
+<li>&nbsp; &nbsp; def _init_array(self, nbt):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bids = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for bid in nbt['Blocks'].value:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; i = bids.index(bid)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except ValueError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bids.append(bid)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; i = len(bids) - 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.indexes.append(i)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for bid in bids:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;bname = block_id_to_name(bid)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.names.append(bname)<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; # Decode modern section<br />
+<li>&nbsp; &nbsp; # Contains palette of block names and indexes<br />
+<li><br />
+<li>&nbsp; &nbsp; def _init_index(self, nbt):<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for p in nbt['Palette']:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;name = p['Name'].value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if name.startswith('minecraft:'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; name = name[10:]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.names.append(name)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;states = nbt['BlockStates'].value<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Block states are packed into an array of longs<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# with variable number of bits per block (min: 4)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nb = (len(self.names) - 1).bit_length()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if nb &lt; 4: nb = 4<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert nb == len(states) * 8 * 8 / 4096<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m = pow(2, nb) - 1<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;j = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;bl = 64<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ll = states[0]<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for i in range(0,4096):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if bl == 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; j = j + 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ll = states[j]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bl = 64<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if nb &lt;= bl:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.indexes.append(ll &amp; m)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ll = ll &gt;&gt; nb<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bl = bl - nb<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; j = j + 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lh = states[j]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bh = nb - bl<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lh = (lh &amp; (pow(2, bh) - 1)) &lt;&lt; bl<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ll = (ll &amp; (pow(2, bl) - 1))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.indexes.append(lh | ll)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ll = states[j]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ll = ll &gt;&gt; bh<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bl = 64 - bh<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def get_block(self, x, y, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Blocks are stored in YZX order<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;i = y * 256 + z * 16 + x<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;p = self.indexes[i]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.names[p]<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_block(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for i in range(0, 4096):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;p = self.indexes[i]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yield self.names[p]<br />
+<li><br />
+<li><br />
+<li># Chunck in Anvil new format<br />
+<li><br />
+<li>class AnvilChunk(Chunk):<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, nbt):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunk.__init__(self, nbt)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Started to work on this class with MC version 1.13.2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# so with the chunk data version 1631<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Backported to first Anvil version (= 0) from examples<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Could work with other versions, but has to be tested first<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;version = nbt['DataVersion'].value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if version != 1343 and version != 1631:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise NotImplementedError('DataVersion %d not implemented' % (version,))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;except KeyError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;version = 0<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Load all sections<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.sections = {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if 'Sections' in self.chunk_data:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for s in self.chunk_data['Sections']:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.sections[s['Y'].value] = AnvilSection(s, version)<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def get_section(self, y):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Get a section from Y index.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if y in self.sections:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return self.sections[y]<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return None<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def get_max_height(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ymax = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for y in self.sections.keys():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if y &gt; ymax: ymax = y<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return ymax * 16 + 15<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def get_block(self, x, y, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Get a block from relative x,y,z.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sy,by = divmod(y, 16)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;section = self.get_section(sy)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if section == None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return None<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return section.get_block(x, by, z)<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_block(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for s in self.sections.values():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for b in s.iter_block():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield b<br />
+<li><br />
+<li><br />
+<li>class BlockArray(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Convenience class for dealing with a Block/data byte array.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, blocksBytes=None, dataBytes=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Create a new BlockArray, defaulting to no block or data bytes.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(blocksBytes, (bytearray, array.array)):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.blocksList = list(blocksBytes)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.blocksList = [0]*32768 # Create an empty block list (32768 entries of zero (air))<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(dataBytes, (bytearray, array.array)):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.dataList = list(dataBytes)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.dataList = [0]*16384 # Create an empty data list (32768 4-bit entries of zero make 16384 byte entries)<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_blocks_struct(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a dictionary with block ids keyed to (x, y, z).&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;cur_x = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;cur_y = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;cur_z = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blocks = {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for block_id in self.blocksList:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;blocks[(cur_x,cur_y,cur_z)] = block_id<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;cur_y += 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (cur_y &gt; 127):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; cur_y = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; cur_z += 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (cur_z &gt; 15):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;cur_z = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;cur_x += 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return blocks<br />
+<li><br />
+<li>&nbsp; &nbsp; # Give blockList back as a byte array<br />
+<li>&nbsp; &nbsp; def get_blocks_byte_array(self, buffer=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a list of all blocks in this chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length = len(self.blocksList)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return BytesIO(pack(&quot;&gt;i&quot;, length)+self.get_blocks_byte_array())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return array.array('B', self.blocksList).tostring()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_data_byte_array(self, buffer=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a list of data for all blocks in this chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length = len(self.dataList)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return BytesIO(pack(&quot;&gt;i&quot;, length)+self.get_data_byte_array())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return array.array('B', self.dataList).tostring()<br />
+<li><br />
+<li>&nbsp; &nbsp; def generate_heightmap(self, buffer=False, as_array=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a heightmap, representing the highest solid blocks in this chunk.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;non_solids = [0, 8, 9, 10, 11, 38, 37, 32, 31]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return BytesIO(pack(&quot;&gt;i&quot;, 256)+self.generate_heightmap()) # Length + Heightmap, ready for insertion into Chunk NBT<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;bytes = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for x in range(16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for y in range(127, -1, -1):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;offset = y + z*128 + x*128*16<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (self.blocksList[offset] not in non_solids or y == 0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bytes.append(y+1)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (as_array):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return bytes<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return array.array('B', bytes).tostring()<br />
+<li><br />
+<li>&nbsp; &nbsp; def set_blocks(self, list=None, dict=None, fill_air=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Sets all blocks in this chunk, using either a list or dictionary.&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Blocks not explicitly set can be filled to air by setting fill_air to True.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if list:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Inputting a list like self.blocksList<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.blocksList = list<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif dict:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Inputting a dictionary like result of self.get_blocks_struct()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for x in range(16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for z in range(16):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for y in range(128):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coord = x,y,z<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;offset = y + z*128 + x*128*16<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (coord in dict):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; list.append(dict[coord])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (self.blocksList[offset] and not fill_air):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.append(self.blocksList[offset])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list.append(0) # Air<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.blocksList = list<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# None of the above...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return True<br />
+<li><br />
+<li>&nbsp; &nbsp; def set_block(self, x,y,z, id, data=0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Sets the block a x, y, z to the specified id, and optionally data.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;offset = y + z*128 + x*128*16<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.blocksList[offset] = id<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (offset % 2 == 1):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# offset is odd<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;index = (offset-1)//2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;b = self.dataList[index]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.dataList[index] = (b &amp; 240) + (data &amp; 15) # modify lower bits, leaving higher bits in place<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# offset is even<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;index = offset//2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;b = self.dataList[index]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.dataList[index] = (b &amp; 15) + (data &lt;&lt; 4 &amp; 240) # modify ligher bits, leaving lower bits in place<br />
+<li><br />
+<li>&nbsp; &nbsp; # Get a given X,Y,Z or a tuple of three coordinates<br />
+<li>&nbsp; &nbsp; def get_block(self, x,y,z, coord=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return the id of the block at x, y, z.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Laid out like:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;(0,0,0), (0,1,0), (0,2,0) ... (0,127,0), (0,0,1), (0,1,1), (0,2,1) ... (0,127,1), (0,0,2) ... (0,127,15), (1,0,0), (1,1,0) ... (15,127,15)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;::<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; blocks = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for x in range(15):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(15):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for y in range(127):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; blocks.append(Block(x,y,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;offset = y + z*128 + x*128*16 if (coord == False) else coord[1] + coord[2]*128 + coord[0]*128*16<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.blocksList[offset]<br />
+<li></ol></div><em onclick="copycode($('code_JW9'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+nbt/nbt.py<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_KFZ"><ol><li><br />
+<li>&quot;&quot;&quot;<br />
+<li>Handle the NBT (Named Binary Tag) data format<br />
+<li>For more information about the NBT format:<br />
+<li>https://minecraft.gamepedia.com/NBT_format<br />
+<li>&quot;&quot;&quot;<br />
+<li><br />
+<li>from struct import Struct, error as StructError<br />
+<li>from gzip import GzipFile<br />
+<li>from collections import MutableMapping, MutableSequence, Sequence<br />
+<li>import sys<br />
+<li><br />
+<li>_PY3 = sys.version_info &gt;= (3,)<br />
+<li>if _PY3:<br />
+<li>&nbsp; &nbsp; unicode = str<br />
+<li>&nbsp; &nbsp; basestring = str<br />
+<li>else:<br />
+<li>&nbsp; &nbsp; range = xrange<br />
+<li><br />
+<li>TAG_END = 0<br />
+<li>TAG_BYTE = 1<br />
+<li>TAG_SHORT = 2<br />
+<li>TAG_INT = 3<br />
+<li>TAG_LONG = 4<br />
+<li>TAG_FLOAT = 5<br />
+<li>TAG_DOUBLE = 6<br />
+<li>TAG_BYTE_ARRAY = 7<br />
+<li>TAG_STRING = 8<br />
+<li>TAG_LIST = 9<br />
+<li>TAG_COMPOUND = 10<br />
+<li>TAG_INT_ARRAY = 11<br />
+<li>TAG_LONG_ARRAY = 12<br />
+<li><br />
+<li><br />
+<li>class MalformedFileError(Exception):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Exception raised on parse error.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; pass<br />
+<li><br />
+<li><br />
+<li>class TAG(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;TAG, a variable with an intrinsic name.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = None<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, value=None, name=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.name = name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = value<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise NotImplementedError(self.__class__.__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise NotImplementedError(self.__class__.__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def tag_info(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return Unicode string with class, name and unnested value.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.__class__.__name__ + (<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;'(%r)' % self.name if self.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else &quot;&quot;) + &quot;: &quot; + self.valuestr()<br />
+<li><br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return Unicode string of unnested value. For iterators, this<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;returns a summary.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return unicode(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def pretty_tree(self, indent=0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return formated Unicode string of self, where iterable items are<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;recursively listed in detail.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (&quot;\t&quot; * indent) + self.tag_info()<br />
+<li><br />
+<li>&nbsp; &nbsp; # Python 2 compatibility; Python 3 uses __str__ instead.<br />
+<li>&nbsp; &nbsp; def __unicode__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a unicode string with the result in human readable format.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Unlike valuestr(), the result is recursive for iterators till at least<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;one level deep.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return unicode(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a string (ascii formated for Python 2, unicode for Python 3)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;with the result in human readable format. Unlike valuestr(), the result<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;is recursive for iterators till at least one level deep.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return str(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Unlike regular iterators, __repr__() is not recursive.<br />
+<li>&nbsp; &nbsp; # Use pretty_tree for recursive results.<br />
+<li>&nbsp; &nbsp; # iterators should use __repr__ or tag_info for each item, like<br />
+<li>&nbsp; &nbsp; #&nbsp;&nbsp;regular iterators<br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a string (ascii formated for Python 2, unicode for Python 3)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;describing the class, name and id for debugging purposes.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;&lt;%s(%r) at 0x%x&gt;&quot; % (<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.__class__.__name__, self.name, id(self))<br />
+<li><br />
+<li><br />
+<li>class _TAG_Numeric(TAG):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;_TAG_Numeric, comparable to int with an intrinsic name&quot;&quot;&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, value=None, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(_TAG_Numeric, self).__init__(value, name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Note: buffer.read() may raise an IOError, for example if buffer is a<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# corrupt gzip.GzipFile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = self.fmt.unpack(buffer.read(self.fmt.size))[0]<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(self.fmt.pack(self.value))<br />
+<li><br />
+<li><br />
+<li>class _TAG_End(TAG):<br />
+<li>&nbsp; &nbsp; id = TAG_END<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;b&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Note: buffer.read() may raise an IOError, for example if buffer is a<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# corrupt gzip.GzipFile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;value = self.fmt.unpack(buffer.read(1))[0]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if value != 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;A Tag End must be rendered as '0', not as '%d'.&quot; % value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(b'\x00')<br />
+<li><br />
+<li><br />
+<li># == Value Tags ==#<br />
+<li>class TAG_Byte(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 byte.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_BYTE<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;b&quot;)<br />
+<li><br />
+<li><br />
+<li>class TAG_Short(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 short.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_SHORT<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;h&quot;)<br />
+<li><br />
+<li><br />
+<li>class TAG_Int(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 int.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_INT<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;i&quot;)<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Struct(&quot;&gt;i&quot;), 32-bits integer, big-endian&quot;&quot;&quot;<br />
+<li><br />
+<li><br />
+<li>class TAG_Long(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 long.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_LONG<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;q&quot;)<br />
+<li><br />
+<li><br />
+<li>class TAG_Float(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 IEEE-754 floating point number.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_FLOAT<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;f&quot;)<br />
+<li><br />
+<li><br />
+<li>class TAG_Double(_TAG_Numeric):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent a single tag storing 1 IEEE-754 double precision floating<br />
+<li>&nbsp; &nbsp; point number.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_DOUBLE<br />
+<li>&nbsp; &nbsp; fmt = Struct(&quot;&gt;d&quot;)<br />
+<li><br />
+<li><br />
+<li>class TAG_Byte_Array(TAG, MutableSequence):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_Byte_Array, comparable to a collections.UserList with<br />
+<li>&nbsp; &nbsp; an intrinsic name whose values must be bytes<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_BYTE_ARRAY<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: add a value parameter as well<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_Byte_Array, self).__init__(name=name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(buffer=buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = bytearray(buffer.read(length.value))<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(len(self.value))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(bytes(self.value))<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, item):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return item in self.value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.value[key]<br />
+<li><br />
+<li>&nbsp; &nbsp; def __setitem__(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: check type of value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value[key] = value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __delitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;del (self.value[key])<br />
+<li><br />
+<li>&nbsp; &nbsp; def insert(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: check type of value, or is this done by self.value already?<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value.insert(key, value)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[%i byte(s)]&quot; % len(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __unicode__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return '[' + &quot;,&quot;.join([unicode(x) for x in self.value]) + ']'<br />
+<li><br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return '[' + &quot;,&quot;.join([str(x) for x in self.value]) + ']'<br />
+<li><br />
+<li><br />
+<li>class TAG_Int_Array(TAG, MutableSequence):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_Int_Array, comparable to a collections.UserList with<br />
+<li>&nbsp; &nbsp; an intrinsic name whose values must be integers<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_INT_ARRAY<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: add a value parameter as well<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_Int_Array, self).__init__(name=name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; def update_fmt(self, length):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot; Adjust struct format description to length given &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.fmt = Struct(&quot;&gt;&quot; + str(length) + &quot;i&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(buffer=buffer).value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.update_fmt(length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = list(self.fmt.unpack(buffer.read(self.fmt.size)))<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = len(self.value)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.update_fmt(length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_Int(length)._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(self.fmt.pack(*self.value))<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, item):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return item in self.value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.value[key]<br />
+<li><br />
+<li>&nbsp; &nbsp; def __setitem__(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value[key] = value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __delitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;del (self.value[key])<br />
+<li><br />
+<li>&nbsp; &nbsp; def insert(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value.insert(key, value)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[%i int(s)]&quot; % len(self.value)<br />
+<li><br />
+<li><br />
+<li>class TAG_Long_Array(TAG, MutableSequence):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_Long_Array, comparable to a collections.UserList with<br />
+<li>&nbsp; &nbsp; an intrinsic name whose values must be integers<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_LONG_ARRAY<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_Long_Array, self).__init__(name=name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; def update_fmt(self, length):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot; Adjust struct format description to length given &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.fmt = Struct(&quot;&gt;&quot; + str(length) + &quot;q&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(buffer=buffer).value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.update_fmt(length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = list(self.fmt.unpack(buffer.read(self.fmt.size)))<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = len(self.value)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.update_fmt(length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_Int(length)._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(self.fmt.pack(*self.value))<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, item):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return item in self.value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.value[key]<br />
+<li><br />
+<li>&nbsp; &nbsp; def __setitem__(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value[key] = value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __delitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;del (self.value[key])<br />
+<li><br />
+<li>&nbsp; &nbsp; def insert(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value.insert(key, value)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[%i long(s)]&quot; % len(self.value)<br />
+<li><br />
+<li><br />
+<li>class TAG_String(TAG, Sequence):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_String, comparable to a collections.UserString with an<br />
+<li>&nbsp; &nbsp; intrinsic name<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_STRING<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, value=None, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_String, self).__init__(value, name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Short(buffer=buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;read = buffer.read(length.value)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if len(read) != length.value:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise StructError()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.value = read.decode(&quot;utf-8&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;save_val = self.value.encode(&quot;utf-8&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Short(len(save_val))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(save_val)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, item):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return item in self.value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.value[key]<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.value<br />
+<li><br />
+<li><br />
+<li># == Collection Tags ==#<br />
+<li>class TAG_List(TAG, MutableSequence):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_List, comparable to a collections.UserList with an intrinsic name<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_LIST<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, type=None, value=None, name=None, buffer=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_List, self).__init__(value, name)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if type:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tagID = type.id<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tagID = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# if self.tagID == None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;#&nbsp; &nbsp;&nbsp;&nbsp;raise ValueError(&quot;No type specified for list: %s&quot; % (name))<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tagID = TAG_Byte(buffer=buffer).value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(buffer=buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for x in range(length.value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tags.append(TAGLIST[self.tagID](buffer=buffer))<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_Byte(self.tagID)._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = TAG_Int(len(self.tags))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for i, tag in enumerate(self.tags):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if tag.id != self.tagID:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ValueError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;List element %d(%s) has type %d != container type %d&quot; %<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;(i, tag, tag.id, self.tagID))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tag._render_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.tags)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.tags)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, item):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return item in self.tags<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.tags[key]<br />
+<li><br />
+<li>&nbsp; &nbsp; def __setitem__(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags[key] = value<br />
+<li><br />
+<li>&nbsp; &nbsp; def __delitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;del (self.tags[key])<br />
+<li><br />
+<li>&nbsp; &nbsp; def insert(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags.insert(key, value)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%i entries of type %s&quot; % (<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;len(self.tags), TAGLIST[self.tagID].__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[%i %s(s)]&quot; % (len(self.tags), TAGLIST[self.tagID].__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __unicode__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[&quot; + &quot;, &quot;.join([tag.tag_info() for tag in self.tags]) + &quot;]&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;[&quot; + &quot;, &quot;.join([tag.tag_info() for tag in self.tags]) + &quot;]&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def pretty_tree(self, indent=0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;output = [super(TAG_List, self).pretty_tree(indent)]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if len(self.tags):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.append((&quot;\t&quot; * indent) + &quot;{&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.extend([tag.pretty_tree(indent + 1) for tag in self.tags])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.append((&quot;\t&quot; * indent) + &quot;}&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return '\n'.join(output)<br />
+<li><br />
+<li><br />
+<li>class TAG_Compound(TAG, MutableMapping):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; TAG_Compound, comparable to a collections.OrderedDict with an<br />
+<li>&nbsp; &nbsp; intrinsic name<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; id = TAG_COMPOUND<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, buffer=None, name=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: add a value parameter as well<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(TAG_Compound, self).__init__()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.name = &quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Parsers and Generators<br />
+<li>&nbsp; &nbsp; def _parse_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while True:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;type = TAG_Byte(buffer=buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if type.value == TAG_END:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # print(&quot;found tag_end&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; name = TAG_String(buffer=buffer).value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;tag = TAGLIST[type.value]()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; except KeyError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise ValueError(&quot;Unrecognised tag type %d&quot; % type.value)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; tag.name = name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.tags.append(tag)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; tag._parse_buffer(buffer)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _render_buffer(self, buffer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for tag in self.tags:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;TAG_Byte(tag.id)._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;TAG_String(tag.name)._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tag._render_buffer(buffer)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.write(b'\x00')&nbsp;&nbsp;# write TAG_END<br />
+<li><br />
+<li>&nbsp; &nbsp; # Mixin methods<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.tags)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for key in self.tags:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yield key.name<br />
+<li><br />
+<li>&nbsp; &nbsp; def __contains__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(key, int):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return key &lt;= len(self.tags)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif isinstance(key, basestring):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for tag in self.tags:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if tag.name == key:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return True<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif isinstance(key, TAG):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return key in self.tags<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return False<br />
+<li><br />
+<li>&nbsp; &nbsp; def __getitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(key, int):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return self.tags[key]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif isinstance(key, basestring):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for tag in self.tags:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if tag.name == key:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return tag<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise KeyError(&quot;Tag %s does not exist&quot; % key)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise TypeError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;key needs to be either name of tag, or index of tag, &quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;not a %s&quot; % type(key).__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __setitem__(self, key, value):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert isinstance(value, TAG), &quot;value must be an nbt.TAG&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(key, int):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Just try it. The proper error will be raised if it doesn't work.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tags[key] = value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif isinstance(key, basestring):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;value.name = key<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for i, tag in enumerate(self.tags):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if tag.name == key:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.tags[i] = value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tags.append(value)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __delitem__(self, key):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if isinstance(key, int):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;del (self.tags[key])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif isinstance(key, basestring):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.tags.remove(self.__getitem__(key))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;key needs to be either name of tag, or index of tag&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp; def keys(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return [tag.name for tag in self.tags]<br />
+<li><br />
+<li>&nbsp; &nbsp; def iteritems(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for tag in self.tags:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yield (tag.name, tag)<br />
+<li><br />
+<li>&nbsp; &nbsp; # Printing and Formatting of tree<br />
+<li>&nbsp; &nbsp; def __unicode__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;{&quot; + &quot;, &quot;.join([tag.tag_info() for tag in self.tags]) + &quot;}&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;{&quot; + &quot;, &quot;.join([tag.tag_info() for tag in self.tags]) + &quot;}&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def valuestr(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return '{%i Entries}' % len(self.tags)<br />
+<li><br />
+<li>&nbsp; &nbsp; def pretty_tree(self, indent=0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;output = [super(TAG_Compound, self).pretty_tree(indent)]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if len(self.tags):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.append((&quot;\t&quot; * indent) + &quot;{&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.extend([tag.pretty_tree(indent + 1) for tag in self.tags])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.append((&quot;\t&quot; * indent) + &quot;}&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return '\n'.join(output)<br />
+<li><br />
+<li><br />
+<li>TAGLIST = {TAG_END: _TAG_End, TAG_BYTE: TAG_Byte, TAG_SHORT: TAG_Short,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_INT: TAG_Int, TAG_LONG: TAG_Long, TAG_FLOAT: TAG_Float,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_DOUBLE: TAG_Double, TAG_BYTE_ARRAY: TAG_Byte_Array,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_STRING: TAG_String, TAG_LIST: TAG_List,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_COMPOUND: TAG_Compound, TAG_INT_ARRAY: TAG_Int_Array,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_LONG_ARRAY: TAG_Long_Array}<br />
+<li><br />
+<li><br />
+<li>class NBTFile(TAG_Compound):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represent an NBT file object.&quot;&quot;&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, filename=None, buffer=None, fileobj=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Create a new NBTFile object.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Specify either a filename, file object or data buffer.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If filename of file object is specified, data should be GZip-compressed.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If a data buffer is specified, it is assumed to be uncompressed.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If filename is specified, the file is closed after reading and writing.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If file object is specified, the caller is responsible for closing the<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(NBTFile, self).__init__()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.filename = filename<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.type = TAG_Byte(self.id)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;closefile = True<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# make a file object<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.filename = filename<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(filename, 'rb')<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if hasattr(buffer, 'name'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.filename = buffer.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = buffer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;closefile = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif fileobj:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if hasattr(fileobj, 'name'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.filename = fileobj.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(fileobj=fileobj)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;closefile = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# parse the file given initially<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.file:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.parse_file()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if closefile:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Note: GzipFile().close() does NOT close the fileobj,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # So we are still responsible for closing that.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; except (AttributeError, IOError):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;pass<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = None<br />
+<li><br />
+<li>&nbsp; &nbsp; def parse_file(self, filename=None, buffer=None, fileobj=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Completely parse a file, extracting all tags.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(filename, 'rb')<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if hasattr(buffer, 'name'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.filename = buffer.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = buffer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif fileobj:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if hasattr(fileobj, 'name'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.filename = fileobj.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(fileobj=fileobj)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.file:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; type = TAG_Byte(buffer=self.file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if type.value == self.id:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = TAG_String(buffer=self.file).value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._parse_buffer(self.file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.name = name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise MalformedFileError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;First record is not a Compound Tag&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except StructError as e:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise MalformedFileError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Partial File Parse: file possibly truncated.&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;NBTFile.parse_file(): Need to specify either a &quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;filename or a file object&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;)<br />
+<li><br />
+<li>&nbsp; &nbsp; def write_file(self, filename=None, buffer=None, fileobj=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Write this NBT file to a file.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;closefile = True<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if buffer:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.filename = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = buffer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;closefile = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.filename = filename<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(filename, &quot;wb&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif fileobj:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.filename = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(fileobj=fileobj, mode=&quot;wb&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif self.filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = GzipFile(self.filename, &quot;wb&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif not self.file:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;NBTFile.write_file(): Need to specify either a &quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;filename or a file object&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Render tree to file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_Byte(self.id)._render_buffer(self.file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;TAG_String(self.name)._render_buffer(self.file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._render_buffer(self.file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# make sure the file is complete<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.flush()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;except (AttributeError, IOError):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pass<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if closefile:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except (AttributeError, IOError):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pass<br />
+<li><br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a string (ascii formated for Python 2, unicode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for Python 3) describing the class, name and id for<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;debugging purposes.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;&lt;%s(%r) with %s(%r) at 0x%x&gt;&quot; % (<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.__class__.__name__, self.filename,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; TAG_Compound.__name__, self.name, id(self)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;&lt;%s with %s(%r) at 0x%x&gt;&quot; % (<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.__class__.__name__, TAG_Compound.__name__,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.name, id(self)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;)<br />
+<li></ol></div><em onclick="copycode($('code_KFZ'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+nbt/region.py<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_i9x"><ol><li><br />
+<li><br />
+<li>&quot;&quot;&quot;<br />
+<li>Handle a region file, containing 32x32 chunks.<br />
+<li>For more information about the region file format:<br />
+<li>https://minecraft.gamepedia.com/Region_file_format<br />
+<li>&quot;&quot;&quot;<br />
+<li><br />
+<li>from .nbt import NBTFile, MalformedFileError<br />
+<li>from struct import pack, unpack<br />
+<li>from collections import Mapping<br />
+<li>import zlib<br />
+<li>import gzip<br />
+<li>from io import BytesIO<br />
+<li>import time<br />
+<li>from os import SEEK_END<br />
+<li><br />
+<li># constants<br />
+<li><br />
+<li>SECTOR_LENGTH = 4096<br />
+<li>&quot;&quot;&quot;Constant indicating the length of a sector. A Region file is divided in sectors of 4096 bytes each.&quot;&quot;&quot;<br />
+<li><br />
+<li># TODO: move status codes to an (Enum) object<br />
+<li><br />
+<li># Status is a number representing:<br />
+<li># -5 = Error, the chunk is overlapping with another chunk<br />
+<li># -4 = Error, the chunk length is too large to fit in the sector length in the region header<br />
+<li># -3 = Error, chunk header has a 0 length<br />
+<li># -2 = Error, chunk inside the header of the region file<br />
+<li># -1 = Error, chunk partially/completely outside of file<br />
+<li>#&nbsp;&nbsp;0 = Ok<br />
+<li>#&nbsp;&nbsp;1 = Chunk non-existant yet<br />
+<li>STATUS_CHUNK_OVERLAPPING = -5<br />
+<li>&quot;&quot;&quot;Constant indicating an error status: the chunk is allocated to a sector already occupied by another chunk&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_MISMATCHED_LENGTHS = -4<br />
+<li>&quot;&quot;&quot;Constant indicating an error status: the region header length and the chunk length are incompatible&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_ZERO_LENGTH = -3<br />
+<li>&quot;&quot;&quot;Constant indicating an error status: chunk header has a 0 length&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_IN_HEADER = -2<br />
+<li>&quot;&quot;&quot;Constant indicating an error status: chunk inside the header of the region file&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_OUT_OF_FILE = -1<br />
+<li>&quot;&quot;&quot;Constant indicating an error status: chunk partially/completely outside of file&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_OK = 0<br />
+<li>&quot;&quot;&quot;Constant indicating an normal status: the chunk exists and the metadata is valid&quot;&quot;&quot;<br />
+<li>STATUS_CHUNK_NOT_CREATED = 1<br />
+<li>&quot;&quot;&quot;Constant indicating an normal status: the chunk does not exist&quot;&quot;&quot;<br />
+<li><br />
+<li>COMPRESSION_NONE = 0<br />
+<li>&quot;&quot;&quot;Constant indicating that the chunk is not compressed.&quot;&quot;&quot;<br />
+<li>COMPRESSION_GZIP = 1<br />
+<li>&quot;&quot;&quot;Constant indicating that the chunk is GZip compressed.&quot;&quot;&quot;<br />
+<li>COMPRESSION_ZLIB = 2<br />
+<li>&quot;&quot;&quot;Constant indicating that the chunk is zlib compressed.&quot;&quot;&quot;<br />
+<li><br />
+<li><br />
+<li># TODO: reconsider these errors. where are they catched? Where would an implementation make a difference in handling the different exceptions.<br />
+<li><br />
+<li>class RegionFileFormatError(Exception):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Base class for all file format errors.<br />
+<li>&nbsp; &nbsp; Note: InconceivedChunk is not a child class, because it is not considered a format error.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, msg=&quot;&quot;):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.msg = msg<br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.msg<br />
+<li><br />
+<li>class NoRegionHeader(RegionFileFormatError):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;The size of the region file is too small to contain a header.&quot;&quot;&quot;<br />
+<li><br />
+<li>class RegionHeaderError(RegionFileFormatError):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Error in the header of the region file for a given chunk.&quot;&quot;&quot;<br />
+<li><br />
+<li>class ChunkHeaderError(RegionFileFormatError):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Error in the header of a chunk, included the bytes of length and byte version.&quot;&quot;&quot;<br />
+<li><br />
+<li>class ChunkDataError(RegionFileFormatError):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Error in the data of a chunk.&quot;&quot;&quot;<br />
+<li><br />
+<li>class InconceivedChunk(LookupError):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Specified chunk has not yet been generated.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, msg=&quot;&quot;):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.msg = msg<br />
+<li><br />
+<li><br />
+<li>class ChunkMetadata(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; Metadata for a particular chunk found in the 8 kiByte header and 5-byte chunk header.<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.x = x<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;x-coordinate of the chunk in the file&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.z = z<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;z-coordinate of the chunk in the file&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.blockstart = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;start of the chunk block, counted in 4 kiByte sectors from the<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;start of the file. (24 bit int)&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.blocklength = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;amount of 4 kiBytes sectors in the block (8 bit int)&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.timestamp = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;a Unix timestamps (seconds since epoch) (32 bits), found in the<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;second sector in the file.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.length = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;length of the block in bytes. This excludes the 4-byte length header,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;and includes the 1-byte compression byte. (32 bit int)&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.compression = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;type of compression used for the chunk block. (8 bit int).<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- 0: uncompressed<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- 1: gzip compression<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- 2: zlib compression&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.status = STATUS_CHUNK_NOT_CREATED<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;status as determined from blockstart, blocklength, length, file size<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;and location of other chunks in the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_OVERLAPPING<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_MISMATCHED_LENGTHS<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_ZERO_LENGTH<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_IN_HEADER<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_OK<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;- STATUS_CHUNK_NOT_CREATED&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%s(%d, %d, sector=%s, blocklength=%s, timestamp=%s, bytelength=%s, compression=%s, status=%s)&quot; % \<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(self.__class__.__name__, self.x, self.z, self.blockstart, self.blocklength, self.timestamp, \<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.length, self.compression, self.status)<br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%s(%d,%d)&quot; % (self.__class__.__name__, self.x, self.z)<br />
+<li>&nbsp; &nbsp; def requiredblocks(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# slightly faster variant of: floor(self.length + 4) / 4096))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (self.length + 3 + SECTOR_LENGTH) // SECTOR_LENGTH<br />
+<li>&nbsp; &nbsp; def is_created(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;return True if this chunk is created according to the header.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This includes chunks which are not readable for other reasons.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.blockstart != 0<br />
+<li><br />
+<li>class _HeaderWrapper(Mapping):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Wrapper around self.metadata to emulate the old self.header variable&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, metadata):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.metadata = metadata<br />
+<li>&nbsp; &nbsp; def __getitem__(self, xz):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m = self.metadata[xz]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (m.blockstart, m.blocklength, m.timestamp, m.status)<br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.metadata) # iterates over the keys<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.metadata)<br />
+<li>class _ChunkHeaderWrapper(Mapping):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Wrapper around self.metadata to emulate the old self.chunk_headers variable&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, metadata):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.metadata = metadata<br />
+<li>&nbsp; &nbsp; def __getitem__(self, xz):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m = self.metadata[xz]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (m.length if m.length &gt; 0 else None, m.compression, m.status)<br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return iter(self.metadata) # iterates over the keys<br />
+<li>&nbsp; &nbsp; def __len__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.metadata)<br />
+<li><br />
+<li>class Location(object):<br />
+<li>&nbsp; &nbsp; def __init__(self, x=None, y=None, z=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.x = x<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.y = y<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.z = z<br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%s(x=%s, y=%s, z=%s)&quot; % (self.__class__.__name__, self.x, self.y, self.z)<br />
+<li><br />
+<li>class RegionFile(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;A convenience class for extracting NBT files from the Minecraft Beta Region Format.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; # Redefine constants for backward compatibility.<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_OVERLAPPING = STATUS_CHUNK_OVERLAPPING<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an error status: the chunk is allocated to a sector<br />
+<li>&nbsp; &nbsp; already occupied by another chunk. <br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_OVERLAPPING` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_MISMATCHED_LENGTHS = STATUS_CHUNK_MISMATCHED_LENGTHS<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an error status: the region header length and the chunk<br />
+<li>&nbsp; &nbsp; length are incompatible. Deprecated. Use :const:`nbt.region.STATUS_CHUNK_MISMATCHED_LENGTHS` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_ZERO_LENGTH = STATUS_CHUNK_ZERO_LENGTH<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an error status: chunk header has a 0 length.<br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_ZERO_LENGTH` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_IN_HEADER = STATUS_CHUNK_IN_HEADER<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an error status: chunk inside the header of the region file.<br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_IN_HEADER` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_OUT_OF_FILE = STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an error status: chunk partially/completely outside of file.<br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_OUT_OF_FILE` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_OK = STATUS_CHUNK_OK<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an normal status: the chunk exists and the metadata is valid.<br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_OK` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; STATUS_CHUNK_NOT_CREATED = STATUS_CHUNK_NOT_CREATED<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Constant indicating an normal status: the chunk does not exist.<br />
+<li>&nbsp; &nbsp; Deprecated. Use :const:`nbt.region.STATUS_CHUNK_NOT_CREATED` instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; def __init__(self, filename=None, fileobj=None, chunkclass = None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Read a region file by filename or file object. <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If a fileobj is specified, it is not closed after use; it is the callers responibility to close it.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.filename = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._closefile = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.chunkclass = chunkclass<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.filename = filename<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = open(filename, 'r+b') # open for read and write in binary mode<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._closefile = True<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif fileobj:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if hasattr(fileobj, 'name'):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.filename = fileobj.name<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file = fileobj<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif not self.file:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(&quot;RegionFile(): Need to specify either a filename or a file object&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Some variables<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.metadata = {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dict containing ChunkMetadata objects, gathered from metadata found in the<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;8 kiByte header and 5-byte chunk header.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;``metadata[x, z]: ChunkMetadata()``<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.header = _HeaderWrapper(self.metadata)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dict containing the metadata found in the 8 kiByte header:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;``header[x, z]: (offset, sectionlength, timestamp, status)``<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:offset: counts in 4 kiByte sectors, starting from the start of the file. (24 bit int)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:blocklength: is in 4 kiByte sectors (8 bit int)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:timestamp: is a Unix timestamps (seconds since epoch) (32 bits)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:status: can be any of:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_OVERLAPPING<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_MISMATCHED_LENGTHS<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_ZERO_LENGTH<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_IN_HEADER<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_OK<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;- STATUS_CHUNK_NOT_CREATED<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Deprecated. Use :attr:`metadata` instead.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.chunk_headers = _ChunkHeaderWrapper(self.metadata)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dict containing the metadata found in each chunk block:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;``chunk_headers[x, z]: (length, compression, chunk_status)``<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:chunk length: in bytes, starting from the compression byte (32 bit int)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:compression: is 1 (Gzip) or 2 (bzip) (8 bit int)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:chunk_status: is equal to status in :attr:`header`.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If the chunk is not defined, the tuple is (None, None, STATUS_CHUNK_NOT_CREATED)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Deprecated. Use :attr:`metadata` instead.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.loc = Location()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Optional: x,z location of a region within a world.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._init_header()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._parse_header()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self._parse_chunk_headers()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_size(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot; Returns the file size in bytes. &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# seek(0,2) jumps to 0-bytes from the end of the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Python 2.6 support: seek does not yet return the position.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(0, SEEK_END)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.file.tell()<br />
+<li><br />
+<li>&nbsp; &nbsp; @staticmethod<br />
+<li>&nbsp; &nbsp; def _bytes_to_sector(bsize, sectorlength=SECTOR_LENGTH):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Given a size in bytes, return how many sections of length sectorlen are required to contain it.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This is equivalent to ceil(bsize/sectorlen), if Python would use floating<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;points for division, and integers for ceil(), rather than the other way around.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors, remainder = divmod(bsize, sectorlength)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return sectors if remainder == 0 else sectors + 1<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; def close(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Clean up resources after use.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Note that the instance is no longer readable nor writable after calling close().<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;The method is automatically called by garbage collectors, but made public to<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;allow explicit cleanup.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self._closefile:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except IOError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pass<br />
+<li><br />
+<li>&nbsp; &nbsp; def __del__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Parent object() has no __del__ method, otherwise it should be called here.<br />
+<li><br />
+<li>&nbsp; &nbsp; def _init_file(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Initialise the file header. This will erase any data previously in the file.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;header_length = 2*SECTOR_LENGTH<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.size &gt; header_length:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.truncate(header_length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(header_length*b'\x00')<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.size = header_length<br />
+<li><br />
+<li>&nbsp; &nbsp; def _init_header(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for x in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.metadata[x,z] = ChunkMetadata(x, z)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _parse_header(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Read the region header and stores: offset, length and status.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# update the file size, needed when parse_header is called after<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# we have unlinked a chunk or writed a new one<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.size = self.get_size()<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.size == 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Some region files seems to have 0 bytes of size, and<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Minecraft handle them without problems. Take them<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# as empty region files.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif self.size &lt; 2*SECTOR_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise NoRegionHeader('The region file is %d bytes, too small in size to have a header.' % self.size)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for index in range(0, SECTOR_LENGTH, 4):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;x = int(index//4) % 32<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;z = int(index//4)//32<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m = self.metadata[x, z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.seek(index)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;offset, length = unpack(&quot;&gt;IB&quot;, b&quot;\0&quot; + self.file.read(4))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.blockstart, m.blocklength = offset, length<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.seek(index + SECTOR_LENGTH)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.timestamp = unpack(&quot;&gt;I&quot;, self.file.read(4))[0]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if offset == 0 and length == 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m.status = STATUS_CHUNK_NOT_CREATED<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif length == 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m.status = STATUS_CHUNK_ZERO_LENGTH<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif offset &lt; 2 and offset != 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m.status = STATUS_CHUNK_IN_HEADER<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif SECTOR_LENGTH * offset + 5 &gt; self.size:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Chunk header can't be read.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m.status = STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m.status = STATUS_CHUNK_OK<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Check for chunks overlapping in the file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for chunks in self._sectors()[2:]:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if len(chunks) &gt; 1:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # overlapping chunks<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for m in chunks:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Update status, unless these more severe errors take precedence<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if m.status not in (STATUS_CHUNK_ZERO_LENGTH, STATUS_CHUNK_IN_HEADER, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; STATUS_CHUNK_OUT_OF_FILE):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.status = STATUS_CHUNK_OVERLAPPING<br />
+<li><br />
+<li>&nbsp; &nbsp; def _parse_chunk_headers(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for x in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m = self.metadata[x, z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if m.status not in (STATUS_CHUNK_OK, STATUS_CHUNK_OVERLAPPING, \<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;STATUS_CHUNK_MISMATCHED_LENGTHS):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# skip to next if status is NOT_CREATED, OUT_OF_FILE, IN_HEADER,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# ZERO_LENGTH or anything else.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(m.blockstart*SECTOR_LENGTH) # offset comes in sectors of 4096 bytes<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = unpack(&quot;&gt;I&quot;, self.file.read(4))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.length = length[0] # unpack always returns a tuple, even unpacking one element<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;compression = unpack(&quot;&gt;B&quot;,self.file.read(1))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.compression = compression[0]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; except IOError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.status = STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if m.blockstart*SECTOR_LENGTH + m.length + 4 &gt; self.size:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.status = STATUS_CHUNK_OUT_OF_FILE<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; elif m.length &lt;= 1: # chunk can't be zero length<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.status = STATUS_CHUNK_ZERO_LENGTH<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; elif m.length + 4 &gt; m.blocklength * SECTOR_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# There are not enough sectors allocated for the whole block<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m.status = STATUS_CHUNK_MISMATCHED_LENGTHS<br />
+<li><br />
+<li>&nbsp; &nbsp; def _sectors(self, ignore_chunk=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a list of all sectors, each sector is a list of chunks occupying the block.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectorsize = self._bytes_to_sector(self.size)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors = [[] for s in range(sectorsize)]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors[0] = True # locations<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors[1] = True # timestamps<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for m in self.metadata.values():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if not m.is_created():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if ignore_chunk == m:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m.blocklength and m.blockstart:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; blockend = m.blockstart + max(m.blocklength, m.requiredblocks())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Ensure 2 &lt;= b &lt; sectorsize, as well as m.blockstart &lt;= b &lt; blockend<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for b in range(max(m.blockstart, 2), min(blockend, sectorsize)):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors[b].append(m)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return sectors<br />
+<li><br />
+<li>&nbsp; &nbsp; def _locate_free_sectors(self, ignore_chunk=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a list of booleans, indicating the free sectors.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sectors = self._sectors(ignore_chunk=ignore_chunk)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Sectors are considered free, if the value is an empty list.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return [not i for i in sectors]<br />
+<li><br />
+<li>&nbsp; &nbsp; def _find_free_location(self, free_locations, required_sectors=1, preferred=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Given a list of booleans, find a list of &lt;required_sectors&gt; consecutive True values.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If no such list is found, return length(free_locations).<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Assumes first two values are always False.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# check preferred (current) location<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if preferred and all(free_locations[preferred:preferred+required_sectors]):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return preferred<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# check other locations<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Note: the slicing may exceed the free_location boundary.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# This implementation relies on the fact that slicing will work anyway,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# and the any() function returns True for an empty list. This ensures<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# that blocks outside the file are considered Free as well.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;i = 2 # First two sectors are in use by the header<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while i &lt; len(free_locations):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if all(free_locations[i:i+required_sectors]):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;i += 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return i<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_metadata(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a list of the metadata of each chunk that is defined in te regionfile.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This includes chunks which may not be readable for whatever reason,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;but excludes chunks that are not yet defined.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return [m for m in self.metadata.values() if m.is_created()]<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_chunks(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return the x,z coordinates and length of the chunks that are defined in te regionfile.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This includes chunks which may not be readable for whatever reason.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Warning: despite the name, this function does not actually return the chunk,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;but merely it's metadata. Use get_chunk(x,z) to get the NBTFile, and then Chunk()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;to get the actual chunk.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This method is deprecated. Use :meth:`get_metadata` instead.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.get_chunk_coords()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_chunk_coords(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return the x,z coordinates and length of the chunks that are defined in te regionfile.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This includes chunks which may not be readable for whatever reason.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This method is deprecated. Use :meth:`get_metadata` instead.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunks = []<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for x in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for z in range(32):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; m = self.metadata[x,z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if m.is_created():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunks.append({'x': x, 'z': z, 'length': m.blocklength})<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return chunks<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_chunks(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Yield each readable chunk present in the region.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunks that can not be read for whatever reason are silently skipped.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Warning: this function returns a :class:`nbt.nbt.NBTFile` object, use ``Chunk(nbtfile)`` to get a<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;:class:`nbt.chunk.Chunk` instance.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for m in self.get_metadata():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield self.get_chunk(m.x, m.z)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except RegionFileFormatError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pass<br />
+<li><br />
+<li>&nbsp; &nbsp; # The following method will replace 'iter_chunks'<br />
+<li>&nbsp; &nbsp; # but the previous is kept for the moment<br />
+<li>&nbsp; &nbsp; # until the users update their code<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_chunks_class(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Yield each readable chunk present in the region.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunks that can not be read for whatever reason are silently skipped.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This function returns a :class:`nbt.chunk.Chunk` instance.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for m in self.get_metadata():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield self.chunkclass(self.get_chunk(m.x, m.z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;except RegionFileFormatError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pass<br />
+<li><br />
+<li>&nbsp; &nbsp; def __iter__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.iter_chunks()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_timestamp(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return the timestamp of when this region file was last modified.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Note that this returns the timestamp as-is. A timestamp may exist, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while the chunk does not, or it may return a timestamp of 0 even <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while the chunk exists.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;To convert to an actual date, use `datetime.fromtimestamp()`.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.metadata[x,z].timestamp<br />
+<li><br />
+<li>&nbsp; &nbsp; def chunk_count(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return the number of defined chunks. This includes potentially corrupt chunks.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.get_metadata())<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_blockdata(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return the decompressed binary data representing a chunk.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;May raise a RegionFileFormatError().<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;If decompression of the data succeeds, all available data is returned, <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;even if it is shorter than what is specified in the header (e.g. in case<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;of a truncated while and non-compressed data).<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# read metadata block<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;m = self.metadata[x, z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if m.status == STATUS_CHUNK_NOT_CREATED:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise InconceivedChunk(&quot;Chunk %d,%d is not present in region&quot; % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif m.status == STATUS_CHUNK_IN_HEADER:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise RegionHeaderError('Chunk %d,%d is in the region header' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif m.status == STATUS_CHUNK_OUT_OF_FILE and (m.length &lt;= 1 or m.compression == None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Chunk header is outside of the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise RegionHeaderError('Chunk %d,%d is partially/completely outside the file' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif m.status == STATUS_CHUNK_ZERO_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m.blocklength == 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise RegionHeaderError('Chunk %d,%d has zero length' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ChunkHeaderError('Chunk %d,%d has zero length' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif m.blockstart * SECTOR_LENGTH + 5 &gt;= self.size:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise RegionHeaderError('Chunk %d,%d is partially/completely outside the file' % (x,z))<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# status is STATUS_CHUNK_OK, STATUS_CHUNK_MISMATCHED_LENGTHS, STATUS_CHUNK_OVERLAPPING<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# or STATUS_CHUNK_OUT_OF_FILE.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# The chunk is always read, but in case of an error, the exception may be different <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# based on the status.<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;err = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# offset comes in sectors of 4096 bytes + length bytes + compression byte<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.seek(m.blockstart * SECTOR_LENGTH + 5)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Do not read past the length of the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# The length in the file includes the compression byte, hence the -1.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length = min(m.length - 1, self.size - (m.blockstart * SECTOR_LENGTH + 5))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chunk = self.file.read(length)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (m.compression == COMPRESSION_GZIP):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Python 3.1 and earlier do not yet support gzip.decompress(chunk)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; f = gzip.GzipFile(fileobj=BytesIO(chunk))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk = bytes(f.read())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; f.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif (m.compression == COMPRESSION_ZLIB):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; chunk = zlib.decompress(chunk)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif m.compression != COMPRESSION_NONE:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ChunkDataError('Unknown chunk compression/format (%s)' % m.compression)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return chunk<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;except RegionFileFormatError:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;except Exception as e:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Deliberately catch the Exception and re-raise.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# The details in gzip/zlib/nbt are irrelevant, just that the data is garbled.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;err = '%s' % e # avoid str(e) due to Unicode issues in Python 2.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if err:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# don't raise during exception handling to avoid the warning <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# &quot;During handling of the above exception, another exception occurred&quot;.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Python 3.3 solution (see PEP 409 &amp; 415): &quot;raise ChunkDataError(str(e)) from None&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m.status == STATUS_CHUNK_MISMATCHED_LENGTHS:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ChunkHeaderError('The length in region header and the length in the header of chunk %d,%d are incompatible' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;elif m.status == STATUS_CHUNK_OVERLAPPING:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ChunkHeaderError('Chunk %d,%d is overlapping with another chunk' % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; raise ChunkDataError(err)<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_nbt(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a NBTFile of the specified chunk.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Raise InconceivedChunk if the chunk is not included in the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: cache results?<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data = self.get_blockdata(x, z) # This may raise a RegionFileFormatError.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data = BytesIO(data)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;err = None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;nbt = NBTFile(buffer=data)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.loc.x != None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; x += self.loc.x*32<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.loc.z != None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; z += self.loc.z*32<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;nbt.loc = Location(x=x, z=z)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return nbt<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# this may raise a MalformedFileError. Convert to ChunkDataError.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;except MalformedFileError as e:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;err = '%s' % e # avoid str(e) due to Unicode issues in Python 2.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if err:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ChunkDataError(err)<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_chunk(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a NBTFile of the specified chunk.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Raise InconceivedChunk if the chunk is not included in the file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Note: this function may be changed later to return a Chunk() rather <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;than a NBTFile() object. To keep the old functionality, use get_nbt().<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.get_nbt(x, z)<br />
+<li><br />
+<li>&nbsp; &nbsp; def write_blockdata(self, x, z, data, compression=COMPRESSION_ZLIB):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Compress the data, write it to file, and add pointers in the header so it <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;can be found as chunk(x,z).<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if compression == COMPRESSION_GZIP:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Python 3.1 and earlier do not yet support `data = gzip.compress(data)`.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;compressed_file = BytesIO()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f = gzip.GzipFile(fileobj=compressed_file)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.write(data)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.close()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;compressed_file.seek(0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;data = compressed_file.read()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;del compressed_file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif compression == COMPRESSION_ZLIB:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;data = zlib.compress(data) # use zlib compression, rather than Gzip<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;elif compression != COMPRESSION_NONE:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ValueError(&quot;Unknown compression type %d&quot; % compression)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;length = len(data)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 5 extra bytes are required for the chunk block header<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nsectors = self._bytes_to_sector(length + 5)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if nsectors &gt;= 256:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise ChunkDataError(&quot;Chunk is too large (%d sectors exceeds 255 maximum)&quot; % (nsectors))<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Ensure file has a header<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.size &lt; 2*SECTOR_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self._init_file()<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# search for a place where to write the chunk:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current = self.metadata[x, z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;free_sectors = self._locate_free_sectors(ignore_chunk=current)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sector = self._find_free_location(free_sectors, nsectors, preferred=current.blockstart)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# If file is smaller than sector*SECTOR_LENGTH (it was truncated), pad it with zeroes.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.size &lt; sector*SECTOR_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# jump to end of file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.seek(0, SEEK_END)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.write((sector*SECTOR_LENGTH - self.size) * b&quot;\x00&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;assert self.file.tell() == sector*SECTOR_LENGTH<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# write out chunk to region<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(sector*SECTOR_LENGTH)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;I&quot;, length + 1)) #length field<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;B&quot;, compression)) #compression field<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(data) #compressed data<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Write zeros up to the end of the chunk<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;remaining_length = SECTOR_LENGTH * nsectors - length - 5<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(remaining_length * b&quot;\x00&quot;)<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;#seek to header record and write offset and length records<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(4 * (x + 32*z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;IB&quot;, sector, nsectors)[1:])<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;#write timestamp<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(SECTOR_LENGTH + 4 * (x + 32*z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;timestamp = int(time.time())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;I&quot;, timestamp))<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Update free_sectors with newly written block<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# This is required for calculating file truncation and zeroing freed blocks.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;free_sectors.extend((sector + nsectors - len(free_sectors)) * [True])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for s in range(sector, sector + nsectors):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;free_sectors[s] = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Check if file should be truncated:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;truncate_count = list(reversed(free_sectors)).index(False)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if truncate_count &gt; 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.size = SECTOR_LENGTH * (len(free_sectors) - truncate_count)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.truncate(self.size)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;free_sectors = free_sectors[:-truncate_count]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Calculate freed sectors<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for s in range(current.blockstart, min(current.blockstart + current.blocklength, len(free_sectors))):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if free_sectors[s]:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # zero sector s<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.seek(SECTOR_LENGTH*s)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.write(SECTOR_LENGTH*b'\x00')<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# update file size and header information<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.size = max((sector + nsectors)*SECTOR_LENGTH, self.size)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert self.get_size() == self.size<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.blockstart = sector<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.blocklength = nsectors<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.status = STATUS_CHUNK_OK<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.timestamp = timestamp<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.length = length + 1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current.compression = COMPRESSION_ZLIB<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# self.parse_header()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# self.parse_chunk_headers()<br />
+<li><br />
+<li>&nbsp; &nbsp; def write_chunk(self, x, z, nbt_file):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Pack the NBT file as binary data, and write to file in a compressed format.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data = BytesIO()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbt_file.write_file(buffer=data) # render to buffer; uncompressed<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.write_blockdata(x, z, data.getvalue())<br />
+<li><br />
+<li>&nbsp; &nbsp; def unlink_chunk(self, x, z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Remove a chunk from the header of the region file.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Fragmentation is not a problem, chunks are written to free sectors when possible.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# This function fails for an empty file. If that is the case, just return.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.size &lt; 2*SECTOR_LENGTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# zero the region header for the chunk (offset length and time)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(4 * (x + 32*z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;IB&quot;, 0, 0)[1:])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.seek(SECTOR_LENGTH + 4 * (x + 32*z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.file.write(pack(&quot;&gt;I&quot;, 0))<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Check if file should be truncated:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;current = self.metadata[x, z]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;free_sectors = self._locate_free_sectors(ignore_chunk=current)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;truncate_count = list(reversed(free_sectors)).index(False)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if truncate_count &gt; 0:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.size = SECTOR_LENGTH * (len(free_sectors) - truncate_count)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.file.truncate(self.size)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;free_sectors = free_sectors[:-truncate_count]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Calculate freed sectors<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for s in range(current.blockstart, min(current.blockstart + current.blocklength, len(free_sectors))):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if free_sectors[s]:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # zero sector s<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.seek(SECTOR_LENGTH*s)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.file.write(SECTOR_LENGTH*b'\x00')<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# update the header<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.metadata[x, z] = ChunkMetadata(x, z)<br />
+<li><br />
+<li>&nbsp; &nbsp; def _classname(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return the fully qualified class name.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.__class__.__module__ in (None,):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return self.__class__.__name__<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;%s.%s&quot; % (self.__class__.__module__, self.__class__.__name__)<br />
+<li><br />
+<li>&nbsp; &nbsp; def __str__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;&lt;%s(%r)&gt;&quot; % (self._classname(), self.filename)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return '&lt;%s object at %d&gt;' % (self._classname(), id(self))<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.filename:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;%s(%r)&quot; % (self._classname(), self.filename)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return '&lt;%s object at %d&gt;' % (self._classname(), id(self))<br />
+<li></ol></div><em onclick="copycode($('code_i9x'));">复制代码</em></div><br />
+</td></table></div></div><br />
+nbt/world.py<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_k1i"><ol><li><br />
+<li>&quot;&quot;&quot;<br />
+<li>Handles a Minecraft world save using either the Anvil or McRegion format.<br />
+<li>For more information about the world format:<br />
+<li>https://minecraft.gamepedia.com/Level_format<br />
+<li>&quot;&quot;&quot;<br />
+<li><br />
+<li>import os, glob, re<br />
+<li>from . import region<br />
+<li>from . import chunk<br />
+<li>from .region import InconceivedChunk, Location<br />
+<li><br />
+<li>class UnknownWorldFormat(Exception):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Unknown or invalid world folder.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, msg=&quot;&quot;):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.msg = msg<br />
+<li><br />
+<li><br />
+<li>class _BaseWorldFolder(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; Abstract class, representing either a McRegion or Anvil world folder.<br />
+<li>&nbsp; &nbsp; This class will use either Anvil or McRegion, with Anvil the preferred format.<br />
+<li>&nbsp; &nbsp; Simply calling WorldFolder() will do this automatically.<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; type = &quot;Generic&quot;<br />
+<li>&nbsp; &nbsp; extension = ''<br />
+<li>&nbsp; &nbsp; chunkclass = chunk.Chunk<br />
+<li><br />
+<li>&nbsp; &nbsp; def __init__(self, world_folder):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Initialize a WorldFolder.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.worldfolder = world_folder<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.regionfiles = {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.regions&nbsp; &nbsp;&nbsp;&nbsp;= {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.chunks&nbsp;&nbsp;= None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# os.listdir triggers an OSError for non-existant directories or permission errors.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# This is needed, because glob.glob silently returns no files.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;os.listdir(world_folder)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.set_regionfiles(self.get_filenames())<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_filenames(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Find all matching file names in the world folder.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This method is private, and it's use it deprecated. Use get_regionfiles() instead.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# Warning: glob returns a empty list if the directory is unreadable, without raising an Exception<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return list(glob.glob(os.path.join(self.worldfolder,'region','r.*.*.'+self.extension)))<br />
+<li><br />
+<li>&nbsp; &nbsp; def set_regionfiles(self, filenames):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This method directly sets the region files for this instance to use.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;It assumes the filenames are in the form r.&lt;x-digit&gt;.&lt;z-digit&gt;.&lt;extension&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for filename in filenames:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;# Assume that filenames have the name r.&lt;x-digit&gt;.&lt;z-digit&gt;.&lt;extension&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m = re.match(r&quot;r.(\-?\d+).(\-?\d+).&quot;+self.extension, os.path.basename(filename))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; x = int(m.group(1))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; z = int(m.group(2))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Only raised if a .mca of .mcr file exists which does not comply to the<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; #&nbsp;&nbsp;r.&lt;x-digit&gt;.&lt;z-digit&gt;.&lt;extension&gt; filename format. This may raise false<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # errors if a copy is made, e.g. &quot;r.0.-1 copy.mca&quot;. If this is an issue, override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # get_filenames(). In most cases, it is an error, and we like to raise that.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Changed, no longer raise error, because we want to continue the loop.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # raise UnknownWorldFormat(&quot;Unrecognized filename format %s&quot; % os.path.basename(filename))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # TODO: log to stderr using logging facility.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pass<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.regionfiles[(x,z)] = filename<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_regionfiles(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a list of full path of all region files.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return list(self.regionfiles.values())<br />
+<li><br />
+<li>&nbsp; &nbsp; def nonempty(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return True is the world is non-empty.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return len(self.regionfiles) &gt; 0<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_region(self, x,z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Get a region using x,z coordinates of a region. Cache results.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (x,z) not in self.regions:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (x,z) in self.regionfiles:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.regions[(x,z)] = region.RegionFile(self.regionfiles[(x,z)])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Return an empty RegionFile object<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # TODO: this does not yet allow for saving of the region file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # TODO: this currently fails with a ValueError!<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # TODO: generate the correct name, and create the file<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # and add the fie to self.regionfiles<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.regions[(x,z)] = region.RegionFile()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.regions[(x,z)].loc = Location(x=x,z=z)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.regions[(x,z)]<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_regions(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return an iterable list of all region files. Use this function if you only<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;want to loop through each region files once, and do not want to cache the results.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement BoundingBox<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement sort order<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for x,z in self.regionfiles.keys():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;close_after_use = False<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (x,z) in self.regions:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; regionfile = self.regions[(x,z)]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # It is not yet cached.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; # Get file, but do not cache later.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; regionfile = region.RegionFile(self.regionfiles[(x,z)], chunkclass = self.chunkclass)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; regionfile.loc = Location(x=x,z=z)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; close_after_use = True<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield regionfile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;finally:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if close_after_use:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;regionfile.close()<br />
+<li><br />
+<li>&nbsp; &nbsp; def call_for_each_region(self, callback_function, boundingbox=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return an iterable that calls callback_function for each region file <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;in the world. This is equivalent to:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;```<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for the_region in iter_regions():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield callback_function(the_region)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;````<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This function is threaded. It uses pickle to pass values between threads.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;See [What can be pickled and unpickled?](https://docs.python.org/library/pickle.html#what-can-be-pickled-and-unpickled) in the Python documentation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for limitation on the output of `callback_function()`.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise NotImplementedError()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_nbt(self,x,z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a NBT specified by the chunk coordinates x,z. Raise InconceivedChunk<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if the NBT file is not yet generated. To get a Chunk object, use get_chunk.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;rx,cx = divmod(x,32)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;rz,cz = divmod(z,32)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (rx,rz) not in self.regions and (rx,rz) not in self.regionfiles:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;raise InconceivedChunk(&quot;Chunk %s,%s is not present in world&quot; % (x,z))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbt = self.get_region(rx,rz).get_nbt(cx,cz)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert nbt != None<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return nbt<br />
+<li><br />
+<li>&nbsp; &nbsp; def set_nbt(self,x,z,nbt):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Set a chunk. Overrides the NBT if it already existed. If the NBT did not exists,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;adds it to the Regionfile. May create a new Regionfile if that did not exist yet.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbt must be a nbt.NBTFile instance, not a Chunk or regular TAG_Compound object.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise NotImplementedError()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: implement<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_nbt(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return an iterable list of all NBT. Use this function if you only<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;want to loop through the chunks once, and don't need the block or data arrays.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement BoundingBox<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement sort order<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for region in self.iter_regions():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for c in region.iter_chunks():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield c<br />
+<li><br />
+<li>&nbsp; &nbsp; def call_for_each_nbt(self, callback_function, boundingbox=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return an iterable that calls callback_function for each NBT structure <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;in the world. This is equivalent to:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;```<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for the_nbt in iter_nbt():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; yield callback_function(the_nbt)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;````<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;This function is threaded. It uses pickle to pass values between threads.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;See [What can be pickled and unpickled?](https://docs.python.org/library/pickle.html#what-can-be-pickled-and-unpickled) in the Python documentation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for limitation on the output of `callback_function()`.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise NotImplementedError()<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_chunk(self,x,z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a chunk specified by the chunk coordinates x,z. Raise InconceivedChunk<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if the chunk is not yet generated. To get the raw NBT data, use get_nbt.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.chunkclass(self.get_nbt(x, z))<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_chunks(self, boundingbox=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return a list of all chunks. Use this function if you access the chunk<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;list frequently and want to cache the result.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Use iter_chunks() if you only want to loop through the chunks once or have a<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;very large world.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.chunks == None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;self.chunks = list(self.iter_chunks())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.chunks<br />
+<li><br />
+<li>&nbsp; &nbsp; def iter_chunks(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return an iterable list of all chunks. Use this function if you only<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;want to loop through the chunks once or have a very large world.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Use get_chunks() if you access the chunk list frequently and want to cache<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;the results. Use iter_nbt() if you are concerned about speed and don't want<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;to parse the block data.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement BoundingBox<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# TODO: Implement sort order<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for c in self.iter_nbt():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yield self.chunkclass(c)<br />
+<li><br />
+<li>&nbsp; &nbsp; def chunk_count(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;Return a count of the chunks in this world folder.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;c = 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for r in self.iter_regions():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;c += r.chunk_count()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return c<br />
+<li><br />
+<li>&nbsp; &nbsp; def get_boundingbox(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Return minimum and maximum x and z coordinates of the chunks that<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;make up this world save<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;b = BoundingBox()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for rx,rz in self.regionfiles.keys():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;region = self.get_region(rx,rz)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;rx,rz = 32*rx,32*rz<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for cc in region.get_chunk_coords():<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; x,z = (rx+cc['x'],rz+cc['z'])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; b.expand(x,None,z)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return b<br />
+<li><br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%s(%r)&quot; % (self.__class__.__name__,self.worldfolder)<br />
+<li><br />
+<li><br />
+<li>class McRegionWorldFolder(_BaseWorldFolder):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represents a world save using the old McRegion format.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; type = &quot;McRegion&quot;<br />
+<li>&nbsp; &nbsp; extension = 'mcr'<br />
+<li>&nbsp; &nbsp; chunkclass = chunk.McRegionChunk<br />
+<li><br />
+<li><br />
+<li>class AnvilWorldFolder(_BaseWorldFolder):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Represents a world save using the new Anvil format.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; type = &quot;Anvil&quot;<br />
+<li>&nbsp; &nbsp; extension = 'mca'<br />
+<li>&nbsp; &nbsp; chunkclass = chunk.AnvilChunk<br />
+<li><br />
+<li><br />
+<li>class _WorldFolderFactory(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;Factory class: instantiate the subclassses in order, and the first instance <br />
+<li>&nbsp; &nbsp; whose nonempty() method returns True is returned. If no nonempty() returns True,<br />
+<li>&nbsp; &nbsp; a UnknownWorldFormat exception is raised.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, subclasses):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.subclasses = subclasses<br />
+<li>&nbsp; &nbsp; def __call__(self, *args, **kwargs):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for cls in self.subclasses:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;wf = cls(*args, **kwargs)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if wf.nonempty(): # Check if the world is non-empty<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return wf<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;raise UnknownWorldFormat(&quot;Empty world or unknown format&quot;)<br />
+<li><br />
+<li>WorldFolder = _WorldFolderFactory([AnvilWorldFolder, McRegionWorldFolder])<br />
+<li>&quot;&quot;&quot;<br />
+<li>Factory instance that returns a AnvilWorldFolder or McRegionWorldFolder<br />
+<li>instance, or raise a UnknownWorldFormat.<br />
+<li>&quot;&quot;&quot;<br />
+<li><br />
+<li><br />
+<li><br />
+<li>class BoundingBox(object):<br />
+<li>&nbsp; &nbsp; &quot;&quot;&quot;A bounding box of x,y,z coordinates.&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp; def __init__(self, minx=None, maxx=None, miny=None, maxy=None, minz=None, maxz=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.minx,self.maxx = minx, maxx<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.miny,self.maxy = miny, maxy<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.minz,self.maxz = minz, maxz<br />
+<li>&nbsp; &nbsp; def expand(self,x,y,z):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Expands the bounding<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;&quot;&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if x != None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.minx is None or x &lt; self.minx:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.minx = x<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.maxx is None or x &gt; self.maxx:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.maxx = x<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if y != None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.miny is None or y &lt; self.miny:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.miny = y<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.maxy is None or y &gt; self.maxy:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.maxy = y<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if z != None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.minz is None or z &lt; self.minz:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.minz = z<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if self.maxz is None or z &gt; self.maxz:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.maxz = z<br />
+<li>&nbsp; &nbsp; def lenx(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.maxx is None or self.minx is None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.maxx-self.minx+1<br />
+<li>&nbsp; &nbsp; def leny(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.maxy is None or self.miny is None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.maxy-self.miny+1<br />
+<li>&nbsp; &nbsp; def lenz(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if self.maxz is None or self.minz is None:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.maxz-self.minz+1<br />
+<li>&nbsp; &nbsp; def __repr__(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;%s(%s,%s,%s,%s,%s,%s)&quot; % (self.__class__.__name__,self.minx,self.maxx,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; self.miny,self.maxy,self.minz,self.maxz)</ol></div><em onclick="copycode($('code_k1i'));">复制代码</em></div></td></table></div></div><br />
+<br />
+/setup.py<br />
+<div class="blockcode"><div id="code_vDb"><ol><li>#!/usr/bin/env python<br />
+<li><br />
+<li>from setuptools import setup<br />
+<li>from nbt import VERSION<br />
+<li><br />
+<li>setup(<br />
+<li>&nbsp;&nbsp;name&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; = 'NBT',<br />
+<li>&nbsp;&nbsp;version&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; = &quot;.&quot;.join(str(x) for x in VERSION),<br />
+<li>&nbsp;&nbsp;description&nbsp; &nbsp;&nbsp; &nbsp;= 'Named Binary Tag Reader/Writer',<br />
+<li>&nbsp;&nbsp;author&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;= 'Thomas Woolford',<br />
+<li>&nbsp;&nbsp;author_email&nbsp; &nbsp;&nbsp;&nbsp;= 'woolford.thomas@gmail.com',<br />
+<li>&nbsp;&nbsp;url&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;= 'http://github.com/twoolie/NBT',<br />
+<li>&nbsp;&nbsp;license&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; = open(&quot;LICENSE.txt&quot;).read(),<br />
+<li>&nbsp;&nbsp;long_description = open(&quot;README.txt&quot;).read(),<br />
+<li>&nbsp;&nbsp;packages&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;= ['nbt'],<br />
+<li>&nbsp;&nbsp;classifiers&nbsp; &nbsp;&nbsp; &nbsp;= [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Development Status :: 5 - Production/Stable&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Intended Audience :: Developers&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;License :: OSI Approved :: MIT License&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Operating System :: OS Independent&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python :: 2.7&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python :: 3.3&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python :: 3.4&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python :: 3.5&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Programming Language :: Python :: 3.6&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Topic :: Games/Entertainment&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;Topic :: Software Development :: Libraries :: Python Modules&quot;<br />
+<li>&nbsp;&nbsp;]<br />
+<li>)</ol></div><em onclick="copycode($('code_vDb'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阴阳师元素祭祀&nbsp; &nbsp; <b>时间: </b>2020-4-11 21:52<br />
+<i class="pstatus"> 本帖最后由 阴阳师元素祭祀 于 2020-4-11 21:57 编辑 </i><br />
+<br />
+有啊有啊<br />
+一个编程语言怎么可能读写不了文件呢<br />
+按照字节读自己解析即可了<br />
+<a href="https://wiki.biligame.com/mc/NBT%E6%A0%BC%E5%BC%8F" target="_blank">https://wiki.biligame.com/mc/NBT%E6%A0%BC%E5%BC%8F</a><br />
+<br />
+代码<strong>思路</strong>可以参考<br />
+<a href="thread.html?t=1014198" target="_blank">https://www.mcbbs.net/thread-1014198-272076-1.html</a><br />
+这边帮忙折叠了只解析了int和{}的nbt代码<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_rZp"><ol><li>&nbsp;&nbsp;private static String getYYS(int depth) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;StringBuilder sb = new StringBuilder();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int i = 0; i &lt; depth; ++i) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sb.append(&quot;&nbsp; &nbsp; &quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return sb.toString();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; private static void read(DataInputStream in, int depth) throws IOException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean next = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (next) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;byte tag = in.readByte();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;next = tag != 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (next) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; short nameLength = in.readShort();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (nameLength != 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte[] name = new byte[nameLength];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (in.read(name) != name.length) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IOException(&quot;ljyys for name error&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String tagName = new String(name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getYYS(depth) + tagName + &quot; {&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getYYS(depth) + &quot;{&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; switch (tag) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;case 0x3: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(getYYS(depth + 1) + in.readInt());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(getYYS(depth) + &quot;}&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;case 0xA: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;read(in, depth + 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;next = in.available() &gt; 0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;default: {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;data left: &quot; + in.available());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IOException(&quot;ljyys for tag:&quot; + tag);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(getYYS(depth) + &quot;}&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws Throwable {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;DataInputStream in = new DataInputStream(Files.newInputStream(Paths.get(&quot;command_storage_minecraft&quot;)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;read(in, 0);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_rZp'));">复制代码</em></div><br />
+
+<br />
+</td></table></div></div><br />
+<br />
+<strike>我相信 简单 的 python 代码 会更少</strike><br />
+<br />
+<br />
+py:<br />
+open(...)<br />
+read(...)<br />
+<strike>我相信楼主肯定会python 不至于基础代码还需要教</strike><br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-4-11 21:53<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17528443&amp;ptid=1015556" target="_blank"><font color="#999999">阴阳师元素祭祀 发表于 2020-4-11 21:52</font></a></font><br />
+有啊有啊<br />
+一个编程语言怎么可能读写不了文件呢<br />
+<a href="https://wiki.biligame.com/mc/NBT%E6%A0%BC%E5%BC%8F" target="_blank">https://wiki.biligame.com/mc/NBT%E6%A0%BC%E5%BC%8F</a></blockquote></div><br />
+我说的是 python 而你给的是 java（<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阴阳师元素祭祀&nbsp; &nbsp; <b>时间: </b>2020-4-11 22:09<br />
+<i class="pstatus"> 本帖最后由 阴阳师元素祭祀 于 2020-4-11 22:15 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17528460&amp;ptid=1015556" target="_blank"><font color="#999999">(=°ω°)丿 发表于 2020-4-11 21:53</font></a></font><br />
+我说的是 python 而你给的是 java（</blockquote></div><br />
+<strike>根据隔壁群的情况 我猜测</strike><br />
+你需要<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=142701" target="_blank">@箱子</a> 的好东西<br />
+<br />
+[搬运+翻译][从零学编程]Python3Ⅳ：异常 &amp; 文件<br />
+<a href="thread.html?t=990257" target="_blank">https://www.mcbbs.net/thread-990257-1-1.html</a><br />
+(出处: Minecraft(我的世界)中文论坛)<br />
+<br />
+<strike>你 该不会想要完整代码吧...&nbsp; &nbsp;走莉走莉</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-4-11 22:24<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17528774&amp;ptid=1015556" target="_blank"><font color="#999999">阴阳师元素祭祀 发表于 2020-4-11 22:09</font></a></font><br />
+<strike>根据隔壁群的情况 我猜测</strike><br />
+你需要<br />
+@箱子 的好东西</blockquote></div><br />
+那你就帮我把 <a href="https://pca006132.neocities.org/tutorials/nbt/format.html" target="_blank">https://pca006132.neocities.org/tutorials/nbt/format.html</a> 里的 python nbt 库下载下来吧（我打不开），其他的我自己解决好了（<br />
+<br />
+<strike>只学一门编程语言是没有前途的</strike>（
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,119 @@
+<html>
+<head>
+<title>根据物品nbt任意渲染物品模型 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>根据物品nbt任意渲染物品模型 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2019-10-1 15:18<br />
+<b>标题: </b>根据物品nbt任意渲染物品模型<br /><i class="pstatus"> 本帖最后由 云闪 于 2019-10-2 12:55 编辑 </i><br />
+<br />
+mod物品的任意渲染请参考：<a href="https://harbinger.covertdragon.team/chapter-11/baked/custom-mesh.html" target="_blank">https://harbinger.covertdragon.team/chapter-11/baked/custom-mesh.html</a><br />
+<br />
+今天一个小伙伴来问我原版物品的模型的任意渲染，很可惜直接根据上方的教程是行不通的。<br />
+不过基于该教程提供的思路研究了一下，以下方式可以任意渲染原版物品(以煤炭示例)<br />
+<pre><code class="language-java">public void postInit(FMLPostInitializationEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemModelMesher itemModelMesher = Minecraft.getMinecraft().getRenderItem().getItemModelMesher();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Map&lt;IRegistryDelegate&lt;Item&gt;, Int2ObjectMap&lt;IBakedModel&gt;&gt; models = ReflectionHelper<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;.getPrivateValue(ItemModelMesherForge.class, (ItemModelMesherForge) itemModelMesher, &quot;models&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;models.remove(Items.COAL.delegate);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Map&lt;IRegistryDelegate&lt;Item&gt;, Int2ObjectMap&lt;ModelResourceLocation&gt;&gt; locations = ReflectionHelper<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;.getPrivateValue(ItemModelMesherForge.class, (ItemModelMesherForge) itemModelMesher, &quot;locations&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;locations.remove(Items.COAL.delegate);<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;itemModelMesher.register(Items.COAL,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;item -&gt; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 可根据ItemStack的各种信息决定返回值，此处直接返回苹果的模型<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new ModelResourceLocation(&quot;apple&quot;, &quot;inventory&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;});<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;itemModelMesher.rebuildCache();<br />
+&nbsp; &nbsp; }</code></pre><br />
+<br />
+效果<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2F1GcuKp3tCHZYPbx" target="_blank"><img id="aimg_J6S6e" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2019/10/01/1GcuKp3tCHZYPbx.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+<br />
+此方案暂不清楚强行反射是否会造成某些负面影响，虽然暂时是没有发现<br />
+<br />
+<br />
+此方案仍然只能添加已经加载的模型，由于mc只会主动加载已注册物品的模型，这里再给一个主动加载任意模型的代码吧(仍然需要材质包中已有相应模型/材质文件)<br />
+其中的getDynamicResourcePack().getResMap()是我自己定义的获取模型的方法，这个keySet是资源包中的文件路径列表，所以对name再做了一次处理后才进行注册。<br />
+我觉得应该不难理解<br />
+<pre><code class="language-java">@SubscribeEvent<br />
+&nbsp; &nbsp; public void onModelBake(ModelBakeEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ICustomModelLoader modelLoader = ReflectionHelper.getPrivateValue(<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ReflectionHelper.getClass(MinecraftForge.class.getClassLoader(), &quot;net.minecraftforge.client.model.ModelLoader$VanillaLoader&quot;),<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;null, &quot;INSTANCE&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Function&lt;ResourceLocation, TextureAtlasSprite&gt; textureGetter = ModelLoader.defaultTextureGetter();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (String name : getDynamicResourcePack().getResMap().keySet()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (name.endsWith(&quot;.json&quot;)) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int left = name.lastIndexOf('/') + 1;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int right = name.lastIndexOf('.');<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ModelResourceLocation res = new ModelResourceLocation(DynamicResourcePack.DOMAIN + &quot;:&quot; + name.substring(left, right));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ModelResourceLocation actualRes = new ModelResourceLocation(res.getResourceDomain() + &quot;:models/item/&quot; + res.getResourcePath());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IModel model = modelLoader.loadModel(actualRes);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;event.getModelRegistry().putObject(res, model.bake(model.getDefaultState(), DefaultVertexFormats.ITEM, textureGetter));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (Exception e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.printStackTrace();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp; }</code></pre><br />
+<br />
+<br />
+欢迎各位大佬指正！再次感谢 <a href="thread.html?t=849410" target="_blank">Harbinger - 面向中文社区的 1.12.2 Forge Mod 开发指南</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小木吖&nbsp; &nbsp; <b>时间: </b>2019-10-1 15:27<br />
+看起来用来做整人地图不错<img src="static/image/smiley/tong/kira.png" smilieid="1455" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>粘兽&nbsp; &nbsp; <b>时间: </b>2019-10-1 15:47<br />
+这个操作让我想到了<a href="https://www.curseforge.com/minecraft/mc-mods/custom-server-items" target="_blank">这个模组</a><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wshycaa&nbsp; &nbsp; <b>时间: </b>2019-10-1 18:27<br />
+是只可以用已经注册了的材质吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2019-10-1 22:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15671749&amp;ptid=916829" target="_blank"><font color="#999999">wshycaa 发表于 2019-10-1 18:27</font></a></font><br />
+是只可以用已经注册了的材质吗？</blockquote></div><br />
+是的，我修改了一下帖子加了一份主动注册材质的方案，但仍然需要提前在材质包有相应的json和图片 只是不再依赖必须是某个物品的材质<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-10-1 22:37<br />
+<div class="quote"><blockquote>原版材质的任意渲染</blockquote></div><br />
+用资源包替换原版物品模型莫非不可以？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2019-10-1 23:25<br />
+<i class="pstatus"> 本帖最后由 云闪 于 2019-10-1 23:27 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15673426&amp;ptid=916829" target="_blank"><font color="#999999">3TUSK 发表于 2019-10-1 22:37</font></a></font><br />
+用资源包替换原版物品模型莫非不可以？</blockquote></div><br />
+指的是根据display name/lore或者其它nbt，对相同id和damage的物品渲染不同的材质<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-10-2 02:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15673608&amp;ptid=916829" target="_blank"><font color="#999999">云闪 发表于 2019-10-1 23:25</font></a></font><br />
+指的是根据display name/lore或者其它nbt，对相同id和damage的物品渲染不同的材质 ...</blockquote></div><div class="quote"><blockquote>直接根据上方的教程是行不通的</blockquote></div><br />
+诚然是行不通的，原版物品的 mesh definition 已经被原版自己先加载完了，自然不能重新指定新的 ItemMeshDefinition。（待查：并没有找到哪里有对 key 进行查重，为什么新的 value 不会覆盖旧的？理论上应该是可以用 ItemMeshDefinition 的。）<br />
+你给出的解决方案是通过反射把原版的 mesh definition 先干掉然后重新注册一个新的……<br />
+<br />
+有一个更安全的解决方案是自己实现一个新的 IBakedModel+ItemOverrideList 然后用资源包覆盖原版模型，新模型指向你新实现的 IBakedModel。优点是无需反射，以及 1.13 以上迁移的时候方便（1.13 起 ItemMeshDefinition 直接消失了）。<br />
+<br />
+<hr class="l" /><div class="quote"><blockquote>主动加载任意材质的代码</blockquote></div><br />
+更准确地说，这是在加载任意方块/物品模型…… 纹理（“材质”）和模型是分开的。<br />
+毕竟，有办法在没有模型的情况下只把纹理加载进 TextureMap（Forge 的 TextureStitchEvent）。<br />
+<br />
+自然地，也有不需要反射的办法，但是比较麻烦……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2019-10-2 12:31<br />
+<i class="pstatus"> 本帖最后由 云闪 于 2019-10-2 12:54 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15674025&amp;ptid=916829" target="_blank"><font color="#999999">3TUSK 发表于 2019-10-2 02:44</font></a></font><br />
+诚然是行不通的，原版物品的 mesh definition 已经被原版自己先加载完了，自然不能重新指定新的 ItemMes ...</blockquote></div><div class="quote"><blockquote>（待查：并没有找到哪里有对 key 进行查重，为什么新的 value 不会覆盖旧的？理论上应该是可以用 ItemMeshDefinition 的。）</blockquote></div><br />
+<p>原版物品是通过register(Item item, int meta, ModelResourceLocation location)注册并储存在这样一个map中的<br />
+<code>Map&lt;IRegistryDelegate&lt;Item&gt;, Int2ObjectMap&lt;ModelResourceLocation&gt;&gt; locations</code><br />
+而自定义的ItemMeshDefinition是储存在<br />
+<code>Map&lt;Item, ItemMeshDefinition&gt; shapers</code>中的</p><br />
+<p>查找时优先从locations查找(因为locations是固定模型位置所以还有一个models缓存 实际上是从缓存中拿)，找不到再去shapers找ItemMeshDefinition 如果定义了ItemMeshDefinition 就用它获取模型位置并实时生成IBakedModel(由于模型位置不固定所以这个没有缓存)&nbsp;&nbsp;</p><br />
+<p>(待查：按理说mod物品的模型直接储存在locations也没问题，但似乎forge没有这样做，因为直接注册mod物品的ItemMeshDefinition是有效的，具体情况不明)&nbsp;&nbsp;</p><br />
+<p>IBakedModel+ItemOverrideList的方案我研究一下</p><br />
+<p>已将材质修改为模型</p>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,103 @@
+<html>
+<head>
+<title>如何用 Mixin 注入方法？（有特殊要求，见帖内） - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>如何用 Mixin 注入方法？（有特殊要求，见帖内） <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sjx&nbsp; &nbsp; <b>时间: </b>2018-9-1 21:19<br />
+<b>标题: </b>如何用 Mixin 注入方法？（有特殊要求，见帖内）<br /><i class="pstatus"> 本帖最后由 sjx 于 2018-9-2 16:48 编辑 </i><br />
+<br />
+要求：注入一个方法，使得能在修改变量时得到参数（如果也能得到其他变量就更好）<br />
+原代码：<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_prV"><ol><li>@Mixin(NetHandlerPlayClient.class)<br />
+<li>public abstract class MixinNetHandlerPlayClient {<br />
+<li>&nbsp; &nbsp; @Shadow<br />
+<li>&nbsp; &nbsp; private WorldClient world;<br />
+<li><br />
+<li>&nbsp; &nbsp; @ModifyVariable(method = &quot;handleSpawnObject&quot;, at = @At(value = &quot;JUMP&quot;, opcode = Opcodes.IFNULL, ordinal = 0), index = 8)<br />
+<li>&nbsp; &nbsp; private Entity handleSpawnObject(Entity entity) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (packet /* 如何得到类型为 SPacketSpawnObject 的参数？ */.getType() == 9398272 /* Magic number */) return new EntityTestProjectile(this.world, x, y, z /* 如何得到类型为 double 的局部变量？ */);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return entity;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_prV'));">复制代码</em></div></td></table></div></div><strike>日常吐槽：<a href="https://github.com/SpongePowered/Mixin/wiki" target="_blank">Mixin 的官方 Wiki</a> 没写完……</strike><br />
+<br />
+<strong>Edit</strong>:<br />
+问题已经解决，代码：<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_wnZ"><ol><li>public class TestModTransformer implements IClassTransformer, Opcodes {<br />
+<li>&nbsp; &nbsp; private static final Logger logger = LogManager.getLogger();<br />
+<li>&nbsp; &nbsp; private static final ClassRef CL_NetHandlerPlayClient = new ClassRef(&quot;cqs&quot;, &quot;net/minecraft/client/network/NetHandlerPlayClient&quot;);<br />
+<li>&nbsp; &nbsp; private static final ClassRef CL_SPacketSpawnObject = new ClassRef(&quot;iz&quot;, &quot;net/minecraft/network/play/server/SPacketSpawnObject&quot;);<br />
+<li>&nbsp; &nbsp; private static final FieldRef FD_NetHandlerPlayClient_world = new FieldRef(&quot;f&quot;, &quot;world&quot;, &quot;Lcqv;&quot;, &quot;Lnet/minecraft/client/multiplayer/WorldClient;&quot;);<br />
+<li>&nbsp; &nbsp; private static final MethodRef MD_NetHandlerPlayClient_handleSpawnObject = new MethodRef(&quot;a&quot;, &quot;handleSpawnObject&quot;, &quot;(Liz;)V&quot;, &quot;(Lnet/minecraft/network/play/server/SPacketSpawnObject;)V&quot;);<br />
+<li>&nbsp; &nbsp; private static final MethodRef MD_SPacketSpawnObject_getType = new MethodRef(&quot;l&quot;, &quot;getType&quot;, &quot;()I&quot;, &quot;()I&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public byte[] transform(String name, String transformedName, byte[] basicClass) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (basicClass == null) return null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MatchType matchType;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if ((matchType = CL_NetHandlerPlayClient.matchType(name)) != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;boolean succeeded = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassNode clazz = new ClassNode();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassReader reader = new ClassReader(basicClass);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;reader.accept(clazz, 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (MethodNode method : clazz.methods)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (MD_NetHandlerPlayClient_handleSpawnObject.matchType(method) != null) for (ListIterator&lt;AbstractInsnNode&gt; it = method.instructions.iterator(); it.hasNext();) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;AbstractInsnNode next = it.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (next.getOpcode() == ASTORE &amp;&amp; ((VarInsnNode) next).var == 8) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;LabelNode finishLabel = new LabelNode();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(ALOAD, 1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new MethodInsnNode(INVOKEVIRTUAL, CL_SPacketSpawnObject.name(matchType), MD_SPacketSpawnObject_getType.name(matchType), MD_SPacketSpawnObject_getType.desc(matchType), false));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new LdcInsnNode(9398272 /* Magic number */));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new JumpInsnNode(IF_ICMPNE, finishLabel));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new TypeInsnNode(NEW, &quot;com/sjx233/testmod/entity/EntityTestProjectile&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new InsnNode(DUP));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(ALOAD, 0));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new FieldInsnNode(GETFIELD, name.replace('.', '/'), FD_NetHandlerPlayClient_world.name(matchType), FD_NetHandlerPlayClient_world.desc(matchType)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(DLOAD, 2));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(DLOAD, 4));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(DLOAD, 6));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new MethodInsnNode(INVOKESPECIAL, &quot;com/sjx233/testmod/entity/EntityTestProjectile&quot;, &quot;&lt;init&gt;&quot;, matchType == MatchType.UNTRANSFORMED ? &quot;(Laxs;DDD)V&quot; : &quot;(Lnet/minecraft/world/World;DDD)V&quot;, false));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(new VarInsnNode(ASTORE, 8));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (AbstractInsnNode node = next.getNext(); node != null; node = node.getNext())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (node.getOpcode() == IFNULL) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (node = node.getPrevious(); node != null; node = node.getPrevious())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (node.getType() == AbstractInsnNode.LABEL) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; it.add(new JumpInsnNode(GOTO, (LabelNode) node));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; succeeded = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.add(finishLabel);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!succeeded) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; logger.error(&quot;Failed to transform {}&quot;, name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return basicClass;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ClassWriter writer = new ClassWriter(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;clazz.accept(writer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return writer.toByteArray();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return basicClass;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_wnZ'));">复制代码</em></div>（Ref 类已略去）</td></table></div></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-9-2 14:22<br />
+<i class="pstatus"> 本帖最后由 gooding300 于 2018-9-2 14:27 编辑 </i><br />
+<br />
+之前有个人在这里回复了向楼主求助如何在ForgeGradle中配置Mixin相关的内容<br />
+根据版规，相关回复已被删除<br />
+<div class="quote"><blockquote>附录#1-13: 如果不懂请勿回复否则将以灌水进行处理；<br />
+附录#1-14: 误导性的、无意义的、过于空泛的、对解决问题无帮助的回复以灌水进行处理。</blockquote></div><br />
+关于楼主的问题本身，平时为了达到楼主要求的效果，都是直接注册ClassTransformer使用ASM进行修改，非常抱歉无法解决您的问题。<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

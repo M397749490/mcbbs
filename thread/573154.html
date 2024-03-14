@@ -1,0 +1,1979 @@
+<html>
+<head>
+<title>JMCCC使用教程——Java启动器类库，几行代码下载并启动MC - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>JMCCC使用教程——Java启动器类库，几行代码下载并启动MC <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-4-5 20:37<br />
+<b>标题: </b>JMCCC使用教程——Java启动器类库，几行代码下载并启动MC<br /><i class="pstatus"> 本帖最后由 yushijinhun 于 2016-4-8 21:55 编辑 </i><br />
+<br />
+JMCCC是由 <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=199770" target="_blank">@yushijinhun</a> 和 <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=182189" target="_blank">@Darkyoooooo</a> 开发的一个Java启动器核心，支持：<br />
+<ul><li>启动Minecraft<li>正版验证（以及Yggdrasil的其它API）<li>下载Minecraft<li>下载并安装Forge/Liteloader<br />
+</ul><br />
+并且JMCCC是开源的（<a href="https://to2mbn.github.io/jmccc/LICENSE.txt" target="_blank">MIT许可证</a>），JMCCC在GitHub上的项目：<a href="https://github.com/to2mbn/JMCCC" target="_blank">https://github.com/to2mbn/JMCCC</a><br />
+<br />
+本教程的适用人群：有一定经验的Java开发者<br />
+<br />
+<font size="6">目录</font><br />
+<ul type="1" class="litype_1"><li>环境搭建<li>启动游戏<li>正版登录<li>下载游戏<li>下载并安装Forge及Liteloader<li>获取正版玩家的皮肤<li>OS X下Dock相关配置<li>忽略Forge的数字签名<li>使用HttpAsyncClient来进行下载<li>使用Ehcache缓存下载的文件<li>修改Minecraft1.9中的version_type<li>使用自定义的Yggdrasil API提供商<br />
+</ul><br />
+<br />
+点击下面的页码来跳到下一页。<br />
+<br />
+<br />
+<br />
+<font size="6">1. 环境搭建</font><br />
+JMCCC由三个模块组成，分别为jmccc、jmccc-yggdrasil-authenticator、jmccc-mcdownloader，它们分别提供了启动Minecraft、正版登录、下载Minecraft的功能。您可以按需引用这三个模块。<br />
+假如您使用Maven或者Gradle，您只需要加入如下的依赖即可（目前JMCCC最新版本为2.4）：<br />
+<div class="blockcode"><div id="code_D88"><ol><li>org.to2mbn:jmccc:2.4<br />
+<li>org.to2mbn:jmccc-yggdrasil-authenticator:2.4<br />
+<li>org.to2mbn:jmccc-mcdownloader:2.4<br />
+<li></ol></div><em onclick="copycode($('code_D88'));">复制代码</em></div><br />
+假如您不使用Maven/Gradle，您就需要手动导入jar包，上述jar可以在<a href="https://search.maven.org/" target="_blank">Maven中心仓库</a>找到，并且还需要导入<a href="https://search.maven.org/" target="_blank">org.json</a>和<a href="https://search.maven.org/" target="_blank">tukaani xz</a>这两个依赖。<br />
+<br />
+JMCCC要求的Java<strong>最低版本</strong>为Java7。<br />
+<br />
+<br />
+<br />
+<font size="6">2. 启动游戏</font><br />
+首先，您需要通过LauncherBuilder类来创建一个Launcher对象：<br />
+<div class="blockcode"><div id="code_qgA"><ol><li>Launcher launcher = LauncherBuilder.buildDefault();<br />
+<li></ol></div><em onclick="copycode($('code_qgA'));">复制代码</em></div><br />
+buildDefault()方法会创建一个默认配置的Launcher。当然您也可以通过方法链来自定义Launcher的配置，比如：<br />
+<div class="blockcode"><div id="code_ktN"><ol><li>Launcher launcher = LauncherBuilder.create()<br />
+<li>&nbsp; &nbsp; .setDebugPrintCommandline(true) // (1)<br />
+<li>&nbsp; &nbsp; .setNativeFastCheck(true) // (2)<br />
+<li>&nbsp; &nbsp; .build();<br />
+<li></ol></div><em onclick="copycode($('code_ktN'));">复制代码</em></div><br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>setDebugPrintCommandline(boolean)</td><td>（即上面的(1)）设置是否在启动时将启动参数输出到控制台以供调试，默认为false。</td></tr><tr><td>setNativeFastCheck(boolean)</td><td>（即上面的(2)）设置是否开启对Natives文件的快速检查，默认为false。<br />
+假如没有开启该选项，jmccc在启动时会对Natives文件进行全文比较来判断文件是否完整，如果发现Natives文件内容不一致，则将文件替换。<br />
+开启该选项后，jmccc仅会通过比较文件大小来判断文件是否完整，这样可以加快启动速度，但有可能造成某些问题。<br />
+</td></tr></table><br />
+接着，您需要创建一个LaunchOption来描述启动设置，比如：<br />
+<div class="blockcode"><div id="code_AAa"><ol><li>LaunchOption option = new LaunchOption(&quot;1.9&quot;, new OfflineAuthenticator(&quot;test_user&quot;), new MinecraftDirectory(&quot;.minecraft&quot;)); // (3)<br />
+<li></ol></div><em onclick="copycode($('code_AAa'));">复制代码</em></div><br />
+在上面的例子中，第一个参数为为要启动的Minecraft版本，这里为1.9。第二个参数为验证方式，这里用的是离线验证（即所谓盗版），用户名是test_user。第三个参数是.minecraft目录的位置，这里使用的是当前目录下的.minecraft目录。<br />
+除此之外，您还可以对LaunchOption进行其它配置，下面列举了一些LaunchOption类的方法。<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>setMaxMemory(int)</td><td>设置最大内存（MB），默认为1024。如果为0则不会添加-Xmx参数（即让JVM自己决定）。</td></tr><tr><td>setMinMemory(int)</td><td>设置最小内存（MB），默认为0。如果为0则不会添加-Xms参数（即让JVM自己决定）。</td></tr><tr><td>setServerInfo(ServerInfo)</td><td>设置游戏启动后要自动进入的服务器，默认为null。<br />
+例如 new ServerInfo(&quot;localhost&quot;, 25565) 就描述了在localhost的25565端口上的服务器。<br />
+</td></tr><tr><td>setWindowSize(WindowSize)</td><td>设置游戏窗口大小，默认为null（不指定）。<br />
+例如 WindowSize.fullscreen() 方法返回一个代表全屏的WindowSize对象；<br />
+WindowSize.window(640, 480) 返回一个代表了窗口大小是640x480的WindowSize。<br />
+</td></tr><tr><td>setExtraJvmArguments(List&lt;String&gt;)</td><td>设置额外的JVM参数，默认为null。<br />
+相关的用法可以跳读到7、8节。<br />
+</td></tr><tr><td>setExtraMinecraftArguments(List&lt;String&gt;)</td><td>设置额外的Minecraft参数，默认为null。这些参数将被添加到默认Minecraft启动参数的末尾。</td></tr><tr><td>setCommandlineVariables(Map&lt;String, String&gt;)</td><td>设置额外的命令行模板参数，通过该方法指定的参数可以覆盖默认的参数。version.json中的minecraftArguments是参数化的，其中${...}格式的字符串会被替换为对应变量的实际值。<br />
+例如，minecraftArguments出现了${a}这样的字符串，并且通过该方法指定了&quot;a&quot; -&gt; &quot;233&quot;，那么启动时${a}就会被替换为233。<br />
+再例如，minecraftArguments中出现了${version_name}，则这段字符串在启动时将自动被Minecraft的版本号代替。但如果通过该方法指定了&quot;version_name&quot; -&gt; &quot;abc&quot;，则${version_name}会被abc代替，而不是Minecraft版本号，因为&quot;version_name&quot; -&gt; &quot;abc&quot;覆盖了默认的参数。<br />
+为了帮助理解，下面给出一段Minecraft 1.8.9的minecraftArguments：<br />
+<div class="blockcode"><div id="code_s39"><ol><li>--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}<br />
+<li></ol></div><em onclick="copycode($('code_s39'));">复制代码</em></div><br />
+相关的使用可以跳读到第11节。<br />
+</td></tr><tr><td>setRuntimeDirectory(MinecraftDirectory)</td><td>设置Minecraft运行时使用的目录，默认和getMinecraftDirectory()一样（同上面(3)中构造方法的第三个参数）。这里指定的runtimeDirectory包含的是存档、资源包、截图等，而上面的minecraftDirectory包含的是游戏jar（versions）、库文件（libraries）、资源文件（assets）等。所以可以用这个方法来实现各版本独立。</td></tr></table><br />
+然后您就可以通过调用launch(LaunchOption)方法启动游戏了：<br />
+<div class="blockcode"><div id="code_qXr"><ol><li>launcher.launch(option);</ol></div><em onclick="copycode($('code_qXr'));">复制代码</em></div>假如启动失败则会抛出一个LaunchException，如果该LaunchException是一个MissingDependenciesException（MissingDependenciesException是LaunchException的子类），则代表有libraries缺失。<br />
+<br />
+如果您想获取Minecraft进程的控制台日志，则可以使用launch(LaunchOption, GameProcessListener)：<br />
+<div class="blockcode"><div id="code_rx0"><ol><li>launcher.launch(option, new GameProcessListener() {<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(log); // (4)<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onErrorLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.err.println(log); // (5)<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onExit(int code) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.err.println(&quot;游戏进程退出，状态码：&quot; + code); // (6)<br />
+<li>&nbsp; &nbsp; }<br />
+<li>});<br />
+<li></ol></div><em onclick="copycode($('code_rx0'));">复制代码</em></div><br />
+上面代码中(4)处的onLog(String)方法会在游戏进程的<strong>标准输出</strong>输出日志时调用，(5)处的onErrorLog(String)方法会在游戏进程的<strong>标准错误</strong>输出日志时调用，而(6)处的onExit(int)会在游戏进程结束时调用。上面这段代码把游戏进程的日志都输出到了自己的控制台，并且在游戏结束时还会输出 &quot;游戏进程退出，状态码：xxx&quot; 这样的字符串。<br />
+<br />
+下面给出一段演示代码：<br />
+<div class="blockcode"><div id="code_l0q"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.auth.OfflineAuthenticator;<br />
+<li>import org.to2mbn.jmccc.exec.GameProcessListener;<br />
+<li>import org.to2mbn.jmccc.launch.Launcher;<br />
+<li>import org.to2mbn.jmccc.launch.LauncherBuilder;<br />
+<li>import org.to2mbn.jmccc.option.LaunchOption;<br />
+<li>import org.to2mbn.jmccc.option.MinecraftDirectory;<br />
+<li><br />
+<li>public class JmcccTest {<br />
+<li><br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 创建一个Launcher对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Launcher launcher = LauncherBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .setDebugPrintCommandline(true) // 将启动命令打印到控制台以便调试<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .build();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 启动配置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LaunchOption option = new LaunchOption(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;1.9&quot;, // 游戏版本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; new OfflineAuthenticator(&quot;test_user&quot;), // 使用离线验证，用户名test_user<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; new MinecraftDirectory(&quot;/home/yushijinhun/.minecraft&quot;)); // .minecraft目录<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 最大内存2048M<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;option.setMaxMemory(2048);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 启动游戏<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;launcher.launch(option, new GameProcessListener() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(log); // 输出日志到控制台<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onErrorLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(log); // 输出日志到控制台（同上）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onExit(int code) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(&quot;游戏进程退出，状态码：&quot; + code); // 游戏结束时输出状态码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_l0q'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_zM7"><ol><li>jmccc:<br />
+<li>/usr/lib/jvm/jdk1.8.0_66/jre/bin/java<br />
+<li>-Xmx2048M<br />
+<li>-Djava.library.path=/home/yushijinhun/.minecraft/versions/1.9/1.9-natives<br />
+<li>-cp<br />
+<li>/home/yushijinhun/.minecraft/libraries/com/paulscode/soundsystem/20120107/soundsystem-20120107.jar:/home/yushijinhun/.minecraft/libraries/net/java/dev/jna/platform/3.4.0/platform-3.4.0.jar:/home/yushijinhun/.minecraft/libraries/com/google/guava/guava/17.0/guava-17.0.jar:/home/yushijinhun/.minecraft/libraries/commons-io/commons-io/2.4/commons-io-2.4.jar:/home/yushijinhun/.minecraft/libraries/org/apache/httpcomponents/httpcore/4.3.2/httpcore-4.3.2.jar:/home/yushijinhun/.minecraft/libraries/com/ibm/icu/icu4j-core-mojang/51.2/icu4j-core-mojang-51.2.jar:/home/yushijinhun/.minecraft/libraries/net/sf/jopt-simple/jopt-simple/4.6/jopt-simple-4.6.jar:/home/yushijinhun/.minecraft/libraries/commons-codec/commons-codec/1.9/commons-codec-1.9.jar:/home/yushijinhun/.minecraft/libraries/com/paulscode/codecjorbis/20101023/codecjorbis-20101023.jar:/home/yushijinhun/.minecraft/libraries/commons-logging/commons-logging/1.1.3/commons-logging-1.1.3.jar:/home/yushijinhun/.minecraft/libraries/com/google/code/gson/gson/2.2.4/gson-2.2.4.jar:/home/yushijinhun/.minecraft/libraries/org/apache/commons/commons-lang3/3.3.2/commons-lang3-3.3.2.jar:/home/yushijinhun/.minecraft/libraries/com/paulscode/codecwav/20101023/codecwav-20101023.jar:/home/yushijinhun/.minecraft/libraries/com/paulscode/librarylwjglopenal/20100824/librarylwjglopenal-20100824.jar:/home/yushijinhun/.minecraft/libraries/org/apache/logging/log4j/log4j-api/2.0-beta9/log4j-api-2.0-beta9.jar:/home/yushijinhun/.minecraft/libraries/org/apache/logging/log4j/log4j-core/2.0-beta9/log4j-core-2.0-beta9.jar:/home/yushijinhun/.minecraft/libraries/io/netty/netty-all/4.0.23.Final/netty-all-4.0.23.Final.jar:/home/yushijinhun/.minecraft/libraries/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar:/home/yushijinhun/.minecraft/libraries/net/java/jutils/jutils/1.0.0/jutils-1.0.0.jar:/home/yushijinhun/.minecraft/libraries/com/mojang/realms/1.8.7/realms-1.8.7.jar:/home/yushijinhun/.minecraft/libraries/org/apache/commons/commons-compress/1.8.1/commons-compress-1.8.1.jar:/home/yushijinhun/.minecraft/libraries/oshi-project/oshi-core/1.1/oshi-core-1.1.jar:/home/yushijinhun/.minecraft/libraries/net/java/dev/jna/jna/3.4.0/jna-3.4.0.jar:/home/yushijinhun/.minecraft/libraries/org/lwjgl/lwjgl/lwjgl_util/2.9.4-nightly-20150209/lwjgl_util-2.9.4-nightly-20150209.jar:/home/yushijinhun/.minecraft/libraries/org/apache/httpcomponents/httpclient/4.3.3/httpclient-4.3.3.jar:/home/yushijinhun/.minecraft/libraries/net/java/jinput/jinput/2.0.5/jinput-2.0.5.jar:/home/yushijinhun/.minecraft/libraries/com/mojang/authlib/1.5.22/authlib-1.5.22.jar:/home/yushijinhun/.minecraft/libraries/com/paulscode/libraryjavasound/20101123/libraryjavasound-20101123.jar:/home/yushijinhun/.minecraft/versions/1.9/1.9.jar:<br />
+<li>net.minecraft.client.main.Main<br />
+<li>--username<br />
+<li>test_user<br />
+<li>--version<br />
+<li>1.9<br />
+<li>--gameDir<br />
+<li>/home/yushijinhun/.minecraft<br />
+<li>--assetsDir<br />
+<li>/home/yushijinhun/.minecraft/assets<br />
+<li>--assetIndex<br />
+<li>1.9<br />
+<li>--uuid<br />
+<li>109fb39758f23a9a92c15a21ac5113c2<br />
+<li>--accessToken<br />
+<li>5b54b31a68574518a71fdd7e9846f87d<br />
+<li>--userType<br />
+<li>mojang<br />
+<li>--versionType<br />
+<li>release<br />
+<li><br />
+<li>[18:01:52] [Client thread/INFO]: Setting user: test_user<br />
+<li>[18:01:52] [Client thread/INFO]: (Session ID is token:5b54b31a68574518a71fdd7e9846f87d:109fb39758f23a9a92c15a21ac5113c2)<br />
+<li>[18:01:54] [Client thread/INFO]: LWJGL Version: 2.9.4<br />
+<li>[18:01:54] [Client thread/INFO]: Reloading ResourceManager: Default<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:block.note.pling<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.bat.loop<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.cat.hiss<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.ghast.scream<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.player.breath<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.small_slime.jump<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.snowman.ambient<br />
+<li>[18:01:54] [Client thread/WARN]: Missing sound for event: minecraft:entity.wolf.howl<br />
+<li>[18:01:54] [Sound Library Loader/INFO]: Starting up SoundSystem...<br />
+<li>[18:01:55] [Thread-5/INFO]: Initializing LWJGL OpenAL<br />
+<li>[18:01:55] [Thread-5/INFO]: (The LWJGL binding of OpenAL.&nbsp;&nbsp;For more information, see http://www.lwjgl.org)<br />
+<li>[18:01:55] [Thread-5/INFO]: OpenAL initialized.<br />
+<li>[18:01:55] [Sound Library Loader/INFO]: Sound engine started<br />
+<li>[18:01:56] [Client thread/INFO]: Created: 1024x512 textures-atlas<br />
+<li>[18:02:02] [Realms Notification Availability checker #1/INFO]: Could not authorize you against Realms server: Invalid session id<br />
+<li>[18:02:03] [Client thread/INFO]: Stopping!<br />
+<li>[18:02:03] [Client thread/INFO]: SoundSystem shutting down...<br />
+<li>[18:02:03] [Client thread/WARN]: Author: Paul Lamb, www.paulscode.com<br />
+<li>游戏进程退出，状态码：0<br />
+<li></ol></div><em onclick="copycode($('code_zM7'));">复制代码</em></div><br /><br />
+<br />
+<font size="6">3. 正版登录</font><br />
+正版登录是jmccc的一个<strong>可选</strong>功能，您必须确保您已经导入了jmccc-yggdrasil-authenticator这个依赖。<br />
+<br />
+（有必要解释一下yggdrasil的意思，yggdrasil就是mojang正版验证服务的代号）<br />
+<br />
+正版登录的功能由YggdrasilAuthenticator类提供。<br />
+<br />
+YggdrasilAuthenticator类存储了一个正版验证的session。当每次向正版验证服务器刷新session时，YggdrasilAuthenticator都会将新的session存储起来，以备下次使用。假如说因为某种原因session失效了（如长时间不使用），YggdrasilAuthenticator则会要求提供密码来重新登录。<br />
+<br />
+当使用YggdrasilAuthenticator时（即要求返回一个有效的session），流程如下：<br />
+<br />
+<img id="aimg_TpA46" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="700" height="527" src="http://to2mbn.github.io/jmccc/images/YggdrasilAuthenticator.png" onmouseover="img_onmouseoverfunc(this)" onclick="zoom(this)" style="cursor:pointer" border="0" alt="" /><br />
+<br />
+注：上面的逻辑就是auth()方法中的逻辑。<br />
+<br />
+<font size="5">如何创建一个YggdrasilAuthenticator？</font><br />
+<br />
+YggdrasilAuthenticator有两个工厂方法，分别是YggdrasilAuthenticator.password(String, String)和YggdrasilAuthenticator.token(String, String)。（这两个方法还有若干重载）<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>password(String, String)</td><td>创建一个YggdrasilAuthenticator，并用所给的密码初始化。</td></tr><tr><td>token(String, String)</td><td>创建一个YggdrasilAuthenticator，并用所给的token初始化。</td></tr></table><br />
+使用上面这两个方法创建的YggdrasilAuthenticator都已经存储着了一个有效的session，因此您可以直接将它们拿来使用：<br />
+（举第2节中的例子）<br />
+<div class="blockcode"><div id="code_yJx"><ol><li>LaunchOption option = new LaunchOption(&quot;1.9&quot;, YggdrasilAuthenticator.password(&quot;email@xxx.com&quot;, &quot;password&quot;), new MinecraftDirectory(&quot;.minecraft&quot;));<br />
+<li></ol></div><em onclick="copycode($('code_yJx'));">复制代码</em></div><br />
+
+<br />
+需要注意的是YggdrasilAuthenticator有一个无参的构造方法。不同于上面的两个工厂方法，用这个构造方法创建出来的YggdrasilAuthenticator是不带有有效的session的。也就是说，new YggdrasilAuthenticator()创建出来的YggdrasilAuthenticator要刷新一次之后才能使用。<br />
+<br />
+<font size="5">如何刷新YggdrasilAuthenticator中的session？</font><br />
+YggdrasilAuthenticator中session的刷新分为<strong>被动刷新</strong>和<strong>主动刷新</strong>。<br />
+<br />
+被动刷新就像本节一开始所说的，当要使用YggdrasilAuthenticator进行验证，但当前的session又无效时，就需要向用户询问密码来重新登录，用户此时是被动的。<br />
+YggdrasilAuthenticator默认情况下是不允许被动刷新的（因为YggdrasilAuthenticator不知道如何与用户交互），此时您需要为YggdrasilAuthenticator编写子类来实现被动刷新，例如：<br />
+<div class="blockcode"><div id="code_BPh"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.util.Scanner;<br />
+<li>import org.to2mbn.jmccc.auth.AuthenticationException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li><br />
+<li>public class MyYggdrasilAuthenticator extends YggdrasilAuthenticator {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 下面两个构造方法并没有什么好看的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 从超类生成过来的罢了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public MyYggdrasilAuthenticator() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public MyYggdrasilAuthenticator(AuthenticationService sessionService) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(sessionService);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected PasswordProvider tryPasswordLogin() throws AuthenticationException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这个方法会在进行被动刷新时调用<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 向用户询问邮箱与密码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Scanner scanner = new Scanner(System.in);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.print(&quot;邮箱：&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String email = scanner.nextLine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.print(&quot;密码：&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String password = scanner.nextLine();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return YggdrasilAuthenticator.createPasswordProvider(email, password, null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_BPh'));">复制代码</em></div><br />
+
+<br />
+我们可以来测试一下：<br />
+<div class="blockcode"><div id="code_w7X"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.auth.AuthenticationException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li><br />
+<li>public class AuthTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws AuthenticationException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 用无参构造函数创建的YggdrasilAuthenticator是不带有session的。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 所以在第一次使用YggdrasilAuthenticator时会触发一次被动刷新，<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 要求用户输入邮箱和密码。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator = new MyYggdrasilAuthenticator();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 循环十次要求提供登录信息<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int i = 0; i &lt; 10; i++)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_w7X'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_e74"><ol><li>邮箱：********@qq.com<br />
+<li>密码：********<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li></ol></div><em onclick="copycode($('code_e74'));">复制代码</em></div><br />
+// 因为是个人敏感信息，所以我就无耻的打码了<br />
+<br />
+可以看到虽然调用了使用了十次YggdrasilAuthenticator（调用auth()），但只向用户询问了一次密码。这说明YggdrasilAuthenticator记住了之前的登录状态。<br />
+<br />
+<br />
+主动刷新是指，程序主动要求YggdrasilAuthenticator刷新session。可以通过调用下面两个方法实现：<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>refreshWithPassword(String, String)</td><td>用邮箱和密码来刷新当前session</td></tr><tr><td>refreshWithToken(String, String)</td><td>用token来刷新当前session</td></tr></table><br />
+我们来测试一下：<br />
+<div class="blockcode"><div id="code_VVD"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.auth.AuthenticationException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li><br />
+<li>public class AuthTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这样创建的YggdrasilAuthenticator不带有有效session<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 并且我们也没有实现被动刷新<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator = new YggdrasilAuthenticator();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 第一次使用YggdrasilAuthenticator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 由于没有有效session，并且也无法进行被动刷新<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 所以会出错<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (AuthenticationException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 此时我们主动去刷新它<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;authenticator.refreshWithPassword(&quot;email@xxx.com&quot;, &quot;password&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (AuthenticationException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 第二次使用YggdrasilAuthenticator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 由于经过主动刷新，已经有有效的session了<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 所以成功执行<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (AuthenticationException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_VVD'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_gw1"><ol><li>org.to2mbn.jmccc.auth.AuthenticationException: no more authentication methods to try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator.refresh(YggdrasilAuthenticator.java:293)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator.session(YggdrasilAuthenticator.java:265)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator.auth(YggdrasilAuthenticator.java:236)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at yushijinhun.jmccc.test.AuthTest.main(AuthTest.java:17)<br />
+<li>AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li></ol></div><em onclick="copycode($('code_gw1'));">复制代码</em></div><br />
+
+<br />
+有一点要注意：在编写和用户交互的启动器时，<strong>使用被动刷新</strong>。尽量不用YggdrasilAuthenticator.password()和token()这些工厂方法，也尽量避免主动刷新。因为出现被动刷新只有在<strong>真的有必要</strong>要用密码登录时才会发生。<br />
+<br />
+<br />
+<font size="5">如何保存登录信息？</font><br />
+一般情况下我们的启动器都会有个“记住密码”的功能。但难道启动器真的保存了密码吗？这显然是不安全的。事实上启动器保存的是上次的session，到下一次再打开启动器时，便会加载上次的session。<br />
+那么如何在jmccc中实现这个功能呢？答案有两个。<br />
+<br />
+第一种办法是直接序列化YggdrasilAuthenticator。此时YggdrasilAuthenticator中所含的session将一同被序列化。示例如下：<br />
+<div class="blockcode"><div id="code_SgW"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.io.File;<br />
+<li>import java.io.FileInputStream;<br />
+<li>import java.io.FileOutputStream;<br />
+<li>import java.io.IOException;<br />
+<li>import java.io.ObjectInputStream;<br />
+<li>import java.io.ObjectOutputStream;<br />
+<li>import org.to2mbn.jmccc.auth.AuthenticationException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li><br />
+<li>public class AuthTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 找一个临时文件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; File file = File.createTempFile(&quot;jmccc-test&quot;, &quot;.dat&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; saveAuth(file);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; loadAuth(file);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 创建一个YggdrasilAuthenticator并把它序列化到文件里。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param file 要保存到的文件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @throws AuthenticationException 假如出现验证错误<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @throws IOException 假如出现I/O异常<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static void saveAuth(File file) throws AuthenticationException, IOException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 用密码创建一个包含有效session的YggdrasilAuthenticator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator = YggdrasilAuthenticator.password(&quot;email@xxx.com&quot;, &quot;password&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(file))) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 序列化YggdrasilAuthenticator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;out.writeObject(authenticator);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.printf(&quot;YggdrasilAuthenticator已保存到%s%n&quot;, file);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 从文件里加载YggdrasilAuthenticator，并把它的session输出出来。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param file 要加载YggdrasilAuthenticator的文件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @throws AuthenticationException 假如出现验证错误<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @throws IOException 假如出现I/O异常<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @throws ClassNotFoundException 假如类未找到（反序列化错误）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static void loadAuth(File file) throws AuthenticationException, IOException, ClassNotFoundException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 反序列化YggdrasilAuthenticator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;authenticator = (YggdrasilAuthenticator) in.readObject();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.printf(&quot;从%s中加载了一个YggdrasilAuthenticator%n&quot;, file);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.printf(&quot;调用YggdrasilAuthenticator的auth()：%s%n&quot;, authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_SgW'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_GQY"><ol><li>YggdrasilAuthenticator已保存到/tmp/jmccc-test3142550737446373738.dat<br />
+<li>从/tmp/jmccc-test3142550737446373738.dat中加载了一个YggdrasilAuthenticator<br />
+<li>调用YggdrasilAuthenticator的auth()：AuthInfo [username=********, token=********, uuid=********, properties={}, userType=mojang]<br />
+<li></ol></div><em onclick="copycode($('code_GQY'));">复制代码</em></div><br />
+
+<br />
+另一种方式是，调用getCurrentSession()返回当前的session（可能为null），然后将这个对象序列化。下一次时使用无参的构造方法创建YggdrasilAuthenticator，然后调用setCurrentSession(Session)将session设置回去。在此便不多叙述。<br />
+<br />
+<br />
+<font size="5">如何实现角色的选择？</font><br />
+对于这一段的小标题读者可能不大理解，什么叫角色选择呢？其实Yggdrasil允许一个账户拥有<strong>多个</strong>角色，这里的角色就可以相当于minecraft中的玩家。当然，mojang目前似乎还没开放这个功能。但可以通过使用第三方的Yggdrasil服务提供商体验一下（比如<a href="https://github.com/to2mbn/authlib-agent" target="_blank">authlib-agent</a>）。（好像有点扯远了）<br />
+虽然mojang没有实现这个功能，但我们总得防范与未然吧，而且正版启动器以及HMCL等启动器都有实现这个功能。那么在jmccc中应该如何做到呢？<br />
+首先要为CharacterSelector接口编写一个实现类。这个接口中定义了一个select(GameProfile[])方法，即从所给的角色中选择一个。（GameProfile即角色）<br />
+下面给出一个例子：<br />
+<div class="blockcode"><div id="code_ky9"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.util.Scanner;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.CharacterSelector;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.GameProfile;<br />
+<li><br />
+<li>public class MyCharacterSelector implements CharacterSelector {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public GameProfile select(GameProfile[] availableProfiles) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 与用户交互<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (int i = 0; i &lt; availableProfiles.length; i++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.printf(&quot;[%d] %s%n&quot;, i, availableProfiles[i].getName());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.printf(&quot;请从上面的角色中选择一个（输入序号）：&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Scanner scanner = new Scanner(System.in);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int index = scanner.nextInt();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 返回要使用的角色<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return availableProfiles[index];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_ky9'));">复制代码</em></div><br />
+
+<br />
+上面我们知道了可以使用YggdrasilAuthenticator.password(String, String)这个工厂方法创建一个YggdrasilAuthenticator，也知道了可以用YggdrasilAuthenticator.refreshWithPassword(String, String)刷新当前session。<br />
+如果说我们要进行角色选择，应该用什么方法来传递给YggdrasilAuthenticator一个CharacterSelector，让它知道在选择角色时通知我们呢？<br />
+这就要使用YggdrasilAuthenticator.password(String, String, CharacterSelector)和YggdrasilAuthenticator.refreshWithPassword(String, String, CharacterSelector)。（两个重载方法）<br />
+<br />
+在进行登录时，假如需要对角色进行选择，则YggdrasilAuthenticator会调用CharacterSelector的select(GameProfile[])。<br />
+（注：只有当可以进行角色选择时才会调用select(GameProfile[])）<br />
+<br />
+示例如下：<br />
+（注：因为mojang不能有多个角色，所以我使用了authlib-agent自己建了个yggdrasil服务端，下面的代码和上面的会略有出入。关于jmccc自定义yggdrasil服务提供商，请见第12节）<br />
+<div class="blockcode"><div id="code_yBN"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.AuthenticationService;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.yggdrasil.YggdrasilServiceBuilder;<br />
+<li><br />
+<li>public class AuthTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; AuthenticationService authenticationService = YggdrasilServiceBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setAPIProvider(new yushijinhunYggdrasilAPIProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.loadSessionPublicKey(&quot;/home/yushijinhun/yushijinhun_yggdrasil_pubkey.der&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.buildAuthenticationService();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 用特定的AuthenticationService创建一个AuthenticationService<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这样这个YggdrasilAuthenticator就会向我的Yggdrasil服务请求，而不是Mojang的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator = new YggdrasilAuthenticator(authenticationService);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 然后用密码登录<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; authenticator.refreshWithPassword(&quot;yushijinhun@gmail.com&quot;, &quot;123456&quot;, new MyCharacterSelector());<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 输出登录信息<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_yBN'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_I0j"><ol><li>[0] test_player<br />
+<li>[1] yushijinhun<br />
+<li>请从上面的角色中选择一个（输入序号）：1<br />
+<li>AuthInfo [username=yushijinhun, token=9395d1cdc7cf40a9a9fcf728aabdd7e7, uuid=8faf6e06d9e147fa8f63b9a6c19c5d5b, properties={}, userType=mojang]<br />
+<li></ol></div><em onclick="copycode($('code_I0j'));">复制代码</em></div><br />
+p.s. 因为这个yggdrasil服务端是我测试用的，在mojang服务器上并没有这个账号，所以不打码也无妨。<br />
+<br />
+除了在主动刷新时进行角色选择，在被动刷新时也可以进行角色选择。只需对上面的MyYggdrasilAuthenticator做一下修改。<br />
+将tryPasswordLogin()中的return改为如下：<br />
+<div class="blockcode"><div id="code_br0"><ol><li>return YggdrasilAuthenticator.createPasswordProvider(email, password, new MyCharacterSelector());<br />
+<li></ol></div><em onclick="copycode($('code_br0'));">复制代码</em></div><br />
+可以看到第三个参数发生了变化。原来是null，代表使用默认的角色选择器。而现在是使用我们所指定的角色选择器。<br />
+再编写代码测试一下：<br />
+<div class="blockcode"><div id="code_NPZ"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.AuthenticationService;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.yggdrasil.YggdrasilServiceBuilder;<br />
+<li><br />
+<li>public class AuthTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; AuthenticationService authenticationService = YggdrasilServiceBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setAPIProvider(new yushijinhunYggdrasilAPIProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.loadSessionPublicKey(&quot;/home/yushijinhun/yushijinhun_yggdrasil_pubkey.der&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.buildAuthenticationService();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 用特定的AuthenticationService创建一个AuthenticationService<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 这样这个YggdrasilAuthenticator就会向我的Yggdrasil服务请求，而不是Mojang的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; YggdrasilAuthenticator authenticator = new MyYggdrasilAuthenticator(authenticationService);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 输出登录信息<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(authenticator.auth());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_NPZ'));">复制代码</em></div><br />
+可以看到只是将上面例子里的refreshWithPassword删掉了，并且换成了MyYggdrasilAuthenticator（因为我们要处理被动刷新）。变主动刷新为被动刷新，不指定密码，让YggdrasilAuthenticator来询问我们密码。<br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_Ge4"><ol><li>邮箱：yushijinhun@gmail.com<br />
+<li>密码：123456<br />
+<li>[0] test_player<br />
+<li>[1] yushijinhun<br />
+<li>请从上面的角色中选择一个（输入序号）：1<br />
+<li>AuthInfo [username=yushijinhun, token=889af3a4d0f04277aaf3431f0a48a38e, uuid=8faf6e06d9e147fa8f63b9a6c19c5d5b, properties={}, userType=mojang]<br />
+<li></ol></div><em onclick="copycode($('code_Ge4'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+
+<br />
+第3节到此便结束了，内容可能不太好理解，但只要各位多写代码运行运行就没问题。<br />
+<br />
+<br />
+<br />
+<font size="6">4. 下载游戏</font><br />
+游戏下载是jmccc的一个<strong>可选</strong>功能，您必须确保您已经导入了jmccc-mcdownloader这个依赖。<br />
+<br />
+先介绍一下jmccc-mcdownloader中几个比较重要的类：<br />
+<strong>MinecraftDownloader</strong> - jmccc-mcdownloader中最为重要的类，提供了下载的接口方法。所有下载任务都是提供这个类提交上去的。<br />
+<strong>MinecraftDownloaderBuilder</strong> - 用来配置及创建MinecraftDownloader的类。下载时的代理、超时时间、下载源，如何检查缺失文件，缓存策略等都是通过这个类配置的。<br />
+<strong>Callback</strong> - 异步处理的回调接口。包含了done()，failed()，cancelled()三个回调方法，分别在任务成功完成、任务失败、任务被取消时调用。<br />
+<strong>DownloadTask</strong> - 代表了一个下载任务。每一个下载任务都有一个明确的URL表明数据来源。<br />
+<strong>DownloadCallback</strong> - 下载的异步处理的回调接口，继承自Callback。还包含了updateProgress()和retry()用来汇报下载时的进度和重试情况。<br />
+<strong>CombinedDownloadTask</strong> - 由多个下载任务组合而成的组合任务。每一个CombinedDownloadTask都可以派生出若干个DownloadTask。<br />
+<strong>CombinedDownloadCallback</strong> - 组合任务的异步处理的回调接口。还包含了taskStart()，在该CombinedDownloadTask派生出一个DownloadTask时会调用该方法。<br />
+<br />
+首先要搞清楚DownloadTask与CombinedDownloadTask的关系。DownloadTask是下载一个文件的任务，CombinedDownloadTask是由多个DownloadTask组合而成的任务。如下图：<br />
+<img id="aimg_yGmGu" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://to2mbn.github.io/jmccc/images/CombinedDownloadTask-and-DownloadTask.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+要下载Minecraft，首先要创建一个MinecraftDownloader对象，可以通过以下方式：<br />
+<div class="blockcode"><div id="code_CB5"><ol><li>MinecraftDownloader downloader = MinecraftDownloaderBuilder.buildDefault();<br />
+<li></ol></div><em onclick="copycode($('code_CB5'));">复制代码</em></div><br />
+
+<br />
+然后便可以调用它的downloadIncrementally(MinecraftDirectory, String, CombinedDownloadCallback&lt;Version&gt;)方法来下载Minecraft了。<br />
+其中第个一参数是.minecraft目录位置；第二个参数是版本名称，如&quot;1.9&quot;；第三个是回调接口，返回的是一个Version，代表实际下载到的Minecraft版本。<br />
+downloadIncrementally方法会自动检查缺失的文件（如libraries、assets），并下载。<br />
+MinecraftDownloader中所有的downloadXXX方法都是异步的（当然也包括上面的downloadIncrementally）。调用之后会立即返回。任务完成后会通知回调。<br />
+<br />
+如下面的这段代码下载了Minecraft 1.9：<br />
+（注：可以使用CallbackAdapter来避免接口内写重复的空方法，类似于swing的Adapter）<br />
+<div class="blockcode"><div id="code_PSG"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.mcdownloader.MinecraftDownloader;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.MinecraftDownloaderBuilder;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.DownloadCallback;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.DownloadTask;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.concurrent.CallbackAdapter;<br />
+<li>import org.to2mbn.jmccc.option.MinecraftDirectory;<br />
+<li>import org.to2mbn.jmccc.version.Version;<br />
+<li><br />
+<li>public class DownloadTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 下载位置（要下载到的.minecraft目录）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; MinecraftDirectory dir = new MinecraftDirectory(&quot;/home/yushijinhun/.minecraft&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 创建MinecraftDownloader<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; MinecraftDownloader downloader = MinecraftDownloaderBuilder.create().build();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 下载Minecraft1.9<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; downloader.downloadIncrementally(dir, &quot;1.9&quot;, new CallbackAdapter&lt;Version&gt;() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void done(Version result) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当完成时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 参数代表实际下载到的Minecraft版本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.printf(&quot;下载完成，下载到的Minecraft版本：%s%n&quot;, result);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void failed(Throwable e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当失败时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 参数代表是由于哪个异常而失败的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.printf(&quot;下载失败%n&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void cancelled() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当被取消时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.printf(&quot;下载取消%n&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public &lt;R&gt; DownloadCallback&lt;R&gt; taskStart(DownloadTask&lt;R&gt; task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当有一个下载任务被派生出来时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 在这里返回一个DownloadCallback就可以监听该下载任务的状态<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.printf(&quot;开始下载：%s%n&quot;, task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new CallbackAdapter&lt;R&gt;() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void done(R result) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 当这个DownloadTask完成时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.printf(&quot;子任务完成：%s%n&quot;, task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void failed(Throwable e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 当这个DownloadTask失败时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.printf(&quot;子任务失败：%s。原因：%s%n&quot;, task.getURI(), e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void cancelled() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 当这个DownloadTask被取消时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.printf(&quot;子任务取消：%s%n&quot;, task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void retry(Throwable e, int current, int max) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 当这个DownloadTask因出错而重试时调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 重试不代表着失败<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 也就是说，一个DownloadTask可以重试若干次，<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 每次决定要进行一次重试时就会调用这个方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 当最后一次重试失败，这个任务也将失败了，failed()才会被调用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// 所以调用顺序就是这样：<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// retry()-&gt;retry()-&gt;...-&gt;failed()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.printf(&quot;子任务重试[%d/%d]：%s。原因：%s%n&quot;, current, max, task.getURI(), e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; });<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_PSG'));">复制代码</em></div><br />
+当下载成功时控制台输出：<br />
+<div class="blockcode"><div id="code_Ty8"><ol><li>开始下载：https://launchermeta.mojang.com/mc/game/version_manifest.json<br />
+<li>子任务完成：https://launchermeta.mojang.com/mc/game/version_manifest.json<br />
+<li>开始下载：https://launchermeta.mojang.com/mc/game/6768033e216468247bd031a0a2d9876d79818f8f/1.9.json<br />
+<li>子任务完成：https://launchermeta.mojang.com/mc/game/6768033e216468247bd031a0a2d9876d79818f8f/1.9.json<br />
+<li>开始下载：https://launchermeta.mojang.com/mc-staging/assets/1.9/092c59b361816c7fa7f000587caa977c515b179c/1.9.json<br />
+<li>开始下载：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar<br />
+<li>开始下载：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar<br />
+<li>子任务完成：https://launchermeta.mojang.com/mc-staging/assets/1.9/092c59b361816c7fa7f000587caa977c515b179c/1.9.json<br />
+<li>开始下载：http://resources.download.minecraft.net/4b/4b90ff3a9b1486642bc0f15da0045d83a91df82e<br />
+<li>子任务完成：http://resources.download.minecraft.net/4b/4b90ff3a9b1486642bc0f15da0045d83a91df82e<br />
+<li>子任务完成：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar<br />
+<li>下载完成，下载到的Minecraft版本：1.9<br />
+<li>子任务完成：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar<br />
+<li></ol></div><em onclick="copycode($('code_Ty8'));">复制代码</em></div><br />
+当下载失败时（通过拔网线实现）控制台输出：<br />
+<div class="blockcode"><div id="code_BJ0"><ol><li>开始下载：https://launchermeta.mojang.com/mc/game/version_manifest.json<br />
+<li>开始下载：https://launchermeta.mojang.com/mc/game/6768033e216468247bd031a0a2d9876d79818f8f/1.9.json<br />
+<li>子任务完成：https://launchermeta.mojang.com/mc/game/version_manifest.json<br />
+<li>子任务完成：https://launchermeta.mojang.com/mc/game/6768033e216468247bd031a0a2d9876d79818f8f/1.9.json<br />
+<li>开始下载：https://launchermeta.mojang.com/mc-staging/assets/1.9/092c59b361816c7fa7f000587caa977c515b179c/1.9.json<br />
+<li>开始下载：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar<br />
+<li>开始下载：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar<br />
+<li>子任务重试[1/3]：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar。原因：java.net.UnknownHostException: launcher.mojang.com: unknown error<br />
+<li>子任务重试[2/3]：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar。原因：java.net.UnknownHostException: launcher.mojang.com<br />
+<li>子任务失败：https://launcher.mojang.com/mc/game/1.9/client/2f67dfe8953299440d1902f9124f0f2c3a2c940f/client.jar。原因：java.net.UnknownHostException: launcher.mojang.com<br />
+<li>子任务重试[1/3]：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar。原因：java.net.UnknownHostException: libraries.minecraft.net: unknown error<br />
+<li>子任务重试[2/3]：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar。原因：java.net.UnknownHostException: libraries.minecraft.net<br />
+<li>子任务失败：https://libraries.minecraft.net/com/mojang/authlib/1.5.22/authlib-1.5.22.jar。原因：java.net.UnknownHostException: libraries.minecraft.net<br />
+<li>子任务取消：https://launchermeta.mojang.com/mc-staging/assets/1.9/092c59b361816c7fa7f000587caa977c515b179c/1.9.json<br />
+<li>下载失败<br />
+<li>java.net.UnknownHostException: launcher.mojang.com<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.net.InetAddress.getAllByName0(InetAddress.java:1280)<br />
+<li>......// 此处省略<br />
+<li></ol></div><em onclick="copycode($('code_BJ0'));">复制代码</em></div><br />
+
+<br />
+如果说要下载Minecraft版本列表，则需要调用fetchRemoteVersionList(CombinedDownloadCallback&lt;RemoteVersionList&gt;)方法。如下：<br />
+<div class="blockcode"><div id="code_vHp"><ol><li>downloader.fetchRemoteVersionList(new CallbackAdapter&lt;RemoteVersionList&gt;() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void done(RemoteVersionList result) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.printf(&quot;版本列表下载完成：%s%n&quot;, result);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// ............省略其它方法<br />
+<li>});</ol></div><em onclick="copycode($('code_vHp'));">复制代码</em></div><br />
+控制台输出如下：<br />
+<div class="blockcode"><div id="code_NMh"><ol><li>版本列表下载完成：[latestSnapshot=1.RV-Pre1, latestRelease=1.9.2, versions={16w05b=RemoteVersion [version=16w05b, ............<br />
+<li></ol></div><em onclick="copycode($('code_NMh'));">复制代码</em></div><br />
+注：如果说要在下载完后启动Minecraft的话，可以直接将Version对象传进LaunchOption的构造函数中。另外实际下载到的Minecraft的version id可能会与downloadIncrementally指定的不同，一般出现在下载forge时（下一节会有介绍）。<br />
+<br />
+当使用MinecraftDownloaderBuilder创建MinecraftDownloader时，可以通过方法链来自定义配置。下面是MinecraftDownloaderBuilder里的一些方法：<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>setMaxConnections(int)</td><td>设置下载时的最大链接数</td></tr><tr><td>setMaxConnectionsPerRouter(int)</td><td>设置NIO下每个I/O Dispatcher线程的最大链接数</td></tr><tr><td>setConnectTimeout(int)</td><td>设置连接超时的毫秒数</td></tr><tr><td>setSoTimeout(int)</td><td>设置Socket超时的毫秒数</td></tr><tr><td>setBaseProvider(MinecraftDownloadProvider)</td><td>设置下载源</td></tr><tr><td>appendProvider(MinecraftDownloadProvider)</td><td>将一个拓展下载源添加到解析链中</td></tr><tr><td>setPoolMaxThreads(int)</td><td>设置线程池的最大线程数</td></tr><tr><td>setPoolThreadLivingTime(long)</td><td>设置线程池里线程在不使用后最大的存活时间（毫秒）</td></tr><tr><td>setDefaultTries(int)</td><td>设置下载失败后最大的尝试次数（默认为3，不宜过大）</td></tr><tr><td>setUseVersionDownloadInfo(boolean)</td><td>设置是否从json中指定的url下载（即1.9的新json格式，默认true）</td></tr><tr><td>setCheckAssetsHash(boolean)</td><td>设置是否通过计算assets的hash来判断完整性（默认true）</td></tr><tr><td>setCheckLibrariesHash(boolean)</td><td>设置是否通过计算libraries的hash来判断完整性（默认false，文件hash会与1.9新json中指定的hash值比较）</td></tr></table><br />
+<br />
+关于如何使用自定义的下载源，下面以BMCL API为例：<br />
+<div class="blockcode"><div id="code_zpV"><ol><li>package org.to2mbn.jmccc.mcdownloader.wiki.provider;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.mcdownloader.provider.DefaultLayoutProvider;<br />
+<li><br />
+<li>public class BmclApiProvider extends DefaultLayoutProvider {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected String getLibraryBaseURL() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://bmclapi2.bangbang93.com/libraries/&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected String getVersionBaseURL() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://bmclapi2.bangbang93.com/versions/&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected String getAssetIndexBaseURL() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://bmclapi2.bangbang93.com/indexes/&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected String getVersionListURL() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://bmclapi2.bangbang93.com/mc/game/version_manifest.json&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected String getAssetBaseURL() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://bmclapi2.bangbang93.com/assets/&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_zpV'));">复制代码</em></div><br />
+然后只要在创建MinecraftDownloader时，调用setBaseProvider即可：<br />
+<div class="blockcode"><div id="code_UoL"><ol><li>MinecraftDownloader downloader = MinecraftDownloaderBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setBaseProvider(new BmclApiProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.build();<br />
+<li></ol></div><em onclick="copycode($('code_UoL'));">复制代码</em></div><br />
+
+<br />
+最后，您必须<strong>手动关闭</strong>MinecraftDownloader，否则MinecraftDownloader占用的资源将不会释放（如缓存、线程等）：<br />
+<div class="blockcode"><div id="code_H7K"><ol><li>downloader.shutdown();</ol></div><em onclick="copycode($('code_H7K'));">复制代码</em></div><br />
+要注意的是，MinecraftDownloader是一个重量级对象，创建和销毁都会消耗大量的系统资源。所以在一般情况下推荐启动器使用<strong>一个</strong>MinecraftDownloader对象。<br />
+<br />
+<br />
+<br />
+<font size="6">5. 下载并安装Forge及Liteloader</font><br />
+<br />
+本节将介绍Forge、Liteloader版本列表的获取，以及Forge、Liteloader的下载安装。<br />
+<br />
+我们知道，Forge和Liteloader的版本在1.6（新.minecraft目录格式）之后，在versions目录中都是单独算一个版本的，比如1.7.10-LiteLoader1.7.10、1.8.9-forge1.8.9-11.15.1.1757。在jmccc也是这样，1.7.10-LiteLoader1.7.10、1.8.9-forge1.8.9-11.15.1.1757它们都是一个Minecraft版本，与1.9、1.7.10这样的版本是同等地位的，所以这些Forge、Liteloader版本可以像正常的Minecraft版本一样下载、启动。<br />
+要支持Forge和Liteloader，首先要创建一个ForgeDownloadProvider和LiteloaderDownloadProvider。它们提供了对Forge、Liteloader的解析。然后通过MinecraftDownloaderBuilder的appendProvider方法将它们添加到MinecraftDownloader的解析链中：<br />
+<div class="blockcode"><div id="code_doO"><ol><li>ForgeDownloadProvider forgeProvider = new ForgeDownloadProvider();<br />
+<li>LiteloaderDownloadProvider liteloaderProvider = new LiteloaderDownloadProvider();<br />
+<li>MinecraftDownloader downloader = MinecraftDownloaderBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.appendProvider(forgeProvider)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.appendProvider(liteloaderProvider)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.build();<br />
+<li></ol></div><em onclick="copycode($('code_doO'));">复制代码</em></div><br />
+注意：appendProvider(liteloaderProvider)需要在appendProvider(forgeProvider)之后调用，否则将不能下载同时Forge、Liteloader并存的版本。<br />
+这样，这个MinecraftDownloader就具备了下载Forge、Liteloader的能力。<br />
+<br />
+要下载Forge或Liteloader，首先要获取它们的版本列表，如下：<br />
+<div class="blockcode"><div id="code_q4Z"><ol><li>downloader.download(forgeProvider.forgeVersionList(), new CallbackAdapter&lt;ForgeVersionList&gt;() {...});<br />
+<li>downloader.download(liteloaderProvider.liteloaderVersionList(), new CallbackAdapter&lt;LiteloaderVersionList&gt;() {...});<br />
+<li></ol></div><em onclick="copycode($('code_q4Z'));">复制代码</em></div><br />
+p.s. 上面省略了Callback中的方法<br />
+<br />
+对于ForgeVersionList，有以下方法：<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>getVersions()</td><td>获取所有的ForgeVersion。返回一个Map，key为build number。</td></tr><tr><td>getLatests()</td><td>获取所有标记为latest的版本，即每个Minecraft版本所对应的最新的ForgeVersion。返回一个Map，key为minecraft版本，value是此minecraft版本对应的最新的ForgeVersion。</td></tr><tr><td>getRecommendeds()</td><td>获取所有标记为recommended的版本，即每个Minecraft版本所对应的推荐的ForgeVersion。返回一个Map，key为minecraft版本，value是此minecraft版本对应的推荐的ForgeVersion。</td></tr><tr><td>getLatest()</td><td>获取最最新的ForgeVersion。不考虑minecraft版本。</td></tr><tr><td>getLatest(String)</td><td>获取给定的minecraft版本最新的ForgeVersion。</td></tr><tr><td>getRecommended()</td><td>获取最新的推荐的ForgeVersion。不考虑minecraft版本。</td></tr><tr><td>getRecommended(String)</td><td>获取给定的minecraft版本推荐的ForgeVersion。</td></tr></table><br />
+<br />
+对于LiteloaderVersionList，有以下方法:<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>getLatests()</td><td>获取每个minecraft版本对应的最新的LiteloaderVersion。返回的是Map，key为minecraft版本，value为该版本对应的最新的LiteloaderVersion。</td></tr><tr><td>getLatest(String)</td><td>获取给定的minecraft版本最新的LiteloaderVersion。</td></tr></table><br />
+注意：因为Liteloader开发者所提供的api过于变态，因此不支持snapshot版本，并且只能下载某个minecraft版本对应的最新的liteloader。<br />
+<br />
+在获取到要下载的ForgeVersion或LiteloaderVersion后就可以正常下载了，比如：<br />
+<div class="blockcode"><div id="code_C7w"><ol><li>// 这里的forgeVersion即要下载的forge版本<br />
+<li>downloader.downloadIncrementally(dir, forgeVersion.getVersionName(), new CallbackAdapter&lt;Version&gt;() {......});<br />
+<li></ol></div><em onclick="copycode($('code_C7w'));">复制代码</em></div><br />
+可以看到和上文下载官方的minecraft版本并没有什么区别，只是使用了ForgeVersion的getVersionName()来作为要下载的minecraft的版本号罢了。要下载LiteloaderVersion如法炮制即可。<br />
+<br />
+如果说要下载一个Forge和Liteloader并存的minecraft该怎么办呢？<br />
+假如我已经挑选好了ForgeVersion和LiteloaderVersion（forge和liteloader对应的minecraft版本要一致，不然肯定不能启动），那么只要将downloadIncrementally中的版本号替换为：<br />
+<div class="blockcode"><div id="code_YtB"><ol><li>liteloaderVersion.customize(forgeVersion.getVersionName()).getVersionName()</ol></div><em onclick="copycode($('code_YtB'));">复制代码</em></div><br />
+至此，Forge、Liteloader相关内容就讲解完了。<br />
+<br />
+<br />
+<br />
+<font size="6">6. 获取正版玩家的皮肤</font><br />
+从本节开始，我们就将开始介绍jmccc的高级用法。一般来说，听不懂是正常的。;(手动斜眼<br />
+<br />
+第3节中，我们学到了YggdrasilAuthenticator。事实上，YggdrasilAuthenticator的底层是YggdrasilService，YggdrasilService提供了一组访问Yggdrasil服务的接口。而与YggdrasilService并行的就是ProfileService，提供了和游戏角色相关的接口。<br />
+我们可以通过下面的方法来创建一个ProfileService：<br />
+<div class="blockcode"><div id="code_aAi"><ol><li>ProfileService profileService = YggdrasilServiceBuilder.defaultProfileService();</ol></div><em onclick="copycode($('code_aAi'));">复制代码</em></div><br />
+ProfileService中有三个方法，它们分别是：<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>lookupUUIDByName(String)</td><td>查询与玩家游戏中的名称对应的UUID。</td></tr><tr><td>getGameProfile(UUID)</td><td>查询给定UUID的角色的信息。</td></tr><tr><td>getTextures(GameProfile)</td><td>从给定的角色信息中获取皮肤（等）。</td></tr></table><br />
+注意：上面这三个方法都是要访问网络的，并且会阻塞，所以千万别脑残在UI线程之类的里面调用。<br />
+<br />
+下面给出一个例子：<br />
+<div class="blockcode"><div id="code_uM5"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.util.UUID;<br />
+<li>import org.to2mbn.jmccc.auth.AuthenticationException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.GameProfile;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.PlayerTextures;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.ProfileService;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.yggdrasil.YggdrasilServiceBuilder;<br />
+<li><br />
+<li>public class ProfileServiceTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws AuthenticationException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ProfileService profileService = YggdrasilServiceBuilder.defaultProfileService();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 查询ztcjohn的uuid<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; UUID uuid = profileService.lookupUUIDByName(&quot;ztcjohn&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(uuid);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 根据uuid获取GameProfile<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 注意啦！假如lookupUUIDByName没找到对应玩家就会返回null。我这里因为是演示所以偷懒不做判断，大家写的时候记得一定要判断一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; GameProfile profile = profileService.getGameProfile(uuid);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 获取GameProfile的皮肤<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 同上，假如getGameProfile没找到对应玩家就会返回null。我这里是偷懒，大家写的时候千万不要学<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; PlayerTextures textures = profileService.getTextures(profile);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(textures);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_uM5'));">复制代码</em></div><br />
+控制台输出：<br />
+<div class="blockcode"><div id="code_mzz"><ol><li>469aa369-6304-40d4-8b99-7e63199677ac<br />
+<li>PlayerTextures [skin=Texture [url=http://textures.minecraft.net/texture/2b28e73ff96914596963cb468da14fdb5e36217a6e327e8353efb44ec71, metadata=null], cape=Texture [url=http://textures.minecraft.net/texture/efd61c3c4ac88f1a3468fbdeef45cec89e5afb87b97a1a845bfb3c64fd0b883, metadata=null], elytra=null]<br />
+<li></ol></div><em onclick="copycode($('code_mzz'));">复制代码</em></div><br />
+可以看到ztcjohn不但有一个皮肤还有一个披风。getTextures方法返回的PlayerTextures包含了皮肤、披风、elytra（1.9新加的滑翔翼）。要注意的是，并不是每个角色都有这三个东西。<br />
+（对不起咯～ztc喵）<br />
+PlayerTextures只包含皮肤的url，具体图像需要再去下载。<br />
+<br />
+如果说要判断一个角色是Alex还是Steve，可以通过下面这个方法：<br />
+<div class="blockcode"><div id="code_s88"><ol><li>public static boolean isAlex(PlayerTextures textures) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Texture skin = textures.getSkin();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (skin != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Map&lt;String, String&gt; metadata = skin.getMetadata();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (metadata != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;slim&quot;.equals(metadata.get(&quot;model&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_s88'));">复制代码</em></div><br />
+
+<br /><br />
+<br />
+<font size="6">7. OS X下Dock相关配置</font><br />
+官方启动器在OSX下时，启动Minecraft的时候会添加一些和Dock相关的参数，用来设置Minecraft在Dock中的呈现。（貌似是这样）<br />
+<br />
+在jmccc中，您需要将ExtraArgumentsTemplates.OSX_DOCK_NAME和ExtraArgumentsTemplates.OSX_DOCK_ICON(MinecraftDirectory, Version)的返回值加进JVM参数中。在此之前，<strong>务必</strong>要检查当前系统是否为OSX，这两个参数只有在OSX下的JVM里才是有效的。<br />
+比如：<br />
+<div class="blockcode"><div id="code_D5F"><ol><li>MinecraftDirectory dir = new MinecraftDirectory(&quot;.minecraft&quot;);<br />
+<li>LaunchOption option = new LaunchOption(&quot;1.9&quot;, new OfflineAuthenticator(&quot;test_player&quot;), dir);<br />
+<li><br />
+<li>// 一定要先判断是否为OSX<br />
+<li>if (Platform.CURRENT == Platform.OSX) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;option.setExtraJvmArguments(Arrays.asList(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ExtraArgumentsTemplates.OSX_DOCK_NAME,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ExtraArgumentsTemplates.OSX_DOCK_ICON(dir, option.getVersion())));<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_D5F'));">复制代码</em></div><br />
+
+<br /><br />
+<br />
+<font size="6">8. 忽略Forge的数字签名</font><br />
+有些Forge版本要添加-Dfml.ignoreInvalidMinecraftCertificates=true和-Dfml.ignorePatchDiscrepancies=true这两项JVM参数才能正常启动。出现这种情况一般是往jar里塞了一些奇怪的东西，然后FML发现jar的数字签名损坏了。解决方法是往JVM参数列表里加上这两个参数（同前一节）。<br />
+当然，jmccc是不会让您手动打这两项参数的。这两个参数都已经在ExtraArgumentsTemplates里面预定义好了，只需引用即可。<br />
+<div class="blockcode"><div id="code_F8Y"><ol><li>option.setExtraJvmArguments(Arrays.asList(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ExtraArgumentsTemplates.FML_IGNORE_INVALID_MINECRAFT_CERTIFICATES,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ExtraArgumentsTemplates.FML_IGNORE_PATCH_DISCREPANCISE));<br />
+<li></ol></div><em onclick="copycode($('code_F8Y'));">复制代码</em></div><br />
+
+<br /><br />
+<br />
+<font size="6">9. 使用HttpAsyncClient来进行下载</font><br />
+下载Minecraft时一般会下载大量文件（上千个），如果逐一下载效率固然很低，所以jmccc是允许多个任务同时下载的。默认情况下，jmccc用的是jdk自带的BIO（阻塞式I/O），会给每一个链接打开一个线程。当链接数很大时，便会造成系统资源的严重浪费。解决方法是切换到NIO（非阻塞式I/O），这样仅用数个线程便可以处理上万个链接，将下载速度最大化。<br />
+如果说要在jmccc中使用NIO来下载，则需要添加<a href="http://hc.apache.org/httpcomponents-asyncclient-dev/" target="_blank">Apache HttpAsyncClient</a>这个依赖：<br />
+<div class="blockcode"><div id="code_e4Y"><ol><li>org.apache.httpcomponents:httpasyncclient:4.1.1</ol></div><em onclick="copycode($('code_e4Y'));">复制代码</em></div><br />
+jmccc在初始化时，如果发现classpath中存在HttpAsyncClient，则会自动使用HttpAsyncClient来下载。<br />
+在将HttpAsyncClient添加到classpath中后，您便可以将最大链接数调到任意大了：<br />
+<div class="blockcode"><div id="code_ETn"><ol><li>MinecraftDownloader downloader = MinecraftDownloaderBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setMaxConnections(4096)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.build();<br />
+<li></ol></div><em onclick="copycode($('code_ETn'));">复制代码</em></div><br />
+比如这样将MaxConnections调到了4096，那么最多可以同时下载4096个文件。<br />
+<br />
+如果说您不想使用HttpAsyncClient，您可以调用MinecraftDownloaderBuilder的disableApacheHttpAsyncClient()来禁用对HttpAsyncClient的支持。这样jmccc就只会使用BIO来下载文件。<br />
+<br />
+<br />
+<br />
+<font size="6">10. 使用Ehcache缓存下载的文件</font><br />
+jmccc有时候会多次下载同一个文件，这样就会造成不必要的网络I/O和等待时间。所以jmccc提供了对<a href="http://www.ehcache.org/" target="_blank">Ehcache</a>的支持（Ehcache是最有名的一个轻量级Java缓存框架）。如果说要启用这个缓存功能的话首先要将Ehcache添加到依赖，需要注意的是jmccc使用的是Ehcache<strong>3</strong>，不是2。<br />
+<div class="blockcode"><div id="code_sI5"><ol><li>org.ehcache.modules:ehcache-impl:3.0.0.rc2</ol></div><em onclick="copycode($('code_sI5'));">复制代码</em></div><br />
+注意：ehcache使用了slf4j作为logging框架，推荐您的项目中至少包含一个slf4j的实现。<br />
+<br />
+将ehcache添加到classpath之后，您便可以对缓存进行配置了。<br />
+ehcache提供了三种类型的缓存：<br />
+<strong>堆上缓存（heap）</strong> - 存储在java堆上的缓存<br />
+<strong>离堆缓存（offheap）</strong> - 存储在本地内存中的缓存，在java堆之外，不受jvm托管<br />
+<strong>磁盘缓存（disk）</strong> - 存储在磁盘上的缓存<br />
+<br />
+jmccc默认开启32MB的堆上缓存，不开启离堆缓存和磁盘缓存，缓存的有效时间是2小时。您可以使用下面的这些方法来设置缓存：<br />
+<table cellspacing="0" class="t_table" ><tr><td>方法</td><td>意义</td></tr><tr><td>setHeapCacheSize(long)</td><td>设置Java堆上缓存的最大大小，0则不开启，单位：MB。</td></tr><tr><td>setOffheapCacheSize(long)</td><td>设置离堆缓存（本地内存）的最大大小，0则不开启，单位：MB。</td></tr><tr><td>setDiskCacheSize(long)</td><td>设置磁盘上缓存的最大大小，0则不开启，单位：MB。开启该功能后还需调用setDiskCacheDir(File)进行设置。</td></tr><tr><td>setDiskCacheDir(File)</td><td>设置磁盘上用于存储缓存的目录。</td></tr><tr><td>setCacheLiveTime(long, TimeUnit)</td><td>配置缓存的有效时间（TTL），超过该时间的缓存将被自动清除。</td></tr></table><br />
+<br />
+比如下面这段代码，只将最大为128M的缓存存储在磁盘上，有效时间1天：<br />
+<div class="blockcode"><div id="code_ZH1"><ol><li>MinecraftDownloader downloader = MinecraftDownloaderBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setHeapCacheSize(0) // 关闭堆上缓存<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setOffheapCacheSize(0) // 关闭离堆缓存<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setDiskCacheSize(128) // 开启最大为128MB的磁盘缓存<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setDiskCacheDir(new File(&quot;/tmp/jmccc-cache&quot;)) // 存储缓存的目录是/tmp/jmccc-cache<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setCacheLiveTime(1, TimeUnit.DAYS)// 缓冲有效时间1天<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.build();<br />
+<li></ol></div><em onclick="copycode($('code_ZH1'));">复制代码</em></div><br />
+
+<br />
+如果说您不想使用缓存，那您可以调用MinecraftDownloaderBuilder的disableEhcache()方法来禁用对Ehcache的支持。<br />
+<br />
+<br />
+<br />
+<font size="6">11. 修改Minecraft1.9中的version_type</font><br />
+大家用HMCL启动Minecraft1.9的时候可能会发现，Minecraft主界面下面有这样的东西：<br />
+<img id="aimg_HAuCr" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="277" height="24" src="http://to2mbn.github.io/jmccc/images/hmcl-version-type.png" border="0" alt="" /><br />
+这是怎么实现的呢？<br />
+可以打开1.9.json看看，发现其中有这样一段：<br />
+<div class="blockcode"><div id="code_CZ3"><ol><li>&quot;minecraftArguments&quot;: &quot;--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type}&quot;</ol></div><em onclick="copycode($('code_CZ3'));">复制代码</em></div><br />
+不知大家有没有注意到${version_type}这一个字符串。官方启动器在启动时会自动用Minecraft版本的type来代替这段字符串，比如snapshot、release，这样在Minecraft底部就显示为Minecraft 1.9-pre2/snapshot，Minecraft 1.9/release。但HMCL则将它替换为了HMCL 2.4.1.41。<br />
+jmccc的行为默认和官方启动器一样，会将version_type指定为Version.getType()。但jmccc也提供了一个覆写该变量的方法，它就是第2节中介绍的setCommandlineVariables。<br />
+<br />
+我们可以手动指定version_type的值，如下：<br />
+<div class="blockcode"><div id="code_E93"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.util.HashMap;<br />
+<li>import java.util.Map;<br />
+<li>import org.to2mbn.jmccc.auth.OfflineAuthenticator;<br />
+<li>import org.to2mbn.jmccc.launch.Launcher;<br />
+<li>import org.to2mbn.jmccc.launch.LauncherBuilder;<br />
+<li>import org.to2mbn.jmccc.option.LaunchOption;<br />
+<li>import org.to2mbn.jmccc.option.MinecraftDirectory;<br />
+<li><br />
+<li>public class JmcccTest {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Launcher launcher = LauncherBuilder.buildDefault();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; LaunchOption option = new LaunchOption(&quot;1.9&quot;, new OfflineAuthenticator(&quot;test_user&quot;), new MinecraftDirectory(&quot;/home/yushijinhun/.minecraft&quot;));<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 重点：手动指定version_type<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Map&lt;String, String&gt; vars = new HashMap&lt;&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; vars.put(&quot;version_type&quot;, &quot;JMCCC大法好！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; option.setCommandlineVariables(vars);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; launcher.launch(option);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_E93'));">复制代码</em></div><br />
+运行效果：<br />
+<img id="aimg_o4yl2" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="266" height="21" src="http://to2mbn.github.io/jmccc/images/jmccc-version-type.png" border="0" alt="" /><br />
+<br />
+<br />
+<br />
+<font size="6">12. 使用自定义的Yggdrasil API提供商</font><br />
+p.s. 如果您没有深入了解过Yggdrasil服务，那么本节对您来说可能有些困难。<br />
+wiki.vg上有一篇介绍Yggdrasil的条目（英文）：<a href="http://wiki.vg/Authentication" target="_blank">http://wiki.vg/Authentication</a><br />
+<br />
+正版验证（即Yggdrasil）是Mojang提供的服务，但这不一定必须由Mojang提供。也就是说，您可以创建一套和Mojang并行的Yggdrasil服务，相当于Yggdrasil私服。事实上，yushijinhun（我）的<a href="https://github.com/to2mbn/authlib-agent" target="_blank">authlib-agent</a>就已经成功通过字节码操纵实现了对Minecraft内Yggdrasil API的重定向，并给出了一个Yggdrasil服务的开源实现。（本节的部分内容曾在第3节中出现，所以对下面的代码您可能会感到有些眼熟？）<br />
+<br />
+在jmccc中，如果要手动指定Yggdrasil API提供商，就得先为YggdrasilAPIProvider编写一个子类，里面定义API的URL。<br />
+我在本地用authlib-agent架设了一个yggdrasil服务端，给YggdrasilAPIProvider编写的子类如下：<br />
+<div class="blockcode"><div id="code_mXl"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.util.UUID;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.yggdrasil.YggdrasilAPIProvider;<br />
+<li>import org.to2mbn.jmccc.util.UUIDUtils;<br />
+<li><br />
+<li>public class yushijinhunYggdrasilAPIProvider implements YggdrasilAPIProvider {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String authenticate() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/authenticate&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String refresh() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/refresh&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String validate() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/validate&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String invalidate() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/invalidate&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String signout() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/signout&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String profile(UUID profileUUID) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/profiles/minecraft/&quot; + UUIDUtils.unsign(profileUUID);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String profileLookup() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;http://localhost:8080/yggdrasil/profilerepo/minecraft&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_mXl'));">复制代码</em></div><br />
+然后您就可以用YggdrasilServiceBuilder来配置AuthenticationService和ProfileService了：<br />
+<div class="blockcode"><div id="code_kKG"><ol><li>YggdrasilServiceBuilder yggdrasilBuilder = YggdrasilServiceBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.setAPIProvider(new yushijinhunYggdrasilAPIProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.loadSessionPublicKey(&quot;/home/yushijinhun/yushijinhun_yggdrasil_pubkey.der&quot;); //(1)<br />
+<li>ProfileService profileService = yggdrasilBuilder.buildProfileService(); //(2)<br />
+<li>AuthenticationService authenticationService = yggdrasilBuilder.buildAuthenticationService(); //(3)<br />
+<li></ol></div><em onclick="copycode($('code_kKG'));">复制代码</em></div><br />
+上面代码中(1)代表从/home/yushijinhun/yushijinhun_yggdrasil_pubkey.der这个文件中加载Yggdrasil的数字签名公钥。该文件应是PKCS#8格式的RSA证书的SubjectPublicKeyInfo部分（与mojang authlib使用的密钥格式相同）。您也可以使用setSessionPublicKey(PublicKey)方法直接设置公钥。<br />
+(2)代表用上面的YggdrasilServiceBuilder创建一个ProfileService。这个ProfileService是绑定到上面指定的Yggdrasil API上的，上面第6节有介绍。<br />
+(3)代表用上面的YggdrasilServiceBuilder创建一个AuthenticationService。这个AuthenticationService是绑定到上面指定的Yggdrasil API上的。<br />
+<br />
+您可以通过new YggdrasilAuthenticator(authenticationService)来创建一个使用指定的AuthenticationService的YggdrasilAuthenticator。<br />
+需要注意的是，如果您要序列化YggdrasilAuthenticator，请<strong>务必</strong>重写createAuthenticationServiceForDeserialization()方法。这个方法用来在反序列化过程中重新创建AuthenticationService。<br />
+<div class="blockcode"><div id="code_VaT"><ol><li>package yushijinhun.jmccc.test;<br />
+<li><br />
+<li>import java.io.IOException;<br />
+<li>import java.security.NoSuchAlgorithmException;<br />
+<li>import java.security.spec.InvalidKeySpecException;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.YggdrasilAuthenticator;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.AuthenticationService;<br />
+<li>import org.to2mbn.jmccc.auth.yggdrasil.core.yggdrasil.YggdrasilServiceBuilder;<br />
+<li><br />
+<li>public class MyYggdrasilAuthenticator extends YggdrasilAuthenticator {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* 创建一个我自定义的AuthenticationService。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return 我自定义的AuthenticationService<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static AuthenticationService createMyAuthenticationService() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return YggdrasilServiceBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .setAPIProvider(new yushijinhunYggdrasilAPIProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .loadSessionPublicKey(&quot;/home/yushijinhun/yushijinhun_yggdrasil_pubkey.der&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .buildAuthenticationService();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(&quot;无法创建自定义的AuthenticationService！&quot;, e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public MyYggdrasilAuthenticator() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 使用自定义的AuthenticationService<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; super(createMyAuthenticationService());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;protected AuthenticationService createAuthenticationServiceForDeserialization() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 在反序列化过程中重新创建我自定义的AuthenticationService<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return createMyAuthenticationService();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_VaT'));">复制代码</em></div><br />
+
+<br />
+题外话：由于某些原因（比如gfw），会导致国内有时候连不上Mojang的Yggdrasil服务，这时候可以用YggdrasilServiceBuilder的setProxy(Proxy)指定一个代理。<br />
+<br />
+<br />
+<br />
+<font size="6">后记</font><br />
+jmccc从2.3到2.4，中间经过了近5个月的开发，加入了大量新的功能，也进行了大量重构。jmccc 2.4将先前就在开发的下载功能并入了主干，并对Yggdrasil部分进行了重写，因此也难免有些bug。<br />
+如果说您在使用过程中发现了jmccc的bug，欢迎将bug报告到<a href="https://github.com/to2mbn/JMCCC/issues" target="_blank">GitHub Issues</a>，我们将十分感谢。<br />
+如果您有什么好点子，也欢迎您在<a href="https://gitter.im/to2mbn/JMCCC" target="_blank">Gitter</a>上和我们交流。<br />
+同时也欢迎您向jmccc PR代码。<br />
+<br />
+jmccc提供了大量的API，因此本教程也难以面面俱到。如果说您发现教程中出现了错误，请将错误指出，我将万分感谢。<br />
+如果您对本教程有什么建议，也欢迎提出。<br />
+<br />
+关于图床：本文的图片都是挂在to2mbn.github.io上的，考虑到国内部分地区封杀到github pages的https流量，所以都用了http协议。<br />
+<br />
+<br />
+最后，感谢所有支持jmccc开发的人！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TanDan2016&nbsp; &nbsp; <b>时间: </b>2016-4-9 13:47<br />
+太好了，终于找到了JMCCC的教程了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TanDan2016&nbsp; &nbsp; <b>时间: </b>2016-4-10 09:23<br />
+LZ为什么我启动不了MC,这是我的代码<br />
+<div class="blockcode"><div id="code_AOs"><ol><li>public class start_up<br />
+<li>{<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ReadString readString=new ReadString();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public start_up()throws Exception<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String gameMemory = ReadString.readFileContent(&quot;&quot;,&quot;gameMemory.TD&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String gameName = ReadString.readFileContent(&quot;&quot;, &quot;gameName.TD&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String gamePath = ReadString.readFileContent(&quot;&quot;, &quot;gamePath.TD&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String gameVersion = ReadString.readFileContent(&quot;&quot;, &quot;gameVersion.TD&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;int a = Integer.parseInt(gameMemory);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;System.out.print(&quot;gameMemory&nbsp;&nbsp;&quot;+a+&quot;&nbsp;&nbsp;gameName&nbsp;&nbsp;&quot;+gameName+&quot;&nbsp;&nbsp;gamePath&nbsp;&nbsp;&quot;+gamePath+&quot;&nbsp;&nbsp;gameVersion&quot;+gameVersion);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;Launcher launcher = LauncherBuilder.buildDefault();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;LaunchOption option = new LaunchOption(gameVersion, new OfflineAuthenticator(gameName), new MinecraftDirectory(gamePath));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;option.setMaxMemory(a);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;launcher.launch(option);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_AOs'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Darkyoooooo&nbsp; &nbsp; <b>时间: </b>2016-4-10 10:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10102695&amp;ptid=573154" target="_blank"><font color="#999999">TanDan2016 发表于 2016-4-10 09:23</font></a></font><br />
+LZ为什么我启动不了MC,这是我的代码</blockquote></div><br />
+stderror有没有输出什么<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TanDan2016&nbsp; &nbsp; <b>时间: </b>2016-4-15 20:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10103122&amp;ptid=573154" target="_blank"><font color="#999999">Darkyoooooo 发表于 2016-4-10 10:40</font></a></font><br />
+stderror有没有输出什么</blockquote></div><br />
+空指针错误,不过我自己也经解决了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>懒虫哥&nbsp; &nbsp; <b>时间: </b>2016-4-19 11:36<br />
+好复杂...这是自己做启动器吗...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>18278869354&nbsp; &nbsp; <b>时间: </b>2016-4-23 21:31<br />
+空指针错误,不过我自己也经解决了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lizhaohan001&nbsp; &nbsp; <b>时间: </b>2016-4-23 22:14<br />
+非常好用！！正在用。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hhttll&nbsp; &nbsp; <b>时间: </b>2016-4-28 06:57<br />
+看到 Callback 就一定要吐槽了...<br />
+LZ 一定是 JS症患者2333<br />
+<br />
+顺便感谢下这个库<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yuanzhihang1&nbsp; &nbsp; <b>时间: </b>2016-4-29 20:42<br />
+感谢分享！！！非常重要<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>YDDonald&nbsp; &nbsp; <b>时间: </b>2016-5-1 20:53<br />
+好赞，我的阅读恐惧症又犯了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>_Ⅲ儿_&nbsp; &nbsp; <b>时间: </b>2016-5-2 22:03<br />
+教程一出，赌450，java启动器要炸<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq1748997604&nbsp; &nbsp; <b>时间: </b>2016-5-4 08:04<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ziang39&nbsp; &nbsp; <b>时间: </b>2016-5-4 11:08<br />
+赞赞赞，很棒的作品！！赞赞赞，很棒的作品！！赞赞赞，很棒的作品！！赞赞赞，很棒的作品！！赞赞赞，很棒的作品！！赞赞赞，很棒的作品！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GTA守护使者&nbsp; &nbsp; <b>时间: </b>2016-5-26 17:40<br />
+<font size="7"><font color="#ff0000"><strong>为什么报错，这是什么原因！</strong></font></font><br />
+环境：<br />
+java version &quot;1.7.0_80&quot;<br />
+Java(TM) SE Runtime Environment (build 1.7.0_80-b15)<br />
+Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)<br />
+Windows 7 64位 8G内存 i5CPU<br />
+<br />
+<br />
+<font size="6"><strong>调试信息：</strong></font><br />
+<font color="#ff0000"><strong>Exception in thread &quot;main&quot; java.lang.NullPointerException</strong></font><br />
+<font color="#ff0000"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.util.Objects.requireNonNull(Unknown Source)</strong></font><br />
+<font color="#ff0000"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.to2mbn.jmccc.option.LaunchOption.&lt;init&gt;(LaunchOption.java:121)</strong></font><br />
+<font color="#ff0000"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.to2mbn.jmccc.option.LaunchOption.&lt;init&gt;(LaunchOption.java:96)</strong></font><br />
+<font color="#ff0000"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at mcgui.Mcgui.mc(Mcgui.java:34)</strong></font><br />
+<font color="#ff0000"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at mcgui.Main.main(Main.java:12)</strong></font><br />
+<br />
+<br />
+<br />
+<font size="6"><font color="#8b0000"><strong>类一：</strong></font></font><br />
+<div class="blockcode"><div id="code_rJt"><ol><li>package mcgui;<br />
+<li><br />
+<li>public class Main {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Mcgui mc = new Mcgui();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.logs = true; // 启动调试&nbsp;&nbsp;boolean<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.charm = true; // 开启对Natives文件的快速检查&nbsp;&nbsp;boolean<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.version = &quot;1.8&quot;; // 游戏版本&nbsp;&nbsp;String<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.user = &quot;test_user&quot;; // 使用离线验证，用户名&nbsp;&nbsp;String&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.mineurl = &quot;D:/Program Files (x86)/Minecraft 1.8-forge/.minecraft&quot;; // .minecraft目录&nbsp;&nbsp;String<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.mem = 512; // 最大内存512M&nbsp;&nbsp;int<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; mc.mc(); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; /*<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.logs&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;boolean<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.charm&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;boolean<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.version&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.user&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.mineurl&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* mc.mem&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_rJt'));">复制代码</em></div><br />
+<font size="6"><font color="#8b0000"><strong>类二：</strong></font></font><br />
+<div class="blockcode"><div id="code_qc3"><ol><li>package mcgui;<br />
+<li><br />
+<li>import org.json.*;<br />
+<li>import org.tukaani.xz.*;<br />
+<li>import org.to2mbn.jmccc.auth.OfflineAuthenticator;<br />
+<li>import org.to2mbn.jmccc.exec.GameProcessListener;<br />
+<li>import org.to2mbn.jmccc.launch.Launcher;<br />
+<li>import org.to2mbn.jmccc.launch.LauncherBuilder;<br />
+<li>import org.to2mbn.jmccc.option.LaunchOption;<br />
+<li>import org.to2mbn.jmccc.option.MinecraftDirectory;<br />
+<li><br />
+<li>public class Mcgui {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean logs ; // 启动调试<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean charm ; // 开启对Natives文件的快速检查<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String version ; // 游戏版本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String user ; // 使用离线验证，用户名<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String mineurl ; // .minecraft目录<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int mem ; // 最大内存512M<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void mc() throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 创建一个Launcher对象<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;创建一个Launcher对象&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Launcher launcher = LauncherBuilder.create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .setDebugPrintCommandline(logs) // 设置是否在启动时将启动参数输出到控制台以供调试，默认为false。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .setNativeFastCheck(charm) // 设置是否开启对Natives文件的快速检查，默认为false。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //开启该选项后，jmccc仅会通过比较文件大小来判断文件是否完整，这样可以加快启动速度，但有可能造成某些问题。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .build();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;创建对象成功&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 启动配置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;启动配置&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LaunchOption option = new LaunchOption(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;version, // 游戏版本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; new OfflineAuthenticator(user), // 使用离线验证，用户名<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; new MinecraftDirectory(mineurl) // .minecraft目录<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;启动成功！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 最大内存512M<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(mem);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;option.setMaxMemory(mem);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 启动游戏<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;启动游戏！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;launcher.launch(option, new GameProcessListener() {<br />
+<li> <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(log); // 输出日志到控制台<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onErrorLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(log); // 输出日志到控制台（同上）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onExit(int code) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(&quot;游戏进程退出，状态码：&quot; + code); // 游戏结束时输出状态码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;游戏启动成功！&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_qc3'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-5-26 20:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10285560&amp;ptid=573154" target="_blank"><font color="#999999">GTA守护使者 发表于 2016-5-26 17:40</font></a></font><br />
+为什么报错，这是什么原因！<br />
+环境：<br />
+java version &quot;1.7.0_80&quot;</blockquote></div><br />
+这是因为指定的Minecraft版本不存在。<br />
+你可以用Versions.getVersions(MinecraftDirectory)来获取某个.minecraft目录下的所有版本。<br />
+这里抛出NullPointerException确实不是特别好，在2.5中（未发布）已经改成了IllegalArgumentException: Version not found: xxx了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tt36999&nbsp; &nbsp; <b>时间: </b>2016-5-27 00:07<br />
+<i class="pstatus"> 本帖最后由 tt36999 于 2016-5-27 00:09 编辑 </i><br />
+<br />
+顶LZ，确实好用简单易行，不过我在使用你的JMCCC之后如果启动的时候mods文件夹内有mcheli（直升机MOD）时游戏就会提示<br />
+Forge Mod Loder has found a problem with your minecraft installation You have mod sources that are duplicate within your system Mod Id : File name<br />
+ mcheli : minecraft<br />
+ mcheli : mcheli不过同样的整合包和forge使用HMCL启动器不会出现类似的问题<br />
+请问你知道这是什么原因么？或者这个是由于MOD本身的BUG造成的不兼容？这个MOD是一个文件夹放在Mods目录内而不是jar包是否有影响？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-5-27 00:18<br />
+<div class="quote"><blockquote><font color="#999999">tt36999 发表于 2016-5-27 00:07</font><br />
+<font color="#999999">顶LZ，确实好用简单易行，不过我在使用你的JMCCC之后如果启动的时候mods文件夹内有mcheli（直升机MOD）时游 ...</font></blockquote></div><br />
+具体我也不大清楚，也许你可以把debugPrintCommandline开出来然后对比一下启动命令行？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>照烧鸡腿饭&nbsp; &nbsp; <b>时间: </b>2016-5-27 00:52<br />
+mark下，考完试慢慢研究{:10_492:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tt36999&nbsp; &nbsp; <b>时间: </b>2016-5-27 08:04<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10287014&amp;ptid=573154" target="_blank"><font color="#999999">yushijinhun 发表于 2016-5-27 00:18</font></a></font><br />
+具体我也不大清楚，也许你可以把debugPrintCommandline开出来然后对比一下启动命令行？ ...</blockquote></div><br />
+好吧……<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jkaa13579&nbsp; &nbsp; <b>时间: </b>2016-5-30 10:33<br />
+好东西，楼主造<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>深海鲸鱼座&nbsp; &nbsp; <b>时间: </b>2016-6-9 17:42<br />
+<i class="pstatus"> 本帖最后由 lj2000lj 于 2016-6-9 17:49 编辑 </i><br />
+<br />
+无法启动安装了mcheli的1.7.10客户端，不知道是不是吾辈操作有误<br />
+Jmccc调用代码与本帖中所示一致<br />
+Forge日志文件显示如下：<br />
+[时间] [Client thread/ERROR]: Found a duplicate mod mcheli at [路径\.minecraft, 路径\.minecraft\mods\mcheli]<br />
+之前有显示mcheli加载了两次，一次不能找到mcmod.info，第二次可以找到。<br />
+如果将mcheli放入mods下的1.7.10文件夹，forge会多识别出一个mcheli，并且依旧不能找到mcmod.info<br />
+其他启动器正常，MinecraftForum上有提到一款名为FTB Launcher的启动器存在同样的问题<br />
+<br />
+才发现新版换人开发惹= =<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-6-10 21:44<br />
+<div class="quote"><blockquote><font color="#999999">tt36999 发表于 2016-5-27 00:07</font><br />
+<font color="#999999">顶LZ，确实好用简单易行，不过我在使用你的JMCCC之后如果启动的时候mods文件夹内有mcheli（直升机MOD）时游 ...</font></blockquote></div><br />
+你所述的这个bug已经在2.5-SNAPSHOT中修复了。具体见 https://github.com/to2mbn/JMCCC/issues/19 。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>officeyutong&nbsp; &nbsp; <b>时间: </b>2016-8-16 19:43<br />
+启动时 客户端一直卡在Finishing up 但是用其他启动器启动时没有问题<br />
+以下为启动命令行<br />
+C:\Program Files\Java\jdk1.7.0_51\jre\bin\java.exe<br />
+-Xmx2048M<br />
+-Djava.library.path=J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\versions\1.7.10\1.7.10-natives<br />
+-cp<br />
+J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\google\code\gson\gson\2.2.4\gson-2.2.4.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\google\guava\guava\17.0\guava-17.0.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\ibm\icu\icu4j-core-mojang\51.2\icu4j-core-mojang-51.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\mojang\authlib\1.5.21\authlib-1.5.21.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\mojang\realms\1.3.5\realms-1.3.5.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\mumfrey\liteloader\1.7.10\liteloader-1.7.10.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\paulscode\codecjorbis\20101023\codecjorbis-20101023.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\paulscode\codecwav\20101023\codecwav-20101023.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\paulscode\libraryjavasound\20101123\libraryjavasound-20101123.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\paulscode\librarylwjglopenal\20100824\librarylwjglopenal-20100824.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\paulscode\soundsystem\20120107\soundsystem-20120107.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\typesafe\akka\akka-actor_2.11\2.3.3\akka-actor_2.11-2.3.3.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\com\typesafe\config\1.2.1\config-1.2.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\commons-codec\commons-codec\1.9\commons-codec-1.9.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\commons-io\commons-io\2.4\commons-io-2.4.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\commons-logging\commons-logging\1.1.3\commons-logging-1.1.3.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\io\netty\netty-all\4.0.10.Final\netty-all-4.0.10.Final.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\java3d\vecmath\1.3.1\vecmath-1.3.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\lzma\lzma\0.0.1\lzma-0.0.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\java\jinput\jinput\2.0.5\jinput-2.0.5.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\java\jutils\jutils\1.0.0\jutils-1.0.0.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\minecraft\launchwrapper\1.12\launchwrapper-1.12.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\minecraftforge\forge\1.7.10-10.13.4.1614-1.7.10\forge-1.7.10-10.13.4.1614-1.7.10.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\sf\jopt-simple\jopt-simple\4.5\jopt-simple-4.5.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\net\sf\trove4j\trove4j\3.0.3\trove4j-3.0.3.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\commons\commons-compress\1.8.1\commons-compress-1.8.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\commons\commons-lang3\3.3.2\commons-lang3-3.3.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\httpcomponents\httpclient\4.3.3\httpclient-4.3.3.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\httpcomponents\httpcore\4.3.2\httpcore-4.3.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\logging\log4j\log4j-api\2.0-beta9\log4j-api-2.0-beta9.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\apache\logging\log4j\log4j-core\2.0-beta9\log4j-core-2.0-beta9.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\lwjgl\lwjgl\lwjgl\2.9.1\lwjgl-2.9.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\lwjgl\lwjgl\lwjgl_util\2.9.1\lwjgl_util-2.9.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\ow2\asm\asm-all\5.0.3\asm-all-5.0.3.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\plugins\scala-continuations-library_2.11\1.0.2\scala-continuations-library_2.11-1.0.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\plugins\scala-continuations-plugin_2.11.1\1.0.2\scala-continuations-plugin_2.11.1-1.0.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-actors-migration_2.11\1.1.0\scala-actors-migration_2.11-1.1.0.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-compiler\2.11.1\scala-compiler-2.11.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-library\2.11.1\scala-library-2.11.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-parser-combinators_2.11\1.0.1\scala-parser-combinators_2.11-1.0.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-reflect\2.11.1\scala-reflect-2.11.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-swing_2.11\1.0.1\scala-swing_2.11-1.0.1.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\org\scala-lang\scala-xml_2.11\1.0.2\scala-xml_2.11-1.0.2.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\libraries\tv\twitch\twitch\5.16\twitch-5.16.jar;J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\versions\1.7.10\1.7.10.jar<br />
+net.minecraft.launchwrapper.Launch<br />
+--username<br />
+Server_crashed<br />
+--version<br />
+1.7.10-Forge10.13.4.1614-1.7.10<br />
+--gameDir<br />
+J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft<br />
+--assetsDir<br />
+J:\mc\LifeCraftX6V1.0\LCX6V2.5\.minecraft\assets<br />
+--assetIndex<br />
+1.7.10<br />
+--uuid<br />
+375b37e9a31b3d34be69788c60644134<br />
+--accessToken<br />
+fb6aa3588e6744bcbf831f2aa360d48a<br />
+--userProperties<br />
+{}<br />
+--userType<br />
+mojang<br />
+--tweakClass<br />
+cpw.mods.fml.common.launcher.FMLTweaker<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-8-16 21:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10784468&amp;ptid=573154" target="_blank"><font color="#999999">officeyutong 发表于 2016-8-16 19:43</font></a></font><br />
+启动时 客户端一直卡在Finishing up 但是用其他启动器启动时没有问题<br />
+以下为启动命令行<br />
+C:\Program Files\J ...</blockquote></div><br />
+感谢您的反馈。您可不可以将其它启动器的启动参数发上来供我们对比？或者您也可以将.minecraft发到 <a href="mailto:yushijinhun@gmail.com">yushijinhun@gmail.com</a> 来帮助我们重现bug。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>officeyutong&nbsp; &nbsp; <b>时间: </b>2016-8-16 22:32<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10785076&amp;ptid=573154" target="_blank"><font color="#999999">yushijinhun 发表于 2016-8-16 21:05</font></a></font><br />
+感谢您的反馈。您可不可以将其它启动器的启动参数发上来供我们对比？或者您也可以将.minecraft发到&nbsp;&nbsp;来帮 ...</blockquote></div><br />
+已经解决了 用的java7 同时因为PermSize太小导致内存溢出 换了java8好了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>officeyutong&nbsp; &nbsp; <b>时间: </b>2016-8-16 22:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10785076&amp;ptid=573154" target="_blank"><font color="#999999">yushijinhun 发表于 2016-8-16 21:05</font></a></font><br />
+感谢您的反馈。您可不可以将其它启动器的启动参数发上来供我们对比？或者您也可以将.minecraft发到&nbsp;&nbsp;来帮 ...</blockquote></div><br />
+以及另一个问题 JMCCC不能指定PermSize<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-8-17 00:10<br />
+<div class="quote"><blockquote><font color="#999999">officeyutong 发表于 2016-8-16 22:33</font><br />
+<font color="#999999">以及另一个问题 JMCCC不能指定PermSize</font></blockquote></div><br />
+可以通过LaunchOption.extraJVMArguments()指定<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jinyigeng&nbsp; &nbsp; <b>时间: </b>2016-8-20 19:53<br />
+楼主你好，提几个问题，谢谢1.为什么下载Minecraft总是被取消？<br />
+下面是源代码<br />
+Main.java<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_Dg4"><ol><li><br />
+<li>package xyz.jinyigeng.CMCL;<br />
+<li><br />
+<li>import java.io.IOException;<br />
+<li>import org.to2mbn.jmccc.launch.LaunchException;<br />
+<li>import java.io.BufferedReader;<br />
+<li>import java.io.File;<br />
+<li>import java.io.InputStreamReader;<br />
+<li>public class Main {<br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws IOException, LaunchException{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;File mainDir = new File(&quot;.minecraft&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;File versionDir = new File(&quot;.minecraft&quot; + File.separator + &quot;versions&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(!mainDir.isDirectory()){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mainDir.mkdir();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(!mainDir.exists()){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mainDir.mkdir();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(!versionDir.exists()){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;versionDir.mkdir();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean isRestart = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;do{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器]如果需要启动游戏，请输入1&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器]如果需要下载游戏，请输入2&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器]如果输入其他数字程序将退出。&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int chooseMenu = Integer.parseInt(reader.readLine());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch(chooseMenu){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Launch launch = new Launch();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; launch.launch();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 2:<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; UseDownload download = new UseDownload();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; download.download();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; isRestart = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 3:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器]CMCL1.0b4更新记录&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;1.使用BMCLAPI&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器]按任意键返回上一层&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; reader.readLine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; isRestart = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器]按任意键退出。&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; reader.readLine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}while(isRestart == true);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_Dg4'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+UseDownload.java<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_NyJ"><ol><li><br />
+<li><br />
+<li>package xyz.jinyigeng.CMCL;<br />
+<li><br />
+<li>import java.io.BufferedReader;<br />
+<li>import java.io.InputStreamReader;<br />
+<li>import java.io.IOException;<br />
+<li>public class UseDownload {<br />
+<li>&nbsp; &nbsp; Download down = new Download();<br />
+<li>&nbsp; &nbsp; public void download() throws IOException{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]欢迎您使用下载模块！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]请输入要下载的Minecraft版本&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]如输入back，将回到主菜单&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String version = reader.readLine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(&quot;back&quot;.equals(version)){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]是否想使用BMCLAPI加速服务？如要使用请输入1，其他则使用官方源&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int isUseBMCLAPI = Integer.parseInt(reader.readLine());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (isUseBMCLAPI == 1){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;down.downloadMinecraftUseBMCLAPI(version);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}else{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;down.downloadMinecraft(version);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_NyJ'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+Download.java<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_vsM"><ol><li><br />
+<li>package xyz.jinyigeng.CMCL;<br />
+<li><br />
+<li>import org.to2mbn.jmccc.mcdownloader.MinecraftDownloader;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.MinecraftDownloaderBuilder;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.DownloadCallback;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.DownloadTask;<br />
+<li>import org.to2mbn.jmccc.mcdownloader.download.concurrent.CallbackAdapter;<br />
+<li>import org.to2mbn.jmccc.option.MinecraftDirectory;<br />
+<li>import org.to2mbn.jmccc.version.Version;<br />
+<li>public class Download {<br />
+<li>&nbsp; &nbsp; public void downloadMinecraft(String version){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MinecraftDirectory dir = new MinecraftDirectory(&quot;.minecraft&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MinecraftDownloader mcdownloader = MinecraftDownloaderBuilder<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .build();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mcdownloader.downloadIncrementally(dir, version, new CallbackAdapter&lt;Version&gt;(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void done(Version result){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载完毕&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void failed(Throwable e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载失败，下列为错误信息&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void cancelled(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载被取消&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public &lt;R&gt; DownloadCallback&lt;R&gt; taskStart(DownloadTask&lt;R&gt; task){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]正在下载：&quot;+ task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new CallbackAdapter&lt;R&gt;(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void done(R result){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]子任务下载完成&quot; + task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void failed(Throwable e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]下载失败。错误信息为&quot;+ task.getURI()+ e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void cancelled(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]下载被取消&quot;+ task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void retry(Throwable e, int current, int max){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]正在重试下载:&quot;+task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; };<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mcdownloader.shutdown();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]模块结束，将回到主菜单&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public void downloadMinecraftUseBMCLAPI(String version) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MinecraftDirectory dir = new MinecraftDirectory(&quot;.minecraft&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MinecraftDownloader mcdownloader = MinecraftDownloaderBuilder<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .create()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .setBaseProvider(new BmclAPIProvider())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; .build();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mcdownloader.downloadIncrementally(dir, version, new CallbackAdapter&lt;Version&gt;(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void done(Version result){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载完毕&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void failed(Throwable e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载失败，下列为错误信息&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void cancelled(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]下载被取消&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public &lt;R&gt; DownloadCallback&lt;R&gt; taskStart(DownloadTask&lt;R&gt; task){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(&quot;[启动器下载模块]正在下载：&quot;+ task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new CallbackAdapter&lt;R&gt;(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void done(R result){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]子任务下载完成&quot; + task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void failed(Throwable e){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]下载失败。错误信息为&quot;+ task.getURI()+ e);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void cancelled(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]下载被取消&quot;+ task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void retry(Throwable e, int current, int max){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;System.out.println(&quot;[启动器下载模块]正在重试下载:&quot;+task.getURI());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; };<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;mcdownloader.shutdown();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;[启动器下载模块]模块结束，将回到主菜单&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_vsM'));">复制代码</em></div><br />
+</td></table></div></div><br />
+<br />
+<br />
+2.麻烦告诉一下在什么情况下下载取消<br />
+<br />
+如neng<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2016-8-20 21:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10820601&amp;ptid=573154" target="_blank"><font color="#999999">jinyigeng 发表于 2016-8-20 19:53</font></a></font><br />
+楼主你好，提几个问题，谢谢1.为什么下载Minecraft总是被取消？<br />
+下面是源代码<br />
+Main.java</blockquote></div><br />
+downloadIncrementally是异步操作，调用后立即返回。你调用downloadIncrementally()之后就去shutdown()，会导致任务还没下载完就把downloader关了。<br />
+<br />
+正确做法是写callback里<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1241892914&nbsp; &nbsp; <b>时间: </b>2016-9-22 19:41<br />
+启动原版可以启动 但是启动forge版本的话就一点反应也没有&nbsp; &nbsp; <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1241892914&nbsp; &nbsp; <b>时间: </b>2016-9-22 20:12<br />
+输入这个的时候<br />
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; option.setExtraJvmArguments(Arrays.asList(<br />
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ExtraArgumentsTemplates.FML_IGNORE_INVALID_MINECRAFT_CERTIFICATES,<br />
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ExtraArgumentsTemplates.FML_IGNORE_PATCH_DISCREPANCISE));<br />
+<br />
+<br />
+setExtraJvmArguments会报错&nbsp; &nbsp;提示是The method setExtraJvmArguments(Arrays.asList(ExtraArgumentsTemplates.FML_IGNORE_INVALID_MINECRAFT_CERTIFICATES, ExtraArgumentsTemplates.FML_IGNORE_PATCH_DISCREPANCISE)) is undefined for the type LaunchOption<br />
+<br />
+<br />
+怎么解决<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qlaall&nbsp; &nbsp; <b>时间: </b>2017-1-10 16:36<br />
+mark一下&nbsp;&nbsp;不记得之前又没有找到过了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zc2202&nbsp; &nbsp; <b>时间: </b>2017-1-12 13:59<br />
+我第二步就懵逼了完全不懂，能教一下吗？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>122474363&nbsp; &nbsp; <b>时间: </b>2017-5-7 19:50<br />
+现在用JMCCC启动1.11.2没有声音<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>122474363&nbsp; &nbsp; <b>时间: </b>2017-5-7 20:43<br />
+发现了几个问题，<br />
+第一 是1.11.2启动后有时候有声音 有时候没有声音的问题。-无法解决<br />
+第二 是无法启动目录中带有中文的问题。-我已解决<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yushijinhun&nbsp; &nbsp; <b>时间: </b>2017-5-9 23:09<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11769048&amp;ptid=573154" target="_blank"><font color="#999999">122474363 发表于 2017-5-7 20:43</font></a></font><br />
+发现了几个问题，<br />
+第一 是1.11.2启动后有时候有声音 有时候没有声音的问题。-无法解决<br />
+第二 是无法启动目录 ...</blockquote></div><br />
+你确定启动minecraft的时候，assets都下载全了吗？我这边没出现过这样的问题<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>122474363&nbsp; &nbsp; <b>时间: </b>2017-5-10 20:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11773286&amp;ptid=573154" target="_blank"><font color="#999999">yushijinhun 发表于 2017-5-9 23:09</font></a></font><br />
+你确定启动minecraft的时候，assets都下载全了吗？我这边没出现过这样的问题 ...</blockquote></div><br />
+当然是下载完了的 亲哥。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ーのものー&nbsp; &nbsp; <b>时间: </b>2017-8-10 14:10<br />
+如果可以的话，能否在『12. 使用自定义的 Yggdrasil API 提供商』章节中加上我这篇文章的链接呢？<br />
+<br />
+『又是一种 Minecraft 外置登录解决方案：自行实现 Yggdrasil API』<br />
+<br />
+<a href="https://blessing.studio/minecraft-yggdrasil-api-third-party-implementation/" target="_blank">https://blessing.studio/minecraf ... rty-implementation/</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yy1426489531&nbsp; &nbsp; <b>时间: </b>2017-8-11 18:09<br />
+6666顶顶顶<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Godpower&nbsp; &nbsp; <b>时间: </b>2017-8-13 11:21<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Viosin&nbsp; &nbsp; <b>时间: </b>2018-5-24 12:10<br />
+无法启动mc1.12.2......<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wrf_PC&nbsp; &nbsp; <b>时间: </b>2018-6-14 21:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12916967&amp;ptid=573154" target="_blank"><font color="#999999">Viosin 发表于 2018-5-24 12:10</font></a></font><br />
+无法启动mc1.12.2......</blockquote></div><br />
+同。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2018-7-27 12:51<br />
+<i class="pstatus"> 本帖最后由 969756790 于 2018-7-29 20:02 编辑 </i><br />
+<br />
+您好，我在编写过程中出现了如下问题<br />
+<br />
+游戏启动后 会出现游戏窗口<br />
+但启动到一半就闪退<br />
+<br />
+控制台输出如下<div class="blockcode"><div id="code_i09"><ol><li>[12:49:14] [Client thread/INFO]: Setting user: username<br />
+<li>[12:49:15] [Client thread/WARN]: Skipping bad option: lastServer:<br />
+<li>[12:49:15] [Client thread/INFO]: LWJGL Version: 2.9.4<br />
+<li>[12:49:18] [Client thread/INFO]: Reloading ResourceManager: Default<br />
+<li>[12:49:19] [Sound Library Loader/INFO]: Starting up SoundSystem...<br />
+<li>[12:49:19] [Thread-3/INFO]: Initializing LWJGL OpenAL<br />
+<li>[12:49:19] [Thread-3/INFO]: (The LWJGL binding of OpenAL.&nbsp;&nbsp;For more information, see http://www.lwjgl.org)<br />
+<li>[12:49:19] [Thread-3/INFO]: OpenAL initialized.<br />
+<li>[12:49:19] [Sound Library Loader/INFO]: Sound engine started<br />
+<li>[12:49:25] [Client thread/INFO]: Created: 1024x512 textures-atlas<br />
+<li>---- Minecraft Crash Report ----<br />
+<li>// Daisy, daisy...<br />
+<li><br />
+<li>Time: 7/27/18 12:49 PM<br />
+<li>Description: Initializing game<br />
+<li><br />
+<li>java.lang.NoClassDefFoundError: com/mojang/text2speech/Narrator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biv.&lt;init&gt;(SourceFile:15)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biv.&lt;clinit&gt;(SourceFile:14)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biq.&lt;init&gt;(SourceFile:127)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at bib.aq(SourceFile:557)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at bib.a(SourceFile:404)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.client.main.Main.main(SourceFile:123)<br />
+<li>Caused by: java.lang.ClassNotFoundException: com.mojang.text2speech.Narrator<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.net.URLClassLoader.findClass(Unknown Source)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at sun.misc.Launcher$AppClassLoader.loadClass(Unknown Source)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.lang.ClassLoader.loadClass(Unknown Source)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;... 6 more<br />
+<li><br />
+<li><br />
+<li>A detailed walkthrough of the error, its code path and all known details is as follows:<br />
+<li>---------------------------------------------------------------------------------------<br />
+<li><br />
+<li>-- Head --<br />
+<li>Thread: Client thread<br />
+<li>Stacktrace:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biv.&lt;init&gt;(SourceFile:15)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biv.&lt;clinit&gt;(SourceFile:14)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at biq.&lt;init&gt;(SourceFile:127)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at bib.aq(SourceFile:557)<br />
+<li><br />
+<li>-- Initialization --<br />
+<li>Details:<br />
+<li>Stacktrace:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at bib.a(SourceFile:404)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.client.main.Main.main(SourceFile:123)<br />
+<li><br />
+<li>-- System Details --<br />
+<li>Details:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Minecraft Version: 1.12.2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Operating System: Windows 10 (amd64) version 10.0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Java Version: 1.8.0_181, Oracle Corporation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Java VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Memory: 110166544 bytes (105 MB) / 395313152 bytes (377 MB) up to 954728448 bytes (910 MB)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;JVM Flags: 1 total; -Xmx1024M<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IntCache: cache: 0, tcache: 0, allocated: 0, tallocated: 0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Launched Version: 1.12.2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LWJGL: 2.9.4<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;OpenGL: GeForce 940MX/PCIe/SSE2 GL version 4.5.0 NVIDIA 382.05, NVIDIA Corporation<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;GL Caps: Using GL 1.3 multitexturing.<br />
+<li>Using GL 1.3 texture combiners.<br />
+<li>Using framebuffer objects because OpenGL 3.0 is supported and separate blending is supported.<br />
+<li>Shaders are available because OpenGL 2.1 is supported.<br />
+<li>VBOs are available because OpenGL 1.5 is supported.<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Using VBOs: Yes<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Is Modded: Probably not. Jar signature remains and client brand is untouched.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Type: Client (map_client.txt)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Resource Packs: <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Current Language: 简体中文 (中国)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Profiler Position: N/A (disabled)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CPU: 4x Intel(R) Core(TM) i5-6200U CPU @ 2.30GHz<br />
+<li>#@!@# Game crashed! Crash report saved to: #@!@# C:\Users\&lt;span style='display: inline !important; float: none; background-color: transparent; color: rgb(68, 68, 68); font-family: Tahoma,&quot;Microsoft Yahei&quot;,&quot;Simsun&quot;; font-size: 14px; font-style: normal; font-variant: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: left; text-decoration: none; text-indent: 0px; text-transform: none; -webkit-text-stroke-width: 0px; white-space: normal; word-spacing: 0px; word-wrap: break-word;'&gt;{中文内容}&lt;/span&gt;\Desktop\3D\.minecraft\crash-reports\crash-2018-07-27_12.49.27-client.txt<br />
+<li>AL lib: (EE) alc_cleanup: 1 device not closed<br />
+<li>游戏进程退出，状态码：-1<br />
+<li></ol></div><em onclick="copycode($('code_i09'));">复制代码</em></div>启动类源码如下<div class="blockcode"><div id="code_kOb"><ol><li>&lt;div&gt;public class GameLauncher {<br />
+<li><br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws Exception {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;MinecraftDirectory dir = new MinecraftDirectory(&quot;C:\\Users\\{中文内容}\\Desktop\\3D\\.minecraft&quot;);&lt;/div&gt;&lt;div&gt;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;LaunchOption option = new LaunchOption(&quot;1.12.2&quot;, new OfflineAuthenticator(&quot;username&quot;), dir); // (3)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Launcher launcher = LauncherBuilder.buildDefault();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;option.setExtraJvmArguments(Arrays.asList(ExtraArgumentsTemplates.FML_IGNORE_INVALID_MINECRAFT_CERTIFICATES,ExtraArgumentsTemplates.FML_IGNORE_PATCH_DISCREPANCISE));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;launcher.launch(option, new GameProcessListener() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.out.println(log); // 输出日志到控制台<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onErrorLog(String log) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(log); // 输出日志到控制台（同上）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void onExit(int code) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(&quot;游戏进程退出，状态码：&quot; + code); // 游戏结束时输出状态码<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>}&lt;/div&gt;</ol></div><em onclick="copycode($('code_kOb'));">复制代码</em></div>希望能给予解决方案，谢谢！<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>@TGL&nbsp; &nbsp; <b>时间: </b>2019-2-21 11:54<br />
+<i class="pstatus"> 本帖最后由 @TGL 于 2019-2-21 12:52 编辑 </i><br />
+<br />
+怎么启动forge，原版的可以启动成功<br />
+Exception in thread &quot;main&quot; java.lang.ClassCastException: java.base/jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to java.base/java.net.URLClassLoader<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.launchwrapper.Launch.&lt;init&gt;(Launch.java:34)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.launchwrapper.Launch.main(Launch.java:28)<br />
+游戏进程退出，状态码：1<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ReinEchoes&nbsp; &nbsp; <b>时间: </b>2019-3-25 20:33<br />
+你好.我1.8.8版本能正常启动,1.12.2版本无法启动,也没有报错,请问这个情况怎么处理<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MinecraftJasmi&nbsp; &nbsp; <b>时间: </b>2019-4-6 13:31<br />
+MCBBS有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tianxiaochengzi&nbsp; &nbsp; <b>时间: </b>2019-4-20 12:28<br />
+发生的fgsft<img src="static/image/smiley/mc_mob_food_plants/creeper.gif" smilieid="832" border="0" alt="" /><img id="aimg_ACwfv" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://两公里" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tianxiaochengzi&nbsp; &nbsp; <b>时间: </b>2019-4-20 12:28<br />
+呃呃呃具体已于噢谷uykiuhkhkjhllklk<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ReinEchoes&nbsp; &nbsp; <b>时间: </b>2019-7-19 02:42<br />
+你好,JMCCC2.5beta版本添加自定义Yggdrasil API出现了问题,有一些类发生了改变,能不请教一下2.5版本如何添加Yggdrasil API<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2019-8-2 01:49<br />
+非常有用 谢谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2019-8-8 17:50<br />
+1.9能运行 1.13.2不能运行 咋办呢？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2019-8-9 01:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15246361&amp;ptid=573154" target="_blank"><font color="#999999">sulinly 发表于 2019-8-8 17:50</font></a></font><br />
+1.9能运行 1.13.2不能运行 咋办呢？</blockquote></div><br />
+<a href="https://github.com/to2mbn/JMCCC/issues/30" target="_blank">https://github.com/to2mbn/JMCCC/issues/30</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2019-8-9 11:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15252262&amp;ptid=573154" target="_blank"><font color="#999999">gooding300 发表于 2019-8-9 01:17</font></a></font><br />
+https://github.com/to2mbn/JMCCC/issues/30</blockquote></div><br />
+谢谢！这个好像没法直接gradle依赖？只有下源码？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2019-8-9 15:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15255682&amp;ptid=573154" target="_blank"><font color="#999999">sulinly 发表于 2019-8-9 11:29</font></a></font><br />
+谢谢！这个好像没法直接gradle依赖？只有下源码？</blockquote></div><br />
+那个url是maven化的，加一个repo就行<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>还房贷好&nbsp; &nbsp; <b>时间: </b>2019-8-9 21:06<br />
+我太懒啦！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>翔梦FD&nbsp; &nbsp; <b>时间: </b>2019-8-30 06:48<br />
+请问在哪能得到tukaani xz，百度木有啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>翔梦FD&nbsp; &nbsp; <b>时间: </b>2019-8-30 10:47<br />
+这个大佬又是什么神仙，这个实在是太厉害了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2020-1-3 14:02<br />
+没找到<font color="#000"><font face="Consolas"><font style="font-size:9.8pt">appendProvider方法呢？</font></font></font><br />
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyNnxiZGNlOWUzOXwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1426626" class="xw1" target="_blank">**图片_20200103135732.png</a>
+<em class="xg1">(45.72 KB, 下载次数: 1)</em>
+</p>
+<div class="tip tip_4" id="aid1426626_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyNnxiZGNlOWUzOXwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2020-1-3 13:59 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1426626', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1426626', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1426626" aid="1426626" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/202001/03/135934ykokatouf95akq8u.png" file="https://attachment.mcbbs.net/forum/202001/03/135934ykokatouf95akq8u.png.thumb.jpg" alt="**图片_20200103135732.png" title="**图片_20200103135732.png" w="815" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyN3xlOWZkZmJhYnwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1426627" class="xw1" target="_blank">**图片_20200103140208.png</a>
+<em class="xg1">(12.76 KB, 下载次数: 1)</em>
+</p>
+<div class="tip tip_4" id="aid1426627_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyN3xlOWZkZmJhYnwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2020-1-3 14:02 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1426627', 1)"><img src="static/image/common/rleft.gif" class="vm" /></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1426627', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1426627" aid="1426627" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/202001/03/140226s5pcvjrrhrc12hjw.png" file="https://attachment.mcbbs.net/forum/202001/03/140226s5pcvjrrhrc12hjw.png.thumb.jpg" alt="**图片_20200103140208.png" title="**图片_20200103140208.png" w="636" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[16022940] = ['1426626','1426627'];
+attachimggroup(16022940);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2020-1-3 14:08<br />
+报错的，截图不对，重新截了个：
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyOHw4MzliYTM4OHwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1426628" class="xw1" target="_blank">qqq.png</a>
+<em class="xg1">(13.01 KB, 下载次数: 0)</em>
+</p>
+<div class="tip tip_4" id="aid1426628_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQyNjYyOHw4MzliYTM4OHwxNjEzOTA3ODA5fDI0MTk0ODZ8NTczMTU0&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2020-1-3 14:08 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1426628', 1)"><img src="static/image/common/rleft.gif" class="vm" /></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1426628', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1426628" aid="1426628" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/202001/03/140828cszgsv2s91fhttf2.png" file="https://attachment.mcbbs.net/forum/202001/03/140828cszgsv2s91fhttf2.png.thumb.jpg" alt="qqq.png" title="qqq.png" w="658" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[16022972] = ['1426628'];
+attachimggroup(16022972);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>翔梦FD&nbsp; &nbsp; <b>时间: </b>2020-1-11 10:18<br />
+能启动游戏,但是为什么启动完之后过一会游戏就自动退出了啊???<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>史丹安&nbsp; &nbsp; <b>时间: </b>2020-1-11 22:51<br />
+看起来很不错<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Mo_xiaoxi&nbsp; &nbsp; <b>时间: </b>2020-2-15 21:20<br />
+666感谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Eerobrine_tan&nbsp; &nbsp; <b>时间: </b>2020-3-21 11:25<br />
+无法使用jmccc-yggdrasil-authenticator-2.5beta1与jmccc -2.5 -SNAPS配套，哪位大佬发一下配套的jmccc-yggdrasil-authenticator<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>忘了我是谁&nbsp; &nbsp; <b>时间: </b>2020-4-12 18:50<br />
+水回复***************<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>成品油&nbsp; &nbsp; <b>时间: </b>2020-5-3 19:48<br />
+不服不行！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liangcha2009&nbsp; &nbsp; <b>时间: </b>2020-6-14 09:42<br />
+懒癌患者表示不愿意写代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>德芙DakFu&nbsp; &nbsp; <b>时间: </b>2020-8-13 20:03<br />
+学习ing，谢谢指教噢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>德芙DakFu&nbsp; &nbsp; <b>时间: </b>2020-8-13 20:04<br />
+感觉真的会很难啊
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

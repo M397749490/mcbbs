@@ -1,0 +1,303 @@
+<html>
+<head>
+<title>[18w05a][持续更新]在MC里实现数学库 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[18w05a][持续更新]在MC里实现数学库 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>switefaster&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:08<br />
+<b>标题: </b>[18w05a][持续更新]在MC里实现数学库<br /><i class="pstatus"> 本帖最后由 switefaster 于 2018-2-8 18:16 编辑 </i><br />
+<br />
+大家好，我是switefaster。1.13预览版发布以后，相关的帖子都出现了相当量的数学计算。为了减少编写datapack时的工作量，我突发奇想，开始实现一个数学库。<hr class="l" /><br />
+<div align="center"><font size="5">记分板/函数规范</font></div><br />
+同时为了开发者和使用者的方便，我在这里提供记分板命名规范。<br />
+记分板名称：<i>&lt;函数名&gt;_&lt;参数名&gt;_&lt;下标&gt;</i><br />
+例子：<i>abs_arg_0</i><br />
+函数名即是使用此记分板的函数的名称，参数名代表这个记分板的作用，下标在此参数名不止一个的时候防止冲突。<br />
+在此定死参数名类型：<i>arg, out和tmp</i><br />
+※ arg即输入，out为输出，tmp是在计算过程中需要处理到的临时量。<br />
+在我们的规范中，输入的arg不会因计算改变。调用者只允许写入arg读取out，tmp不允许外部函数或者调用者操作。<br />
+<br />
+我们的函数放置位置和命名也是有规范的<br />
+<ul type="1" class="litype_1"><li>所有函数必须存在于math命名空间内<li>math空间下存在函数的子目录，每个子目录内有与目录同名的.mcfunction文件。调用者调用这个文件。如果需要拆分function内容为多个文件的，皆放在相应函数的子目录下。例：math/functions/sqrt/sqrt.mcfunction调用math/functions/sqrt/iteration.mcfunction<li>所需的记分板必须统一创造在math:init.mcfunction中，此function必须被load.json引用，且命名符合上述命名规范<li>如果需要给函数功能分类，创建功能名子文件夹，并在文件夹下创建相应的函数文件夹<br />
+</ul><br />
+<hr class="l" /><br />
+<div align="center"><font size="5">框架</font></div><br />
+<div align="left"><font size="2">目前我们实现了以下函数：</font></div><br />
+<div align="left"><div class="blockcode"><div id="code_Jdx"><ol><li>- abs<br />
+<li>- pow<br />
+<li>- sqrt<br />
+<li>- vector:<br />
+<li>&nbsp;&nbsp;- length<br />
+<li>&nbsp;&nbsp;- normalize</ol></div><em onclick="copycode($('code_Jdx'));">复制代码</em></div>abs：</div><br />
+<div align="left">&nbsp;&nbsp;描述：取绝对值</div><br />
+<div align="left">&nbsp;&nbsp;参数：abs_arg_0 一个实数</div><br />
+<div align="left">&nbsp;&nbsp;输出：abs_out_0 |abs_arg_0| 一个&gt;=0的实数</div><br />
+<div align="left">pow：</div><br />
+<div align="left">&nbsp;&nbsp;描述：求幂</div><br />
+<div align="left">&nbsp;&nbsp;参数：pow_arg_0 底数，一个实数&nbsp; &nbsp; pow_arg_1 指数，一个实数</div><br />
+<div align="left">&nbsp;&nbsp;输出：pow_out_0 pow_arg_0的pow_arg_1次幂，一个实数</div><br />
+<div align="left">&nbsp;&nbsp;注意：当指数为0时输出1，当指数&lt;=0时输出0，而非1/n^m。主要是由于精度问题……</div><br />
+<div align="left">sqrt：</div><br />
+<div align="left">&nbsp;&nbsp;描述：求平方根</div><br />
+<div align="left">&nbsp;&nbsp;参数：sqrt_arg_0 被开方数，一个实数</div><br />
+<div align="left">&nbsp;&nbsp;输出：sqrt_out_0 输入数的算术平方根*10^2，一个实数</div><br />
+<div align="left">&nbsp;&nbsp;注意：输入为0时输出sqrt(abs(sqrt_arg_0))*10^2，输出sqrt(sqrt_arg_0)*10^2（精度所需）。为了保留精度在开始计算时会将输入*10^4。此值在&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;init.mcfunction中以常量precision形式定义。必须满足precision=10^2n。默认为10^4，能求出4位数的平方根而不溢出。</div><br />
+<div align="left">vector/length:</div><br />
+<div align="left">&nbsp;&nbsp;描述：计算三维向量的长度</div><br />
+<div align="left">&nbsp;&nbsp;参数：leng_arg_0 输入向量的x&nbsp; &nbsp; leng_arg_1 输入向量的y&nbsp; &nbsp; leng_arg_2 输入向量的z</div><br />
+<div align="left">&nbsp;&nbsp;输出：sqrt_out_0 输入向量的长度*10^2，一个实数</div><br />
+<div align="left">&nbsp;&nbsp;注意：为了精度，此结果也被*10^2</div><br />
+<div align="left">vector/normalize</div><br />
+<div align="left">&nbsp;&nbsp;描述：规格化三维向量</div><br />
+<div align="left">&nbsp;&nbsp;参数：norm_arg_0 输入向量的x&nbsp; &nbsp; norm_arg_1 输入向量的y&nbsp; &nbsp; norm_arg_2 输入向量的z</div><br />
+<div align="left">&nbsp;&nbsp;输出：norm_out_0 输出向量的x*10^2&nbsp; &nbsp;norm_out_1 输出向量的y*10^2&nbsp; &nbsp; norm_out_2 输出向量的z*10^2</div><br />
+<div align="left">&nbsp;&nbsp;注意：为了精度，此结果为normalize(u)*10^2。并且因为精度，输出向量的长度并不严格为1</div><br />
+<div align="left"><hr class="l" /></div><br />
+<div align="center"><font size="5">实现</font></div><br />
+<div align="left"><font size="2">我们将在这里阐述各个函数的实现</font></div><br />
+<div align="left"><font size="2"><br />
+</font></div><br />
+<div align="left"><font size="2">Initialization</font></div><br />
+<div align="left"><font size="2">init.mcfunction</font></div><br />
+<div align="left"><div class="blockcode"><div id="code_yXx"><ol><li># Abs Start<br />
+<li>scoreboard objectives add abs_arg_0 dummy<br />
+<li>scoreboard objectives add abs_out_0 dummy<br />
+<li># Abs End<br />
+<li><br />
+<li># Sqrt Start<br />
+<li>scoreboard objectives add sqrt_arg_0 dummy<br />
+<li># Different<br />
+<li>scoreboard objectives add sqrt_tmp_0 dummy<br />
+<li># Devide Result<br />
+<li>scoreboard objectives add sqrt_tmp_1 dummy<br />
+<li>scoreboard objectives add sqrt_out_0 dummy<br />
+<li># Sqrt End<br />
+<li><br />
+<li># Pow Start<br />
+<li># Base Number<br />
+<li>scoreboard objectives add pow_arg_0 dummy<br />
+<li># Exponent<br />
+<li>scoreboard objectives add pow_arg_1 dummy<br />
+<li># Counter<br />
+<li>scoreboard objectives add pow_tmp_0 dummy<br />
+<li>scoreboard objectives add pow_out_0 dummy<br />
+<li># Pow End<br />
+<li><br />
+<li># Vector Start<br />
+<li># Normalize Start<br />
+<li>scoreboard objectives add norm_arg_0 dummy<br />
+<li>scoreboard objectives add norm_arg_1 dummy<br />
+<li>scoreboard objectives add norm_arg_2 dummy<br />
+<li>scoreboard objectives add norm_out_0 dummy<br />
+<li>scoreboard objectives add norm_out_1 dummy<br />
+<li>scoreboard objectives add norm_out_2 dummy<br />
+<li># Normalize End<br />
+<li># Length Start<br />
+<li>scoreboard objectives add leng_arg_0 dummy<br />
+<li>scoreboard objectives add leng_arg_1 dummy<br />
+<li>scoreboard objectives add leng_arg_2 dummy<br />
+<li>scoreboard objectives add leng_out_0 dummy<br />
+<li># Length End<br />
+<li># Vector End<br />
+<li><br />
+<li># Constants Start<br />
+<li>scoreboard objectives add constants dummy<br />
+<li>scoreboard players set minus_one constants -1<br />
+<li>scoreboard players set zero constants 0<br />
+<li>scoreboard players set one constants 1<br />
+<li>scoreboard players set two constants 2<br />
+<li>scoreboard players set three constants 3<br />
+<li>scoreboard players set four constants 4<br />
+<li>scoreboard players set five constants 5<br />
+<li>scoreboard players set six constants 6<br />
+<li>scoreboard players set seven constants 7<br />
+<li>scoreboard players set eight constants 8<br />
+<li>scoreboard players set nine constants 9<br />
+<li>scoreboard players set ten constants 10<br />
+<li># Precision 10^-4<br />
+<li>scoreboard players set precision constants 10000<br />
+<li>scoreboard players set pi constants 31415<br />
+<li>scoreboard players set e constants 27182<br />
+<li>scoreboard players set sqrt_out_prec constants 100<br />
+<li>scoreboard players set sqrt_diff constants 1<br />
+<li># Constants End</ol></div><em onclick="copycode($('code_yXx'));">复制代码</em></div>主要负责记分板的创建和设置各种常量……很乱，并且其中一些常量根本没有用到。</div><br />
+<div align="left"><font size="2"><br />
+</font></div><br />
+<div align="left"><font size="2">Abs</font></div><br />
+<div align="left"><font size="2">abs.mcfunction</font></div><br />
+<div align="left"><div class="blockcode"><div id="code_nts"><ol><li># Absolute x=-x(x&lt;0) || x=x(x&gt;=0)<br />
+<li>scoreboard players operation @s abs_out_0 = @s abs_arg_0<br />
+<li>execute if entity @s[scores={abs_out_0=..-1}] run scoreboard players operation @s abs_out_0 *= minus_one constants</ol></div><em onclick="copycode($('code_nts'));">复制代码</em></div>当a&gt;=0时，|a|=a，反之|a|=-a</div><br />
+<br />
+<div align="left">Pow</div><br />
+<div align="left">pow.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_T0p"><ol><li># Pow<br />
+<li>scoreboard players operation @s pow_tmp_0 = @s pow_arg_1<br />
+<li>scoreboard players operation @s pow_out_0 = @s pow_arg_0<br />
+<li>scoreboard players remove @s pow_tmp_0 1<br />
+<li>execute if score @s pow_tmp_0 &gt;= one constants if score @s pow_arg_1 &gt; one constants run function math:pow/iteration<br />
+<li>execute if score @s pow_arg_1 = zero constants run scoreboard players set @s pow_out_0 1<br />
+<li>execute if score @s pow_arg_1 &lt; zero constants run scoreboard players set @s pow_out_0 0</ol></div><em onclick="copycode($('code_T0p'));">复制代码</em></div>pow/iteration.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_cqg"><ol><li>scoreboard players operation @s pow_out_0 *= @s pow_arg_0<br />
+<li>scoreboard players remove @s pow_tmp_0 1<br />
+<li>execute if score @s pow_tmp_0 &gt;= one constants run function math:pow/iteration</ol></div><em onclick="copycode($('code_cqg'));">复制代码</em></div>我们在主函数中做第一次处理，随后判断条件进入迭代。在迭代中我们每次都将结果*底数，并且将临时量-1。随后判断条件继续迭代。最后我们回到主函数，对指数为0或指数&lt;0的情况做特殊处理。</div><br />
+<br />
+<div align="left">Sqrt</div><br />
+<div align="left">sqrt.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_koU"><ol><li># SquareRoot<br />
+<li># Newton Iteration f(x1)=(f(x0)+r/f(x0))/2<br />
+<li># For precision, r=r*10^4, so we get result*100<br />
+<li>scoreboard players operation @s abs_arg_0 = @s sqrt_arg_0<br />
+<li>function math:abs/abs<br />
+<li>scoreboard players operation @s sqrt_out_0 = @s abs_out_0<br />
+<li>scoreboard players operation @s sqrt_out_0 *= precision constants<br />
+<li>scoreboard players operation @s sqrt_tmp_0 = @s sqrt_out_0<br />
+<li>scoreboard players operation @s sqrt_out_0 /= two constants<br />
+<li>scoreboard players operation @s sqrt_tmp_0 -= @s sqrt_out_0<br />
+<li>execute if score @s sqrt_tmp_0 &gt; sqrt_diff constants run function math:sqrt/iteration<br />
+<li>scoreboard players set @s sqrt_tmp_0 0<br />
+<li>scoreboard players set @s sqrt_tmp_1 0</ol></div><em onclick="copycode($('code_koU'));">复制代码</em></div>sqrt/iteration.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_ZDb"><ol><li>scoreboard players operation @s sqrt_tmp_1 = @s sqrt_arg_0<br />
+<li>scoreboard players operation @s sqrt_tmp_1 *= precision constants<br />
+<li>scoreboard players operation @s sqrt_tmp_1 /= @s sqrt_out_0<br />
+<li>scoreboard players operation @s sqrt_tmp_1 += @s sqrt_out_0<br />
+<li>scoreboard players operation @s sqrt_tmp_1 /= two constants<br />
+<li>scoreboard players operation @s sqrt_tmp_0 = @s sqrt_out_0<br />
+<li>scoreboard players operation @s sqrt_out_0 = @s sqrt_tmp_1<br />
+<li>scoreboard players operation @s sqrt_tmp_0 -= @s sqrt_out_0<br />
+<li>execute if score @s sqrt_tmp_0 &gt; sqrt_diff constants run function math:sqrt/iteration</ol></div><em onclick="copycode($('code_ZDb'));">复制代码</em></div>我们对平方根的处理使用了牛顿迭代法(Newton Iteration)。即f(x[sub]n+1[/sub])=(f(x[sub]n[/sub])+a/f(x[sub]n[/sub]))/2迭代，直到f(x[sub]n-1[/sub])-f(x[sub]n+1[/sub])&lt;规定的精度为止。至于具体推导等，请自行百度。</div><br />
+<div align="left">我们在主函数中对 输入数/2 随后检测误差，如果不满足条件，进入迭代。在迭代中我们对上次的输出进行运算，计算误差，判断条件并进入迭代直至满足条件为止。由于我们将输入*10^4，所以输出是 原本输出*10^2。故常量sqrt_diff实际为 规定值/10^2。</div><br />
+<br />
+<div align="left">Vector/Length</div><br />
+<div align="left">length.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_EzM"><ol><li>scoreboard players set @s sqrt_arg_0 0<br />
+<li>scoreboard players operation @s leng_out_0 = @s leng_arg_0<br />
+<li>scoreboard players operation @s leng_out_0 *= @s leng_out_0<br />
+<li>scoreboard players operation @s sqrt_arg_0 += @s leng_out_0<br />
+<li>scoreboard players operation @s leng_out_0 = @s leng_arg_1<br />
+<li>scoreboard players operation @s leng_out_0 *= @s leng_out_0<br />
+<li>scoreboard players operation @s sqrt_arg_0 += @s leng_out_0<br />
+<li>scoreboard players operation @s leng_out_0 = @s leng_arg_2<br />
+<li>scoreboard players operation @s leng_out_0 *= @s leng_out_0<br />
+<li>scoreboard players operation @s sqrt_arg_0 += @s leng_out_0<br />
+<li>function math:sqrt/sqrt<br />
+<li>scoreboard players operation @s leng_out_0 = @s sqrt_out_0</ol></div><em onclick="copycode($('code_EzM'));">复制代码</em></div>向量长度计算公式为 √x[sup]2[/sup]+y[sup]2[/sup]+z[sup]2[/sup]，并且由于sqrt的结果是*10^2的，所以我们的length算出来自然也是*10^2的</div><br />
+<br />
+<div align="left">Vector/Normalize</div><br />
+<div align="left">normalize.mcfunction</div><br />
+<div align="left"><div class="blockcode"><div id="code_lbb"><ol><li>scoreboard players operation @s leng_arg_0 = @s norm_arg_0<br />
+<li>scoreboard players operation @s leng_arg_1 = @s norm_arg_1<br />
+<li>scoreboard players operation @s leng_arg_2 = @s norm_arg_2<br />
+<li>scoreboard players operation @s norm_out_0 = @s norm_arg_0<br />
+<li>scoreboard players operation @s norm_out_1 = @s norm_arg_1<br />
+<li>scoreboard players operation @s norm_out_2 = @s norm_arg_2<br />
+<li>function math:vector/length/length<br />
+<li>scoreboard players operation @s pow_arg_0 = sqrt_out_prec constants<br />
+<li>scoreboard players set @s pow_arg_1 2<br />
+<li>function math:pow/pow<br />
+<li>scoreboard players operation @s norm_out_0 *= @s pow_out_0<br />
+<li>scoreboard players operation @s norm_out_1 *= @s pow_out_0<br />
+<li>scoreboard players operation @s norm_out_2 *= @s pow_out_0<br />
+<li>scoreboard players operation @s norm_out_0 /= @s leng_out_0<br />
+<li>scoreboard players operation @s norm_out_1 /= @s leng_out_0<br />
+<li>scoreboard players operation @s norm_out_2 /= @s leng_out_0</ol></div><em onclick="copycode($('code_lbb'));">复制代码</em></div>规格化向量的公式为 normalize(u)=(u[sub]x[/sub]/||u||,u[sub]y[/sub]/||u||,u[sub]z[/sub]/||u||)</div><br />
+<div align="left">※ ||u||=length(u)</div><br />
+<div align="left">所以我们只需要 分量/向量的长度就可以了。但是由于length结果是*10^2的，所以我们需要将分量*(10^2)^2才能得到正确的精度……</div><br />
+<div align="left">要问为什么这么麻烦就得去怪Mjsb了</div><br />
+<br />
+<div align="left">等待添加……QwQ</div><br />
+<div align="left">还有，更改精度的时候记得把precision和sqrt_out_prec一起改了……&nbsp; &nbsp;<i>sqrt_out_prec=√precision</i></div><br />
+<hr class="l" /><div align="center"><font size="5">致datapack开发者</font></div><br />
+这个数学库并不是我的私人项目，而是一个公共维护的项目（至少我希望如此）。有自己需要用到而这个数学库里没有这个功能的开发者可以留言，我们将会尽力实现。如果帮我们实现好了……那就更好了!<br />
+<hr class="l" /><div align="center"><font size="5">更新日志</font></div><br />
+<br />
+<div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>2018/2/8 发布了第一个版本</td></table></div></div></div><br />
+<div align="left"><hr class="l" /></div><br />
+<div align="left">目前努力实现三角函数中……欢迎发现bug，给予建议以及合作开发哦！</div><br />
+
+<ignore_js_op>
+<dl class="tattl">
+<dt>
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+</dt>
+<dd>
+<p class="attnm">
+
+<a href="forum.php?mod=attachment&amp;aid=MTE3MzY4NnxlOGZlMjVmY3wxNjEzOTU2MDkwfDI0MTk0ODZ8NzgwMjMw" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1173686" target="_blank">Math.zip</a>
+
+<div class="tip tip_4" id="aid1173686_menu" style="display: none" disautofocus="true">
+<div class="tip_c">
+<p class="y">2018-2-8 18:08 上传</p>
+<p>点击文件名下载附件</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+</p>
+<p>5.34 KB, 下载次数: 4</p>
+<p>
+
+</p>
+<p class="xg2">放入datapacks文件夹即可食用</p>
+
+</dd>
+</dl>
+</ignore_js_op>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>:spgbigfan:&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:14<br />
+第一个轮子XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⊙v⊙&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:15<br />
+已经到了数学不好连游戏都玩不起的地步了吗 XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SPGoding&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:17<br />
+emm可以试试实现std规范hh<br />
+std规范可以保证数学库在调用它的datapack之前被加载…【逃<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>switefaster&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:19<br />
+<i class="pstatus"> 本帖最后由 switefaster 于 2018-2-8 18:21 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12690256&amp;ptid=780230" target="_blank"><font color="#999999">SPGoding 发表于 2018-2-8 18:17</font></a></font><br />
+emm可以试试实现std规范hh<br />
+std规范可以保证数学库在调用它的datapack之前被加载…【逃 ...</blockquote></div><br />
+<strike>pca甚至已经在实现这玩意了</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SPGoding&nbsp; &nbsp; <b>时间: </b>2018-2-8 18:23<br />
+<i class="pstatus"> 本帖最后由 SPGoding 于 2018-2-8 18:28 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12690274&amp;ptid=780230" target="_blank"><font color="#999999">switefaster 发表于 2018-2-8 18:19</font></a></font><br />
+<strike>pca甚至已经在实现这玩意了</strike></blockquote></div><br />
+<strike>我说的就是pca那个hhh</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Namefind&nbsp; &nbsp; <b>时间: </b>2018-2-8 19:46<br />
+mojang讲科学 系列<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>乙烯_中国&nbsp; &nbsp; <b>时间: </b>2018-2-8 20:06<br />
+你有没有意识到反而这样更麻烦了，本质上工作量更大了<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><br />
+真正适合的工序是按需制作。你这个我之所以说不行是因为mc本身的原因。<br />
+此外，1.13了还要靠这样的旧版本形式去算，还想这样算三角函数<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><strike>丢人</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-2-8 20:27<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12690709&amp;ptid=780230" target="_blank"><font color="#999999">乙烯_中国 发表于 2018-2-8 20:06</font></a></font><br />
+你有没有意识到反而这样更麻烦了，本质上工作量更大了<br />
+真正适合的工序是按需制作。你这个我之所以说 ...</blockquote></div><br />
+他非要无实体…<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2759159258&nbsp; &nbsp; <b>时间: </b>2018-2-8 21:25<br />
+看了这个帖，我觉得我是时候跟1.13说再见了<br />
+<strike>辣鸡bugjump，欺负我数学偏科，哼~</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pineapple_&nbsp; &nbsp; <b>时间: </b>2018-2-10 03:00<br />
+<i class="pstatus"> 本帖最后由 pineapple_ 于 2018-2-10 03:03 编辑 </i><br />
+<br />
+检测到不明卖萌生物<br />
+记分板名称：&lt;函数名<strong>&gt;_&lt;</strong>参数名<strong>&gt;_&lt;</strong>下标&gt;<br />
+准备实施打击<br />
+气氛再次数学<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dwch&nbsp; &nbsp; <b>时间: </b>2018-2-10 11:00<br />
+pow不是快速幂差评差评<br />
+你这样在我们oier这里会tle的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wity&nbsp; &nbsp; <b>时间: </b>2018-2-10 13:41<br />
+<br />
+感谢教程.....
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

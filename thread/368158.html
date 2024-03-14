@@ -1,0 +1,2062 @@
+<html>
+<head>
+<title>【speelf】插件开发中 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【speelf】插件开发中 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2014-11-23 12:00<br />
+<b>标题: </b>【speelf】插件开发中<br /><i class="pstatus"> 本帖最后由 胡晨晓 于 2015-2-4 13:44 编辑 </i><br />
+<br />
+自己写的第一个插件。<br />
+就是挖雪球的小游戏插件<br />
+由于是第一次写插件<br />
+经验不足<br />
+各位大大可以来指出不足的地<br />
+源代码：Speelf:<br />
+<div class="blockcode"><div id="code_JJV"><ol><li>package plugin;<br />
+<li><br />
+<li>import java.io.File;<br />
+<li>import java.io.IOException;<br />
+<li>import java.util.List;<br />
+<li>import java.util.logging.Logger;<br />
+<li><br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.World;<br />
+<li>import org.bukkit.block.Sign;<br />
+<li>import org.bukkit.command.Command;<br />
+<li>import org.bukkit.command.CommandSender;<br />
+<li>import org.bukkit.configuration.file.FileConfiguration;<br />
+<li>import org.bukkit.configuration.file.YamlConfiguration;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li>import org.bukkit.plugin.java.JavaPlugin;<br />
+<li><br />
+<li>import sign.SignHandler;<br />
+<li>import sign.SignManager;<br />
+<li>import sign.types.JoinSign;<br />
+<li>import arena.Arena;<br />
+<li>import arena.ArenaManager;<br />
+<li>import arena.data.ArenaSize;<br />
+<li>import arena.data.ArenaStatus;<br />
+<li>import arena.data.PlayerData;<br />
+<li>import arena.listeners.Protector;<br />
+<li>import arena.listeners.GameController;<br />
+<li>import arena.messages.Message;<br />
+<li>import arena.reset.map.MapHandler;<br />
+<li><br />
+<li>public class Speelf extends JavaPlugin {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Logger logger;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int arena_num = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; File config_file = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ArenaManager arenaManager = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; SignManager signManager = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; boolean mod=false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Protector protector=null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; FileConfiguration ckeckConfig(File f) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!f.exists()) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; f.createNewFile();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (IOException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return YamlConfiguration.loadConfiguration(f);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaManager getArenas() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenaManager;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public SignManager getSignManager() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return signManager;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void loadData() {//TODO <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; File configFile = new File(getDataFolder()+File.separator+&quot;arenas.yml&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; FileConfiguration fc = ckeckConfig(configFile);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int arenanum = fc.getInt(&quot;arenas&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int l = 0; l &lt; arenanum; l++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String aname = fc.getString(&quot;&quot; + l + &quot;.Name&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Loading arena: &quot; + aname + &quot;.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; World arenaw = Bukkit.getWorld(fc.getString(&quot;&quot; + l + &quot;.Tp.World&quot;));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double arenaatx = fc.getDouble(&quot;&quot; + l + &quot;.Tp.X&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double arenaaty = fc.getDouble(&quot;&quot; + l + &quot;.Tp.Y&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double arenaatz = fc.getDouble(&quot;&quot; + l + &quot;.Tp.Z&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location tploc = new Location(arenaw, arenaatx, arenaaty, arenaatz);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; World tpbat = Bukkit.getWorld(fc<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getString(&quot;&quot; + l + &quot;.TpBack.World&quot;));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double tpbatx = fc.getDouble(&quot;&quot; + l + &quot;.TpBack.X&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double tpbaty = fc.getDouble(&quot;&quot; + l + &quot;.TpBack.Y&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double tpbatz = fc.getDouble(&quot;&quot; + l + &quot;.TpBack.Z&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location tpbloc = new Location(tpbat, tpbatx, tpbaty, tpbatz);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; World szaw = Bukkit<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getWorld(fc.getString(&quot;&quot; + l + &quot;.Size.H.World&quot;));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szax = fc.getDouble(&quot;&quot; + l + &quot;.Size.H.X&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szay = fc.getDouble(&quot;&quot; + l + &quot;.Size.H.Y&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szaz = fc.getDouble(&quot;&quot; + l + &quot;.Size.H.Z&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location sza = new Location(szaw, szax, szay, szaz);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; World szbw = Bukkit<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getWorld(fc.getString(&quot;&quot; + l + &quot;.Size.L.World&quot;));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szbx = fc.getDouble(&quot;&quot; + l + &quot;.Size.L.X&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szby = fc.getDouble(&quot;&quot; + l + &quot;.Size.L.Y&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double szbz = fc.getDouble(&quot;&quot; + l + &quot;.Size.L.Z&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location szb = new Location(szbw, szbx, szby, szbz);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int maxPlayer = fc.getInt(&quot;&quot; + l + &quot;.MaxPlayer&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; MapHandler mhd = new MapHandler(this, null);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena loadingArena = new Arena(aname, maxPlayer, tploc, mhd);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mhd.setHandleArena(loadingArena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.copySize(new ArenaSize(sza, szb).sort());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; GameController ghd = new GameController(this, loadingArena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.setGameRuleHandler(ghd);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.copyTeleportBackLocation(tpbloc);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int jsCount = fc.getInt(&quot;&quot; + l + &quot;.JoinSign.Num&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; jsCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; World jsw = Bukkit.getWorld(fc.getString(&quot;&quot; + l + &quot;.JoinSign.&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + i + &quot;.World&quot;));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int jsx = fc.getInt(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.X&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int jsy = fc.getInt(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.Y&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int jsz = fc.getInt(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.Z&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location jsloc = new Location(jsw, jsx, jsy, jsz);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JoinSign js = new JoinSign(loadingArena, (Sign) jsloc<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getBlock().getState());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.addJoinSign(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signManager.regist(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaManager.addArena(loadingArena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.setStatus(ArenaStatus.WaitForPlayer);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadingArena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Loaded arena: &quot; + aname + &quot;.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean onCommand(CommandSender cmdsd, Command cmd, String label,<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String args[]) {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length == 0 &amp;&amp; label.equalsIgnoreCase(&quot;speelf&quot;)) {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (cmdsd.isOp() || !(cmdsd instanceof Player))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.GRAY + &quot;[Speelf] by Hineven\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf leave [roomname](not finish yet)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf join [roomname](not finish yet)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf creatnewarena [arenanamename] [maxplayer]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf load [name](not finish yet)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf quit [name](not finish yet)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf delete [arenaname]\n&quot; + &quot;/speelf help\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf setTpBackLocation [arenaname]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf setWorking [arenaname] [true/false]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf sizea [arenaname]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf sizeb [arenaname]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf reset [arenaname]\n&quot; + &quot;/speelf list\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf start [arenaname](for test)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf clean [arenaname]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf sts [arenaname](removed)\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;version: beta UT6&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;§r[Speelf] by Hineven\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf leave [roomname]\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf join [roomname]\n&quot; + &quot;/speelf help&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (cmdsd instanceof Player &amp;&amp; cmdsd.hasPermission(&quot;speelf.cde&quot;)) {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;createnewarena&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 3) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;§c/speelf createnewarena [name] [maxplayer]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; MapHandler mh = new MapHandler(this, arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena = new arena.Arena(args[1], Integer.parseInt(args[2]),<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ((Player) cmdsd).getLocation(), mh);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mh.setHandleArena(arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; GameController hd = new GameController(this, arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.setGameRuleHandler(hd);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;You must set tpback point&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;and the size of this arena &quot; + &quot;and the status &quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;before play in it!\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;Use /speelf setTpBackPoint [arenaname] and&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf sizea [arenaname] ,&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf sizeb [arenaname] ,&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf setworking [true/false] to set them.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaManager.addArena(arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (Exception e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;Wrong args!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;list&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int n = arenaManager.getArenaNum();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; n; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.YELLOW + &quot;&quot; + (i + 1) + &quot;.&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + arenaManager.get(i).getName() + &quot; &quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + arenaManager.get(i).getStatus().toString());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.GRAY + &quot;=====Finish=====&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;setworking&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 3) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;§c/speelf setworking [arenaname] [true/false]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena are = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (are == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ArenaStatus as = ArenaStatus.OpEdit;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; boolean bool = false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; bool = Boolean.parseBoolean(args[2]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (NumberFormatException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.wrongArgs);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (bool)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; as = ArenaStatus.WaitForPlayer;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; are.setStatus(as);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; are.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;start&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 3) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;§a/speelf start [name] [true/false]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.setStatus(ArenaStatus.InGame);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;reset&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(&quot;§a/speelf reset [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.message(Message.arenaCleanedByOp);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; GameController.endRound(arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.setStatus(ArenaStatus.WaitForPlayer);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;delete&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED + &quot;/speelf delete [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.message(Message.arenaCleanedByOp);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; GameController.endRound(arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; List&lt;JoinSign&gt; js = arena.getJoinSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (JoinSign j : js)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signManager.unLoad(j);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaManager.deleteArena(arena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;clean&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED + &quot;/speelf clean [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.message(Message.arenaCleanedByOp);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; List&lt;PlayerData&gt; pl = arena.getPlayers();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData i : pl) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i.getPlayer().teleport(arena.getReturnLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;setTpBackLocation&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/speelf setTpBackLocation [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.copyTeleportBackLocation(((Player) cmdsd).getLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;sizea&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED + &quot;/speelf sizea [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location pl=((Player) cmdsd).getLocation();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.copyP1(pl);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; /*cmdsd.sendMessage(ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;Be careful! \n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;You must use /speelf sts [arenaname] to init the size of\n&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;this arena when you set both point a and point b!&quot;);*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.GREEN + &quot;Choose &quot; + pl.getBlockX() + <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;,&quot; + pl.getBlockY() + &quot;,&quot; + pl.getBlockZ() + &quot; for the first point of '&quot; + arena.getName() + &quot;'.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;sizeb&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED + &quot;/speelf sizeb [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location pl=((Player) cmdsd).getLocation();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.copyP2(pl);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.GREEN + &quot;Choose &quot; + pl.getBlockX() + <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;,&quot; + pl.getBlockY() + &quot;,&quot; + pl.getBlockZ() + &quot; for the second point of '&quot; + arena.getName() + &quot;'.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;sts&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args.length != 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(ChatColor.RED + &quot;/speelf sts [name]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = arenaManager.get(args[1]);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.getSize().sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (args[0].equalsIgnoreCase(&quot;refreshSigns&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; List&lt;Arena&gt; arenas = arenaManager.getAllArenas();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (Arena arena : arenas) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(args[0].equalsIgnoreCase(&quot;editmod&quot;)){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.mod=!this.mod;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.EDEditMod);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cmdsd.sendMessage(Message.noPermission);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void onDisable() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; List&lt;Arena&gt; ares = arenaManager.getAllArenas();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (Arena hda : ares) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Resetting arena: &quot; + hda.getName() + &quot;.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; hda.getGameRuleHandler().endRound();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; saveData();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Speelf game 已卸载.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger = getLogger();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaManager = new ArenaManager();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signManager = new SignManager();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; protector=new Protector(this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; getServer().getPluginManager().registerEvents(protector, this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; getServer().getPluginManager().registerEvents(new SignHandler(this), this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; getDataFolder().mkdir();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; loadData();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Speelf game 已加载.&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void saveData() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; File configFile = new File(getDataFolder()+File.separator+&quot;arenas.yml&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; configFile.delete();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; configFile.createNewFile();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (IOException e1) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e1.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; FileConfiguration fc = ckeckConfig(configFile);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;arenas&quot;, arenaManager.getArenaNum());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int l = 0; l &lt; arenaManager.getArenaNum(); l++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena a = arenaManager.get(l);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Name&quot;, a.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.MaxPlayer&quot;, a.getMaxPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Tp.World&quot;, a.getWorld().getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Tp.X&quot;, a.getTeleportLocation().getX());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Tp.Y&quot;, a.getTeleportLocation().getY());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Tp.Z&quot;, a.getTeleportLocation().getZ());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.TpBack.World&quot;, a.getReturnLocation().getWorld()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.TpBack.X&quot;, a.getReturnLocation().getX());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.TpBack.Y&quot;, a.getReturnLocation().getY());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.TpBack.Z&quot;, a.getReturnLocation().getZ());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.H.World&quot;, a.getSize().getH().getWorld()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.H.X&quot;, a.getSize().getH().getX());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.H.Y&quot;, a.getSize().getH().getY());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.H.Z&quot;, a.getSize().getH().getZ());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.L.World&quot;, a.getSize().getL().getWorld()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.L.X&quot;, a.getSize().getL().getX());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.L.Y&quot;, a.getSize().getL().getY());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.Size.L.Z&quot;, a.getSize().getL().getZ());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.JoinSigns.Num&quot;, a.getJoinSignCount());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; a.getJoinSigns().size(); i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.World&quot;, a.getJoinSign(i)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getSign().getLocation().getWorld().getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.X&quot;, a.getJoinSign(i)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getSign().getBlock().getX());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.Y&quot;, a.getJoinSign(i)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getSign().getBlock().getY());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.set(&quot;&quot; + l + &quot;.JoinSign.&quot; + i + &quot;.Z&quot;, a.getJoinSign(i)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getSign().getBlock().getZ());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; fc.save(configFile);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (IOException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Saving data exception!!Check the config file plz&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(&quot;Data saved.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isEditMod(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return mod;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void performOutPut(String string) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; logger.info(string);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_JJV'));">复制代码</em></div>Arena:<br />
+<div class="blockcode"><div id="code_dZ3"><ol><li>package arena;<br />
+<li><br />
+<li>import java.util.ArrayList;<br />
+<li>import java.util.List;<br />
+<li><br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.Material;<br />
+<li>import org.bukkit.World;<br />
+<li>import org.bukkit.block.Sign;<br />
+<li>import org.bukkit.enchantments.Enchantment;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li>import org.bukkit.inventory.ItemStack;<br />
+<li><br />
+<li>import sign.SignEditor;<br />
+<li>import sign.types.JoinSign;<br />
+<li>import arena.data.ArenaSize;<br />
+<li>import arena.data.ArenaStatus;<br />
+<li>import arena.data.PlayerData;<br />
+<li>import arena.listeners.GameController;<br />
+<li>import arena.messages.Message;<br />
+<li>import arena.reset.map.MapHandler;<br />
+<li><br />
+<li>public class Arena {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Message msgSender = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ArenaStatus arenaStatus = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private GameController gameRuleHandler = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; MapHandler grHandler = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; List&lt;JoinSign&gt; joinSigns = new ArrayList&lt;JoinSign&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; final int leastPlayers = 2;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int maxPlayer = -1;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; String name = &quot;&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int playerCount = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; List&lt;PlayerData&gt; players = new ArrayList&lt;PlayerData&gt;();<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ArenaSize size = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Location teleportBackLocation = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Location teleportLocation = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena(String n, int mp, Location loc, MapHandler hdr) {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; teleportLocation = loc;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; grHandler = hdr;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; maxPlayer = mp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; name = n;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaStatus = ArenaStatus.OpEdit;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; msgSender = new Message(this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; size = new ArenaSize();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean add(Player p) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenaStatus == ArenaStatus.Starting<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; || arenaStatus == ArenaStatus.WaitForPlayer) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; players.add(new PlayerData(p));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; playerCount++;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void addJoinSign(JoinSign sig) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; joinSigns.add(sig);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // sig.setCode(joinSigns.size());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean checkJoin() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!checkWork())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (playerCount == maxPlayer)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenaStatus == ArenaStatus.WaitForPlayer)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean checkWork() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (teleportLocation == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (teleportBackLocation == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (size == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (size.isInited() == false)//TODO<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void clear() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; players.clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; playerCount = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void clearAllPlayersInventory() {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData pd : players) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pd.getPlayer().getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void deleteJoinSign(Sign state) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (JoinSign js : joinSigns) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (js.getSign().getLocation().equals(state.getLocation())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; joinSigns.remove(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean equals(Object obj) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!(obj instanceof Arena))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (((Arena) obj).getName().equalsIgnoreCase(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public GameController getGameRuleHandler() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return gameRuleHandler;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public MapHandler getGroundHandler() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return grHandler;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public JoinSign getJoinSign(int index) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return joinSigns.get(index);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getJoinSignCount() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return joinSigns.size();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public List&lt;JoinSign&gt; getJoinSigns() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return joinSigns;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getMaxPlayer() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return maxPlayer;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Message getMsgSender() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return msgSender;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public String getName() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return name;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @deprecated<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param index<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public PlayerData getPlayer(int index) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return players.get(index);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public PlayerData getPlayer(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; playerCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (players.get(i).getName().equalsIgnoreCase(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return players.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public PlayerData getPlayer(Player p){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; playerCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (players.get(i).getName().equalsIgnoreCase(p.getName()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return players.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getPlayerCount() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return playerCount;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public List&lt;PlayerData&gt; getPlayers() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return players;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location getReturnLocation() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return teleportBackLocation;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaSize getSize() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return size;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaStatus getStatus() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenaStatus;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location getTeleportLocation() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return teleportLocation;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public World getWorld() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return teleportLocation.getWorld();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isFull() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (maxPlayer == playerCount)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInited() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (grHandler == null || gameRuleHandler == null || size == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInThisArena(String nam) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; playerCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (players.get(i).getName().equalsIgnoreCase(nam))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @deprecated<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isResetting() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenaStatus == ArenaStatus.Resetting)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isStarted() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenaStatus == ArenaStatus.InGame)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* Use 'getStatus()'<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @deprecated <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isWorking() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenaStatus != ArenaStatus.OpEdit<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; arenaStatus != ArenaStatus.Stop)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* just delete the player from the player list<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param player<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void leave(Player player) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; playerCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (players.get(i).getName().equalsIgnoreCase(player.getName())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; players.remove(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; playerCount--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void message(String arg) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; playerCount; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; players.get(i).getPlayer().sendMessage(arg);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void out(String pname) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; PlayerData p = getPlayer(pname);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.setDeadth(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; message(ChatColor.YELLOW + p.getName() + &quot; was out!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().setFlying(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData i : players) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!i.getName().equalsIgnoreCase(p.getName()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i.getPlayer().hidePlayer(p.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().sendMessage(ChatColor.RED + &quot;You were out!&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void out(Player pl) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; PlayerData p = getPlayer(pl);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().setAllowFlight(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.setDeadth(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; message(ChatColor.YELLOW + p.getName() + &quot; was out!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().setFlying(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData i : players) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!i.getName().equalsIgnoreCase(p.getName()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i.getPlayer().hidePlayer(p.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getPlayer().sendMessage(ChatColor.RED + &quot;You were out!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void paintAllSigns() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (JoinSign js : joinSigns) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SignEditor.paint(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private void sendTools() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ItemStack tool = new ItemStack(Material.DIAMOND_SPADE);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; tool.addEnchantment(Enchantment.DIG_SPEED, 5);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; tool.addEnchantment(Enchantment.DURABILITY, 3);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; tool.getItemMeta().setDisplayName(&quot;Speelf Spade&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData pd : players) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pd.getPlayer().getInventory().addItem(tool);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* it is 'set',not copy.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param hd<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void setGameRuleHandler(GameController hd) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; gameRuleHandler = hd;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void setMaxPlayer(int mp) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; maxPlayer = mp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyP1(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; size.copyP1(loc);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyP2(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; size.copyP2(loc);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copySize(ArenaSize as) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; size = as.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copySize(Location a, Location b) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; size.copy(a.clone(), b.clone());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void setStatus(ArenaStatus as) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaStatus = as;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyTeleportBackLocation(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; teleportBackLocation = loc.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyTeleportLocation(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; teleportLocation = loc.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* only do inventory cleaning and send tools and set status to 'InGame'.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* also send the start message to players.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void startGame() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenaStatus = ArenaStatus.InGame;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; clearAllPlayersInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sendTools();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; message(Message.gameStart);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInThisArena(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return size.isInIt(loc);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_dZ3'));">复制代码</em></div><br />
+ArenaManager:<br />
+<div class="blockcode"><div id="code_RhT"><ol><li>package arena;<br />
+<li><br />
+<li>import java.util.ArrayList;<br />
+<li>import java.util.List;<br />
+<li><br />
+<li>import org.bukkit.Location;<br />
+<li><br />
+<li>public class ArenaManager {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; List&lt;Arena&gt; arenas = new ArrayList&lt;Arena&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int num = 0;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void addArena(Arena are) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenas.add(are);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num++;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean deleteArena(Arena are) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int at = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; boolean flag = false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (; at &lt; num; at++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(at).equals(are)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; flag = true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!flag)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arenas.remove(at);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param i<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return 没有时返回null<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena get(int i) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (i &lt; num &amp;&amp; i &gt;= 0)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenas.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param name<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return 没有时返回null<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena get(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(i).getName().equalsIgnoreCase(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenas.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public List&lt;Arena&gt; getAllArenas() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenas;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena getArena(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(i).isInThisArena(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenas.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena getArenaByPlayer(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(i).isInThisArena(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return arenas.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getArenaNum() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return num;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public int getCode(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(i).getName().equalsIgnoreCase(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return i;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return -1;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isPlaying(String name) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arenas.get(i).isInThisArena(name))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInAnyArena(Location location) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for(Arena a:arenas)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(a.isInThisArena(location))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Arena get(Location location) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for(Arena a:arenas)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(a.isInThisArena(location))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return a;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_RhT'));">复制代码</em></div><br />
+ArenaSize:<br />
+<div class="blockcode"><div id="code_C7s"><ol><li>package arena.data;<br />
+<li><br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.Location;<br />
+<li><br />
+<li>public class ArenaSize {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private Location h, l;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private Location p1, p2;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaSize() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; h = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; l = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p1 = new Location(Bukkit.getWorlds().get(0), 0, 0, 0);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p2 = new Location(Bukkit.getWorlds().get(0), 0, 0, 0);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaSize(Location a, Location b) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p1 = a;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p2 = b;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* gets the high location<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location getH() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return h;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* gets the low location<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location getL() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return l;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* no used<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @deprecated<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInited() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (h != null &amp;&amp; l != null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copy(Location h, Location l) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.p1 = h.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.p2 = l.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* sets the first point of this area<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* problem solved<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param h<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyP1(Location h) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.p1 = h.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* sets the second point of this area<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* problem solved<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param l<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void copyP2(Location l) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.p2 = l.clone();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sort();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* refresh the value of l and h from p1 and p2<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @return <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaSize sort() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location a = p1, b = p2;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double ax = a.getX(), bx = b.getX();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double hx = (ax &gt; bx) ? ax : bx, lx = (ax &gt; bx) ? bx : ax;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double ay = a.getY(), by = b.getY();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double hy = (ay &gt; by) ? ay : by, ly = (ay &gt; by) ? by : ay;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double az = a.getZ(), bz = b.getZ();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; double hz = (az &gt; bz) ? az : bz, lz = (az &gt; bz) ? bz : az;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; h = new Location(a.getWorld(), hx, hy, hz);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; l = new Location(b.getWorld(), lx, ly, lz);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return this;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* return another object which has the same value as this one<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public ArenaSize clone(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return new ArenaSize(l,h);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isInIt(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (loc.getX() &lt;= h.getX()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; loc.getY() &lt;= h.getY()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; loc.getZ() &lt;= h.getZ()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; loc.getX() &gt;= l.getX()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; loc.getY() &gt;= l.getY()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; loc.getZ() &gt;= l.getZ()) <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /*<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* public void refresh(){ sort(); if(h==null||l==null) setInited(false);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* else setInited(true); }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* public boolean isInited() { return inited; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* public void setInited(boolean inited) { this.inited = inited; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_C7s'));">复制代码</em></div><br />
+ArenaStatus:<br />
+<div class="blockcode"><div id="code_uhL"><ol><li>package arena.data;<br />
+<li><br />
+<li>public enum ArenaStatus {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; InGame, Stop, WaitForPlayer, Starting, Resetting, OpEdit,<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_uhL'));">复制代码</em></div><br />
+PlayerData:<br />
+<div class="blockcode"><div id="code_Yig"><ol><li>package arena.data;<br />
+<li><br />
+<li>import java.util.Collection;<br />
+<li><br />
+<li>import org.bukkit.entity.Player;<br />
+<li>import org.bukkit.inventory.ItemStack;<br />
+<li>import org.bukkit.potion.PotionEffect;<br />
+<li><br />
+<li>public class PlayerData {//没做完<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Player player = null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //int score = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //int kills = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int exp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; boolean isDead = false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ItemStack[] inv=null,amr=null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Collection&lt;PotionEffect&gt; effects=null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public PlayerData(Player p) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player = p;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //score = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //kills = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; inv=null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; amr=null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; exp=0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void storeInventory(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; inv=player.getInventory().getContents();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; amr=player.getInventory().getArmorContents();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.getInventory().setArmorContents(null);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void storeLevel(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; exp=player.getLevel();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.setExp(0F);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void storePotionEffects(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; effects = player.getActivePotionEffects();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PotionEffect effect : effects)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;player.removePotionEffect(effect.getType());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void restoreInventory(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.getInventory().setContents(inv);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.getInventory().setArmorContents(amr);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void restoreLevel(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.setExp(exp);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void restorePotionEffects(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; player.addPotionEffects(effects);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public String getName() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return player.getName();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Player getPlayer() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return player;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isDead() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return isDead;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void setDeadth(boolean s) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; isDead = s;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Yig'));">复制代码</em></div><br />
+GameController:<br />
+<div class="blockcode"><div id="code_Bb4"><ol><li>package arena.listeners;<br />
+<li><br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.Material;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li><br />
+<li>import plugin.Speelf;<br />
+<li>import arena.Arena;<br />
+<li>import arena.data.ArenaStatus;<br />
+<li>import arena.data.PlayerData;<br />
+<li>import arena.messages.Message;<br />
+<li><br />
+<li>public class GameController {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; class StartingThread implements Runnable {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Thread thread = new Thread(this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; boolean canStart = false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena handleArena = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public StartingThread(Arena arena) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena = arena;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public void run() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int seconds = 60;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(Message.startingIn1Min);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; while (canStart &amp;&amp; seconds &gt; 0) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (handleArena.getPlayerCount() == handleArena.getMaxPlayer()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; seconds &gt; 5)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; seconds = 5;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (seconds == 30)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;30&quot; + ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot; seconds until the game start!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (seconds == 10)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;10&quot; + ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot; seconds until the game start!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (seconds &lt;= 5)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;&quot; + seconds<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot; seconds until the game start!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; seconds--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Thread.sleep(1000);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (InterruptedException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (canStart) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.startGame();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;Start celled&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; synchronized public void setCanStart(boolean canStart) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; this.canStart = canStart;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public void start() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; thread.start();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; static public void endRound(Arena arena) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.setStatus(ArenaStatus.Resetting);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int pn = arena.getPlayerCount();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; pn; i++)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.getPlayer(i).getPlayer().teleport(arena.getReturnLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.clearAllPlayersInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.getGroundHandler().reset();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.setStatus(ArenaStatus.WaitForPlayer);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Speelf plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Arena handleArena = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; StartingThread insideThread = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;unused&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private PlayerStatusChecker checker;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public GameController(Speelf speelf, Arena hda) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin = speelf;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena = hda;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; checker=new PlayerStatusChecker(hda);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void endRound() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.setStatus(ArenaStatus.Resetting);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData pd : handleArena.getPlayers()){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pd.getPlayer().teleport(handleArena.getReturnLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pd.getPlayer().setAllowFlight(false);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (PlayerData pd2 : handleArena.getPlayers()){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(pd!=pd2)pd.getPlayer().showPlayer(pd2.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.clearAllPlayersInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.getGroundHandler().reset();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.setStatus(ArenaStatus.WaitForPlayer);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; // TODO player stores<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; synchronized public void playerJoined(Player p) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;[&quot; + handleArena.getPlayerCount()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/&quot; + handleArena.getMaxPlayer() + &quot;] &quot; + ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + p.getName() + ChatColor.YELLOW + &quot; joined the game.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (insideThread == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; insideThread = new StartingThread(handleArena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (handleArena.getPlayerCount() &gt;= 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!insideThread.canStart) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; insideThread.setCanStart(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; insideThread.start();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; synchronized public void playerLeft(Player p) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(ChatColor.RED + &quot;[&quot; + handleArena.getPlayerCount()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;/&quot; + handleArena.getMaxPlayer() + &quot;] &quot; + ChatColor.YELLOW<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + p.getName() + ChatColor.YELLOW + &quot; left the game.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.getInventory().clear();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.updateInventory();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (insideThread != null &amp;&amp; handleArena.getPlayerCount() &lt; 2) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; insideThread.setCanStart(false);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* problem!<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @param event<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /*<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* @EventHandler(priority = EventPriority.HIGH) public void<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* PlayerOutEvent(PlayerMoveEvent event) { if<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* (plugin.getArenas().isPlaying(event.getPlayer().getName())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* //System.out.print(&quot;G1&quot;); if (plugin.getArenas()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* .getArenaByPlayer(event.getPlayer().getName()) != handleArena) return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* //System.out.print(&quot;G2&quot;); if (event.getFrom().getBlock().getType() ==<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* Material.WATER ||) {//TODO //System.out.println(&quot;G3&quot;); Arena are =<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* plugin.getArenas().getArenaByPlayer( event.getPlayer().getName()); if<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* (are.getPlayer(event.getPlayer().getName()).isDead()) return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* //System.out.println(&quot;G4&quot;); if (!are.isStarted()) return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* are.out(event.getPlayer().getName()); if (winner(are) != null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* are.message(&quot;§a&quot; + winner(are).getName() + &quot; won the game!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* Bukkit.getScheduler().runTask(plugin, new Runnable(){ public void run(){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* try { Thread.sleep(7000); } catch (InterruptedException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* e.printStackTrace(); endRound(); } endRound(); } }); } } }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;* }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Player winner() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int countAlive = 0;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; handleArena.getPlayerCount(); i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!handleArena.getPlayer(i).isDead())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; countAlive++;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (countAlive == 1) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; handleArena.getPlayerCount(); i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!handleArena.getPlayer(i).isDead())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return handleArena.getPlayer(i).getPlayer();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; class PlayerStatusChecker implements Runnable {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena handleArena;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Thread thread;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public PlayerStatusChecker(Arena hda) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena = hda;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; thread = new Thread(this);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; thread.start();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; @SuppressWarnings(&quot;deprecation&quot;)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public void run() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; while (true) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Thread.sleep(200);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (InterruptedException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; handleArena.getPlayerCount(); i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Material type = handleArena.getPlayer(i).getPlayer().getLocation().getBlock().getType();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //plugin.performOutPut(type.name());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (winner() == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //plugin.performOutPut(type.name());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (type.equals(Material.STATIONARY_WATER)&amp;&amp; !handleArena.getPlayer(i).isDead()) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.out(handleArena.getPlayer(i)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (winner() != null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena.message(&quot;§a&quot; + winner().getName()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot; won the game!&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bukkit.getScheduler().runTask(plugin,<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; new Runnable() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public void run() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Thread.sleep(7000);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } catch (InterruptedException e) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; endRound();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; endRound();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; });<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }/* end if */<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }/* end out if */<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }/* end winner if */<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }/* end for */<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }/* end while */<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_Bb4'));">复制代码</em></div><br />
+Protector:<br />
+<div class="blockcode"><div id="code_V9T"><ol><li>package arena.listeners;<br />
+<li><br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.Material;<br />
+<li>import org.bukkit.entity.EntityType;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li>import org.bukkit.event.EventHandler;<br />
+<li>import org.bukkit.event.EventPriority;<br />
+<li>import org.bukkit.event.Listener;<br />
+<li>import org.bukkit.event.block.BlockBreakEvent;<br />
+<li>import org.bukkit.event.block.BlockPlaceEvent;<br />
+<li>import org.bukkit.event.entity.EntityDamageEvent;<br />
+<li>import org.bukkit.event.entity.FoodLevelChangeEvent;<br />
+<li>import org.bukkit.event.player.PlayerDropItemEvent;<br />
+<li>import org.bukkit.event.player.PlayerMoveEvent;<br />
+<li><br />
+<li>import plugin.Speelf;<br />
+<li>import arena.Arena;<br />
+<li>import arena.data.ArenaStatus;<br />
+<li>import arena.messages.Message;<br />
+<li><br />
+<li>public class Protector implements Listener {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Speelf plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Protector(Speelf speelf) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin = speelf;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerBreakBlock(BlockBreakEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getPlayer() == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Player p = event.getPlayer();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getArenas().isPlaying(p.getName())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = plugin.getArenas().getArenaByPlayer(p.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena.getStatus() == ArenaStatus.InGame) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getBlock().getType() == Material.SNOW_BLOCK){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.getArenas().getArenaByPlayer(event.getPlayer().getName()).<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; getGroundHandler().addBlock(event.getBlock().getLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getBlock().breakNaturally(null); //TODO may not true<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //plugin.performOutPut(&quot;[BlockBreakEvent] by &quot;+event.getPlayer().getName()+&quot; accept.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerDamage(EntityDamageEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getEntity() == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getEntity() instanceof Player) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getArenas().isPlaying(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ((Player) event.getEntity()).getName()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerDropItems(PlayerDropItemEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(!plugin.getArenas().isPlaying(event.getPlayer().getName()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!event.getPlayer().hasPermission(&quot;speelf.cde&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void BlockPlace(BlockPlaceEvent event){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isPlaying(event.getPlayer().getName())){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerLoseFoodLevel(FoodLevelChangeEvent event){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(event.getEntityType()!=EntityType.PLAYER)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Player p=(Player)event.getEntity();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isPlaying(p.getName())){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; p.setFoodLevel(20);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler(priority = EventPriority.LOWEST)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerMoveOutFromArenaArea(PlayerMoveEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location loc = event.getTo();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getArenas().isPlaying(event.getPlayer().getName())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena hda = plugin.getArenas().getArenaByPlayer(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(!hda.isInThisArena(loc)){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.stayInArena);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerBreakBlockFromOtherPlaces(BlockBreakEvent event){//TODO<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(event.getPlayer()==null)return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isInAnyArena(event.getBlock().getLocation())){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena a=plugin.getArenas().get(event.getBlock().getLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(a.getStatus()==ArenaStatus.OpEdit&amp;&amp;event.getPlayer().hasPermission(&quot;speelf.cde&quot;))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isPlaying(event.getPlayer().getName()))return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.cannotBreakBlock);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void PlayerPlaceBlockFromOtherPlaces(BlockPlaceEvent event){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(event.getPlayer()==null)return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isInAnyArena(event.getBlock().getLocation())){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena a=plugin.getArenas().get(event.getBlock().getLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(a.getStatus()==ArenaStatus.OpEdit&amp;&amp;event.getPlayer().hasPermission(&quot;speelf.cde&quot;))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(plugin.getArenas().isPlaying(event.getPlayer().getName()))return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.cannotPlaceBlock);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_V9T'));">复制代码</em></div><br />
+Message:<br />
+<div class="blockcode"><div id="code_l2f"><ol><li>package arena.messages;<br />
+<li><br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.entity.Player;<br />
+<li><br />
+<li>import arena.Arena;<br />
+<li><br />
+<li>public class Message {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String stayInArena = ChatColor.RED + &quot;Stay in arena! You can not leave it!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String noPermission = &quot;§cYou have no permission for this!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String EDEditMod = ChatColor.YELLOW+&quot;Enable/Disable edit mod.&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String leave = &quot;§aYou left [arenaname]!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String join = &quot;§aYou joined [arenaname]!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String arenaNotFound = &quot;§cArena not found!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String finish = ChatColor.GRAY + &quot;Command finish!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String wrongArgs = &quot;§cWrong args!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String arenaCleanedByOp = &quot;§aThis arena is closed by a op!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String gameStart = &quot;§cGame start!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String startingIn1Min = ChatColor.RED + &quot;1&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + ChatColor.YELLOW + &quot; minute until the game start.&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final static String signDeleted = ChatColor.GRAY<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + &quot;Sign break successfully&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public static final String cannotBreakBlock = ChatColor.RED + &quot;You can not break the block there!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public static final String cannotPlaceBlock = ChatColor.RED + &quot;You can not place the block there!&quot;;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final ChatColor waringColor=ChatColor.RED;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final ChatColor acceptColor=ChatColor.GREEN;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final ChatColor messageColor=ChatColor.YELLOW;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public final ChatColor otherColor=ChatColor.GRAY;<br />
+<li>}</ol></div><em onclick="copycode($('code_l2f'));">复制代码</em></div><br />
+MapHandler:<br />
+<div class="blockcode"><div id="code_sFK"><ol><li>package arena.reset.map;<br />
+<li><br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.Material;<br />
+<li>import plugin.Speelf;<br />
+<li>import arena.Arena;<br />
+<li><br />
+<li>public class MapHandler {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; SnowBlockDataReporter rpt = new SnowBlockDataReporter();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Speelf plugin;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Arena handleArena = null;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public MapHandler(Speelf p, Arena ha) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin = p;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena = ha;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; /*@EventHandler(priority = EventPriority.HIGH)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void remember(BlockBreakEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getPlayer() == null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; System.out.print(&quot;RMB &quot;+event.getBlock().getType().name());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getBlock().getType() == Material.SNOW_BLOCK) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; System.out.print(&quot;RMB1 &quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getArenas()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .getArenaByPlayer(event.getPlayer().getName()) == handleArena) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; System.out.print(&quot;RMB2&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (handleArena.isStarted()) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; System.out.print(&quot;RMB&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rpt.push(event.getBlock().getLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }*/<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void reset() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Bukkit.getLogger().info(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;Cleaning up speelf arena:&quot; + handleArena.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; new Thread(new Runnable() {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; public void run() {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; while (!rpt.isEmpty())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rpt.pop().getBlock().setType(Material.SNOW_BLOCK);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.performOutPut(&quot;Finish cleaning up speelf arena:&quot; + handleArena.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }).start();<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void setHandleArena(Arena arena) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; handleArena = arena;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void addBlock(Location location) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rpt.push(location);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_sFK'));">复制代码</em></div><br />
+SBR:<br />
+<div class="blockcode"><div id="code_Z76"><ol><li>package arena.reset.map;<br />
+<li><br />
+<li>import java.util.ArrayList;<br />
+<li>import java.util.List;<br />
+<li><br />
+<li>import org.bukkit.Location;<br />
+<li><br />
+<li>public class SnowBlockDataReporter {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; List&lt;Location&gt; locs = new ArrayList&lt;Location&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int num = 0;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location get(int i) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (i &gt;= num || i &lt; 0)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return locs.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean isEmpty() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (num == 0)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public Location pop() {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (isEmpty())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Location loc = get(num - 1);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; locs.remove(num - 1);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return loc;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void push(Location loc) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (loc != null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; locs.add(loc);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num++;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Z76'));">复制代码</em></div>SignEditor:<br />
+<div class="blockcode"><div id="code_kA1"><ol><li>package sign;<br />
+<li><br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.block.Sign;<br />
+<li>import org.bukkit.event.block.SignChangeEvent;<br />
+<li><br />
+<li>import sign.types.JoinSign;<br />
+<li>import arena.Arena;<br />
+<li>import arena.data.ArenaStatus;<br />
+<li><br />
+<li>public class SignEditor {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; // TODO<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public static void paint(JoinSign js) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = js.to();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Sign sign = js.getSign();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!arena.checkWork()) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(0, ChatColor.RED + &quot;[Speelf]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(1, ChatColor.GRAY + arena.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(2, ChatColor.GRAY + &quot;coming soon&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(3, &quot;=========&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.update();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ArenaStatus as = arena.getStatus();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(0, ChatColor.RED + &quot;[Speelf]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(1, ChatColor.GRAY + arena.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(2, ChatColor.RED + as.toString());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.setLine(3, ChatColor.YELLOW + &quot;[&quot; + arena.getPlayerCount() + &quot;/&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + arena.getMaxPlayer() + &quot;]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sign.update();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}</ol></div><em onclick="copycode($('code_kA1'));">复制代码</em></div><br />
+SignHandler:<br />
+<div class="blockcode"><div id="code_VxW"><ol><li>package sign;<br />
+<li><br />
+<li>import org.bukkit.ChatColor;<br />
+<li>import org.bukkit.block.Sign;<br />
+<li>import org.bukkit.event.EventHandler;<br />
+<li>import org.bukkit.event.EventPriority;<br />
+<li>import org.bukkit.event.Listener;<br />
+<li>import org.bukkit.event.block.Action;<br />
+<li>import org.bukkit.event.block.BlockBreakEvent;<br />
+<li>import org.bukkit.event.block.SignChangeEvent;<br />
+<li>import org.bukkit.event.player.PlayerInteractEvent;<br />
+<li><br />
+<li>import plugin.Speelf;<br />
+<li>import sign.types.JoinSign;<br />
+<li>import sign.types.LeaveSign;<br />
+<li>import sign.types.TpSign;<br />
+<li>import arena.Arena;<br />
+<li>import arena.messages.Message;<br />
+<li><br />
+<li>public class SignHandler implements Listener {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Speelf plugin;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public SignHandler(Speelf p) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin = p;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void onPlayerBreakBlock(BlockBreakEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getBlock().getState() instanceof Sign) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getSignManager().has(event.getBlock().getLocation())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getPlayer().hasPermission(&quot;speelf.cde&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getSignManager()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .get((Sign) event.getBlock().getState()).getType() == TpSign.JOIN) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.getSignManager()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .get((Sign) event.getBlock().getState())<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .to()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .deleteJoinSign(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; (Sign) event.getBlock().getState());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.getSignManager().unLoad(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; (Sign) event.getBlock().getState());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ChatColor.GRAY + &quot;Sign broked successfully&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getBlock().breakNaturally();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.noPermission);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void onPlayerClickTeleportSign(PlayerInteractEvent event) {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // TODO<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getClickedBlock() == null) // TODO<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!event.getAction().equals(Action.RIGHT_CLICK_BLOCK))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getClickedBlock().getState() instanceof Sign) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (plugin.getSignManager().has(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getClickedBlock().getLocation())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; TpSign sig = plugin.getSignManager().get(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; (Sign) event.getClickedBlock().getState());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (sig.getType() == TpSign.JOIN) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JoinSign js = (JoinSign) sig;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (js.to().checkJoin() == false)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; js.to().add(event.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().teleport(js.to().getTeleportLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ChatColor.GRAY + &quot;You joined this arena.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; js.to().getGameRuleHandler()<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .playerJoined(event.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; js.to().paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LeaveSign ls = (LeaveSign) sig;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ls.to().leave(event.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().teleport(ls.to().getReturnLocation());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ChatColor.GRAY + &quot;You left this arena.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ls.to().getGameRuleHandler().playerLeft(event.getPlayer());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ls.to().paintAllSigns();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler(priority = EventPriority.HIGH)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void onPlayerWritingOnSign(SignChangeEvent event) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Sign sig = (Sign) event.getBlock().getState();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getLine(0).equalsIgnoreCase(&quot;[speelf]&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!event.getPlayer().hasPermission(&quot;speelf.cde&quot;)) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.noPermission);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getBlock().breakNaturally();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; String arenanam = event.getLine(2);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getLine(1).equalsIgnoreCase(&quot;join&quot;)) { // join<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = plugin.getArenas().get(arenanam);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getBlock().breakNaturally();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JoinSign js = new JoinSign(arena, sig);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; arena.addJoinSign(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.getSignManager().regist(js);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setLine(0, ChatColor.RED + &quot;[Speelf]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setLine(1, ChatColor.GRAY + arena.getName());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setLine(2, ChatColor.GRAY + arena.getStatus().toString());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.setLine(3,<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ChatColor.YELLOW + &quot;[&quot; + arena.getPlayerCount() + &quot;/&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; + arena.getMaxPlayer() + &quot;]&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (event.getLine(1).equalsIgnoreCase(&quot;leave&quot;)) { // leave<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Arena arena = plugin.getArenas().get(arenanam);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (arena == null) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.arenaNotFound);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LeaveSign ls = new LeaveSign(arena, sig);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; plugin.getSignManager().regist(ls);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO ls.paint();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; event.getPlayer().sendMessage(Message.finish);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_VxW'));">复制代码</em></div><br />
+SignManager:<br />
+<div class="blockcode"><div id="code_yGT"><ol><li>package sign;<br />
+<li><br />
+<li>import java.util.ArrayList;<br />
+<li>import java.util.List;<br />
+<li><br />
+<li>import org.bukkit.Location;<br />
+<li>import org.bukkit.block.Sign;<br />
+<li><br />
+<li>import sign.types.JoinSign;<br />
+<li>import sign.types.TpSign;<br />
+<li><br />
+<li>public class SignManager {<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; List&lt;TpSign&gt; signs = new ArrayList&lt;TpSign&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; int num = 0;<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void regist(TpSign sig) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signs.add(num, sig);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num++;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void unLoad(JoinSign j) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (signs.get(i) == j) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signs.remove(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public void unLoad(Sign sig) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (signs.get(i).getSign().getLocation().equals(sig.getLocation())) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; num--;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; signs.remove(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public TpSign get(Sign sig) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (signs.get(i).getSign().getLocation().equals(sig.getLocation()))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return signs.get(i);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public List&lt;TpSign&gt; getAll(String arenanam) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; List&lt;TpSign&gt; ret = new ArrayList&lt;TpSign&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (signs.get(i).to().getName().equalsIgnoreCase(arenanam))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ret.add(signs.get(i));<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return ret;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public boolean has(Location location) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; num; i++) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (signs.get(i).getSign().getLocation().equals(location))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_yGT'));">复制代码</em></div><br />
+
+<br />
+sign。types：<br />
+JoinSign<br />
+LeaveSign<br />
+<br />
+(现在这个插件没有离开场地的功能。。)<br />
+<br />
+<br />
+<br />
+
+<ignore_js_op>
+<dl class="tattl">
+<dt>
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+</dt>
+<dd>
+<p class="attnm">
+
+<a href="forum.php?mod=attachment&amp;aid=NjY5ODQzfDI0NDE1YTc4fDE2MTM4MzE1MzV8MjQxOTQ4NnwzNjgxNTg%3D" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid669843" target="_blank">src.rar</a>
+
+<div class="tip tip_4" id="aid669843_menu" style="display: none" disautofocus="true">
+<div class="tip_c">
+<p class="y">2015-2-4 13:44 上传</p>
+<p>点击文件名下载附件</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+</p>
+<p>16.34 KB, 阅读权限: <strong>20</strong>, 下载次数: 128</p>
+<p>
+
+</p>
+
+
+</dd>
+</dl>
+</ignore_js_op>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RAY5DHao&nbsp; &nbsp; <b>时间: </b>2014-11-23 12:01<br />
+SPLEEF插件不是已经有了么??<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fatezero&nbsp; &nbsp; <b>时间: </b>2014-11-23 12:21<br />
+不是已经有 吗{:10_492:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>741410550&nbsp; &nbsp; <b>时间: </b>2015-1-18 11:58<br />
+{:10_527:}有为什么还做啊&nbsp;&nbsp;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>4one_R&nbsp; &nbsp; <b>时间: </b>2015-1-19 19:54<br />
+支持原创！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Grandiose&nbsp; &nbsp; <b>时间: </b>2015-1-19 22:35<br />
+这个早就有人写过了吧？。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2015-1-31 19:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=7389074&amp;ptid=368158" target="_blank"><font color="#999999">Grandiose 发表于 2015-1-19 22:35</font></a></font><br />
+这个早就有人写过了吧？。。</blockquote></div><br />
+是啊但第一次写想着应该比较简单<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2015-2-4 13:46<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=7495512&amp;ptid=368158" target="_blank"><font color="#999999">胡晨晓 发表于 2015-1-31 19:01</font></a></font><br />
+是啊但第一次写想着应该比较简单</blockquote></div><br />
+更完了（十个字）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2015-2-4 13:51<br />
+突然之间有一股想水的冲动<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2015-2-4 13:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=7533867&amp;ptid=368158" target="_blank"><font color="#999999">胡晨晓 发表于 2015-2-4 13:51</font></a></font><br />
+突然之间有一股想水的冲动</blockquote></div><br />
+让我再水一次（就一次）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hineven&nbsp; &nbsp; <b>时间: </b>2015-2-4 13:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=7533879&amp;ptid=368158" target="_blank"><font color="#999999">胡晨晓 发表于 2015-2-4 13:52</font></a></font><br />
+让我再水一次（就一次）</blockquote></div><br />
+再水一下应该也没问题吧
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

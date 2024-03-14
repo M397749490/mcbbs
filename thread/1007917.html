@@ -1,0 +1,121 @@
+<html>
+<head>
+<title>Minecraft 服务端权限上下文系统及其应用 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Minecraft 服务端权限上下文系统及其应用 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>土球球&nbsp; &nbsp; <b>时间: </b>2020-4-5 09:56<br />
+<b>标题: </b>Minecraft 服务端权限上下文系统及其应用<br /><i class="pstatus"> 本帖最后由 土球球 于 2020-4-5 09:56 编辑 </i><br />
+<br />
+<font style="font-size:32px"><strong>Minecraft 服务端权限上下文系统及其应用</strong></font><br />
+<br />
+<font style="font-size:16px">权限上下文系统（英文名称 Permission Context），是一个在服务端插件开发的部分领域，有着不可或缺的重要作用的系统，但一直以来未得到广大开发者甚至服务端维护者的重视。不过，权限上下文系统已经在很多地方得到了支持。</font><br />
+<br />
+<font style="font-size:16px"><ul><li>Sponge API 的权限系统自带权限上下文系统的支持。<li>LuckPerms API 自带权限上下文系统的支持，并支持你听说过的几乎所有插件服务端。<br />
+</ul></font><br />
+<font style="font-size:16px">一方面，考虑到本人只会写 Sponge 插件，因此后续内容将基于 Sponge API。另一方面，考虑到今年已经是 9102 年的第二年，不太可能还有人不在自己的服务端中添加并使用 LuckPerms，因此，本文内容主要使用 LuckPerms 5.0 API 完成。读者可参照 <a href="https://github.com/lucko/LuckPerms/wiki/Developer-API" target="_blank">Wiki 页面</a>完成项目对 LuckPerms 5.0 API 的依赖设置。</font><br />
+<br />
+<font style="font-size:24px"><strong>引言</strong></font><br />
+<br />
+<font style="font-size:16px">很多开发者甚至服务器维护者可能都有为玩家在特定场合赋予权限的需求，比如说：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>当玩家在某个特定的领地时拥有 pvp 权限，而在其他地方没有。<li>玩家在特定时间段有执行某些特定命令的权限，而在其他时间段没有。<br />
+</ul></font><br />
+<font style="font-size:16px">我们把上面提到的“特定领地”、“特定时间段”，统称为玩家所处的上下文。那我们如何构造这样的上下文呢？</font><br />
+<br />
+<font style="font-size:16px">一个常见的思路是在玩家进入领地时为玩家赋予权限，并在玩家离开领地时取消权限。这样做也不是不可行，但是一个值得考虑的问题就是：我们需要<strong>确保</strong>玩家在进出领地时权限能够正常切换，甚至 1 tick 的差错都不能有。</font><br />
+<br />
+<font style="font-size:16px">然而，由于以下几个问题，这一目标实际上很难做到：</font><br />
+<br />
+<font style="font-size:16px"><ul type="1" class="litype_1"><li>我们要求我们需要在监听相关事件方面滴水不漏，不能有差错。<li>目前权限设置大多需要后台文件操作或数据库操作，因而不可能没有延迟。<li>我们需要编辑插件配置才能让插件知道哪些权限需要这样，而这理应是权限插件的事。<br />
+</ul></font><br />
+<font style="font-size:16px">我们不妨换个角度思考问题。我们既然不能准确把握切换上下文的时间点，那我们在检查权限的时候去动态获知上下文不就好了？众所周知，插件通常情况下使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">hasPermission</font></font> 方法来检查权限，而该方法将会直接关联到权限插件执行进一步操作。因此，只要有权限插件的适当配合，我们就一定能够“稳、准、狠”地完成目标。</font><br />
+<br />
+<font style="font-size:16px">以上便是权限上下文系统的理论基础。</font><br />
+<br />
+<font style="font-size:24px"><strong>上下文对象</strong></font><br />
+<br />
+<font style="font-size:16px">LuckPerms 规定，上下文对象由键值对构成，比如说：</font><br />
+<br />
+<font style="font-size:16px"><ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">world=world-nether</font></font> 代表当前玩家正处于下界。<li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">server=global</font></font> 代表当前玩家正处于 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">global</font></font> 服务器内（名称可由 LuckPerms 配置文件修改）。<br />
+</ul></font><br />
+<font style="font-size:16px">而当我们输入以下命令时：</font><br />
+<br />
+<div class="quote"><blockquote><font style="font-size:16px"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">/lp group default permission set minecraft.command.tp world=world-nether</font></font></font></blockquote></div><br />
+<font style="font-size:16px">我们便指定了使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">/tp</font></font> 命令的权限只会在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">world=world-nether</font></font> 存在时生效。由于该权限的设置是自带上下文的，因此我们便可以轻易地确保玩家只有在下界的时候才能使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">/tp</font></font> 指令。</font><br />
+<br />
+<font style="font-size:16px">如果使用 LuckPerms API 添加权限节点，以下是我们的代码：</font><br />
+<br />
+<div class="blockcode"><div id="code_aoO"><ol><li>import net.luckperms.api.LuckPermsProvider;<br />
+<li>import net.luckperms.api.node.Node;<br />
+<li><br />
+<li>import java.util.Objects;<br />
+<li><br />
+<li>Objects.requireNonNull(LuckPermsProvider.get().getGroupManager().getGroup(&quot;default&quot;)).data()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.add(Node.builder(&quot;minecraft.command.tp&quot;).withContext(&quot;world&quot;, &quot;world-nether&quot;).build());</ol></div><em onclick="copycode($('code_aoO'));">复制代码</em></div><br />
+<font style="font-size:24px"><strong>自定义上下文</strong></font><br />
+<br />
+<font style="font-size:16px">LuckPerms 提供了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">server</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">world</font></font> 两个上下文对象，但作为插件开发者，我们更需要的是我们自己的上下文，比如说刚才提到的“特定领地”、“特定时间段”、等等。</font><br />
+<br />
+<font style="font-size:16px">LuckPerms 为我们提供了注册 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ContextCalculator</font></font> 的方式。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ContextCalculator</font></font> 接口声明了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">calculate</font></font> 方法，而该方**在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">hasPermission</font></font> 调用时调用。因此，我们可以在该方法内部动态地收集上下文。</font><br />
+<br />
+<font style="font-size:16px"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ContextCalculator</font></font> 接口需要提供一个泛型参数：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>对于 Bukkit 它是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">org.bukkit.entity.Player</font></font>。<li>对于 Sponge 它是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">org.spongepowered.api.service.permission.Subject</font></font>。<li>对于 BungeeCord 它是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">net.md_5.bungee.api.connection.ProxiedPlayer</font></font>。<br />
+</ul></font><br />
+<font style="font-size:16px">下面的代码实现了玩家在距离出生点 40 格以内时自动添加 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">player-near-spawn=true</font></font> 上下文（Sponge 的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Subject</font></font> 需要一些操作才能转换到 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Player</font></font>，对于 Bukkit 和 BungeeCord 不需要）：</font><br />
+<br />
+<div class="blockcode"><div id="code_Ovp"><ol><li>import com.flowpowered.math.vector.Vector3d;<br />
+<li>import net.luckperms.api.LuckPermsProvider;<br />
+<li>import net.luckperms.api.context.ContextCalculator;<br />
+<li>import net.luckperms.api.context.ContextConsumer;<br />
+<li>import org.spongepowered.api.entity.living.player.Player;<br />
+<li>import org.spongepowered.api.service.permission.Subject;<br />
+<li>import org.spongepowered.api.util.annotation.NonnullByDefault;<br />
+<li><br />
+<li>import java.util.Optional;<br />
+<li><br />
+<li>LuckPermsProvider.get().getContextManager().registerCalculator(new SubjectContextCalculator());<br />
+<li><br />
+<li>public static class SubjectContextCalculator implements ContextCalculator&lt;Subject&gt;<br />
+<li>{<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void calculate(Subject subject, ContextConsumer accumulator)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Optional&lt;?&gt; sourceOptional = subject.getCommandSource();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (sourceOptional.isPresent() &amp;&amp; sourceOptional.get() instanceof Player)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.calculatePlayer(accumulator, (Player) sourceOptional.get());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private void calculatePlayer(ContextConsumer accumulator, Player player)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Vector3d playerPosition = player.getPosition();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Vector3d spawnPosition = player.getWorld().getProperties().getSpawnPosition().toDouble();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (playerPosition.distance(spawnPosition) &lt;= 40)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;accumulator.accept(&quot;player-near-spawn&quot;, &quot;true&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Ovp'));">复制代码</em></div><br />
+<font style="font-size:16px">LuckPerms 要求所有 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ContextCalculator</font></font> 的实现满足两点：</font><br />
+<br />
+<font style="font-size:16px"><ul><li><font style="font-size:16px">执行效率：<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">calculate</font></font> 方法</font><font style="font-size:16px">会被频繁调用，因此相应实现应尽可能快速。</font><li><font style="font-size:16px">线程安全：由于 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">hasPermission</font></font> 会被不同的线程调用，因此实现必须保证线程安全。</font><br />
+</ul></font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sun弑星&nbsp; &nbsp; <b>时间: </b>2020-4-6 22:36<br />
+谢谢大佬<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>梦回繁华ac&nbsp; &nbsp; <b>时间: </b>2020-4-7 08:13<br />
+666666666666666666666666
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

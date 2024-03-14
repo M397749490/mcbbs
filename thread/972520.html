@@ -1,0 +1,170 @@
+<html>
+<head>
+<title>[45w#65]爬 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[45w#65]爬 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>45gfg9&nbsp; &nbsp; <b>时间: </b>2020-2-29 17:26<br />
+<b>标题: </b>[45w#65]爬<br /><i class="pstatus"> 本帖最后由 45gfg9 于 2020-2-29 18:32 编辑 </i><br />
+<br />
+<font size="3"><div align="center">本帖联动：<a href="thread.html?t=972505" target="_blank">「ALW#244」我写了个特别垃圾的自动翻到对应教材的程序（无聊之作</a></div><br />
+<br />
+<div class="quote"><blockquote>教育部放出了各个教材怎么能不用呢？<br />
+但是那个网页实在是太长，翻着找麻烦<br />
+所以...</blockquote></div><br />
+看到了 然后就在想<br />
+好巧 我也写了一个！<br />
+但是只爬高中课本 懒得写其他的x<br />
+作用就是把所有pdf下载到文件夹里分类<br />
+<br />
+<br />
+运行环境 Python3<br />
+<br />
+参数：<br />
+MAX_THREADS 最大线程数 (int)<br />
+TEACHERS_BOOK 选择教师教学用书(bool) (False为教科书)<br />
+<br />
+记得pip install -U pyquery retry<br />
+<pre><code class="language-py">import os<br />
+import time<br />
+from threading import Thread<br />
+from urllib import parse, request<br />
+<br />
+from retry import retry<br />
+from pyquery import PyQuery as pq<br />
+<br />
+import ssl<br />
+ssl._create_default_https_context = ssl._create_unverified_context<br />
+del ssl<br />
+<br />
+TEACHERS_BOOK = False<br />
+MAX_THREADS = 16<br />
+<br />
+books_pending = []<br />
+threads_running = []<br />
+books_failed = []<br />
+<br />
+FOLDER_NAME = 'books'<br />
+os.makedirs(FOLDER_NAME, exist_ok=True)<br />
+os.chdir(FOLDER_NAME)<br />
+<br />
+end = False<br />
+<br />
+def downloadManager():<br />
+&nbsp; &nbsp; while True:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while books_pending and len(threads_running) &lt; MAX_THREADS:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;furl, subj, fname = books_pending.pop(0)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;thread = Thread(target=download, args=(furl, subj, fname))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;thread.start()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;threads_running.append(thread)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if threads_running:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for thread in threads_running:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if not thread.is_alive():<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;threads_running.remove(thread)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if end and not books_pending and not threads_running:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;time.sleep(0.1)<br />
+<br />
+def download(url, subj, bname):<br />
+&nbsp; &nbsp; ERRORS = (ConnectionError, OSError)<br />
+&nbsp; &nbsp; @retry(ERRORS, tries=3)<br />
+&nbsp; &nbsp; def idw():<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;print('Downloading', bname)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;request.urlretrieve(url, filename=f'{subj}/{bname}.pdf')<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;print('Downloaded', bname)<br />
+<br />
+&nbsp; &nbsp; try:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;idw()<br />
+&nbsp; &nbsp; except ERRORS:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;print(f'Download {bname} failed.')<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;books_failed.append(bname)<br />
+<br />
+def main():<br />
+&nbsp; &nbsp; global end<br />
+&nbsp; &nbsp; url = 'https://bp.pep.com.cn/jc/'<br />
+&nbsp; &nbsp; print('Starting download manager thread')<br />
+&nbsp; &nbsp; dmgr = Thread(target=downloadManager)<br />
+&nbsp; &nbsp; dmgr.start()<br />
+<br />
+&nbsp; &nbsp; try:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;doc = pq(str(request.urlopen(url).read(), encoding='utf-8'))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;rootDiv = doc('div.list_sjzl_jcdzs2020')[6]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;uls = rootDiv.findall('ul')<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;lis = map(lambda e: e.findall('li')[1 if TEACHERS_BOOK else 0], uls)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;tas = map(lambda e: e.find('a'), lis)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;uris = map(lambda e: (e.text, e.get('href')), tas)<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for typ, uri in uris:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;os.makedirs(typ, exist_ok=True)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;surl = parse.urljoin(url, uri)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sub = pq(str(request.urlopen(surl).read(), encoding='utf-8'))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;uls = sub('ul')<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for ul in uls:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lis = ul.findall('li')<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ats = map(lambda e: e.find('a').get('title'), lis)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; divs = map(lambda e: e.find('div'), lis)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; buris = map(lambda e: e.findall('a')[1].get('href'), divs)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for at, buri in zip(ats, buris):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dest = parse.urljoin(surl, buri)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;books_pending.append((dest, typ, at))<br />
+&nbsp; &nbsp; finally:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;end = True<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dmgr.join()<br />
+<br />
+if __name__ == '__main__':<br />
+&nbsp; &nbsp; main()</code></pre><br />
+<br />
+运行方法：复制粘贴到py文件里运行<br />
+啥？你想要exe？<br />
+没有 懒得打包（跑）<br />
+不要吐槽，我是垃圾<br />
+<br />
+</font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>心愿愿&nbsp; &nbsp; <b>时间: </b>2020-2-29 17:28<br />
+你们怎么都会写程序的<br />
+也许我应该去学一下py了（X)<br />
+<br />
+发光的木板（X<br />
+发光的箱子（√<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mohui666&nbsp; &nbsp; <b>时间: </b>2020-2-29 17:29<br />
+发光的木板<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小丛雨&nbsp; &nbsp; <b>时间: </b>2020-2-29 17:34<br />
+发光木板+1<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>依喏嗨~&nbsp; &nbsp; <b>时间: </b>2020-2-29 17:37<br />
+不说了都是真大佬，感谢大佬的资源了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>索菲缇娅&nbsp; &nbsp; <b>时间: </b>2020-2-29 18:07<br />
+我想写个C#版的...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>草&nbsp; &nbsp; <b>时间: </b>2020-2-29 18:19<br />
+爬草<br />
+虽说我用不着..<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>莉莉霍瓦特&nbsp; &nbsp; <b>时间: </b>2020-2-29 18:23<br />
+都给我爬！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w841488655&nbsp; &nbsp; <b>时间: </b>2020-2-29 18:24<br />
+发光木板可以<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Оil&nbsp; &nbsp; <b>时间: </b>2020-2-29 21:23<br />
+在？<br />
+<br />
+选项为什么没有45可爱？【恼】<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>樱千落妖精&nbsp; &nbsp; <b>时间: </b>2020-2-29 21:34<br />
+不愧是大佬，解决了我没有课本的困难<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Maki_Best&nbsp; &nbsp; <b>时间: </b>2020-2-29 21:38<br />
+…签名档好评。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>42313123123123&nbsp; &nbsp; <b>时间: </b>2020-2-29 21:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16645284&amp;ptid=972520" target="_blank"><font color="#999999">樱千落妖精 发表于 2020-2-29 21:34</font></a></font><br />
+不愧是大佬，解决了我没有课本的困难</blockquote></div><br />
+我们发了课本<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天空的大楼&nbsp; &nbsp; <b>时间: </b>2020-2-29 21:46<br />
+哈，看来这程序还是个奇怪的程序，我现在还不是能看明白代码的人。只选了c。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>柒日良&nbsp; &nbsp; <b>时间: </b>2020-3-20 11:38<br />
+大佬的無聊之作果然就是不同級別……<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

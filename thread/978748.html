@@ -1,0 +1,94 @@
+<html>
+<head>
+<title>1.15.2 Forge通信 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.15.2 Forge通信 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>肥洋洋&nbsp; &nbsp; <b>时间: </b>2020-3-7 00:31<br />
+<b>标题: </b>1.15.2 Forge通信<br />求助如何在1.15.2正确的使用Forge通信(旧版本貌似用不了).<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><br />
+<br />
+客户端提示[Netty Client IO #2/ERROR] [ne.mi.fm.ne.NetworkRegistry/NETREGISTRY]: Channels [totur:keyclient] rejected vanilla connections<br />
+附代码<br />
+<div class="blockcode"><div id="code_UD0"><ol><li><br />
+<li>&nbsp; &nbsp; private final String PROTOCOL_VERSION = &quot;1&quot;;<br />
+<li>&nbsp; &nbsp; private int id = 555555;<br />
+<li>&nbsp; &nbsp; public SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;new ResourceLocation(Totur.MODID, &quot;keyclient&quot;),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;() -&gt; PROTOCOL_VERSION,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PROTOCOL_VERSION::equals,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PROTOCOL_VERSION::equals<br />
+<li>&nbsp; &nbsp; );<br />
+<li>&nbsp; &nbsp; public ToturNetwork() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;INSTANCE.registerMessage(id++, String.class, this::enc, this::dec, this::proc);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private void enc(String str, PacketBuffer buffer) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Totur.LOGGER.info(&quot;enc=&quot;+str);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buffer.writeBytes(str.getBytes(StandardCharsets.UTF_8));<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private String dec(PacketBuffer buffer) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Totur.LOGGER.info(&quot;dec=&quot;+buffer.readString());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return buffer.toString(StandardCharsets.UTF_8);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private void proc(String str, Supplier&lt;NetworkEvent.Context&gt; supplier) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(str);<br />
+<li>//&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;NetworkEvent.Context context = supplier.get();<br />
+<li>//&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;context.setPacketHandled(true);<br />
+<li>//&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CHANNEL.reply(&quot;client hello&quot;, context);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void sendToServer(ToturMessage toturMessage) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;INSTANCE.sendToServer(toturMessage.toByteBuf());<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_UD0'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2020-3-7 02:03<br />
+<i class="pstatus"> 本帖最后由 3TUSK 于 2020-3-7 02:08 编辑 </i><br />
+<div class="blockcode"><div id="code_Goy"><ol><li>public SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(<br />
+<li>&nbsp; &nbsp; new ResourceLocation(Totur.MODID, &quot;keyclient&quot;),<br />
+<li>&nbsp; &nbsp; () -&gt; PROTOCOL_VERSION,<br />
+<li>&nbsp; &nbsp; PROTOCOL_VERSION::equals, // 这一个用于在客户端检查服务器声称的协议版本<br />
+<li>&nbsp; &nbsp; PROTOCOL_VERSION::equals // 这一个用于在服务器检查客户端声称的协议版本<br />
+<li>);</ol></div><em onclick="copycode($('code_Goy'));">复制代码</em></div><br />
+你两个版本检查都是直接写了全字匹配（String.equals）。<br />
+原版客户端大抵是不能处理你的信道的，所以你要检查的是协议版本是不是以 `ALLOWVANILLA` 开头。<br />
+<div class="blockcode"><div id="code_kc0"><ol><li>public SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(<br />
+<li>&nbsp; &nbsp; new ResourceLocation(Totur.MODID, &quot;keyclient&quot;),<br />
+<li>&nbsp; &nbsp; () -&gt; PROTOCOL_VERSION,<br />
+<li>&nbsp; &nbsp; PROTOCOL_VERSION::equals, // 这一个用于在客户端检查服务器声称的协议版本<br />
+<li>&nbsp; &nbsp; clientProtocol -&gt; PROTOCOL_VERSION.equals(clientProtocol) || clientProtocol.startsWith(&quot;ALLOWVANILLA&quot;) // 这一个用于在服务器检查客户端声称的协议版本<br />
+<li>);</ol></div><em onclick="copycode($('code_kc0'));">复制代码</em></div><br />
+
+<br />
+<hr class="l" /><br />
+<br />
+mcbbs 迄今不支持输入 emoji（截至 2020 年 3 月 7 日 02:10 左右，北京时间）。<br />
+负责论坛技术的同志，麻烦考虑一下更新您的待办清单，不胜感激。<br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+实际上，对于原版服务器/客户端的连接，你指定的两个版本检查会收到的不只是 ALLOWVANILLA，而是：<br />
+<div class="blockcode"><div id="code_ol0"><ol><li>ALLOWVANILLA ????????????</ol></div><em onclick="copycode($('code_ol0'));">复制代码</em></div><br />
+没错，emoji，具体来说是三个 :heartbeat:（U+1F493）。Forge/FML 源码中用了 Surrogate Pair 来表示。<br />
+<div class="blockcode"><div id="code_e5J"><ol><li>&quot;ALLOWVANILLA \uD83D\uDC93\uD83D\uDC93\uD83D\uDC93&quot;</ol></div><em onclick="copycode($('code_e5J'));">复制代码</em></div><br />
+而对于两端同时有 Forge 存在，但仍然缺少通信频道的情况下，则会给出这个协议版本：<br />
+<div class="blockcode"><div id="code_YRE"><ol><li>ABSENT ????</ol></div><em onclick="copycode($('code_YRE'));">复制代码</em></div><br />
+没错，那个 :thinking: emoji（U+1F914）。同样的，在源码中用了 Surrogate Pair 表示。<br />
+<div class="blockcode"><div id="code_XOI"><ol><li>ABSENT \uD83E\uDD14</ol></div><em onclick="copycode($('code_XOI'));">复制代码</em></div><br />
+</td></table></div></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chasing6&nbsp; &nbsp; <b>时间: </b>2020-3-13 14:40<br />
+<br />
+收藏了，说不定能用上
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

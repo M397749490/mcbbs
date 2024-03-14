@@ -1,0 +1,107 @@
+<html>
+<head>
+<title>怎样写出一个1.12.2 - 1.15.2 通用支持的插件 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>怎样写出一个1.12.2 - 1.15.2 通用支持的插件 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-4-19 13:47<br />
+<b>标题: </b>怎样写出一个1.12.2 - 1.15.2 通用支持的插件<br /><i class="pstatus"> 本帖最后由 Karlatemp 于 2020-5-2 17:44 编辑 </i><br />
+<br />
+<font face="consolas"><br />
+<font size="5">怎样写出一个1.12.2 - 1.15.2 通用支持的插件</font><br />
+<br />
+<font size="4">前言</font><br />
+如果你没有使用以下的任何内容，恭喜你，你的插件是1.12.2-1.15.2都能使用的<br />
+<ul><li>使用了 Inventory#getTitle()String;<li>使用了 Block#getType()Material;<li>使用了 ItemStack#getType()Material;<li>使用了 Material.**<br />
+</ul><br />
+<strong>在写支持的时候应该使用 Spigot1.12.2作为依赖核心, 而不是Spigot1.15.2, 并且不要标记 api-version</strong><br />
+<br />
+<font size="4">物品栏(Inventory的判断</font><br />
+你还在用 inv.getTitle().equals(&quot;§bMy inventory&quot;) 进行判断吗，噢，老兄，那可太不妙了<strike>，如果我是你的合作人，我一定会用我那油亮的皮鞋狠狠的踢你的屁股</strike><br />
+而且Inventory#getTitle()String在高版本中已经删除了，你要是直接用的话准 java.lang.NoSuchMethodError<br />
+<br />
+我们创建一个物品栏的时候都是使用 Server.createInventory(null, 9 * 3, &quot;§bKarlatemp's public repo&quot;)<br />
+可你是否有想过最前面的null可以换什么东西呢, 这个地方就直接引用 <a href="thread.html?t=897931" target="_blank">[PCD]关于Inventory的判断与数据的传递</a>了, 这边只给出示例代码<br />
+<div class="blockcode"><div id="code_HB6"><ol><li>class InvHolder implements InventoryHoder {<br />
+<li>&nbsp; &nbsp; static InvHolder INSTANCE = new InvHolder();<br />
+<li>&nbsp; &nbsp; // [implement code]<br />
+<li>}<br />
+<li>public static MyInv implements Listener {<br />
+<li>&nbsp; &nbsp; public static final Inventory INVENTORY = Bukkit.createInventory(InvHolder.INSTANCE, 9 * 3, &quot;§c&quot;);<br />
+<li>&nbsp; &nbsp; @EventHandler(ignoreCancelled = true) void onPlayerClick(InventoryClickEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(event.getInventory().getHolder() instanceof InvHolder) event.setCancelled(true);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_HB6'));">复制代码</em></div><br />
+
+<br />
+<font size="4">物品/方块材质判断</font><br />
+如果只是简单的判断这个方块是不是水, 火, 比如<br />
+<div class="blockcode"><div id="code_NM4"><ol><li>if(block.getType() == Material.FIRE)</ol></div><em onclick="copycode($('code_NM4'));">复制代码</em></div><br />
+那就继续用，没必要对其做怎么，但是！如果这个材质是作为一个主键，加载配置的值的时候！就不应该直接getType了！<br />
+如果你直接getType(), 将会导致各种数据错误！<br />
+我推荐使用 <a href="https://github.com/UntilTheEndDev/UntilTheEnd/tree/master/src/main/java/HamsterYDS/UntilTheEnd/internal/ItemFactory.java" target="_blank">ItemFactory.java</a>, 这是我项目的对于这块数据的各种操作, 我想你会需要他。<br />
+下面是来着该项目的部分代码片段<br />
+<div class="blockcode"><div id="code_CuJ"><ol><li><br />
+<li>&nbsp; &nbsp; public static void loadBlockTemperatures() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (String path : Temperature.yaml.getKeys(true)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (path.startsWith(&quot;blockTemperature.&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int tem = Temperature.yaml.getInt(path);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; path = path.replace(&quot;blockTemperature.&quot;, &quot;&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Material material = ItemFactory.valueOf(path);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Logging.getLogger().info(UTEi18n.parse(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;cap.tem.provider.block.tem.rule&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ItemFactory.toString(material) + &quot;(&quot; + path + &quot;)&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String.valueOf(tem)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; blockTemperatures.put(material, tem);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static double getBlockTemperature(Location loc) {<br />
+<li>// ............................<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block b = l.getBlock();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (b == null) continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Material mt = ItemFactory.getType(b);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Integer tmp = blockTemperatures.get(mt);<br />
+<li>// ............................<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_CuJ'));">复制代码</em></div><br />
+可能有人会问: new ItemStack 不需要吗??????? 我在这里回答, 不需要, 因为 Bukkit 在处理这个的时候已经对其作出了兼容, 直接 new ItemStack 是ok的<br />
+然后判断两个物品是否一样请使用 ItemFactory.isSame 方法 =&gt;<br />
+</font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南外丶仓鼠&nbsp; &nbsp; <b>时间: </b>2020-4-19 15:43<br />
+本人已经多次试水，在此澄清：<br />
+用了Inventory.getTitle().equals(&quot;&quot;)的会被该人屑死（逃<br />
+<br />
+支持教程<br />
+不如你做个前置算了（我爬了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wnk&nbsp; &nbsp; <b>时间: </b>2020-4-26 15:54<br />
+老哥github链接炸了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南外丶仓鼠&nbsp; &nbsp; <b>时间: </b>2020-5-1 21:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17845368&amp;ptid=1023107" target="_blank"><font color="#999999">wnk 发表于 2020-4-26 15:54</font></a></font><br />
+老哥github链接炸了</blockquote></div><br />
+用coding的：<br />
+<a href="https://untiltheend.coding.net/p/UntilTheEnd/d/UntilTheEnd/git/tree/master/src/main/java/HamsterYDS/UntilTheEnd/internal/ItemFactory.java" target="_blank">https://untiltheend.coding.net/p ... al/ItemFactory.java</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>虎牙教授&nbsp; &nbsp; <b>时间: </b>2020-5-2 17:39<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-5-2 17:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17990852&amp;ptid=1023107" target="_blank"><font color="#999999">虎牙教授 发表于 2020-5-2 17:39</font></a></font><br />
+用<br />
+Inventory.getview()这个吧。。</blockquote></div><br />
+Spigot-1.12.2并没有Inv#getView()
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

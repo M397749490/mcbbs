@@ -1,0 +1,184 @@
+<html>
+<head>
+<title>如何编写reload? - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>如何编写reload? <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>25012770130&nbsp; &nbsp; <b>时间: </b>2019-8-27 07:41<br />
+<b>标题: </b>如何编写reload?<br />昨天刚入门。 我搞了一个服务端测试插件 错了就改插件但每次改完都要重启服务器很麻烦， 怎么写一个reload插件指令？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>吕易天&nbsp; &nbsp; <b>时间: </b>2019-8-27 07:54<br />
+用PlugMan插件就行了/plugman reload 插件名<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>25012770130&nbsp; &nbsp; <b>时间: </b>2019-8-27 08:02<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15494910&amp;ptid=908644" target="_blank"><font color="#999999">吕易天 发表于 2019-8-27 07:54</font></a></font><br />
+用PlugMan插件就行了/plugman reload 插件名</blockquote></div><br />
+那自己写呢？ 我想多学点<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>吕易天&nbsp; &nbsp; <b>时间: </b>2019-8-27 08:43<br />
+<i class="pstatus"> 本帖最后由 吕易天 于 2019-8-27 11:20 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15494970&amp;ptid=908644" target="_blank"><font color="#999999">25012770130 发表于 2019-8-27 08:02</font></a></font><br />
+那自己写呢？ 我想多学点</blockquote></div><br />
+boolean reloadlisteners = true;<br />
+Bukkit.getPluginManager().disablePlugin(this);<br />
+try {<br />
+Field pluginsField = Bukkit.getPluginManager().getClass().getDeclaredField(&quot;plugins&quot;);<br />
+pluginsField.setAccessible(true);<br />
+List&lt;Plugin&gt; plugins = (List&lt;Plugin&gt;)pluginsField.get(pluginManager);<br />
+Field lookupNamesField = Bukkit.getPluginManager().getClass().getDeclaredField(&quot;lookupNames&quot;);<br />
+lookupNamesField.setAccessible(true);<br />
+Map&lt;String, Plugin&gt; names = (Map&lt;String, Plugin&gt;)lookupNamesField.get(pluginManager);<br />
+Map&lt;Event, SortedSet&lt;RegisteredListener&gt;&gt; listeners = null;<br />
+try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field listenersField =&nbsp;&nbsp;Bukkit.getPluginManager().getClass().getDeclaredField(&quot;listeners&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;listenersField.setAccessible(true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;listeners = (Map&lt;Event, SortedSet&lt;RegisteredListener&gt;&gt;)listenersField.get(pluginManager);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; catch (Exception e3) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;reloadlisteners = false;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+Field commandMapField = Bukkit.getPluginManager().getClass().getDeclaredField(&quot;commandMap&quot;);<br />
+commandMapField.setAccessible(true);<br />
+SimpleCommandMap commandMap = (SimpleCommandMap)commandMapField.get(pluginManager);<br />
+Field knownCommandsField = SimpleCommandMap.class.getDeclaredField(&quot;knownCommands&quot;);<br />
+knownCommandsField.setAccessible(true);<br />
+Map&lt;String, Command&gt; commands = (Map&lt;String,Command&gt;)knownCommandsField.get(commandMap);<br />
+if(plugins!=null)<br />
+&nbsp;&nbsp;plugins.remove(this);<br />
+if(names!=null)<br />
+&nbsp;&nbsp;names.remove(this.getName());<br />
+if (listeners != null &amp;&amp; reloadlisteners) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (SortedSet&lt;RegisteredListener&gt; set : listeners.values()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Iterator&lt;RegisteredListener&gt; it = set.iterator();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (it.hasNext()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;RegisteredListener value = it.next();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (value.getPlugin() == plugin) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.remove();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<br />
+if (commandMap != null) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Iterator&lt;Map.Entry&lt;String, Command&gt;&gt; it2 = commands.entrySet().iterator();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;while (it2.hasNext()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Map.Entry&lt;String, Command&gt; entry = it2.next();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (entry.getValue() instanceof PluginCommand) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;PluginCommand c = (PluginCommand)entry.getValue();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (c.getPlugin() != this) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;continue;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;c.unregister((CommandMap)commandMap);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;it2.remove();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<br />
+ClassLoader cl = this.getClass().getClassLoader();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (cl instanceof URLClassLoader) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Field pluginField = cl.getClass().getDeclaredField(&quot;plugin&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pluginField.setAccessible(true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pluginField.set(cl, null);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Field pluginInitField = cl.getClass().getDeclaredField(&quot;pluginInit&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pluginInitField.setAccessible(true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pluginInitField.set(cl, null);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex4) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex4);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ((URLClassLoader)cl).close();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;catch (IOException ex2) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex2);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<br />
+System.gc();<br />
+Plugin target = null;<br />
+File pluginDir = new File(&quot;plugins&quot;);<br />
+if (!pluginDir.isDirectory())<br />
+&nbsp;&nbsp;return true;<br />
+File pluginFile = null;<br />
+try{<br />
+Field tempFile=this.getClass().getDeclaredField(&quot;file&quot;);<br />
+tempFile.setAccessible(true);<br />
+pluginFile=(File)tempFile.get(this);<br />
+}catch(Throwable e){e.printStackTrace();return true;}<br />
+if(!pluginFile.exists() || !pluginFile.isFile())&nbsp;&nbsp;return true;<br />
+try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;target = Bukkit.getPluginManager().loadPlugin(pluginFile);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (InvalidDescriptionException e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<br />
+&nbsp; &nbsp; catch (InvalidPluginException e2) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e2.printStackTrace();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<br />
+target.onLoad();<br />
+Bukkit.getPluginManager().enablePlugin(target);<br />
+<br />
+return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;catch (NoSuchFieldException e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e.printStackTrace();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (IllegalAccessException e2) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e2.printStackTrace();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>25012770130&nbsp; &nbsp; <b>时间: </b>2019-8-27 10:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15495339&amp;ptid=908644" target="_blank"><font color="#999999">吕易天 发表于 2019-8-27 08:43</font></a></font><br />
+boolean reloadlisteners = true;<br />
+Bukkit.getPluginManager().disablePlugin(this);<br />
+try {</blockquote></div><br />
+感谢大佬<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鸭蛋只吃黄&nbsp; &nbsp; <b>时间: </b>2019-8-27 11:00<br />
+<i class="pstatus"> 本帖最后由 凋灵兔子 于 2019-8-27 11:18 编辑 </i><br />
+<br />
+确实是我错了, 抱歉 @吕易天 . 没能看清楚题意, 不过说真的....<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>吕易天&nbsp; &nbsp; <b>时间: </b>2019-8-27 11:12<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15496822&amp;ptid=908644" target="_blank"><font color="#999999">凋灵兔子 发表于 2019-8-27 11:00</font></a></font><br />
+System.gc???? 不是我怼你, 兄弟, 你的技术是真的有点不过关. 这样的代码放在服务器上简直就是毒瘤.<br />
+<br />
+另 ...</blockquote></div><br />
+他说了，重载是为了让修改的代码生效，还有，那句System.gc()是PlugMan里面的，很多人都在用PlugMan，也没什么问题出现<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>guo1060924736&nbsp; &nbsp; <b>时间: </b>2019-8-28 22:47<br />
+简单的reload方法<br />
+<div class="blockcode"><div id="code_HKp"><ol><li>public void Reload(){<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;reloadConfig()；<br />
+<li>}</ol></div><em onclick="copycode($('code_HKp'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>25012770130&nbsp; &nbsp; <b>时间: </b>2019-8-31 14:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15515247&amp;ptid=908644" target="_blank"><font color="#999999">guo1060924736 发表于 2019-8-28 22:47</font></a></font><br />
+**** 作者被禁止或删除 内容自动屏蔽 ****</blockquote></div><br />
+这么短 真的可以么。。。。&nbsp;&nbsp;而且我是里面的&nbsp;&nbsp;代码重新改&nbsp;&nbsp;不是配置文件重新改<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Jonjs_Dada&nbsp; &nbsp; <b>时间: </b>2019-8-31 16:27<br />
+<i class="pstatus"> 本帖最后由 Jonjs_Dada 于 2019-8-31 16:28 编辑 </i><br />
+<br />
+reloadConfig();<br />
+我呸，重载插件还是自己用其他插件好些<br />
+看错了<br />
+<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

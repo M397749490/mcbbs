@@ -1,0 +1,155 @@
+<html>
+<head>
+<title>一个多个BungeeCord互联互通方案 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>一个多个BungeeCord互联互通方案 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>vtscn&nbsp; &nbsp; <b>时间: </b>2020-3-9 20:02<br />
+<b>标题: </b>一个多个BungeeCord互联互通方案<br /><i class="pstatus"> 本帖最后由 vtscn 于 2020-3-26 23:18 编辑 </i><br />
+<br />
+<div align="center"><strong>本文可能涉及到的内容</strong></div><br />
+Bungee, RedisBungee, YinwuChat, MySQL, Redis, Haproxy<br />
+<div align="center"><strong>写在前面</strong></div><br />
+<br />
+看到有些dalao在其他帖子里问两个或多个Bungee如何整合, 这里结合我自己的经验来介绍一下.<br />
+<br />
+<div align="center"><strong>为什么要用多Bungee互联</strong></div><br />
+ 我有经营一个公益服, 服务器有三个群体想要在一起玩: <br />
+ - 一个是位于欧洲的玩家群体, 人很少但是有; <br />
+ - 一个是位于大陆的玩家群体, 这是人最多的; <br />
+ - 还有一个是位于澳洲的玩家群体, 人很少, 几乎没人在线;<br />
+这时候问题来了, <strong>蹦一次极就能解决的问题, 为什么要蹦三次呢</strong>?<br />
+原因是这样的, 我希望能够让这几个区域的玩家都能够在在线列表中出现, 因为这样能够显得服务器更热闹, 而且还想要不同区域的玩家的聊天信息能够互通. 单个BungeeCord是无法实现的.<br />
+好, 那接下来就讲一下如何实现.<br />
+<div align="center"><strong>实现方法</strong></div><br />
+首先搭建3个BungeeCord网络, 具体搭建方法请参考论坛内其他教程, 这里不再详述. 我们给这三个BungeeCord网络分别根据地理位置命名: <strong>CN</strong>, <strong>NL</strong>, <strong>SG</strong>.<br />
+然后<br />
+<div align="center"><strong>安装RedisBungee插件到BungeeCord</strong></div><br />
+下载RedisBungee插件: <a href="https://github.com/minecrafter/RedisBungee" target="_blank">https://github.com/minecrafter/RedisBungee</a><br />
+这里有个坑, 官方版的RedisBungee可能导致一些奇怪的问题, 需要自行修复. 因为RedisBungee是付费插件, 所以请自行购买后私聊我提供购买证明,我可以发给你LinTx的修复版本.<br />
+下载完成后将RedisBungee-0.5.1.jar放置到每个BungeeCord的plugins文件夹里, 然后运行每个BungeeCord来生成初始化配置文件. 然后就可以先不用管了.<br />
+<br />
+<div align="center"><strong>Redis服务器位置的选择和</strong><strong>安装Redis服务器</strong></div><br />
+既然用到了RedisBungee那么一定就需要Redis了:<br />
+<div class="quote"><blockquote><font color="#222222"><font style="background-color:rgb(255, 255, 255)"><font face="arial, sans-serif">Redis是一個使用ANSI C編寫的開源、支援網路、基於記憶體、可選永續性的鍵值對儲存資料庫。從2015年6月開始，Redis的開發由Redis Labs贊助，而2013年5月至2015年6月期間，其開發由Pivotal贊助。在2013年5月之前，其開發由VMware贊助。</font></font></font></blockquote></div><br />
+Redis和MySQL类似, 但更简单也更轻便. 由于Redis服务器需要从各个区域进行连接, 因此在我的部署过程中我选择使用香港的服务器搭建. 建议在实际部署过程中按照自己的需求, 部署在几个BungeeCord网络的中点位置以最大化优化延迟.关于安装, 这里只提供CentOS下的安装方法, 其他操作系统下的安装方法大同小异:1. 首先SSH登入服务器, 切换到root权限;<br />
+2. 执行<br />
+<div class="blockcode"><div id="code_f2C"><ol><li>yum install epel-release -y</ol></div><em onclick="copycode($('code_f2C'));">复制代码</em></div>3. 执行<br />
+<div class="blockcode"><div id="code_qf0"><ol><li>yum install redis -y</ol></div><em onclick="copycode($('code_qf0'));">复制代码</em></div>4. 启用redis服务<br />
+<div class="blockcode"><div id="code_r28"><ol><li>systemctl enable redis #CentOS7</ol></div><em onclick="copycode($('code_r28'));">复制代码</em></div>5. 检查启动状态(一般可以忽略), 然后编辑/etc/redis.conf文件, 找到61行:<br />
+<div class="blockcode"><div id="code_vZN"><ol><li>#bind 0.0.0.0</ol></div><em onclick="copycode($('code_vZN'));">复制代码</em></div>去掉#注释来启用外部连接.<br />
+第84行<br />
+<div class="blockcode"><div id="code_Xbi"><ol><li>port 6379</ol></div><em onclick="copycode($('code_Xbi'));">复制代码</em></div>可以根据需要来修改监听的端口.<br />
+第480行<br />
+<div class="blockcode"><div id="code_AQT"><ol><li>requirepass 密码</ol></div><em onclick="copycode($('code_AQT'));">复制代码</em></div>可以设定Redis连接密码, 建议设定一个高强度的密码.<br />
+完成设定之后请确认防火墙打开了你设定的端口, 然后重启redis服务:<br />
+<div class="blockcode"><div id="code_izX"><ol><li>service redis restart</ol></div><em onclick="copycode($('code_izX'));">复制代码</em></div>如果都是Running或Active, 到这里就可以了.<br />
+<div align="center"><strong>设定RedisBungee</strong></div><br />
+回到RedisBungee, <strong>每个</strong>BungeeCord的plugins目录下RedisBungee的配置文件config.yml<strong>都</strong>需要按照以下内容进行修改:<br />
+<div class="blockcode"><div id="code_rwI"><ol><li># RedisBungee configuration file.<br />
+<li># PLEASE READ THE WIKI: https://github.com/minecrafter/RedisBungee/wiki<br />
+<li><br />
+<li># The Redis server you use.<br />
+<li># Get Redis from http://redis.io/<br />
+<li>redis-server: 这里填你的Redis服务器IP地址或域名, 建议写IP地址<br />
+<li>redis-port: 这里填你的Redis服务器的端口<br />
+<li># OPTIONAL: If your Redis server uses AUTH, set the password required.<br />
+<li>redis-password: &quot;这里填你的Redis密码,注意要带两边的引号&quot;<br />
+<li># Maximum connections that will be maintained to the Redis server.<br />
+<li># The default is 8. This setting should be left as-is unless you have some wildly<br />
+<li># inefficient plugins or a lot of players.<br />
+<li>max-redis-connections: 8<br />
+<li><br />
+<li># An identifier for this BungeeCord instance.<br />
+<li>server-id: 这里填这台BungeeCord的代号,例如cn. 每台BungeeCord的代号不能相同.<br />
+<li><br />
+<li># Whether or not RedisBungee should install its version of regular BungeeCord commands.<br />
+<li># Often, the RedisBungee commands are desired, but in some cases someone may wish to<br />
+<li># override the commands using another plugin.<br />
+<li>#<br />
+<li># If you are just denying access to the commands, RedisBungee uses the default BungeeCord<br />
+<li># permissions - just deny them and access will be denied.<br />
+<li>#<br />
+<li># Please note that with build 787+, most commands overridden by RedisBungee were moved to<br />
+<li># modules, and these must be disabled or overridden yourself.<br />
+<li>register-bungee-commands: true<br />
+<li><br />
+<li># A list of IP addresses for which RedisBungee will not modify the response for, useful for automatic<br />
+<li># restart scripts.<br />
+<li>exempt-ip-addresses: []<br />
+<li></ol></div><em onclick="copycode($('code_rwI'));">复制代码</em></div>完成设定后保存, 然后重启每个BungeeCord, RedisBungee的设定就算完成了.<br />
+<div align="center"><strong>显示完整的玩家在线列表</strong></div><br />
+<div align="left">完成RedisBungee的部署后, 所有的BungeeCord就可以互相通信了, 这时就可以具体安装所需要的功能了. 首先是显示玩家列表的功能, 推荐使用插件<strong>BungeeTabListPlus</strong>:</div><br />
+<div align="left">原帖 <a href="https://www.spigotmc.org/resources/bungeetablistplus.313/" target="_blank">https://www.spigotmc.org/resources/bungeetablistplus.313/</a> </div><br />
+<div align="left">搬运 <a href="thread.html?t=514808" target="_blank">https://www.mcbbs.net/thread-514808-1-1.html</a></div><br />
+<div align="center"><strong>Tab指令补全</strong></div><br />
+Tab指令补全可以在任意一个BungeeCord下自动补全出其他BungeeCord下的玩家名. 推荐使用<strong>BungeeTabComplete</strong>插件: <br />
+原帖 <a href="https://www.spigotmc.org/resources/bungeetabcomplete.7328/" target="_blank">https://www.spigotmc.org/resources/bungeetabcomplete.7328/</a><br />
+安装方式同其他BungeeCord插件, 在插件安装好之后修改BungeeTabComplete的config.yml:<br />
+<div class="blockcode"><div id="code_sYj"><ol><li> #这里改为true</ol></div><em onclick="copycode($('code_sYj'));">复制代码</em></div>然后重启BungeeCord即可.<br />
+<div align="center"><strong>跨BungeeCord聊天</strong></div><br />
+<div align="left">要实现跨BungeeCord聊天难度很高, 目前我找到的支持RedisBungee的类似插件只有YinwuChat和另一款付费插件, 这里只介绍免费的YinwuChat:</div><br />
+<div align="left">https://www.mcbbs.net/thread-836393-1-1.html</div><br />
+<div align="left">安装和部署请参考上面的链接. 安装好之后在每个BungeeCord上安装后按照说明开启Redis支持并完成每个BungeeCord的设定:</div><br />
+<div align="left"><div class="blockcode"><div id="code_I3P"><ol><li>redisConfig:<br />
+<li>&nbsp;&nbsp;openRedis: true<br />
+<li>&nbsp;&nbsp;ip: '这里填写Redis服务器的IP地址(注意带引号)'<br />
+<li>&nbsp;&nbsp;port: 这里填写Redis服务器的端口<br />
+<li>&nbsp;&nbsp;maxConnection: 8<br />
+<li>&nbsp;&nbsp;password: '这里填写Redis服务器的密码(注意带引号)'<br />
+<li>&nbsp;&nbsp;selfName: 这里填写BungeeCord代号<br />
+<li>&nbsp;&nbsp;forwardBcTask: true<br />
+<li>&nbsp;&nbsp;forwardBcMessageToQQ: true<br />
+<li>&nbsp;&nbsp;forwardBcMessageToWeb: true<br />
+<li>&nbsp;&nbsp;forwardBcAtAll: true<br />
+<li>&nbsp;&nbsp;forwardBcAtOne: true<br />
+<li>&nbsp;&nbsp;selfPrefixFormat:<br />
+<li>&nbsp;&nbsp;- message: '&amp;8[其他群组]&amp;r'<br />
+<li>&nbsp; &nbsp; hover: 来自其他群组的消息<br />
+<li>&nbsp; &nbsp; click: ''<br />
+<li></ol></div><em onclick="copycode($('code_I3P'));">复制代码</em></div>然后重启每个BungeeCord, 这样就可以实现多个BungeeCord的基本互通了.</div><br />
+<div align="center"><strong>一些额外功能</strong></div><br />
+<div align="left">如果需要的话, 还可以考虑增加这些功能, 之后有时间我会具体来写的:</div><br />
+<div align="left"> - 背包同步: <a href="https://www.spigotmc.org/resources/mysql-player-data-bridge.8117/" target="_blank">https://www.spigotmc.org/resources/mysql-player-data-bridge.8117/</a></div><br />
+<div align="left"> - 进服提醒,可以关掉Spigot自带的登入登出提示, 只开启这个, 实现玩家登入登出整个BungeeCord网络时才提示: <a href="https://www.spigotmc.org/resources/globalbell-join-leave-switch-messages-for-bungeecord.10239/" target="_blank">https://www.spigotmc.org/resourc ... r-bungeecord.10239/</a></div><br />
+<div align="left"> - LuckPermsBungee, 通过LuckPerms来管理多个BungeeCord下的权限: <a href="thread.html?t=676818" target="_blank">https://www.mcbbs.net/thread-676818-1-1.html</a></div><br />
+<div align="left"> - BungeeAdminTools, 实现统一管理封禁名单和禁言功能: <a href="https://www.spigotmc.org/resources/bungee-admin-tools-basics-edition.444/" target="_blank">https://www.spigotmc.org/resourc ... basics-edition.444/</a></div><br />
+<div align="center"><strong>结语</strong></div><br />
+多BungeeCord同步注定是一个小众的功能, 由于自己用到了这个功能但在搜索相关内容时发现资料甚少, 所以在这里将自己所了解的和自己在使用过程中遇到的坑和经验分享出来, 希望能够帮到有需要的人.<br />
+如果有问题欢迎回复指出, 或者私信联系都可以的 :)<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sadasq12&nbsp; &nbsp; <b>时间: </b>2020-4-14 23:52<br />
+楼主NB，MCBBS有你更精彩！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>利姆露酱&nbsp; &nbsp; <b>时间: </b>2020-4-22 21:19<br />
+有没有bc均衡负载的办法..<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mc@viphdf.cc&nbsp; &nbsp; <b>时间: </b>2020-4-27 20:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17763738&amp;ptid=981228" target="_blank"><font color="#999999">利姆露酱 发表于 2020-4-22 21:19</font></a></font><br />
+有没有bc均衡负载的办法..</blockquote></div><br />
+Haproxy 或 Nginx可以实现但楼主貌似没讲Haproxy的使用方法<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /> 我也就试过用Nginx的tcp转发来实现均衡负载<img src="static/image/smiley/tong/Smile.png" smilieid="1444" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mc@viphdf.cc&nbsp; &nbsp; <b>时间: </b>2020-4-27 21:02<br />
+楼主能否吧Haproxy方面的知识也写一下<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>利姆露酱&nbsp; &nbsp; <b>时间: </b>2020-5-9 10:21<br />
+<div class="quote"><blockquote><font color="#999999">mc@viphdf.cc 发表于 2020-4-27 20:58</font><br />
+<font color="#999999">Haproxy 或 Nginx可以实现但楼主貌似没讲Haproxy的使用方法 我也就试过用Nginx的tcp转发来实现均 ...</font></blockquote></div><br />
+能否加q交流？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mc@viphdf.cc&nbsp; &nbsp; <b>时间: </b>2020-5-10 20:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18123023&amp;ptid=981228" target="_blank"><font color="#999999">利姆露酱 发表于 2020-5-9 10:21</font></a></font><br />
+能否加q交流？</blockquote></div><br />
+1851890909<br />
+提前说下我就一弱鸡<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2279218256&nbsp; &nbsp; <b>时间: </b>2020-7-5 16:03<br />
+楼主写的真棒！希望能加个qq交流一下&nbsp; &nbsp;6700150
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

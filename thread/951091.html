@@ -1,0 +1,57 @@
+<html>
+<head>
+<title>命令方块:雪球带buff - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>命令方块:雪球带buff <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Yellowstone&nbsp; &nbsp; <b>时间: </b>2020-2-3 16:50<br />
+<b>标题: </b>命令方块:雪球带buff<br /><i class="pstatus"> 本帖最后由 Yellowstone 于 2020-2-3 16:55 编辑 </i><br />
+<br />
+<font face="微软雅黑"><font size="5">如题,版本:Java </font></font><font face="微软雅黑"><font size="5">1.13.2</font></font><font face="微软雅黑"><font size="5">需求：</font></font><ul type="1" class="litype_1"><li><strong><font face="微软雅黑"><font size="5"><font color="#00bfff">雪球</font></font></font></strong><font face="微软雅黑"><font size="5">扔出去后对</font></font><strong><font face="微软雅黑"><font size="5"><font color="#ff0000">接触到的实体</font></font></font></strong><font face="微软雅黑"><font size="5">给予发光</font></font><strong><font face="微软雅黑"><font size="5">buff</font></font></strong><li><font face="微软雅黑"><font size="5">且不要把buff<strong>错误地</strong>给予<strong><font color="#008000">投出雪球的实体</font></strong></font></font><li><font face="微软雅黑"><font size="5">要允许<strong>多个雪球</strong><font color="#ff0000">同时存在</font><font color="#000000">并能正确将buff给予</font><strong><font color="#ff0000">对应实体</font></strong></font></font><br />
+</ul><br />
+<ul><li><font face="微软雅黑"><font size="5">大体就是这样,用CB实现</font></font><li><font face="微软雅黑"><font size="5">尽量不要带计分板(实在不行有也可以)</font></font><li><font face="微软雅黑"><font size="5">要流畅点</font></font><br />
+</ul><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MineCommander&nbsp; &nbsp; <b>时间: </b>2020-2-3 16:50<br />
+<i class="pstatus"> 本帖最后由 MineCommander 于 2020-2-3 18:30 编辑 </i><br />
+<br />
+这个问题主要的难点是过滤投出雪球的玩家，因此我们可以用一个记分板tick（dummy）来记录雪球存在的时间，因为雪球飞行到目标有一定时间，那么只要让tick大于一定阈值的雪球执行execute+effect给距离近的玩家就行了。这里以3为例（0.15秒）。发光什么的效果或是时长可以自定义，只需要修改effect命令。<br />
+start.mcfunction（初始化）<br />
+<div class="blockcode"><div id="code_Q6E"><ol><li>scoreboard objectives add tick dummy &quot;雪球存在的gt数&quot;</ol></div><em onclick="copycode($('code_Q6E'));">复制代码</em></div><br />
+effect_snowball.mcfunction（包含于tick.json中，即每gt高速执行）<br />
+<div class="blockcode"><div id="code_zQm"><ol><li>scoreboard players add @e[type=snowball] tick 1<br />
+<li>#给雪球加分<br />
+<li>execute as @e[type=snowball,scores={tick=5..}] at @s run effect give @e[distance=..2,sort=nearest,limit=1,type=!snowball] glowing 10<br />
+<li>#让tick大于5的雪球给予1格内最近的一只生物（要过滤掉雪球本身）发光效果10秒，当然你嫌麻烦的话也可以改成@p[distance=..2]也就是只对玩家生效</ol></div><em onclick="copycode($('code_zQm'));">复制代码</em></div><br />
+这里只是提供一个思路，算法也很粗糙也有不少BUG比如把雪球丢到很高的地方再自己接住就不符合要求了，实际应用请谨慎。<br />
+PS：亲测tick阈值最低值为3，低于3会对雪球投掷者生效<br />
+======分割线======<br />
+<br />
+刚刚又想到一种新的算法，让雪球探测自己是不是离开了玩家，离开玩家（即投掷者）一定距离后给自己添加一个标签drow，再让带有drow标签的雪球去执行上面的execute+effect。同时这个方法不需要计分板。简单修改一下：<br />
+effect_snowball.mcfunction（包含于tick.json中/每gt高速执行）<br />
+<div class="blockcode"><div id="code_FjU"><ol><li>execute as @e[type=snowball] at @s unless entity @p[distance=..2.5] run tag @s add drow<br />
+<li>#雪球探测到自己离开玩家2.5格远后贴上标签drow<br />
+<li>execute as @e[type=snowball,tag=drow] at @s run effect give @e[distance=..2.5,sort=nearest,limit=1,type=!snowball] glowing 10<br />
+<li>#把上面的execute+effect修改一下执行对象筛选器就可以了<br />
+<li>#PS：生效对象的distance要和雪球探测玩家的distance相同，不然会误触发投掷者玩家。<br />
+<li>#而且distance的值要把握好，太低了不容易检测生效对象，太高了会导致密集玩家时产生BUG。个人认为2.5比较合适</ol></div><em onclick="copycode($('code_FjU'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zjx475&nbsp; &nbsp; <b>时间: </b>2020-2-3 17:38<br />
+我之前有类似的问题，可以看<a href="thread.html?t=945325" target="_blank">这里</a>。<br />
+(针对你的问题，还有一种方法，检测所有雪球实体，替换成喷溅型发光药水)<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>18000569211&nbsp; &nbsp; <b>时间: </b>2020-2-4 10:36<br />
+使用uuid即可准确检测，用距离和时间计分板可能会出现bug
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

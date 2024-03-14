@@ -1,0 +1,257 @@
+<html>
+<head>
+<title>[YUMC][源码]如何编写一个可以保留注释的配置类 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[YUMC][源码]如何编写一个可以保留注释的配置类 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yumc&nbsp; &nbsp; <b>时间: </b>2020-4-12 23:36<br />
+<b>标题: </b>[YUMC][源码]如何编写一个可以保留注释的配置类<br /><i class="pstatus"> 本帖最后由 yumc 于 2020-4-18 10:17 编辑 </i><br />
+<br />
+<font style="font-size:32px"><strong>如何编写一个可以保留注释的配置类</strong></font><br />
+<br />
+<font style="font-size:24px"><strong>前言</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>在开发过程中 配置文件是最常用的一个东西 大部分插件都需要配置文件<li>但是很多新手开发会遇到一个问题<li>编写好的默认配置文件 保存之后 配置文件的注释全部消失了<li>那是因为yaml在保存的时候是不会保留注释的(除了头部的一个参数)<br />
+</ul></font><br />
+<font style="font-size:24px"><strong>思路</strong></font><br />
+<br />
+<font style="font-size:20px"><strong>深入研究</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>我们既然要修改配置文件的保存 那么就得熟悉 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Bukkit</font></font> 使用的配置类<li>我们先看一下 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">org.bukkit.configuration.file.YamlConfiguration</font></font><pre><code class="language-java">public class YamlConfiguration extends FileConfiguration {<br />
+&nbsp;&nbsp;// 省略代码<br />
+&nbsp;&nbsp;@Override<br />
+&nbsp;&nbsp;public void loadFromString(String contents) throws InvalidConfigurationException {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;// 省略代码<br />
+&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;@Override<br />
+&nbsp;&nbsp;public String saveToString() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;// 省略代码<br />
+&nbsp;&nbsp;}<br />
+}</code></pre><li>这里最核心的两个方法 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">loadFromString</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">saveToString</font></font><li>顾名思义 这就是保存和读取的方法<br />
+</ul></font><br />
+<font style="font-size:20px"><strong>处理逻辑</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>既然要保留配置的注释 那么必然需要把注释保留到运行阶段<li>如何将注释保留到运行阶段呐<li>那就是把注释也变成配置项(清奇的思路来自神奇的白鲨七)<li>比如下列配置文件(摘选自MiaoBind)<pre><code class="language-yaml">#配置文件版本 请勿修改<br />
+Version: 1.2<br />
+<br />
+#绑定标签处理<br />
+#检查操作 检索所有标签<br />
+#绑定操作 使用第一个标签<br />
+Tag:<br />
+&nbsp;&nbsp;Bind:<br />
+&nbsp;&nbsp;- '§6喵式绑定'<br />
+&nbsp;&nbsp;- '§6灵魂绑定'<br />
+&nbsp;&nbsp;- '§6SoulBound'<br />
+&nbsp;&nbsp;# 时间绑定的标签<br />
+&nbsp;&nbsp;TimeBind:<br />
+&nbsp;&nbsp;- '§6到期时间'</code></pre><br />
+</ul></font><br />
+<font style="font-size:20px"><strong>读取配置的处理</strong></font><br />
+<br />
+<font style="font-size:16px"><strong>置顶注释处理</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>我们先处理简单的单行单节点置顶注释<pre><code class="language-yaml">#配置文件版本 请勿修改<br />
+Version: 1.2</code></pre><li>处理成配置项之后<pre><code class="language-yaml">'注释 #配置文件版本 请勿修改': 注释<br />
+Version: 1.2</code></pre><li>这样 Yaml 在处理的时候就会把注释当作节点处理 保存到配置存数上<li>在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">org.bukkit.configuration.MemorySection</font></font> 的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">protected final Map&lt;String, Object&gt; map = new LinkedHashMap&lt;String, Object&gt;();</font></font><br />
+</ul></font><br />
+<font style="font-size:16px"><strong>非置顶注释处理</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>接下来处理多行注释(忽略了无关内容)<pre><code class="language-yaml">Tag:<br />
+# 时间绑定的标签<br />
+TimeBind:<br />
+- '§6到期时间'</code></pre><li>如果按照上面的逻辑 那么这个注释会变成<pre><code class="language-yaml">Tag:<br />
+&nbsp;&nbsp;Bind:<br />
+&nbsp;&nbsp;- '§6喵式绑定'<br />
+'注释&nbsp; &nbsp;# 时间绑定的标签': 注释<br />
+&nbsp;&nbsp;TimeBind:<br />
+&nbsp;&nbsp;- '§6到期时间'</code></pre><li>很明显 这样子会打乱配置文件的层级和内容<li>所以这种注释需要特殊处理成<pre><code class="language-yaml">Tag:<br />
+&nbsp;&nbsp;Bind:<br />
+&nbsp;&nbsp;- '§6喵式绑定'<br />
+&nbsp;&nbsp;'注释&nbsp; &nbsp;# 时间绑定的标签': 注释<br />
+&nbsp;&nbsp;TimeBind:<br />
+&nbsp;&nbsp;- '§6到期时间'</code></pre><br />
+</ul></font><br />
+<font style="font-size:16px"><strong>特殊字符处理</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>假设有下列配置文件<pre><code class="language-yaml"># 这是一个'神奇的.注释:<br />
+MagicConfig: 1.2</code></pre><li>如果按照原来的逻辑处理<pre><code class="language-yaml">'注释 # 这是一个'神奇的.注释:': 注释<br />
+MagicConfig: 1.2</code></pre><li>很明显 他就不能解析了<li>所以还要对特殊字符替换(一般来讲 只需要替换 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">'.:</font></font> 这三个字符)<font style="font-size:16px"><br />
+<ul><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">.</font></font> 替换成 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">．</font></font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">'</font></font> 替换成 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">＇</font></font><li><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">:</font></font> 替换成 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">：</font></font><br />
+</ul></font><li>因为注释在运行时是看不到的 所以没啥关系<pre><code class="language-yaml">'注释 # 这是一个＇神奇的．注释：': 注释<br />
+MagicConfig: 1.2</code></pre><br />
+</ul></font><br />
+<font style="font-size:20px"><strong>保存配置的处理</strong></font><br />
+<br />
+<font style="font-size:16px"><ul><li>保存配置之前 需要把配置节点 还原成注释<li>这里我们简单讲一下 如何还原<li>正则一把梭 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">( *)(- )*('注释 )(#.*)(': 注释)</font></font> 然后获取第四组的内容就好了<li>嗯 没了<br />
+</ul></font><br />
+<font style="font-size:24px"><strong>代码</strong></font><br />
+<br />
+<br />
+</i></i>[groupid=1465]银河系气功协会[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>YPXxiaoK&nbsp; &nbsp; <b>时间: </b>2020-4-12 23:49<br />
+开发新手来了，学习一下编程大佬的代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TheRam_&nbsp; &nbsp; <b>时间: </b>2020-4-12 23:52<br />
+为了避免注释消失，特意把数据分开存储<br />
+现在可以直接存储在里面了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>瓜瓜.&nbsp; &nbsp; <b>时间: </b>2020-4-12 23:58<br />
+喵呜牛皮呀<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2020-4-12 23:59<br />
+很实用的教程,但我一般是储存和配置文件分开[doge]<img src="static/image/smiley/rabbit/47.GIF" smilieid="697" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>尘曲&nbsp; &nbsp; <b>时间: </b>2020-4-13 00:25<br />
+<img src="static/image/smiley/tong/Yaranaika.png" smilieid="1458" border="0" alt="" />清奇的我出现了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CrazyPeanut&nbsp; &nbsp; <b>时间: </b>2020-4-13 02:42<br />
+。。看不是很懂 膜拜一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lliiooll&nbsp; &nbsp; <b>时间: </b>2020-4-16 21:45<br />
+学到了，感谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蓝京&nbsp; &nbsp; <b>时间: </b>2020-4-17 07:57<br />
+谢谢您的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mr2044154518&nbsp; &nbsp; <b>时间: </b>2020-4-17 12:33<br />
+很实用，感谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mangiare&nbsp; &nbsp; <b>时间: </b>2020-4-17 14:56<br />
+感谢大佬的点醒，开发新手看得瑟瑟发抖<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>伊C&nbsp; &nbsp; <b>时间: </b>2020-4-17 15:47<br />
+很实用，多谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>结城希亚&nbsp; &nbsp; <b>时间: </b>2020-4-17 19:41<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17550589&amp;ptid=1016632" target="_blank"><font color="#999999">a8105 发表于 2020-4-12 23:59</font></a></font><br />
+很实用的教程,但我一般是储存和配置文件分开[doge]</blockquote></div><br />
+我曾经就因为这个问题头疼<br />
+然后发现...太难弄了，直接开专门储存的了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CyanBillows&nbsp; &nbsp; <b>时间: </b>2020-4-17 23:10<br />
+学习了，实用XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sky浩瀚&nbsp; &nbsp; <b>时间: </b>2020-4-19 01:50<br />
+感谢分享~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>194220452&nbsp; &nbsp; <b>时间: </b>2020-4-19 10:29<br />
+感谢大佬~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MoonDrinkWind&nbsp; &nbsp; <b>时间: </b>2020-4-19 10:39<br />
+教程不错<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Fur_Xia&nbsp; &nbsp; <b>时间: </b>2020-4-19 22:15<br />
+前来学习了！！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>一条小柴鱼&nbsp; &nbsp; <b>时间: </b>2020-4-20 11:51<br />
+MCBBS有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DDaJiJi&nbsp; &nbsp; <b>时间: </b>2020-4-20 15:16<br />
+大佬！！！！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>隔壁老吕&nbsp; &nbsp; <b>时间: </b>2020-4-22 21:43<br />
+学习了，谢谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>只沐同&nbsp; &nbsp; <b>时间: </b>2020-4-23 22:21<br />
+对我来说为时尚早啊..提前拜膜<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-4-26 09:27<br />
+之前就在找这种好东西<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a888kay&nbsp; &nbsp; <b>时间: </b>2020-4-26 11:10<br />
+来学习了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>黑&nbsp; &nbsp; <b>时间: </b>2020-4-27 22:32<br />
+太吊了，作者牛皮<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Reise321&nbsp; &nbsp; <b>时间: </b>2020-4-28 14:55<br />
+66666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Meteor___&nbsp; &nbsp; <b>时间: </b>2020-5-3 00:25<br />
+十分感谢！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wjwrh&nbsp; &nbsp; <b>时间: </b>2020-5-10 06:55<br />
+原来还有这种操作，我都准备自己手动造轮子了2333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丶米饭&nbsp; &nbsp; <b>时间: </b>2020-6-2 16:56<br />
+<img src="static/image/smiley/rabbit/51.gif" smilieid="701" border="0" alt="" />看看<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨&nbsp; &nbsp; <b>时间: </b>2020-6-7 06:00<br />
+牛批 学习了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hxy_Huang&nbsp; &nbsp; <b>时间: </b>2020-6-7 10:06<br />
+实用的教程，感谢大佬分享！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>少年特&nbsp; &nbsp; <b>时间: </b>2020-6-12 15:33<br />
+感谢分享，学会了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Sky_God_&nbsp; &nbsp; <b>时间: </b>2020-6-19 20:26<br />
+太强了吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HyFran&nbsp; &nbsp; <b>时间: </b>2020-6-19 23:02<br />
+感谢分享，正好需要<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dd20001115&nbsp; &nbsp; <b>时间: </b>2020-6-21 23:46<br />
+感谢大佬分享，对新手开发者非常友好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Mr_Gemini&nbsp; &nbsp; <b>时间: </b>2020-6-22 17:07<br />
+666666666<img src="static/image/smiley/rabbit/44.gif" smilieid="694" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>星星大大&nbsp; &nbsp; <b>时间: </b>2020-6-22 22:07<br />
+感谢分享，正好需要<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Arasple&nbsp; &nbsp; <b>时间: </b>2020-6-27 22:02<br />
+大佬牛批 感谢大佬<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>诺凡克罗诺&nbsp; &nbsp; <b>时间: </b>2020-6-27 22:21<br />
+艾玛！真香！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>咸鱼气功王&nbsp; &nbsp; <b>时间: </b>2020-6-29 08:27<br />
+yumc牛逼<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DogLong&nbsp; &nbsp; <b>时间: </b>2020-6-29 10:04<br />
+正好需要<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lonely冷风&nbsp; &nbsp; <b>时间: </b>2020-7-12 22:31<br />
+感谢教学<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋韵&nbsp; &nbsp; <b>时间: </b>2020-7-21 10:52<br />
+已评分，很有帮助<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>666885489&nbsp; &nbsp; <b>时间: </b>2020-7-31 14:53<br />
+感谢提供思路，用到了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>五四四&nbsp; &nbsp; <b>时间: </b>2020-7-31 15:00<br />
+还行的啊<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>五四四&nbsp; &nbsp; <b>时间: </b>2020-7-31 15:00<br />
+还行<br />
+的啊11111111111111111<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>五四四&nbsp; &nbsp; <b>时间: </b>2020-7-31 15:01<br />
+还行的啊1111111<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>哔哩咖啡猫&nbsp; &nbsp; <b>时间: </b>2020-8-3 21:04<br />
+爱了爱了，受益匪浅<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Rothes&nbsp; &nbsp; <b>时间: </b>2020-8-24 13:18<br />
+感谢教程，白嫖代码 <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>QQ2418818133&nbsp; &nbsp; <b>时间: </b>2020-8-24 16:15<br />
+感谢楼主分享，白嫖了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jiajia005200&nbsp; &nbsp; <b>时间: </b>2020-8-25 17:22<br />
+感谢楼主分享，白嫖了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kayn-&nbsp; &nbsp; <b>时间: </b>2020-8-27 00:06<br />
+感谢大佬分享教程，编码小白爱了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>g963963123001&nbsp; &nbsp; <b>时间: </b>2020-10-2 19:07<br />
+666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>g963963123001&nbsp; &nbsp; <b>时间: </b>2020-10-2 19:18<br />
+6666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>nuyan&nbsp; &nbsp; <b>时间: </b>2020-10-10 12:53<br />
+学习一下&nbsp;&nbsp;大佬厉害<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chuangxinzhe&nbsp; &nbsp; <b>时间: </b>2020-11-14 09:24<br />
+感谢大佬的分享<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lsy770039220&nbsp; &nbsp; <b>时间: </b>2020-11-14 10:23<br />
+MCBBS有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq245271830&nbsp; &nbsp; <b>时间: </b>2020-11-18 01:30<br />
+神乎其技~~~~~<img src="static/image/smiley/rabbit/44.gif" smilieid="694" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>bearleon&nbsp; &nbsp; <b>时间: </b>2020-11-21 00:35<br />
+6666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>寒雨_Moro&nbsp; &nbsp; <b>时间: </b>2020-11-22 00:10<br />
+解决了一直以来的困惑，代码拿走了XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>one_&nbsp; &nbsp; <b>时间: </b>2020-12-26 11:35<br />
+通过这种方法可以省略message文件了:)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>愛の悲しみ&nbsp; &nbsp; <b>时间: </b>2020-12-26 12:22<br />
+感谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>美年达呀&nbsp; &nbsp; <b>时间: </b>2020-12-29 08:33<br />
+感谢LZ分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>710747509&nbsp; &nbsp; <b>时间: </b>2021-1-12 05:25<br />
+感谢大佬分享<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>npcman001&nbsp; &nbsp; <b>时间: </b>2021-1-17 15:30<br />
+感谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>陆文语&nbsp; &nbsp; <b>时间: </b>2021-1-18 09:12<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ml0834666&nbsp; &nbsp; <b>时间: </b>2021-1-25 09:10<br />
+这个可以有。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MiaoLio&nbsp; &nbsp; <b>时间: </b>2021-1-28 19:39<br />
+感谢喵老师的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>X836696023&nbsp; &nbsp; <b>时间: </b>2021-2-3 19:28<br />
+困扰我多时的问题终于有个解决方法了！<br />
+感谢分享！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>人间小卖铺&nbsp; &nbsp; <b>时间: </b>2021-2-4 11:41<br />
+任务回复帖<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq281064214&nbsp; &nbsp; <b>时间: </b>2021-2-6 18:31<br />
+学习一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>whatfilmae&nbsp; &nbsp; <b>时间: </b>2021-2-7 22:28<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DullManShaun&nbsp; &nbsp; <b>时间: </b>2021-2-8 11:42<br />
+thank u for share
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

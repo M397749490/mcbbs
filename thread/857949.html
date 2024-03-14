@@ -1,0 +1,360 @@
+<html>
+<head>
+<title>[光影包制作教程] 第四章———实现基本光照效果 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[光影包制作教程] 第四章———实现基本光照效果 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>悲剧小白&nbsp; &nbsp; <b>时间: </b>2019-4-29 21:08<br />
+<b>标题: </b>[光影包制作教程] 第四章———实现基本光照效果<br /><i class="pstatus"> 本帖最后由 海螺螺 于 2020-1-22 21:02 编辑 </i><br />
+<br />
+<div align="center"><font face="微软雅黑"><font size="5"><strong>索引待建立</strong></font></font></div><br />
+<div align="center"><hr class="l" /></div><br />
+<div align="left"><font face="微软雅黑"><font size="3">第三章中，我们终于正常的显示了整个世界。但是，如果你仔细观察就会发现：这个世界似乎不受光照影响？如图：</font></font></div><div align="center">
+<ignore_js_op>
+
+<img id="aimg_1307631" aid="1307631" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201904/15/132556u2ovbdaiveau0kd9.jpg" file="https://attachment.mcbbs.net/forum/201904/15/132556u2ovbdaiveau0kd9.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1307631" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1307631_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1555305956000.jpg</strong> <em class="xg1">(96.63 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTMwNzYzMXxkZWIwNjQ0NXwxNjEzOTgwNDk3fDI0MTk0ODZ8ODU3OTQ5&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-4-15 13:25 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><font face="微软雅黑"><font size="3">不行，这样不科学(我就是要和mc讲科学，不要喷我)。但是，</font></font><font face="微软雅黑"><font size="3"><strong>gbuffers_textured</strong>渲染器并没有光照系统，于是我们将目光再次上移至</font></font><font face="微软雅黑"><font size="3"><strong>gbuffers_textured_lit</strong>。本章节使用</font></font><font face="微软雅黑"><font size="3">gbuffers_textured_lit渲染器实现最基本的光照系统。</font></font><br />
+<br />
+<div align="center"><font face="微软雅黑"><font size="5"><strong>开始编写光影文件</strong></font></font></div><br />
+<font face="微软雅黑"><font size="3">在shaders文件夹里再创建两个文件，分别为</font></font><font face="微软雅黑"><font size="3">gbuffers_textured_lit</font></font><font face="微软雅黑"><font size="3">.vsh和</font></font><font face="微软雅黑"><font size="3">gbuffers_textured_lit</font></font><font face="微软雅黑"><font size="3">.fsh并写出代码。</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">gbuffers_textured_lit</font></font><font face="微软雅黑"><font size="3">.vsh：</font></font><div class="blockcode"><div id="code_MGw"><ol><li>#version 120<br />
+<li> <br />
+<li>varying vec4 color;<br />
+<li>varying vec4 texcoord;<br />
+<li>varying vec4 lmcoord;<br />
+<li> <br />
+<li>void main()<br />
+<li>{<br />
+<li>&nbsp; &nbsp; gl_Position = ftransform();<br />
+<li>&nbsp; &nbsp; color = gl_Color;<br />
+<li>&nbsp; &nbsp; texcoord = gl_TextureMatrix[0] * gl_MultiTexCoord0;<br />
+<li>&nbsp; &nbsp; lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;<br />
+<li>}</ol></div><em onclick="copycode($('code_MGw'));">复制代码</em></div><br />
+<font face="微软雅黑"><font size="3">gbuffers_textured_lit</font></font><font face="微软雅黑"><font size="3">.fsh：</font></font><div class="blockcode"><div id="code_sy8"><ol><li>#version 120<br />
+<li><br />
+<li>uniform sampler2D texture;<br />
+<li>uniform sampler2D lightmap;<br />
+<li><br />
+<li>varying vec4 color;<br />
+<li>varying vec4 texcoord;<br />
+<li>varying vec4 lmcoord;<br />
+<li><br />
+<li>void main() {<br />
+<li>&nbsp; &nbsp; gl_FragData[0] = texture2D(texture, texcoord.st) * texture2D(lightmap, lmcoord.st) * color;<br />
+<li>}</ol></div><em onclick="copycode($('code_sy8'));">复制代码</em></div><br />
+<div align="center"><font face="微软雅黑"><font size="5"><strong>代码解释</strong></font></font></div><br />
+<font face="微软雅黑"><font size="3">相较于</font></font><font face="微软雅黑"><font size="3">gbuffers_textured，顶点着色器中多了</font></font><font face="微软雅黑"><font size="3"><strong>lmcoord</strong>，不解释。</font></font><br />
+<font face="微软雅黑"><font size="3">main函数中多了</font></font><font face="微软雅黑"><font size="3"><strong>lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;</strong>其中纹理坐标矩阵(</font></font><font face="微软雅黑"><font size="3">gl_TextureMatrix</font></font><font face="微软雅黑"><font size="3">)的0号矩阵储存的是纹理数据，1号矩阵储存的是光照数据，这里是需要记住的。</font></font><strong>gl_MultiTexCoord1</strong><font face="微软雅黑"><font size="3">是1号纹理坐标。<strong>这句代码的意思是计算了光照的坐标并赋值给</strong></font></font><font face="微软雅黑"><font size="3"><strong>lmcoord</strong>。</font></font><br />
+<font face="微软雅黑"><font size="3">片段着色器则是又定义了一个2D的纹理采样器</font></font><font face="微软雅黑"><font size="3"><strong>uniform sampler2D lightmap;</strong>光照贴图(</font></font><font face="微软雅黑"><font size="3">lightmap)，Minecraft会每隔一段时间(可能是几个游戏刻)生成一个</font></font><font face="微软雅黑"><font size="3">光照贴图</font></font><font face="微软雅黑"><font size="3">，用来表示一个物体在当前光照下的亮度。</font></font><br />
+<font face="微软雅黑"><font size="3">main函数中则是用同样的方法，根据顶点着色器传来的坐标，从</font></font><font face="微软雅黑"><font size="3"><strong>lightmap</strong>中获得光照颜色(其实也可以说成是像素受到光照后产生的颜色偏差)后乘进去。这里要注意的是，</font></font><font face="微软雅黑"><font size="3">lmcoord的s轴对应人造光源强度，t轴对应环境光源强度。</font></font><font face="微软雅黑"><font size="3">在这个代码中，如果你把获取像素像素颜色那一段删掉的话，效果会很滑稽。我不放图了，好奇的可以自己试试。</font></font><br />
+<br />
+<div align="center"><font face="微软雅黑"><font size="5"><strong>效果展示</strong></font></font></div><br />
+<div align="center">
+<ignore_js_op>
+
+<img id="aimg_1312079" aid="1312079" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201904/29/203840a9yo9tqmzt9ntmn5.png" file="https://attachment.mcbbs.net/forum/201904/29/203840a9yo9tqmzt9ntmn5.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1312079" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1312079_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2019-04-29_20.37.45.png</strong> <em class="xg1">(231.19 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTMxMjA3OXxmY2U4MjU3M3wxNjEzOTgwNDk3fDI0MTk0ODZ8ODU3OTQ5&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-4-29 21:02 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="center">
+<ignore_js_op>
+
+<img id="aimg_1312081" aid="1312081" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201904/29/195103w611zp7lzsp61b7i.jpg" file="https://attachment.mcbbs.net/forum/201904/29/195103w611zp7lzsp61b7i.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1312081" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1312081_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1556538663000.jpg</strong> <em class="xg1">(64.81 KB, 下载次数: 2)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTMxMjA4MXxkNTlmOWExY3wxNjEzOTgwNDk3fDI0MTk0ODZ8ODU3OTQ5&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-4-29 19:51 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="center">可以看出远处的村庄被火把照亮了(调过gamma值的需要调回来)</div><div align="center"><font face="微软雅黑"><font size="3">如果你的代码加载后效果是这个样子，那么恭喜你，本章的目标你已经达成了。</font></font></div><br />
+<div align="center"><font face="微软雅黑"><font size="5"><strong>代码下载</strong></font></font></div><br />
+<div align="center">
+<ignore_js_op>
+
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1312083" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTMxMjA4M3w2ZWUyNTZhYXwxNjEzOTgwNDk3fDI0MTk0ODZ8ODU3OTQ5" target="_blank">第四章最终代码.zip</a>
+
+<em class="xg1">(2.49 KB, 下载次数: 74)</em>
+</span>
+<div class="tip tip_4" id="attach_1312083_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2019-4-29 21:02 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><script type="text/javascript" reload="1">
+aimgcount[14206827] = ['1307631','1312079','1312081'];
+attachimggroup(14206827);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Bimanager&nbsp; &nbsp; <b>时间: </b>2019-4-29 21:27<br />
+继续学习0.0<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>酥皮&nbsp; &nbsp; <b>时间: </b>2019-4-30 21:40<br />
+很好的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>454475906&nbsp; &nbsp; <b>时间: </b>2019-4-30 23:10<br />
+谢谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>monseasd&nbsp; &nbsp; <b>时间: </b>2019-5-2 18:38<br />
+<img src="static/image/smiley/tong/chigua.png" smilieid="1464" border="0" alt="" />感谢大佬的教程，好详细<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qwe425819332&nbsp; &nbsp; <b>时间: </b>2019-5-3 09:04<br />
+66666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3m4s&nbsp; &nbsp; <b>时间: </b>2019-5-4 09:51<br />
+我去 厉害<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yujm4623&nbsp; &nbsp; <b>时间: </b>2019-5-4 10:08<br />
+23333333333333333333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CoolPayW&nbsp; &nbsp; <b>时间: </b>2019-5-9 17:06<br />
+感谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>简简-单单&nbsp; &nbsp; <b>时间: </b>2019-5-9 20:26<br />
+lz加油，别弃坑了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>orange——par&nbsp; &nbsp; <b>时间: </b>2019-5-10 18:49<br />
+试一下<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>腹黑攻&nbsp; &nbsp; <b>时间: </b>2019-5-11 08:20<br />
+持续更新！<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>腹黑攻&nbsp; &nbsp; <b>时间: </b>2019-5-11 08:21<br />
+持续更新！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ffcr&nbsp; &nbsp; <b>时间: </b>2019-5-11 08:26<br />
+希望手机版也能这样开发<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>leishilin&nbsp; &nbsp; <b>时间: </b>2019-5-11 15:09<br />
+<img src="static/image/smiley/rabbit/51.gif" smilieid="701" border="0" alt="" /><img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zjm1q2w3e&nbsp; &nbsp; <b>时间: </b>2019-5-11 18:54<br />
+I want tp meak<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ezol_Alex&nbsp; &nbsp; <b>时间: </b>2019-5-12 09:59<br />
+66666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DponHIM&nbsp; &nbsp; <b>时间: </b>2019-5-17 21:37<br />
+收藏了，支持楼主，很不错的教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>399071660&nbsp; &nbsp; <b>时间: </b>2019-5-17 22:42<br />
+顶顶顶顶<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TenmaW&nbsp; &nbsp; <b>时间: </b>2019-5-17 22:57<br />
+谢楼主分享<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2002424&nbsp; &nbsp; <b>时间: </b>2019-5-18 17:11<br />
+感谢！<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xuezimcmcas&nbsp; &nbsp; <b>时间: </b>2019-5-20 08:03<br />
+感谢大佬分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3357dou&nbsp; &nbsp; <b>时间: </b>2019-5-20 14:03<br />
+66666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>codingz&nbsp; &nbsp; <b>时间: </b>2019-5-22 15:07<br />
+快一个月了，我来催更 <img src="static/image/smiley/rabbit/45.gif" smilieid="695" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>葱动a&nbsp; &nbsp; <b>时间: </b>2019-5-23 18:20<br />
+我哇发放事实上事实上事实上<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BeaneChoun&nbsp; &nbsp; <b>时间: </b>2019-5-25 13:33<br />
+很棒的教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>LCBRST&nbsp; &nbsp; <b>时间: </b>2019-5-25 17:26<br />
+感谢楼主<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>buffettfeng&nbsp; &nbsp; <b>时间: </b>2019-5-25 22:40<br />
+感谢楼主，教程很好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tc002&nbsp; &nbsp; <b>时间: </b>2019-5-27 19:00<br />
+感谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xyzero&nbsp; &nbsp; <b>时间: </b>2019-5-28 18:55<br />
+上古卷轴的enb又是什么东西能用在mc上吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1611317683&nbsp; &nbsp; <b>时间: </b>2019-5-29 01:52<br />
+支持一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2859286510&nbsp; &nbsp; <b>时间: </b>2019-5-30 19:36<br />
+回复可见<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>豆沙包···&nbsp; &nbsp; <b>时间: </b>2019-6-1 10:10<br />
+2333333322222222<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Immort_&nbsp; &nbsp; <b>时间: </b>2019-6-1 16:31<br />
+腻害腻害腻害腻害腻害腻害<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小张up&nbsp; &nbsp; <b>时间: </b>2019-6-2 10:45<br />
+太好了，这样终于可以做自己的光影了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>粗线条少年&nbsp; &nbsp; <b>时间: </b>2019-6-2 16:52<br />
+哇这就是所谓的光影教学 非常细心 很好 支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>十字君&nbsp; &nbsp; <b>时间: </b>2019-6-8 09:39<br />
+干巴爹ya!!<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>5286722769&nbsp; &nbsp; <b>时间: </b>2019-6-8 11:01<br />
+66666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1049576175&nbsp; &nbsp; <b>时间: </b>2019-6-8 14:16<br />
+感谢楼主分享！！！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>东药君&nbsp; &nbsp; <b>时间: </b>2019-6-9 10:37<br />
+望大佬不要弃坑。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鸭蛋只吃黄&nbsp; &nbsp; <b>时间: </b>2019-6-9 16:30<br />
+感觉可以学一波<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>紫菜°&nbsp; &nbsp; <b>时间: </b>2019-6-9 20:10<br />
+好久都没有看到光影教程了awa<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jimhy&nbsp; &nbsp; <b>时间: </b>2019-6-12 13:52<br />
+继续学习0.0<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Bord是大神&nbsp; &nbsp; <b>时间: </b>2019-6-12 16:51<br />
+原来光影是这么做的，涨知识了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>柿子shizi&nbsp; &nbsp; <b>时间: </b>2019-6-12 19:12<br />
+加油，我们会一直支持你的。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lqqiloveyou&nbsp; &nbsp; <b>时间: </b>2019-6-13 18:30<br />
+学到了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>houa&nbsp; &nbsp; <b>时间: </b>2019-6-17 12:56<br />
+sfdasdfiosodfjosjdfadfdsf<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ddasads&nbsp; &nbsp; <b>时间: </b>2019-6-19 19:31<br />
+很好的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1121171705&nbsp; &nbsp; <b>时间: </b>2019-6-22 01:07<br />
+谢谢分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>伍连军&nbsp; &nbsp; <b>时间: </b>2019-6-22 15:51<br />
+6666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>rt4ft3&nbsp; &nbsp; <b>时间: </b>2019-6-23 00:04<br />
+大佬继续<img src="static/image/smiley/tong/kira.png" smilieid="1455" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Qhnan&nbsp; &nbsp; <b>时间: </b>2019-6-24 11:48<br />
+MCBBS有你更精彩~<img src="static/image/smiley/rabbit/48.gif" smilieid="698" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ynglife&nbsp; &nbsp; <b>时间: </b>2019-6-26 00:53<br />
+有用 谢谢！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>按F5试试&nbsp; &nbsp; <b>时间: </b>2019-6-26 10:34<br />
+六啊6666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>梦殇空城&nbsp; &nbsp; <b>时间: </b>2019-6-27 13:55<br />
+希望继续更新<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>搅腋潭&nbsp; &nbsp; <b>时间: </b>2019-6-27 19:52<br />
+谢谢lz的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>懒粽QAQ&nbsp; &nbsp; <b>时间: </b>2019-6-30 11:07<br />
+非常感谢作者，作者辛苦辣！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2865859268&nbsp; &nbsp; <b>时间: </b>2019-6-30 12:32<br />
+感谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1833281961&nbsp; &nbsp; <b>时间: </b>2019-6-30 18:00<br />
+感谢学习共享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>神马星系MOD&nbsp; &nbsp; <b>时间: </b>2019-6-30 20:32<br />
+厉害啊????????????<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>誓约void&nbsp; &nbsp; <b>时间: </b>2019-7-3 21:06<br />
+感谢楼主的教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Kilbert.&nbsp; &nbsp; <b>时间: </b>2019-7-4 19:30<br />
+厉害，太厉害了，谢谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>人才哟&nbsp; &nbsp; <b>时间: </b>2019-7-5 18:15<br />
+谢谢额额额额额额<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>星之爆火&nbsp; &nbsp; <b>时间: </b>2019-7-10 12:39<br />
+woc 技术大佬惹不起 慢慢学吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南京扛把子&nbsp; &nbsp; <b>时间: </b>2019-7-10 21:52<br />
+学习到了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>心跳C&nbsp; &nbsp; <b>时间: </b>2019-7-11 19:46<br />
+5555555555555555555555555555555555555<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>q549365815&nbsp; &nbsp; <b>时间: </b>2019-7-13 06:35<br />
+谢谢分享！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>呆瓜Domado&nbsp; &nbsp; <b>时间: </b>2019-7-14 14:43<br />
+感谢楼主的教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zhengruilin&nbsp; &nbsp; <b>时间: </b>2019-7-14 16:38<br />
+继续学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>「彧譞」&nbsp; &nbsp; <b>时间: </b>2019-7-15 11:23<br />
+学习学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1143131944m&nbsp; &nbsp; <b>时间: </b>2019-7-16 17:11<br />
+顶顶顶<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC_Kunge[666】&nbsp; &nbsp; <b>时间: </b>2019-7-19 10:28<br />
+666666666666666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC_Kunge[666】&nbsp; &nbsp; <b>时间: </b>2019-7-19 11:05<br />
+希望作者能继续努力<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RainIFunS&nbsp; &nbsp; <b>时间: </b>2019-7-20 18:10<br />
+想做一个只有光照效果的光影嘿嘿<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>略地&nbsp; &nbsp; <b>时间: </b>2019-7-20 19:18<br />
+66666666666666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>384543121&nbsp; &nbsp; <b>时间: </b>2019-7-21 18:49<br />
+6666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Dr.Slime&nbsp; &nbsp; <b>时间: </b>2019-7-21 19:32<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" />⑧学了，光影好难学<br />
+脑壳痛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鬼鱼Ghostfish&nbsp; &nbsp; <b>时间: </b>2019-7-21 20:05<br />
+楼主加油！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ITH我是火把&nbsp; &nbsp; <b>时间: </b>2019-7-24 16:14<br />
+666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GC_YKE&nbsp; &nbsp; <b>时间: </b>2019-7-24 21:05<br />
+6666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Fablore0302&nbsp; &nbsp; <b>时间: </b>2019-7-26 14:47<br />
+很好的作品<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ylqcylqc&nbsp; &nbsp; <b>时间: </b>2019-7-26 18:43<br />
+有些难以理解呢~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TPAMCMOD&nbsp; &nbsp; <b>时间: </b>2019-7-26 21:37<br />
+感谢LZ！能不能出个优化教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>不生存的猪&nbsp; &nbsp; <b>时间: </b>2019-7-26 21:46<br />
+6666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>虚伪的悲催&nbsp; &nbsp; <b>时间: </b>2019-7-27 03:54<br />
+学习ing..............<br />
+尝试开发出一个属于自己的光影<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>9/9&nbsp; &nbsp; <b>时间: </b>2019-7-28 20:05<br />
+感谢大佬的教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>此方程无解&nbsp; &nbsp; <b>时间: </b>2019-7-28 21:15<br />
+我......&nbsp; &nbsp;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>icebears&nbsp; &nbsp; <b>时间: </b>2019-7-29 14:41<br />
+QAQ感觉越来越看不懂了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>11314242&nbsp; &nbsp; <b>时间: </b>2019-7-30 20:50<br />
+学习ing。。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>thx114&nbsp; &nbsp; <b>时间: </b>2019-8-2 06:17<br />
+学习学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hengxi_funny&nbsp; &nbsp; <b>时间: </b>2019-8-2 13:37<br />
+感谢楼主分享<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>diauweb&nbsp; &nbsp; <b>时间: </b>2019-8-2 17:52<br />
+支持支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>872579811&nbsp; &nbsp; <b>时间: </b>2019-8-3 21:51<br />
+6666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gao-ji&nbsp; &nbsp; <b>时间: </b>2019-8-3 22:01<br />
+为什么要把效果也锁了啊XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2465979072&nbsp; &nbsp; <b>时间: </b>2019-8-3 23:33<br />
+看不懂，，，抓狂。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>邱-XM8&nbsp; &nbsp; <b>时间: </b>2019-8-4 15:25<br />
+学习学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>索菲缇娅&nbsp; &nbsp; <b>时间: </b>2019-8-5 20:51<br />
+谢谢楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>slambjt&nbsp; &nbsp; <b>时间: </b>2019-8-10 17:41<br />
+666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yes937&nbsp; &nbsp; <b>时间: </b>2019-8-13 03:00<br />
+多谢指教！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>超神的冰凉&nbsp; &nbsp; <b>时间: </b>2019-8-14 13:36<br />
+支持作者
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

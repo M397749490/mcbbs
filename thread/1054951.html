@@ -1,0 +1,121 @@
+<html>
+<head>
+<title>EnumHelper 的前世今生 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>EnumHelper 的前世今生 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>土球球&nbsp; &nbsp; <b>时间: </b>2020-5-31 21:33<br />
+<b>标题: </b>EnumHelper 的前世今生<br /><font style="font-size:16px">在 Minecraft Forge 的源代码中，<a href="https://github.com/MinecraftForge/MinecraftForge/blob/1.12.x/src/main/java/net/minecraftforge/common/util/EnumHelper.java" target="_blank"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">EnumHelper</font></font></a> 是一个历史十分悠久的类，最早甚至可以追溯到 <a href="https://github.com/MinecraftForge/MinecraftForge/commit/d64c3322668470feebe271f701a69cefe4ee54b" target="_blank">2011 年</a>。但是，在 Minecraft 1.13 及更高版本中，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">EnumHelper</font></font> 的工作方式遇到了前所未有的挑战。本文便聊一聊 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">EnumHelper</font></font> 的出现原因，在发展中遇到的挑战，以及在目前的 Forge 代码仓库中不复存在的原因。</font><br />
+<br />
+<font style="font-size:24px"><strong>需求：为枚举类动态增加值</strong></font><br />
+<br />
+<font style="font-size:16px">虽然说对于所有枚举类，也就是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">java.lang.Enum</font></font> 的子类来说，语义上值的数量都是不会发生变化的。如果我们编写的是寻常的 Java 项目，那么我们只需要在枚举类的声明中多加一行，便可为枚举添加新的值。然而，我们面对的是 Minecraft Mod，那么 Mod 为某个枚举添加额外的值，便成为困难得多的需求了。</font><br />
+<br />
+<font style="font-size:16px">我们只能使用一些相对 Dirty Hack 的方式动态增加值。为枚举类动态增加值通常需要做三件事：构造一个新的实例、向枚举清单中增加已有的实例、以及让已有的缓存失效。我们一件一件说。</font><br />
+<br />
+<font style="font-size:24px"><strong>需求：构造一个新的实例</strong></font><br />
+<br />
+<font style="font-size:16px">由于 Java 自带的反射框架不能直接调用枚举类的构造方法，因此我们需要用到 JRE 内部的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ReflectionFactory</font></font> 类（Java 8 及以下位于 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">sun.reflect</font></font> 包，Java 9 及以**于 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">jdk.internal.reflect</font></font> 包），具体代码如下：</font><br />
+<br />
+<div class="blockcode"><div id="code_zrK"><ol><li>enum YourEnum { A0, A1, A2; }<br />
+<li><br />
+<li>Constructor&lt;?&gt; ctor = YourEnum.class.getDeclaredConstructors()[0];<br />
+<li>ReflectionFactory factory = ReflectionFactory.getReflectionFactory();<br />
+<li>YourEnum A3 = factory.newConstructorAccessor(ctor).newInstance(new Object[]{&quot;A3&quot;, 3})</ol></div><em onclick="copycode($('code_zrK'));">复制代码</em></div><br />
+<font style="font-size:24px"><strong>需求：向枚举清单中增加已有的实例</strong></font><br />
+<br />
+<font style="font-size:16px">通常情况下，Java 编辑器会为枚举类创建一个名为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">$VALUES</font></font> 的静态字段，里面存放着一个数组，其中 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">values</font></font> 静态方法被调用的时候会复制这个数组，由于这个数组是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">private static final</font></font> 的，因此我们不能直接设置，但我们可以使用常规的反射方法设置这个数组的值。</font><br />
+<br />
+<div class="blockcode"><div id="code_Urw"><ol><li>enum YourEnum { A0, A1, A2; }<br />
+<li><br />
+<li>Field field = YourEnum.class.getDeclaredField(&quot;$VALUES&quot;);<br />
+<li>field.setAccessible(true);<br />
+<li><br />
+<li>Field modifiersField = Field.class.getDeclaredField(&quot;modifiers&quot;);<br />
+<li>modifiersField.setAccessible(true);<br />
+<li>modifiersField.setInt(field, field.getModifiers() &amp; ~Modifier.FINAL);<br />
+<li><br />
+<li>Object[] values = (Object[]) field.get(null);<br />
+<li>values = Arrays.copyof(values, values.length + 1);<br />
+<li>values[values.length - 1] = A3;<br />
+<li>field.set(null, values);</ol></div><em onclick="copycode($('code_Urw'));">复制代码</em></div><br />
+<font style="font-size:24px"><strong>需求：让已有的缓存失效</strong></font><br />
+<br />
+<font style="font-size:16px">Java 在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Class</font></font> 类中放了两个和枚举有关的缓存，它们通常被命名为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">enumConstants</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">enumConstantDirectory</font></font> 两个字段。我们还需要把这两个字段的值设置成 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">null</font></font>。</font><br />
+<br />
+<div class="blockcode"><div id="code_R9A"><ol><li>for (String name : new String[]{&quot;enumConstants&quot;, &quot;enumConstantDirectory&quot;}) {<br />
+<li>&nbsp; &nbsp; for (Field field : Class.class.getDeclaredFields()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (name.equals(field.getName())) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;field.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;field.set(YourEnum.class, null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_R9A'));">复制代码</em></div><br />
+<font style="font-size:24px"><strong>问题：这些字段真的叫这些名字吗？</strong></font><br />
+<br />
+<font style="font-size:16px">刚刚我们提到过，通常而言这些字段的名字是固定的，但原则总会有例外：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>OpenJ9 VM 中，在 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">Class</font></font> 类下用于缓存的字段名是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">enumVars</font></font>：<a href="https://github.com/MinecraftForge/MinecraftForge/pull/5712" target="_blank">#5712</a><li>Eclipse JDT 在编译 Java 源代码时，会使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ENUM$VALUES</font></font> 而非 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">$VALUES</font></font>：<a href="https://github.com/MinecraftForge/MinecraftForge/issues/502" target="_blank">#502</a><br />
+</ul></font><br />
+<font style="font-size:16px">甚至我们还会遇到 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ENUM$VALUES</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">$VALUES</font></font> 之外的值：Mojang 会将 Minecraft 源代码混淆，而枚举类的这一字段也会跟着混淆，因此我们能够拿到的字段，大概率只会有 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">a</font></font> 或者 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">field_xxxxxx_a</font></font> 这样的名字。</font><br />
+<br />
+<font style="font-size:16px">Forge 在这里的解决方案是采用动态查找这一手段：查找类型和理论上的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">$VALUES</font></font> 值相同的字段并修改值。</font><br />
+<br />
+<font style="font-size:24px"><strong>问题：修改一个 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">static final</font></font> 的字段值</strong></font><br />
+<br />
+<font style="font-size:16px">虽然 Java 允许我们使用反射的方式修改 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">static final</font></font> 的字段值，但 JIT 很可能会在修改前内联这一值，使得对于该值的修改无效。这实际牵连到了很多相关的问题，而绝非动态增加枚举值本身，因此在 <a href="https://github.com/MinecraftForge/MinecraftForge/pull/4656" target="_blank">#4656</a> 掀起了一场旷日持久的争论。</font><br />
+<br />
+<font style="font-size:16px">最后的解决方案是把枚举类的相应字段的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">final</font></font> 修饰符通过调整字节码的方式去掉。当然，内联字段这一行为本身便是运行时优化的一种，这种行为无疑直接把这一优化去掉了，因此是否真的应当维持这种做法，其实还有待商榷。</font><br />
+<br />
+<font style="font-size:24px"><strong>问题：使用了 JRE 内部的 API 调用构造方法</strong></font><br />
+<br />
+<font style="font-size:16px">刚刚的解决方案使用了 JRE 内部的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">sun.reflect.ReflectionFactory</font></font> 类，而在 Java 9 及更高版本，该类被迁移到了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">jdk.internal.reflect</font></font> 包下，而且被锁在了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">java.base</font></font> 模块内，无法正常访问，这使得该方法不再行得通，也是 Minecraft 1.12 及更低版本的 Forge 难以迁移到 Java 9 及更高版本的原因之一。</font><br />
+<br />
+<font style="font-size:16px">Forge 在 Minecraft 1.13 及更高版本直接另起炉灶，通过字节码生成的方式在枚举类内部新添加代码直接调用相应的构造方法，从而绕过了 Java 反射的相关限制。相关代码位于 <a href="https://github.com/MinecraftForge/MinecraftForge/blob/1.14.x/src/fmllauncher/java/net/minecraftforge/common/asm/RuntimeEnumExtender.java" target="_blank"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">RuntimeEnumExtender</font></font></a> 类下。</font><br />
+<br />
+<font style="font-size:16px">当然，<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">EnumHelper</font></font> 也完成了它的使命，在高版本被正式移除了。</font><br />
+<br />
+<font style="font-size:24px"><strong>终极解决方案：能不能怂恿 Mojang 不用枚举？</strong></font><br />
+<br />
+<font style="font-size:16px">别笑，Mojang 真的这么做了。</font><br />
+<br />
+<font style="font-size:16px">从 Minecraft 1.13 开始，Mojang 为一些之前是枚举的类增加了额外的接口，这包括我们耳熟能详的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ArmorMaterial</font></font>、<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ToolMaterial</font></font>（在高版本名称被调整为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ItemTier</font></font>）等。</font><br />
+<br />
+<font style="font-size:16px">我们以 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ArmorMaterial</font></font> 为例。Minecraft 为 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ArmorMaterial</font></font> 实现了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">IArmorMaterial</font></font> 接口，并在自己的相关代码中大量使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">IArmorMaterial</font></font> 接口而不是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">ArmorMaterial</font></font> 枚举类本身，从而使得 Mod 可以实现自己的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">IArmorMaterial</font></font> 而不必囿于枚举类的限制。</font><br />
+<br />
+<font style="font-size:16px">但是毕竟：</font><br />
+<br />
+<div class="quote"><blockquote><font style="font-size:16px">Mojang 这一代游戏开发者的想象力，不足以想象 Mod 开发者的未来。</font><br />
+<font style="font-size:16px">—— 沃·兹基硕德</font></blockquote></div><br />
+<font style="font-size:16px">所以其实还是有很多枚举需要动态添加值，如果遇到这种情况，Mod 开发者也只能利用他们选择的权利，使用上面提到的这些 Dirty Hack 了。</font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-31 21:53<br />
+主要是如果强行reflection factory改enum的话<br />
+switch编译出来的内部类会出问题<br />
+因为编译完之后switch会产生缓存，不使用特殊方法改不了<br />
+<br />
+没想到forge提供了那么666的轮子<br />
+从未写过mod<br />
+但是还是感到了forge的美好<br />
+<strike>bk连classloader都那么laji</strike><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>金坷居士&nbsp; &nbsp; <b>时间: </b>2020-6-3 16:06<br />
+出接口真的是棒，接口和枚举不冲突<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RememberXNL&nbsp; &nbsp; <b>时间: </b>2020-6-3 20:02<br />
+牛牛牛牛牛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Mohist-Communit&nbsp; &nbsp; <b>时间: </b>2020-6-7 18:44<br />
+所以，我们应该如何使用RuntimeEnumExtender，有没有什么例子<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>many先生&nbsp; &nbsp; <b>时间: </b>2020-8-4 14:58<br />
+很棒，顶顶
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

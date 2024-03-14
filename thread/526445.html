@@ -1,0 +1,221 @@
+<html>
+<head>
+<title>[1.9]新的实体marker之王——(滞留的)药水云(AEC, AreaEffectCloud) - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.9]新的实体marker之王——(滞留的)药水云(AEC, AreaEffectCloud) <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-28 20:10<br />
+<b>标题: </b>[1.9]新的实体marker之王——(滞留的)药水云(AEC, AreaEffectCloud)<br /><i class="pstatus"> 本帖最后由 acordome 于 2015-12-16 15:15 编辑 </i><br />
+<br />
+　　大家好，今天我向大家隆重推荐1.9新的实体之王——AreaEffectCloud。字面的意思就是区域效果云，俗称药水云。<br />
+　　顺便，咱来对比一下盔甲架(AS)和药水云(AEC)作为marker的优点和缺点。<br />
+<br />
+　　在进入正文以前，我先把一些简称稍微列一下吧，这些写法可以参考pca的这篇帖子：<a href="thread.html?t=522757" target="_blank">http://www.mcbbs.net/thread-522757-1-1.html</a><br />
+<br />
+<div class="quote"><blockquote>gt: gametick，游戏刻，一般为0.05秒，为MC里最小的时间单位(微观延迟就是1gt内的执行顺序)<br />
+ scb: scoreboard，记分板<br />
+ cb: command block，命令方块<br />
+ icb: impulse command block，特指普通命令方块<br />
+ ccb: chain command block，连锁CB<br />
+ rcb: repeating command block，循环CB(会自动激活)<br />
+ AS: ArmorStand，盔甲架，经常用于标记坐标<br />
+<br />
+ 例子中可能用到的格式(其实是我生成器的格式来的)<br />
+ icb:/rcb: 该命令是放在icb/rcb里<br />
+ mark:名字 tag : 以一个指定名字、tag的AS来标记下一个CB的位置<br />
+ init: 该指令只是在生成OCS的时候执行<br />
+ cond: conditional，1.9CB的模式</blockquote></div><br />
+在此基础上进行补充<br />
+　　　　AEC：AreaEffectCloud，(滞留的)药水云<br />
+<br />
+<font size="4">1. 什么是Marker</font><br />
+<br />
+　　对于CBer来说，在编写指令的时候，考虑到移植性的问题，通常要尽可能避免在CB中出现绝对坐标，并且如果可以减少相对坐标中出现的数字，那自然是更好的。这就是为什么我们越来越重视marker这一概念。<br />
+　　例如，当我们需要激活一个远处的指令串的时候，我们可以使用这样的指令来激活<br />
+<div class="blockcode"><div id="code_EsQ"><ol><li>/blockdata x y z {auto:1}</ol></div><em onclick="copycode($('code_EsQ'));">复制代码</em></div><br />
+　　显然，如果使用绝对坐标的话，就不便于移植，使用相对偏移坐标的话，就需要考虑方位的问题。因此我们会考虑在(x,y,z)处放置一个不可动的实体来作为定位，例如上述指令，假设放置了一个tag=module的marker以后：<br />
+<div class="blockcode"><div id="code_ZE4"><ol><li>execute @e[tag=module1] ~ ~ ~ blockdata ~ ~ ~ {auto:1}<br />
+<li><br />
+<li>mark:module1<br />
+<li>icb:blockdata ~ ~ ~ {auto:0}<br />
+<li>blah blah blah...</ol></div><em onclick="copycode($('code_ZE4'));">复制代码</em></div><br />
+　　可以看到，所有的坐标都是以~ ~ ~表示的，这样的话，会方便移植和调用，虽然看上去好像是麻烦了，实际上却是对思维和逻辑的一种简化和规范。<br />
+<br />
+<font size="4">2. 什么样的实体适合充当Marker</font><br />
+<br />
+　　在明确了marker的作用以后，我们来探讨一下什么样的实体适合充当marker。显然候选人便是AS和AEC了。前两天chyx提出“AEC作为marker不卡”这一事实以后，我们几个人就开始了对aec marker的研究——不知道以前有没有人专门发过这样的帖子，如果有，纯属巧合，嗯√<br />
+<br />
+<font size="3">　2.1 盔甲架：AS, ArmorStand</font><br />
+<br />
+　　首先，大家都比较熟悉的AS，作为marker，不考虑name和tag的话，它需要设定这样的NBT<br />
+<br />
+<div class="blockcode"><div id="code_Bv3"><ol><li>{Marker:1,NoGravity:1,Invisible:1}</ol></div><em onclick="copycode($('code_Bv3'));">复制代码</em></div><br />
+　　AS作为marker，平时是看不见的，只有当切换旁观者模式以后才能看得见，这样设定的好处就是，在编写的时候，不会因为看见它们而感觉很烦，而debug的时候，则可以很方便的发现它们。缺点就是：当大规模使用AS marker的时候，由于需要渲染AS的模型，计算机会额外消耗很多资源。我曾经做过一个小测试，在一个点生成了500个AS marker，帧率从满帧直接掉到个位数……同样的测试也在AEC身上做了，结果稍后说，想必各位也是猜到了的。<br />
+　　而且，AS要写的NBT挺麻烦的……<br />
+<br />
+<br />
+<font size="3">　2.2 药水云：AEC, AreaEffectCloud</font><br />
+<br />
+　　AEC是1.9新增的实体，之前我们很多人也没有想到拿它作为marker，最近开始研究才发现其实是很棒的一个东西。首先我们来看看它作为marker的两个重要的NBT——其实Age在marker中用处几乎为0，但是要顺带讲……<br />
+<br />
+　　　　Age:指AEC存在了的时间，单位是gt。也就是说每gt自动+1<br />
+　　　　Duration:指AEC能存在的时间，单位也是gt。这是一个固有值，当Age达到这个数值的时候，AEC会消失。<strong>Duration最大值是2147483647，即2^31-1，超过这数字会溢出——注意：这个数值大概是<font color="red">3年4个月</font>，对于一个MC存档来说，几乎等价于永久marker了</strong><br />
+<br />
+　　这两个NBT如果默认的话，就是0，也就是说，如果没有指定AEC的Duration的话，AEC会存在短短的一瞬间。<br />
+　　这就意味着，如果使用AEC作为临时的Marker的话，不需要我们使用kill/tp之类的指令来清除它。<br />
+<br />
+　　<strong>显然用于Marker的AEC，我们只需要考虑一个标签，那就是Duration。</strong><br />
+　　这里给出一条生成永久marker的指令，用2100000000（8个0）是因为懒得打2147483647，Duration:2100000000的AEC持续时间大约是3年3月，你们觉得一个CB存档可能运行3年吗（笑）？<br />
+<div class="blockcode"><div id="code_vm2"><ol><li>/summon AreaEffectCloud x y z {Duration:2100000000,CustomName:&quot;xxx&quot;,Tags:[&quot;a&quot;,&quot;b&quot;]}</ol></div><em onclick="copycode($('code_vm2'));">复制代码</em></div><br />
+　　对于单点放置，可以用tab补全x y z，对于大量放置，可以用下面的指令：<br />
+<div class="blockcode"><div id="code_OYa"><ol><li>icb:/fill x1 y1 z1 x2 y2 z2 command_block 0 replace {auto:1,Command:&quot;/summon AreaEffectCloud ~ ~ ~ {Duration:2100000000,CustomName:&quot;xxx&quot;,Tags:[&quot;a&quot;,&quot;b&quot;]}&quot;}</ol></div><em onclick="copycode($('code_OYa'));">复制代码</em></div><br />
+　　<br />
+　　预计大型显示屏设备会井喷，放置这么多AEC并不会卡，但是同时执行指令的话，需要斟酌……<br />
+<br />
+　　可能会有很多人觉得AS更加稳妥一些，其实我觉得将来AEC完全可以取代AS成为新的marker之王，不过这并不意味着AS就失去了意义。我们应该明确一下它们各自的优缺点，了解它们分别用在什么场合更加合适。<br />
+<br />
+<div align="center"><table cellspacing="0" class="t_table" ><tr><td><br />
+</td><td><div align="center">AS</div></td><td><div align="center">AEC</div></td></tr><tr><td><div align="center">是否需要重置装置</div></td><td><div align="center">否</div></td><td><div align="center">理论上需要，实际上当Duration设定足够长的话就不需要了</div></td></tr><tr><td><div align="center">作为临时marker的便捷性</div></td><td><div align="center">需要手动清除</div></td><td><div align="center">可以自动清除</div></td></tr><tr><td><div align="center">消耗资源</div></td><td><div align="center">G3下可见，因此有一定消耗</div></td><td><div align="center">完全不可见，消耗资源极少</div></td></tr><tr><td><div align="center">debug便捷性</div></td><td><div align="center">比较便捷</div></td><td><div align="center">不太方便，需要F3+b</div></td></tr><tr><td><div align="center">相关NBT</div></td><td><div align="center">Marker,Invisible,NoGravity</div></td><td><div align="center">Duration</div></td></tr></table></div><br />
+　　下面对AEC稍微作一下总结，AS由于大家都比较了解了就不说了……<br />
+　　　AEC消耗的资源是很少的，我们在测试的时候放置了1万个AEC，帧数一点都没有降，如果是AS，早就崩MC了估计……<br />
+　　　AEC如果不打开F3+b的话，不便于debug，这一点是毋庸置疑的；<br />
+　　　AEC可以用来做时钟，这一点后来会稍微提到一点；<br />
+　　　AEC作为临时marker不需要清除，只需要设定一个很小的Duration即可；<br />
+<br />
+　　AEC可能会是继AS之后又一实体之王，其应用将来可能会比AS更加广泛——让我们持续关注吧23333<br />
+　　如果大家有什么疑问，不妨在下方提出。<br />
+<br />
+　　感谢@chyx @pca006132 和其他我不记得你们ID的小伙伴们！<br />
+<br />
+　　翻页可以看时钟。<br />
+<br />
+<br />
+<br />
+　　关于AEC时钟，我一向是这样的——假设朝东放置，其他朝向自己修改第二条指令的参数<br />
+<div class="blockcode"><div id="code_RaA"><ol><li>rcb:/testfor @e[r=0] {Age:1200}<br />
+<li>cond:/entitydata @e[dx=-1,r=1] {Age:0}<br />
+<li>cond:/say pha~</ol></div><em onclick="copycode($('code_RaA'));">复制代码</em></div><br />
+　　然后，在RCB的位置执行这样的指令(可以指着rcb然后用tab补全坐标)<br />
+<div class="blockcode"><div id="code_SMO"><ol><li>/summon AreaEffectCloud x y z {Duration:999999}</ol></div><em onclick="copycode($('code_SMO'));">复制代码</em></div><br />
+　　这里的Duraion比前面Age的数字大就可以了。<br />
+　　这样，每隔1分钟(=1200 gt)，就会显示一次[@] pha，其他指令同理……<br />
+<br />
+　　上面是一种偷懒的写法，可能会是一个不太好的习惯，避免冲突的话，可以给AEC指定一个name或者tag，然后改成像下面这样(举例)<br />
+<div class="blockcode"><div id="code_RvV"><ol><li>mark:aecTimer<br />
+<li>rcb:/testfor @e[name=aecTimer,type=AreaEffectCloud] {Age:20}<br />
+<li>cond:say 1秒钟过去了……<br />
+<li>/testfor @e[name=aceTimer,type=AreaEffectCloud] {Age:40}<br />
+<li>cond:say 2秒钟过去了……<br />
+<li>/testfor @e[name=aecTimer,type=AreaEffectCloud] {Age:1200}<br />
+<li>cond:/entitydata @e[name=aecTimer,type=AreaEffectCloud] {Age:0}<br />
+<li>cond:/say 1分钟到!重置时钟</ol></div><em onclick="copycode($('code_RvV'));">复制代码</em></div><br />
+　　好了，本次讨论到此结束~<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>青格大D&nbsp; &nbsp; <b>时间: </b>2015-11-28 20:15<br />
+原来是CBL的，为何不领勋章？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zzppq2012&nbsp; &nbsp; <b>时间: </b>2015-11-28 20:15<br />
+新人路过帮顶<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-28 20:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9415694&amp;ptid=526445" target="_blank"><font color="#999999">青格大D 发表于 2015-11-28 20:15</font></a></font><br />
+原来是CBL的，为何不领勋章？</blockquote></div><br />
+我不怎么玩论坛，不会领……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>949889780&nbsp; &nbsp; <b>时间: </b>2015-11-28 20:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9415790&amp;ptid=526445" target="_blank"><font color="#999999">acordome 发表于 2015-11-28 20:26</font></a></font><br />
+我不怎么玩论坛，不会领……</blockquote></div><br />
+到快捷方式里面<br />
+有个勋章<br />
+点进去<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chyx&nbsp; &nbsp; <b>时间: </b>2015-11-28 22:15<br />
+我居然成了国内aec神教领袖。。。<br />
+其实想debug只需按下f3+b<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-28 22:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9416430&amp;ptid=526445" target="_blank"><font color="#999999">chyx 发表于 2015-11-28 22:15</font></a></font><br />
+我居然成了国内aec神教领袖。。。<br />
+其实想debug只需按下f3+b</blockquote></div><br />
+F3+b是真理<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:03<br />
+此特性被发现之后，各种大量实体标记位置的系统就相继出现，实体数破万不是梦！<br />
+(然而每个命令可能要执行上万次，请小心使用，尤其是在服务器，我就是一个失败的例子)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>darrksy&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:05<br />
+这样游戏不会崩么。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9416682&amp;ptid=526445" target="_blank"><font color="#999999">darrksy 发表于 2015-11-28 23:05</font></a></font><br />
+这样游戏不会崩么。。。</blockquote></div><br />
+不会，今天我们测试了10000+个都没问题<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sylqiuyifeng&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9415790&amp;ptid=526445" target="_blank"><font color="#999999">acordome 发表于 2015-11-28 20:26</font></a></font><br />
+我不怎么玩论坛，不会领……</blockquote></div><br />
+小组勋章等每月更新名单自然会有<br />
+别着急<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9416658&amp;ptid=526445" target="_blank"><font color="#999999">pca006132 发表于 2015-11-28 23:03</font></a></font><br />
+此特性被发现之后，各种大量实体标记位置的系统就相继出现，实体数破万不是梦！<br />
+(然而每个命令可能要执行上 ...</blockquote></div><br />
+细数一下一晚上崩了多少次服23333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9416754&amp;ptid=526445" target="_blank"><font color="#999999">sylqiuyifeng 发表于 2015-11-28 23:25</font></a></font><br />
+小组勋章等每月更新名单自然会有<br />
+别着急</blockquote></div><br />
+这倒不急233，只不过我平时很少玩，没关注勋章这种东西233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2015-11-28 23:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9416770&amp;ptid=526445" target="_blank"><font color="#999999">acordome 发表于 2015-11-28 23:33</font></a></font><br />
+细数一下一晚上崩了多少次服23333</blockquote></div><br />
+命令执行次数问题233333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玄素&nbsp; &nbsp; <b>时间: </b>2015-11-29 15:16<br />
+看到崩溃记录内心也是崩溃着的23333<br />
+昨晚不知道为什么启动器log里显示了服里的部分记录……然后看到了pca杀了一万个AEC的刷屏记录（噗<br />
+以及其实可以让它完全看不到……彻底埋方块里就连F3+B都直接无解了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-29 18:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9420334&amp;ptid=526445" target="_blank"><font color="#999999">玄素 发表于 2015-11-29 15:16</font></a></font><br />
+看到崩溃记录内心也是崩溃着的23333<br />
+昨晚不知道为什么启动器log里显示了服里的部分记录……然后看到了pca杀 ...</blockquote></div><br />
+因为实在是太隐藏了……不过说实话如果是用来标记icb/rcb的话应该很好找的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kongbaiyo&nbsp; &nbsp; <b>时间: </b>2015-11-29 21:50<br />
+太强了！！<br />
+终于找到了不卡的Marker23333333333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>:spgbigfan:&nbsp; &nbsp; <b>时间: </b>2015-11-29 23:07<br />
+一直在用史莱姆的路过……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-29 23:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9422817&amp;ptid=526445" target="_blank"><font color="#999999">kakagou12 发表于 2015-11-29 23:07</font></a></font><br />
+一直在用史莱姆的路过……</blockquote></div><br />
+Slime的话，和平模式会GG……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玄素&nbsp; &nbsp; <b>时间: </b>2015-11-30 12:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9421531&amp;ptid=526445" target="_blank"><font color="#999999">acordome 发表于 2015-11-29 18:20</font></a></font><br />
+因为实在是太隐藏了……不过说实话如果是用来标记icb/rcb的话应该很好找的 ...</blockquote></div><br />
+多个指令组连一起的话也难说233，F3+B的视线线被埋了就真看不见了。<br />
+作为新marker的确蛮好用√<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-11-30 15:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9423544&amp;ptid=526445" target="_blank"><font color="#999999">玄素 发表于 2015-11-30 12:40</font></a></font><br />
+多个指令组连一起的话也难说233，F3+B的视线线被埋了就真看不见了。<br />
+作为新marker的确蛮好用√ ...</blockquote></div><br />
+pca:txt大法好√<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Minecraftmoon&nbsp; &nbsp; <b>时间: </b>2015-12-9 19:23<br />
+LZ头像好眼熟，LZ不会是秋一吧{:10_530:}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-12-9 23:21<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9458734&amp;ptid=526445" target="_blank"><font color="#999999">Minecraftmoon 发表于 2015-12-9 19:23</font></a></font><br />
+LZ头像好眼熟，LZ不会是秋一吧</blockquote></div><br />
+你觉得除了我还有谁会发这种蛋疼的帖子？、、、、、、、、、、<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lzs1234&nbsp; &nbsp; <b>时间: </b>2015-12-10 13:10<br />
+个人觉得AEC最大的好处是简化系统，原来kill AS的指令可以去掉了…<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋一&nbsp; &nbsp; <b>时间: </b>2015-12-13 23:08<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9461069&amp;ptid=526445" target="_blank"><font color="#999999">lzs1234 发表于 2015-12-10 13:10</font></a></font><br />
+个人觉得AEC最大的好处是简化系统，原来kill AS的指令可以去掉了…</blockquote></div><br />
+我觉得呢，资源消耗少以及生成方便才是最大的优点，自清除当然也是很棒的，嗯……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>J_黑默丁格&nbsp; &nbsp; <b>时间: </b>2015-12-15 09:25<br />
+[1.9]新的实体marker之王——药水云(AEC, AreaEffectCloud)<br />
+<a href="thread.html?t=526445" target="_blank">http://www.mcbbs.net/thread-526445-1-1.html</a><br />
+(出处: <a href="http://www.mcbbs.net/" target="_blank">http://www.mcbbs.net/</a>)<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>flamethunder&nbsp; &nbsp; <b>时间: </b>2017-12-2 22:22<br />
+747<div class="blockcode"><div id="code_a91"><ol><li>66[color=DarkOrange][/color]</ol></div><em onclick="copycode($('code_a91'));">复制代码</em></div><strong><strong></strong></strong>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,121 @@
+<html>
+<head>
+<title>BukkitApi中使用ClassLoader动态加载类 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>BukkitApi中使用ClassLoader动态加载类 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mfq199748&nbsp; &nbsp; <b>时间: </b>2015-10-23 10:04<br />
+<b>标题: </b>BukkitApi中使用ClassLoader动态加载类<br /><font size="6">主要用途:</font><br />
+<font size="4">插件的向下兼容(开发子插件系统)以增强(编程向)用户体验.</font><br />
+<font size="4"><br />
+</font><font size="6">需要掌握:</font><br />
+<font size="4">Java基础</font><br />
+<font size="4"><a href="http://blog.csdn.net/liujiahan629629/article/details/18013523" target="_blank">Java-反射机制</a></font><font size="6"><br />
+</font><br />
+<font size="6">提前学习:</font><br />
+<font size="4"><a href="http://www.cnblogs.com/Lawson/archive/2012/07/31/2616623.html" target="_blank">ClassLoader</a></font><br />
+<br />
+<font size="5">我写这篇教程时正在开发一个怪物修改类的插件,写到技能方面后为了增强插件的扩展性开始研究如何在插件中进行动态加载...嘛,遇到了很多困难,最后也都被解决了.</font><font size="5"><br />
+</font><br />
+<font size="6">思路:</font><br />
+<font size="5">利用Java本身的反射机制的ClassLoader加载其他的jar,然后就可以做一些怪怪(?)的事情啦！</font><br />
+<font size="5"><br />
+</font><br />
+<font size="6">注意点：</font><br />
+<font size="5">过程中需要指定bukkitAPI本身自带的ClassLoader加载器为父加载器.</font><br />
+<font size="5"><br />
+</font><br />
+<font size="5">需要将通过JarFile读取的jar文件中枚举的元素路径由&quot;/&quot;替换成&quot;.&quot;成为包格式.</font><br />
+<font size="5"><br />
+</font><br />
+<font size="6">具体事例还是需要具体分析,详见代码:</font><br />
+<div class="blockcode"><div id="code_e6X"><ol><li>//该方法会抛出IO异常,类不存在异常.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public List&lt;Class&lt;?&gt;&gt; getJarAllClass(String jarFile,Class superClass) throws IOException, ClassNotFoundException&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //新建一个List用于储存获得的Class<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ArrayList&lt;Class&lt;?&gt;&gt; l = new ArrayList&lt;Class&lt;?&gt;&gt;();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //将输入的文件路径转换成URL路径<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; URL url = new URL(&quot;file:&quot;+jarFile);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //将文件加载成URLClassLoader,注意这里的this代表是继承JavaPlugin的类,使用BukkitApi本身提供的ClassLoader作为父加载器.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;&nbsp;URLClassLoader cl&nbsp;&nbsp;= new URLClassLoader(new URL[] { url },this.getClassLoader());<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //将文件用JarFile类载入<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; JarFile jar = new JarFile(jarFile);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //使用迭代器遍历jar内所有元素<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Enumeration&lt;JarEntry&gt; e = jar.entries();<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; while(e.hasMoreElements()){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //加载元素路径为Java包路径格式<br />
+<li>String name = isPathToClass(e.nextElement().getName());<br />
+<li>//如果name==null则不是class元素路径,进入下个遍历<br />
+<li>if(name==null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; continue;<br />
+<li><br />
+<li>//用之前创建的URLClassLoader加载确认的元素获得其Class<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; Class&lt;?&gt; cla = cl.loadClass(name);<br />
+<li>//如果ClassLoader没有取到类,跳到下个遍历(基本是Jar包内包含.class后戳的其他编码文件)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; if(cla==null)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; continue;<br />
+<li><br />
+<li>//判断这个Class是否继承该超类为父类,如果是或没有指定父类则加入列表.<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; if(superClass==null||cla.getSuperclass()==superClass)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; l.add(cla);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; return l;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; private static String isPathToClass(String n) {<br />
+<li><br />
+<li>//如果长度大于6符合class文件路径标准<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; if(n.length()&gt;6)<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; if(n.substring(n.length()-6, n.length()).equalsIgnoreCase(&quot;.class&quot;))<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //如果文件末端也为.class确定为class文件<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />
+<li>//返回时将.class去掉并将&quot;/&quot;替换为&quot;.&quot;变成类似com.baidu.util.Math的包路径格式<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; return n.substring(0, n.length()-6).replaceAll(&quot;/&quot;, &quot;.&quot;);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li><br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>//不是class文件路径,返回NULL<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li><br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; </ol></div><em onclick="copycode($('code_e6X'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Bryan33&nbsp; &nbsp; <b>时间: </b>2015-11-20 21:55<br />
+<i class="pstatus"> 本帖最后由 a390807154 于 2015-11-20 21:58 编辑 </i><br />
+<br />
+把原插件的各种方法权限设置为public 然后直接利用原插件进行子插件的编写就好<br />
+然后在plugin.yml里写入depend:[插件名]<br />
+就能保证子插件晚于父插件加载<br />
+<br />
+还有LZ可以申请开发人员勋章了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mfq199748&nbsp; &nbsp; <b>时间: </b>2015-11-21 00:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9380543&amp;ptid=515087" target="_blank"><font color="#999999">a390807154 发表于 2015-11-20 21:55</font></a></font><br />
+把原插件的各种方法权限设置为public 然后直接利用原插件进行子插件的编写就好<br />
+然后在plugin.yml里写入depe ...</blockquote></div><br />
+嘛这种自加载和自插件各有优点啦 还有谢谢提醒我现在去申请= =
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

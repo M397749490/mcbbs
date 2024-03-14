@@ -1,0 +1,151 @@
+<html>
+<head>
+<title>关于注册表判断JAVA信息的最优解 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于注册表判断JAVA信息的最优解 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>nsisogf&nbsp; &nbsp; <b>时间: </b>2018-8-22 09:50<br />
+<b>标题: </b>关于注册表判断JAVA信息的最优解<br />在以前的贴中（<a href="thread.html?t=704797" target="_blank">http://www.mcbbs.net/thread-704797-1-1.html</a>）<br />
+我曾以注册表+命令行的方法获取java位数，版本信息<br />
+但<strong>事实是这种方式是效率及其低，并且最不稳定的方式</strong><br />
+一旦返回的内容修改，那么这种方法需要重新进行修改进行匹配<br />
+<br />
+先略谈下JAVA注册表机制（以JRE进行说明，JDK略特殊不进行说明）<br />
+在安装JAVA后，JAVA会在注册表中写入相关信息<br />
+节点位于<br />
+LOCALMACHINE<br />
+ |-SOFTWARE<br />
+&nbsp; &nbsp; |-JavaSoft<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;|-Java Runtime Environment(新版本为JRE)<br />
+在此节点中，所有<strong>子节点的名称即为一个JRE的版本</strong><br />
+但是我个人发现，安装一个版本会写入两个子节点，比如1.8和1.8.x.xx，应该取最长的那个作为版本号<br />
+所以判断字符串的长度是否大于3即可<br />
+<br />
+接下来进入该子节点，获取其中<strong>JavaHome的值，既是JRE主路径</strong><br />
+但是由于启动mc需要的是可执行文件路径，所以在<strong>后面加上\bin\javaw.exe</strong>即可<br />
+<br />
+关键是，如何获取位数？<br />
+这个需要你们动动脑筋咯<br />
+先整理下逻辑，<strong>x86平台上只能装x86的JAVA，所以在x86系统上无论查找到什么JAVA，都应该是x86的</strong><br />
+<strong>x64平台上有两种可能，一种是32位的，另一种是64位的</strong><br />
+在64位系统上，注册表有这么一个机制<br />
+在默认视图下，SOFTWARE里面还有一个<strong>Wow6432Node节点</strong><br />
+<strong>这个节点是供64位操作表中提供对32位注册表的支持</strong><br />
+也就是说64位注册表中32位应用写入的注册表在这个节点中<br />
+所以我们就很灵活的能在64位平台上判断JAVA位数了<br />
+<br />
+<strong>接下来提供C#代码</strong><br />
+先定义JAVA信息类<br />
+<div class="blockcode"><div id="code_aNQ"><ol><li>public class Java<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// JAVA路径<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;/summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public string Path { get; private set; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// JAVA版本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;/summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public string Version { get; private set; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// java位数<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;/summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public ArchEnum Arch { get; private set; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public Java(string path, string version, ArchEnum arch)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.Path = path;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.Version = version;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.Arch = arch;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_aNQ'));">复制代码</em></div><br />
+
+<br />
+SOFTWARE节点下操作方法：<br />
+<div class="blockcode"><div id="code_Mfb"><ol><li>public static Dictionary&lt;string,string&gt; GetJavaRegisterPath(RegistryKey key)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Dictionary&lt;string, string&gt; jres = new Dictionary&lt;string, string&gt;();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;var oldKey = key?.OpenSubKey(&quot;JavaSoft&quot;)?.OpenSubKey(&quot;Java Runtime Environment&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;var newKey = key?.OpenSubKey(&quot;JavaSoft&quot;)?.OpenSubKey(&quot;JRE&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//oldJre<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (oldKey != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; foreach (var verStr in oldKey.GetSubKeyNames())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (verStr.Length &gt; 3)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;string path = oldKey.OpenSubKey(verStr).GetValue(&quot;JavaHome&quot;)?.ToString() + @&quot;\bin\javaw.exe&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (File.Exists(path))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jres.Add(verStr, path);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//newJre<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (newKey != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; foreach (var verStr in newKey.GetSubKeyNames())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (verStr.Length &gt; 3)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;string path = newKey.OpenSubKey(verStr).GetValue(&quot;JavaHome&quot;)?.ToString() + @&quot;\bin\javaw.exe&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (File.Exists(path))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jres.Add(verStr, path);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return jres;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Mfb'));">复制代码</em></div><br />
+
+<br />
+全局方法：<br />
+<div class="blockcode"><div id="code_wj2"><ol><li>/// &lt;summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// 从注册表寻找本机JAVA列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;/summary&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/// &lt;returns&gt;&lt;/returns&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static List&lt;Java&gt; GetJavaList()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;List&lt;Java&gt; javas = new List&lt;Java&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;RegistryKey localMachine = Registry.LocalMachine.OpenSubKey(&quot;SOFTWARE&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;switch (SystemTools.GetSystemArch())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; case ArchEnum.x32:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var jres = GetJavaRegisterPath(localMachine);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;javas.AddRange(jres.Select(x =&gt; new Java(x.Value, x.Key, ArchEnum.x32)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;break;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; case ArchEnum.x64:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var jres64 = GetJavaRegisterPath(localMachine);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;javas.AddRange(jres64.Select(x =&gt; new Java(x.Value, x.Key, ArchEnum.x64)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var jres32 = GetJavaRegisterPath(localMachine.OpenSubKey(&quot;Wow6432Node&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;javas.AddRange(jres32.Select(x =&gt; new Java(x.Value, x.Key, ArchEnum.x32)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return javas;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_wj2'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>。—。&nbsp; &nbsp; <b>时间: </b>2018-8-22 10:19<br />
+Oracle应该把写过的注册表项整理出一个文档来的……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gamerteam&nbsp; &nbsp; <b>时间: </b>2018-8-22 11:59<br />
+<img src="static/image/smiley/tong/awkward.png" smilieid="1446" border="0" alt="" />然后遇到绿色版的Java……完蛋<br />
+如果你要允许用户自己自定义Java位置的话，我还是建议写一个Java程序进行检测，而且这个效率也低不到哪里去（我就不信他电脑装几十个Java！哼唧！）
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

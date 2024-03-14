@@ -1,0 +1,293 @@
+<html>
+<head>
+<title>解读/开发RCON-远程自动化管理你的服务器吧 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>解读/开发RCON-远程自动化管理你的服务器吧 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TSStudio&nbsp; &nbsp; <b>时间: </b>2019-1-3 19:04<br />
+<b>标题: </b>解读/开发RCON-远程自动化管理你的服务器吧<br /><i class="pstatus"> 本帖最后由 20050811 于 2019-1-3 19:21 编辑 </i><br />
+<br />
+前排提醒：本文大多数编程操作采用PHP，不过其他语言也可以参考。论坛代码功能抽风，用图片代替<br />
+<font size="5"><strong>什么是RCON</strong></font><br />
+<font size="2">&nbsp; &nbsp;&nbsp; &nbsp;RCON是一个标准的，提供各种游戏服务器管理的接口标准。它最早用于Valve旗下的游戏，Minecraft服务器在一定版本以上也可以使用。具体应该是1.9pre4。如果你想从底层开发RCON相关功能，我推荐你查看</font><a href="https://developer.valvesoftware.com/wiki/Source_RCON_Protocol" target="_blank">Valve文档</a>。<br />
+<strong><font size="5">RCON可以做什么</font></strong><br />
+RCON是一个提供服务器管理的接口，那么它就可以做到包括执行CONSOLE命令在内的功能。同时，在执行命令完毕时，服务端会返回一个该命令的返回值（尽管有些命令什么也不返回）。当你使用RCON后，它可以做到以下功能：自动充值系统、积分兑换系统、时间控制系统等等。<br />
+<strong><font size="5">如何打开RCON</font></strong><br />
+如果你开过服务器，你应该会在server.properties中看到如下文字<br />
+<div class="blockcode"><div id="code_Gby"><ol><li>enable-rcon=false</ol></div><em onclick="copycode($('code_Gby'));">复制代码</em></div>当然，你可能会想把它改成true，确实，它要改成true才能启用服务端的rcon功能，但是光启用它是不行的，你还要修改rcon.port和rcon.password两项的值（如果没有，你需要手动创建）。<br />
+例如<img id="aimg_t59Q5" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="340" height="50" src="https://pan.tmysam.top/tmy_Sam/MCBBSTHR2/cfg.png" border="0" alt="" /><br />
+<strong><strong><font size="4"><font color="#ff0000">请修改成自己的rcon.port和rcon.password,并妥善保管，不要泄露</font></font></strong><br />
+<font size="5">如何利用RCON</font></strong><br />
+当你打开RCON功能后，本期教程才刚刚开始。<br />
+此处以PHP为例。<br />
+首先，你需要一个能和服务器建立连接的库，例如PHP Rcon。代码在下面贴出来了，请复制到一个文件(确保编码为UTF-8 无BOM)，后保存为Rcon.php<br />
+PHP版本5.6+,酌情去掉namespace,如果不去，需要在等会的*处加上带*的一行<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_j5k"><ol><li>&lt;?php<br />
+<li>namespace rconpart;<br />
+<li>/**<br />
+<li> * See https://developer.valvesoftware.com/wiki/Source_RCON_Protocol for<br />
+<li> * more information about Source RCON Packets<br />
+<li> *<br />
+<li> * PHP Version 7<br />
+<li> *<br />
+<li> * @copyright 2013-2017 Chris Churchwell<br />
+<li> * [url=home.php?mod=space&amp;uid=1231151]@author[/url] thedudeguy<br />
+<li> * [url=home.php?mod=space&amp;uid=41191]@link[/url] https://github.com/thedudeguy/PHP-Minecraft-Rcon<br />
+<li> */<br />
+<li><br />
+<li>class Rcon{<br />
+<li>&nbsp; &nbsp; private $host;<br />
+<li>&nbsp; &nbsp; private $port;<br />
+<li>&nbsp; &nbsp; private $password;<br />
+<li>&nbsp; &nbsp; private $timeout;<br />
+<li><br />
+<li>&nbsp; &nbsp; private $socket;<br />
+<li><br />
+<li>&nbsp; &nbsp; private $authorized = false;<br />
+<li>&nbsp; &nbsp; private $lastResponse = '';<br />
+<li><br />
+<li>&nbsp; &nbsp; const PACKET_AUTHORIZE = 5;<br />
+<li>&nbsp; &nbsp; const PACKET_COMMAND = 6;<br />
+<li><br />
+<li>&nbsp; &nbsp; const SERVERDATA_AUTH = 3;<br />
+<li>&nbsp; &nbsp; const SERVERDATA_AUTH_RESPONSE = 2;<br />
+<li>&nbsp; &nbsp; const SERVERDATA_EXECCOMMAND = 2;<br />
+<li>&nbsp; &nbsp; const SERVERDATA_RESPONSE_VALUE = 0;<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Create a new instance of the Rcon class.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param string $host<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param integer $port<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param string $password<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param integer $timeout<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function __construct($host, $port, $password, $timeout)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;host = $host;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;port = $port;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;password = $password;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;timeout = $timeout;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Get the latest response from the server.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* [url=home.php?mod=space&amp;uid=491268]@Return[/url] string<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function getResponse()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return $this-&gt;lastResponse;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Connect to a server.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return boolean<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function connect()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;socket = fsockopen($this-&gt;host, $this-&gt;port, $errno, $errstr, $this-&gt;timeout);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!$this-&gt;socket) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$this-&gt;lastResponse = $errstr;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//set timeout<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;stream_set_timeout($this-&gt;socket, 3, 0);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// check authorization<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return $this-&gt;authorize();<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Disconnect from server.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return void<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function disconnect()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if ($this-&gt;socket) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;fclose($this-&gt;socket);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* True if socket is connected and authorized.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return boolean<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function isConnected()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return $this-&gt;authorized;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Send a command to the connected server.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param string $command<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return boolean|mixed<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public function sendCommand($command)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!$this-&gt;isConnected()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// send command packet<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;writePacket(self::PACKET_COMMAND, self::SERVERDATA_EXECCOMMAND, $command);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// get response<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$response_packet = $this-&gt;readPacket();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if ($response_packet['id'] == self::PACKET_COMMAND) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if ($response_packet['type'] == self::SERVERDATA_RESPONSE_VALUE) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;lastResponse = $response_packet['body'];<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return $response_packet['body'];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Log into the server with the given credentials.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return boolean<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private function authorize()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;writePacket(self::PACKET_AUTHORIZE, self::SERVERDATA_AUTH, $this-&gt;password);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$response_packet = $this-&gt;readPacket();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if ($response_packet['type'] == self::SERVERDATA_AUTH_RESPONSE) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if ($response_packet['id'] == self::PACKET_AUTHORIZE) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;authorized = true;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;disconnect();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Writes a packet to the socket stream.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param $packetId<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param $packetType<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @param string $packetBody<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return void<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private function writePacket($packetId, $packetType, $packetBody)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/*<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Size&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;32-bit little-endian Signed Integer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Varies, see below.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ID&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;32-bit little-endian Signed Integer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Varies, see below.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Type&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 32-bit little-endian Signed Integer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Varies, see below.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Body&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Null-terminated ASCII String&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Varies, see below.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Empty String&nbsp; &nbsp; Null-terminated ASCII String&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;0x00<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; */<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//create packet<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet = pack('VV', $packetId, $packetType);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet = $packet.$packetBody.&quot;\x00&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet = $packet.&quot;\x00&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// get packet size.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet_size = strlen($packet);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// attach size to packet.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet = pack('V', $packet_size).$packet;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// write packet.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;fwrite($this-&gt;socket, $packet, strlen($packet));<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Read a packet from the socket stream.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* @return array<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private function readPacket()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//get packet size.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$size_data = fread($this-&gt;socket, 4);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$size_pack = unpack('V1size', $size_data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$size = $size_pack['size'];<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// if size is &gt; 4096, the response will be in multiple packets.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// this needs to be address. get more info about multi-packet responses<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// from the RCON protocol specification at<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// https://developer.valvesoftware.com/wiki/Source_RCON_Protocol<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// currently, this script does not support multi-packet responses.<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet_data = fread($this-&gt;socket, $size);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$packet_pack = unpack('V1id/V1type/a*body', $packet_data);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return $packet_pack;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_j5k'));">复制代码</em></div><br />
+</td></table></div></div><br />
+然后你需要再创建一个PHP文件(UTF-8无BOM)，写上如下内容<img id="aimg_tbQUY" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="571" height="298" src="https://pan.tmysam.top/tmy_Sam/MCBBSTHR2/code.png" border="0" alt="" /><br />
+结合支付系统等其他系统，就可以做到这样的效果。<br />
+例如：利用积分购买职业(配合计分板和命令方块)<br />
+这是我的私服中测试结果：<br />
+购买前<img id="aimg_R13u3" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="513" height="56" src="https://pan.tmysam.top/tmy_Sam/MCBBSTHR2/img1.png" border="0" alt="" />购买过程<img id="aimg_T2nfO" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="700" height="380" src="https://pan.tmysam.top/tmy_Sam/MCBBSTHR2/img2.png" onmouseover="img_onmouseoverfunc(this)" onclick="zoom(this)" style="cursor:pointer" border="0" alt="" /><br />
+购买后<img id="aimg_asi9L" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="512" height="92" src="https://pan.tmysam.top/tmy_Sam/MCBBSTHR2/img3.png" border="0" alt="" /><br />
+当然你也可以配合其他的技术，例如AJAX，实现网页/移动服务器管理功能<br />
+<br />
+提醒：此方法不适用于开服！你服都关了,RCON服务都没了，还开个毛线啊<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hemp&nbsp; &nbsp; <b>时间: </b>2019-1-3 22:31<br />
+是个好东西，某些时候可以派上用场<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Akkariin&nbsp; &nbsp; <b>时间: </b>2019-1-4 08:30<br />
+<i class="pstatus"> 本帖最后由 Akkariin 于 2019-1-4 08:32 编辑 </i><br />
+<br />
+很早以前就在用的技术了，还是我写的 PHPMC 1 的时候，就是用 Rcon 来执行命令的<br />
+缺点很明显，关了服就没法再启动了，因此后来我换成了标准输入输出<br />
+Rcon 处理一些简单的命令还是可以的，我的 QQ 机器人都集成了服务器管理功能，用的就是 Rcon<br />
+<strike>另外你的这个用户界面……逼死前端设计师</strike>（逃<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MeTerminator&nbsp; &nbsp; <b>时间: </b>2019-4-5 23:29<br />
+能把php的商店源码共享一下下吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>down_drop&nbsp; &nbsp; <b>时间: </b>2019-8-4 12:32<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13674460&amp;ptid=836434" target="_blank"><font color="#999999">Akkariin 发表于 2019-1-4 08:30</font></a></font><br />
+很早以前就在用的技术了，还是我写的 PHPMC 1 的时候，就是用 Rcon 来执行命令的<br />
+缺点很明显，关了服就没法 ...</blockquote></div><br />
+机器人插件可以共享一下吗<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>人走茶凉。&nbsp; &nbsp; <b>时间: </b>2020-1-30 21:28<br />
+图全炸。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>浅笑hhh&nbsp; &nbsp; <b>时间: </b>2020-1-31 19:14<br />
+11111111111<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>m00nfly&nbsp; &nbsp; <b>时间: </b>2020-2-1 01:08<br />
+提供了一个不错的思路，可以自己折腾一些额外的自动化管理功能了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yze2015&nbsp; &nbsp; <b>时间: </b>2020-2-3 23:31<br />
+6666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阿莎蕊雅同学&nbsp; &nbsp; <b>时间: </b>2021-1-3 03:06<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阿莎蕊雅同学&nbsp; &nbsp; <b>时间: </b>2021-1-3 08:21<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

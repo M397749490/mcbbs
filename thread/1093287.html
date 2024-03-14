@@ -1,0 +1,397 @@
+<html>
+<head>
+<title>[SCT]MC插件使用HikariCP连接池教程 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[SCT]MC插件使用HikariCP连接池教程 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>大阔&nbsp; &nbsp; <b>时间: </b>2020-8-3 23:29<br />
+<b>标题: </b>[SCT]MC插件使用HikariCP连接池教程<br /><i class="pstatus"> 本帖最后由 大阔 于 2020-8-3 23:31 编辑 </i><br />
+<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td> <table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><font face="微软雅黑"><font size="6"><strong> 1、前言<br />
+</strong></font></font><ul><li><div align="left"><font face="微软雅黑">HikariCP是一款高性能的JDBC连接池组件.凭借其体积小性能优简单可靠的特点深受MC插件开发者的喜爱.</font></div><li><div align="left"><font face="微软雅黑">本文观看需要有一定JDBC基础</font></div><br />
+</ul><br />
+<font face="微软雅黑"><font size="6"><font color="#333333"><strong>2、HikariCP搭配MC插件使用详解<br />
+</strong></font></font></font><br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="微软雅黑"><font style="font-size:16px">首先使用maven引入HikariCP依赖及MySQL连接驱动依赖 大部分核心中会有mysql的驱动依赖所以不需要打包出去</font></font></font></div><div class="blockcode"><div id="code_IYo"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&lt;dependency&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;groupId&gt;com.zaxxer&lt;/groupId&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;artifactId&gt;HikariCP&lt;/artifactId&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;version&gt;3.4.5&lt;/version&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;scope&gt;compile&lt;/scope&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&lt;/dependency&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&lt;dependency&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;groupId&gt;mysql&lt;/groupId&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;artifactId&gt;mysql-connector-java&lt;/artifactId&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;version&gt;5.1.48&lt;/version&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;scope&gt;provided&lt;/scope&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&lt;/dependency&gt;</ol></div><em onclick="copycode($('code_IYo'));">复制代码</em></div><br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="微软雅黑"><font style="font-size:16px">如果没有使用maven构建项目，手动下载引入即可。</font></font></font></div><br />
+<font face="微软雅黑"><font size="3">为了方便插件使用服主更方便的控制HikariCP的参数，先将需要的参数写在配置文件中。<br />
+</font></font><div class="blockcode"><div id="code_LQk"><ol><li>&nbsp;&nbsp;HikariCP:<br />
+<li>&nbsp; &nbsp; connectionTimeout: 30000<br />
+<li>&nbsp; &nbsp; #连接超时时间 默认值：30000（30秒）<br />
+<li>&nbsp; &nbsp; minimumIdle: 10<br />
+<li>&nbsp; &nbsp; #最小空闲连接数<br />
+<li>&nbsp; &nbsp; maximumPoolSize: 50<br />
+<li>&nbsp; &nbsp; #池允许达到的最大大小，包括空闲和正在使用的连接<br />
+<li>&nbsp;&nbsp;Mysql:<br />
+<li>&nbsp; &nbsp; address: localhost<br />
+<li>&nbsp; &nbsp; port: 3306<br />
+<li>&nbsp; &nbsp; database: test<br />
+<li>&nbsp; &nbsp; user: root<br />
+<li>&nbsp; &nbsp; password: 123456</ol></div><em onclick="copycode($('code_LQk'));">复制代码</em></div><br />
+<font size="5">2.1、新建一个工具类(HikariCPUtils)<br />
+</font><font size="3">首先在工具类中写入一个静态方法获取配置文件中的配置，并一一放入HikariConfig对象中，这里的HikariConfig为HikariCP的配置对象，再使用HikariConfig对象得到HikariDataSource对象。<br />
+</font>
+<ignore_js_op>
+
+<img id="aimg_1666420" aid="1666420" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230500gca5acafyw92wko7.jpg" file="https://attachment.mcbbs.net/forum/202008/03/230500gca5acafyw92wko7.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666420" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666420_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1596467098000.jpg</strong> <em class="xg1">(137.62 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQyMHxlZTQ1NDYwMHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:05 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px"><br />
+</font></font></font></div><div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px">接着写一个获取连接的方法</font></font></font></div>
+<ignore_js_op>
+
+<img id="aimg_1666416" aid="1666416" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230459kes32328yi1533sp.png" file="https://attachment.mcbbs.net/forum/202008/03/230459kes32328yi1533sp.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666416" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666416_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803215459544.png</strong> <em class="xg1">(113.69 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxNnxjNWQzM2NhY3wxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<br />
+<br />
+<font size="3">在主类中onEnable()方法中需要调用一下setSqlConnectionPool();<br />
+</font>
+<ignore_js_op>
+
+<img id="aimg_1666413" aid="1666413" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230459ogg0keg13tk1t4ux.png" file="https://attachment.mcbbs.net/forum/202008/03/230459ogg0keg13tk1t4ux.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666413" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666413_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803215609125.png</strong> <em class="xg1">(19.65 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxM3w1ZGU0MjFhMXwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<div align="left">这样做的目的是为了让静态资源只在开服的时候加载一次，可以避免不必要的资源浪费</div><br />
+<div align="left"><font size="5">2.2、编写JDBC操作数据库代码</font></div><div align="left"><font size="4">1.新建一个数据表实体类</font></div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1666418" aid="1666418" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230459cui9yc3txzrztt9u.png" file="https://attachment.mcbbs.net/forum/202008/03/230459cui9yc3txzrztt9u.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666418" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666418_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803223735110.png</strong> <em class="xg1">(199.21 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxOHw1ZmQ1OGE3MXwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+</div><div align="left"><font size="4">2.编写数据库操作类</font></div>
+<ignore_js_op>
+
+<img id="aimg_1666421" aid="1666421" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230500ocslhx57255xx7o7.jpg" file="https://attachment.mcbbs.net/forum/202008/03/230500ocslhx57255xx7o7.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666421" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666421_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1596467098000.jpg</strong> <em class="xg1">(116.55 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQyMXw0ZmMwZGVhMHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:05 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<div align="left"><font face="微软雅黑"><font size="3">这中间的代码不理解的可以去看一下JDBC基础</font></font></div><br />
+<br />
+<font style="font-size:16px">到此为止MC插件使用HikariCP连接池的代码就写完了，我们可以写一个测试方法试一下</font><br />
+<font style="font-size:16px"><br />
+</font><br />
+<font style="font-size:16px"><div align="left">在onEnable注册一个命令</div>
+<ignore_js_op>
+
+<img id="aimg_1666415" aid="1666415" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230459s5yqqdz5og5yhq0t.png" file="https://attachment.mcbbs.net/forum/202008/03/230459s5yqqdz5og5yhq0t.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666415" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666415_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803223953015.png</strong> <em class="xg1">(42.8 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxNXwwYjBjOWJhMnwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+在命令方法中调用一下sql类中的方法<br />
+
+<ignore_js_op>
+
+<img id="aimg_1666417" aid="1666417" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230459r28x48xl3rxes3zu.png" file="https://attachment.mcbbs.net/forum/202008/03/230459r28x48xl3rxes3zu.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666417" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666417_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803224010499.png</strong> <em class="xg1">(128.58 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxN3xhN2VhYWE1MHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<br />
+<hr class="l" /><br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;">编译插件，放入测试环境运行</font></font></div><div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;">当你的控制台提醒下面这两句时说明你的HikariCP配置没有问题，可以使用</font></font></div>
+<ignore_js_op>
+
+<img id="aimg_1666402" aid="1666402" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230314mm4abjnmlgbg3943.png" file="https://attachment.mcbbs.net/forum/202008/03/230314mm4abjnmlgbg3943.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666402" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666402_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803224120473.png</strong> <em class="xg1">(2.32 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQwMnxlMTk4OTY1NHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+</font><br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px">在控制台中输入test测试一下</font></font></font></div>
+<ignore_js_op>
+
+<img id="aimg_1666403" aid="1666403" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230328pzkuregyy97x88et.png" file="https://attachment.mcbbs.net/forum/202008/03/230328pzkuregyy97x88et.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="619" id="aimg_1666403" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666403_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803224200136.png</strong> <em class="xg1">(3 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQwM3wxMDdhNDU0MnwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<div align="left"><font face="微软雅黑"><font size="3">经测试没有任何问题</font></font></div><br />
+<br />
+<hr class="l" /><br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="微软雅黑"><font size="5">常见问题：</font></font></font></div><ul><li><div align="left"><font size="4">驱动程序没有收到来自服务器的任何数据包</font></div><br />
+</ul>
+<ignore_js_op>
+
+<img id="aimg_1666407" aid="1666407" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230355o5q7xqzkcxtcc75z.png" file="https://attachment.mcbbs.net/forum/202008/03/230355o5q7xqzkcxtcc75z.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666407" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666407_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803224352485.png</strong> <em class="xg1">(21.07 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQwN3wzZTJlNDA0OHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px">&nbsp; &nbsp; 解决办法：检查JDBCURL是否正确</font></font></font></div><div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px"><br />
+</font></font></font></div><ul><li><div align="left"><font size="4">多次频繁输出信息</font></div><br />
+</ul>
+<ignore_js_op>
+
+<img id="aimg_1666411" aid="1666411" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/230419outz4305uzb6e2x4.png" file="https://attachment.mcbbs.net/forum/202008/03/230419outz4305uzb6e2x4.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666411" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666411_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image-20200803224120473.png</strong> <em class="xg1">(2.32 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQxMXxmZGM1NGY5M3wxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<div align="left"><font style="color:rgb(51, 51, 51)"><font face="&amp;quot;"><font style="font-size:16px">解决办法：请不要close HikariDataSource</font></font></font></div><br />
+<hr class="l" /><br />
+<font face="微软雅黑"><strong><font size="6">3、HikariCP基本配置详解</font><br />
+<br />
+<font size="5">3.1、主要配置</font><br />
+</strong></font><br />
+<font face="微软雅黑"><font size="3">1.DirverClassName 驱动类名</font><br />
+<font size="3">2.jdbcUrl jdbc连接所需要的url连接，通常需要加入很多参数，在我上面的介绍中也有写一些参数</font><br />
+<font size="3">3.username&nbsp;&nbsp;jdbc连接所需要的用户名</font><br />
+<font size="3">4.password&nbsp;&nbsp;jdbc连接所需要的密码</font><br />
+<br />
+<font size="5"><strong>3.2、常用配置</strong><br />
+</font><br />
+<font size="3">1.autoCommit 自动提交事务，关于事务还是推荐有能力的开发者手动写入事务回滚以避免不必要的错误，如果你问事务是干什么用的，请自行学习jdbc基础<br />
+2.</font></font><font face="微软雅黑"><font size="3">connectionTimeout 最大等待延迟，如果在没有可用连接的情况下超过此时间，则会抛出SQLException最低可接受的连接超时时间为250 ms。 默认值：30000（30秒）<br />
+3.idleTimeout 允许连接在池中闲置的最长时间 允许的最小值是10000ms（10秒）。 默认值：600000（10分钟）<br />
+4.maxLifetime 连接池中连接的最大生存期 默认值：1800000（30分钟）<br />
+5.connectionTestQuery 如果你的驱动程序支持JDBC4，建议不要设置此属性 在连接从池中获得连接以确认与数据库的连接仍然存在之前将要执行的查询<br />
+6.minimumIdle 最小空闲连接数，请将此属性写入配置文件中以方便服主拓展</font></font>使用<font face="微软雅黑"><font size="3">需求&nbsp;&nbsp;默认值10<br />
+7.maximumPoolSize 最**接数包括空闲及正在使用的连接 请将此属性也写入配置文件中以方便服主拓展使用需求&nbsp;&nbsp;默认值10<br />
+8.poolName 连接池用户自定义名称&nbsp;&nbsp;默认：自动生成<br />
+<br />
+<hr class="l" /></font></font><br />
+<font face="微软雅黑"><font size="4">此教程使用的目录结构<br />
+</font></font>
+<ignore_js_op>
+
+<img id="aimg_1666458" aid="1666458" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/232227alwta7w6w8ablm22.png" file="https://attachment.mcbbs.net/forum/202008/03/232227alwta7w6w8ablm22.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="316" id="aimg_1666458" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666458_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200803232155.png</strong> <em class="xg1">(15.89 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQ1OHw1N2RhOTE5OHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:22 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<font size="4">请各位开发者根据自己插件的需求量选择使用数据库连接池<br />
+</font><font face="微软雅黑"><font size="4">如果教程中有哪些描述不当的地方请多多见谅，第一次写教程类帖子，如果代码中有需要改进的地方欢迎提出<br />
+</font></font><br />
+<a href="https://github.com/brettwooldridge/HikariCP" target="_blank">HikariCP官方GItHub</a><br />
+<a href="https://gitee.com/mirrors/hikaricp" target="_blank">HikariCP码云</a><br />
+<br />
+<hr class="l" /><br />
+
+<ignore_js_op>
+
+<img id="aimg_1666457" aid="1666457" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202008/03/232050f7m7ewmsf9mw6cil.png" file="https://attachment.mcbbs.net/forum/202008/03/232050f7m7ewmsf9mw6cil.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1666457" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1666457_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>YeSJTIPbx1kQB45.png</strong> <em class="xg1">(3.09 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTY2NjQ1N3wxYzU2ZjI3NHwxNjE0MDQ3OTQ3fDI0MTk0ODZ8MTA5MzI4Nw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-8-3 23:20 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<font face="微软雅黑"><font size="3"><br />
+<br />
+</font></font></td></tr></table></td></tr></table><br />
+[groupid=1511]Server CT[/groupid]<script type="text/javascript" reload="1">
+aimgcount[19289975] = ['1666402','1666403','1666407','1666411','1666413','1666415','1666416','1666417','1666418','1666420','1666421','1666457','1666458'];
+attachimggroup(19289975);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>many先生&nbsp; &nbsp; <b>时间: </b>2020-8-10 09:12<br />
+写的很棒，感谢楼主教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>汤圆宝宝&nbsp; &nbsp; <b>时间: </b>2020-8-10 22:12<br />
+很好用，谢谢楼主，mcbbs有你更精彩
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

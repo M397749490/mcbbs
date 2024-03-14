@@ -1,0 +1,127 @@
+<html>
+<head>
+<title>timings分析：为什么每隔半小时tps就会降低一两秒 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>timings分析：为什么每隔半小时tps就会降低一两秒 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>bailiyixi&nbsp; &nbsp; <b>时间: </b>2019-11-11 02:45<br />
+<b>标题: </b>timings分析：为什么每隔半小时tps就会降低一两秒<br /><i class="pstatus"> 本帖最后由 bailiyixi 于 2019-11-11 22:16 编辑 </i><br />
+<br />
+第一次以为是异步创世神的锅，删掉之后问题依旧存在：<a href="https://timings.aikar.co/?id=b14a59135709482783d14c10f0a2993f" target="_blank">https://timings.aikar.co/?id=b14 ... c10f0a2993f#timings</a><br />
+第二次暂时怀疑是ProtocolLib的锅，但是这插件不能删啊：<a href="https://timings.aikar.co/?id=820e122f8c1340f2946f78b985c9f4ee" target="_blank">https://timings.aikar.co/?id=820 ... 8b985c9f4ee#timings</a><br />
+tps优化很好一直维持在20，但固定每隔30分钟tps就会丢失18-24%，持续大概两秒左右，如能解决，金粒不是问题。<br />
+<br />
+非autosave问题，已经关闭该功能。<br />
+跟某个世界也没关系，卸载掉timings报告中占用较高的世界后下次会换另一个世界占用过高。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-11-11 02:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15825178&amp;ptid=925680" target="_blank"><font color="#999999">bailiyixi 发表于 2019-11-11 22:16</font></a></font><br />
+https://timings.aikar.co/?id=daa5dc272dc946d782f790f0d0a85717#plugins<br />
+关掉之后没有解决，这次变成了 ...</blockquote></div><br />
+<a href="https://bstats.org/getting-started" target="_blank">https://bstats.org/getting-started</a><br />
+<div class="blockcode"><div id="code_S7I"><ol><li><br />
+<li>Disabling bStats<br />
+<li><br />
+<li>If you don't want bStats to collect data from your server, you can disable it in the bStats config file. This file can be found in the /plugins/bStats/ folder.<br />
+<li>bStats has nearly no effect on your server's performance and the sent data is completely anonymous. The collected data is important information for plugin authors to improve their plugins and keep motivated. To value their work and effort, please keep bStats enabled.<br />
+<li></ol></div><em onclick="copycode($('code_S7I'));">复制代码</em></div><br />
+bstats文件夹里面应该有吧....<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-11-11 14:17<br />
+<i class="pstatus"> 本帖最后由 a1294790523 于 2019-11-11 14:19 编辑 </i><br />
+<br />
+看了下你第二个Timings中的几个卡顿小波峰<br />
+基本可以确定罪魁祸首是com.comphenix.protocol.metrics.Metrics<br />
+也就是ProtocolLib的统计访问网络导致的问题（后面看源码的注释说收集数据是同步进行，网络连接传递是异步进行）<br />
+但是这与你的第一个的情况相违背....<br />
+但是我看了看源码：<a href="https://github.com/dmulloy2/ProtocolLib/blob/84e31d032b55588e5efe98787e2565b93e46b604/src/main/java/com/comphenix/protocol/metrics/Metrics.java#L143" target="_blank">https://github.com/dmulloy2/Prot ... s/Metrics.java#L143</a><br />
+<div class="quote"><blockquote>&nbsp;&nbsp;/**<br />
+&nbsp; &nbsp;&nbsp;&nbsp;* Starts the Scheduler which submits our data <font color="Red">every 30 minutes.</font><br />
+&nbsp; &nbsp;&nbsp;&nbsp;*/</blockquote></div><br />
+完全一致的时间段，所以先把统计和更新提示关了看看吧：<br />
+<a href="https://www.spigotmc.org/resources/protocollib.1997/" target="_blank">https://www.spigotmc.org/resources/protocollib.1997/</a><br />
+<div class="quote"><blockquote>auto updater.notify: <font color="Red">false</font> #Inform any player with the permission protocol.info when a new version of ProtocolLib is out.<br />
+auto updater.download: false #Automatically download and install the newest version of ProtocolLib. The installation will take effect when the server restarts.<br />
+auto updater.delay: 43200 #The number of seconds between each check for a new update.<br />
+auto updater.last: 0 #This simply records the last time (in seconds since 01.01.1970) an update check was performed. Set it to 0 to force a new update check.<br />
+metrics: <font color="Red">false</font>#If TRUE, ProtocolLib will publish anonymous usage data to mcstats.org. Set it to FALSE to opt-out.<br />
+background compiler: true #If TRUE, ProtocolLib will try and improve performance by replacing reflection with compiled code on-the-fly.<br />
+ignore version check: None #Force ProtocolLib to start for a specified Minecraft version, even if it is incompatible.</blockquote></div><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Minecraft小橙&nbsp; &nbsp; <b>时间: </b>2019-11-11 14:18<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Minecraft小橙&nbsp; &nbsp; <b>时间: </b>2019-11-11 14:19<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>bailiyixi&nbsp; &nbsp; <b>时间: </b>2019-11-11 22:16<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15823770&amp;ptid=925680" target="_blank"><font color="#999999">a1294790523 发表于 2019-11-11 14:17</font></a></font><br />
+看了下你第二个Timings中的几个卡顿小波峰<br />
+基本可以确定罪魁祸首是com.comphenix.protocol.metrics.Metrics ...</blockquote></div><br />
+<a href="https://timings.aikar.co/?id=daa5dc272dc946d782f790f0d0a85717" target="_blank">https://timings.aikar.co/?id=daa ... 0f0d0a85717#plugins</a><br />
+关掉之后没有解决，这次变成了betonquest的metrics每30分钟占用一次了，但是插件里没有对应配置……<br />
+我把悬赏涨到1000金粒了，求大佬救命！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>in77&nbsp; &nbsp; <b>时间: </b>2019-11-12 01:47<br />
+感觉是NPC的问题<img src="static/image/smiley/tong/sleep.png" smilieid="1450" border="0" alt="" />Citizen请求的ProtocolLib<br />
+
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQxMDQxMXxmYWY0ZmMxZHwxNjE0MDAxMzA4fDI0MTk0ODZ8OTI1Njgw&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1410411" class="xw1" target="_blank">Screenshot 2019-11-12 at 01.44.54.png</a>
+<em class="xg1">(303.45 KB, 下载次数: 0)</em>
+</p>
+<div class="tip tip_4" id="aid1410411_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQxMDQxMXxmYWY0ZmMxZHwxNjE0MDAxMzA4fDI0MTk0ODZ8OTI1Njgw&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2019-11-12 01:46 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1410411', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1410411', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1410411" aid="1410411" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201911/12/014631a4xqqeaeweswmsz2.png" file="https://attachment.mcbbs.net/forum/201911/12/014631a4xqqeaeweswmsz2.png.thumb.jpg" alt="Screenshot 2019-11-12 at 01.44.54.png" title="Screenshot 2019-11-12 at 01.44.54.png" w="1000" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[15825526] = ['1410411'];
+attachimggroup(15825526);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>apzt&nbsp; &nbsp; <b>时间: </b>2019-11-12 11:21<br />
+卧槽。。。1000金粒
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

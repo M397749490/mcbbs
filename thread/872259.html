@@ -1,0 +1,990 @@
+<html>
+<head>
+<title>MC报错分析指南——从入门到放弃 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>MC报错分析指南——从入门到放弃 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 14:06<br />
+<b>标题: </b>MC报错分析指南——从入门到放弃<br /><i class="pstatus"> 本帖最后由 a1294790523 于 2019-12-20 11:38 编辑 </i><br />
+<font face="微软雅黑"><font size="3"><br />
+<br />
+<strong><font size="5">写这篇指南的原因</font></strong><br />
+<br />
+很多人可能会说，你写这篇指南干嘛呢，不是到问答版提问就完事了吗？<br />
+但我写这篇指南的原因，正是因为问答版的现状。<br />
+随意打开问答版的一个帖子，就能看见各式各样的误导和使用了通用解决方案的回答，这些回答对问答版而言是降维打击，这篇指南，为的就是给提问者和回答者提供一些解决的问题的思路，以及为整合者和服主的错误解决提供帮助而写。<br />
+<br />
+</font></font><font face="微软雅黑"><font size="3">PS1：本指南的回复区不提供一对一的崩溃解决方案，需要提崩溃相关的问题的请左转问答版提问</font></font><br />
+<font face="微软雅黑"><font size="3">PS2：可配合同类作品食用：</font></font><br />
+<font face="微软雅黑"><font size="3">海螺：[教程] 自己动手排查报错<br />
+<a href="thread.html?t=729487" target="_blank">https://www.mcbbs.net/thread-729487-1-1.html</a><br />
+蝙蝠：怎么看崩溃报告和Timings？<br />
+<a href="thread.html?t=860103" target="_blank">https://www.mcbbs.net/thread-860103-1-1.html</a><br />
+<br />
+</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong><font size="5">前言</font></strong><br />
+<br />
+本指南为服主、客户端整合者、普通玩家所写<br />
+请确保你有至少10分钟的时间来阅读某一章节<br />
+为保证内容通俗易懂，已大幅简化一些内容<br />
+小人不才，如在阅读过程中发现有不懂的或者有不恰当的地方<br />
+欢迎提出疑问或建议<br />
+<br />
+<br />
+<br />
+<br />
+<strong><font size="5">必要知识</font></strong><br />
+<br />
+<strong><font size="4">崩溃发生的原因</font></strong><br />
+<br />
+<div class="quote"><blockquote>异常指的是在程序运行过程中发生的异常事件，通常是由外部问题（如硬件错误、输入错误）所导致的。在Java等面向对象的编程语言中异常属于对象。——百度百科</blockquote></div><br />
+玩过Mod整合包的玩家和服主应该对崩溃并不陌生，崩溃，其实是因为程序出现了一个无法处理的异常而导致的，在Java中使用的异常处理机制为中止模型，当出现了不安全或不恰当的情况时，程序可以抛出异常，但当这个异常无法被处理时，Java虚拟机就会随着这个异常的出现而终止，于是就产生了我们所说的崩溃。<br />
+<br />
+<strong><font size="4">异常的类型</font><br />
+</strong><br />
+在Java中异常有两大类， Error和Exception（它们的上一级是Throwable，也是最底层的类），由这两大类派生出其他异常，一般来说，Error下的异常是系统内部的异常，而Exception下的异常是可以被处理的异常，异常的一般命名模式为异常名+类别，其中异常名称采用驼峰命名法命名（单词首字母大写），比如IlegalAccessException就是一个类别为Exception，异常名为illegal access（非法访问）的异常。<br />
+<br />
+<br />
+<strong><font size="4">包名</font><br />
+</strong><br />
+指的就是命名空间（可以理解为将东西区分开来的玩意），一般形式为xxx.yyy.zzz，“.”是分隔符，也代表了路径，比如com.sand.crash的路径就是com\sand\crash，在堆栈中包名后跟着类名，也用“.”分隔 。<br />
+<br />
+<strong><font size="4">堆栈（Stack）</font><br />
+</strong><br />
+这里实际指的是栈，一个栈由多个栈帧组成，为简便起见，你可以将栈理解为一个完整的生产工序，而将一个栈帧看成其中的一个流程。<br />
+栈帧的表现形式为：包名.类名.方法名<br />
+<br />
+<strong><font size="4">异常链</font><br />
+</strong><br />
+我们可以把一个程序的执行看成审核流程，一个审核流程由收件-&gt;一级部门审核-&gt;二级部门审核-&gt;三级部门审核-&gt;最高级部门审核组成，那么如果最高级部门审核中出现问题，那么就需要一级级下发下去，让作者知道审核不通过的原因，那么，就构成了一条异常链，与单个异常相比较，它提供了更多的信息，让分析更为便利。<br />
+<br />
+<br />
+<strong><font size="4">线程</font><br />
+</strong><br />
+一个线程可以理解为一个人，在游戏中存在着多个线程，为了协助完成共同的任务，就出现了所谓的线程状态（State）：NEW（我刚来的，还没准备好）、RUNNABLE（我在干活哦）、BLOCKED（我需要的东西被占用了，等他用完我才能继续干活）、WAITING（我需要等待某个人的动作才能继续干活）、TIMED_WAITING（与前者相同，只是加了时间限制）、TERMINATED（我活干完啦或者被其他人打断了）<br />
+<br />
+<br />
+<strong><font size="5">报告分析</font></strong><br />
+<br />
+<strong><font size="4">错误分析的顺序</font><br />
+</strong><br />
+<br />
+从时间和效率上考虑，一般的崩溃分析次序为：<br />
+JVM崩溃日志&gt;崩溃报告&gt;日志<br />
+需要指出的一点是，崩溃报告是由Minecraft本身生成的，而非Java本身，如果在早期启动阶段崩溃，那么我们只能通过日志分析原因。<br />
+<br />
+<strong><font size="4">崩溃报告分析</font><br />
+</strong><br />
+<br />
+<strong>那么，我们先由信息量最小的崩溃报告讲起：</strong><br />
+<br />
+崩溃报告的位置位于crash-reports（客户端在.minecraft\ crash-report s）文件夹，其目录下的文件便是崩溃报告了，命名方式为crash-日期_时间-客户端(client)/服务器(server).txt，例如<br />
+crash-2019-02-07_22.16.28-server.txt<br />
+<strong><br />
+首先是渲染类的崩溃：</strong><br />
+<br />
+<br />
+---- Minecraft Crash Report ---<strong>←告诉你这玩意是MC的崩溃报告</strong><br />
+// There are four lights! <strong>←随机的崩溃日志句子，详情可见Wiki</strong><br />
+Time: 2019-06-09 13:52:03 CST<strong>←崩溃时间</strong><br />
+Description: Updating screen events<br />
+<strong>↑①先看描述，这里是在更新屏幕事件</strong></font></font><font face="微软雅黑"><font size="3">java.lang.NoSuchMethodError: </font></font><font face="微软雅黑"><font size="3">mezz.jei.gui.overlay.IngredientListOverlay.getStackUnderMouse()Lnet/minecraft/item/ItemStack; </font></font><br />
+<font face="微软雅黑"><font size="3"><strong>↑②看异常：java.lang是包名，我们直接可以看最后一段NoSuchMethodError，异常名叫No Such Method，即没有这样的方法，而冒号（“:”）后给出了详细信息，也就是找不到的方法和它的方法描述符</strong></font></font><font face="微软雅黑"><font size="3"><br />
+<strong>↓这是出现异常前的堆栈，执行顺序从下到上</strong></font></font><font face="微软雅黑"><font size="3">at org.cfpa.i18nupdatemod.hotkey.HotKeyHandler.onKeyPress(HotKeyHandler.java:87) </font></font><font face="微软雅黑"><font size="3"><strong>↑③看堆栈，我们可以看见这里出现了一个模组的名字，从包名（org.cfpa.i18nupdatemod.hotkey）可以得出是i18nupdatemod，如果不确定包名指的是什么mod，可拿包名在下方加载的mod搜索或百度搜索一下以帮助判断 </strong></font></font><font face="微软雅黑"><font size="3">at net.minecraftforge.fml.common.eventhandler.ASMEventHandler_863_HotKeyHandler_onKeyPress_Pre.invoke(.dynamic) <br />
+<strong>↑这里是触发按键的FML事件</strong></font></font><br />
+<font face="微软雅黑"><font size="3">at net.minecraftforge.fml.common.eventhandler.ASMEventHandler.invoke(ASMEventHandler.java:90)<br />
+at net.minecraftforge.fml.common.eventhandler.EventBus.post(EventBus.java:182)<br />
+at net.minecraft.client.gui.GuiScreen.handleInput(GuiScreen.java:511)<br />
+at net.minecraft.client.Minecraft.runTick(Minecraft.java:1759)<br />
+at net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:1098)<br />
+at net.minecraft.client.Minecraft.run(Minecraft.java:3942)<br />
+at net.minecraft.client.main.Main.main(SourceFile:123)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)<br />
+at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)<br />
+at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)<br />
+at java.lang.reflect.Method.invoke(Unknown Source)<br />
+at net.minecraft.launchwrapper.Launch.launch(Launch.java:135)<br />
+at net.minecraft.launchwrapper.Launch.main(Launch.java:28)</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong>↓这是产生错误时的所有已知的详细信息↓</strong><br />
+A detailed walkthrough of the error, its code path and all known details is as follows:<br />
+---------------------------------------------------------------------------------------</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong>↓影响的界面↓</strong><br />
+-- Affected screen --<br />
+Screen name: mezz.jei.gui.recipes.RecipesGui</font></font><font face="微软雅黑"><font size="3">←</font></font><font face="微软雅黑"><font size="3"><strong>可以看到是jei的合成GUI</strong></font></font><br />
+<font face="微软雅黑"><font size="3"><strong><br />
+↓影响的地图↓</strong><br />
+-- Affected level --<br />
+Level name: MpServer<strong>←地图名称</strong><br />
+All players: 1 total; [GCEntityClientPlayerMP['sandtechnology'/435, l='MpServer', x=216.56, y=68.00, z=269.96]] <strong>←玩家</strong><br />
+Chunk stats: MultiplayerChunkCache: 230, 230<br />
+Level seed: 0<strong>←地图种子</strong><br />
+Level generator: ID 00 - default, ver 1.&nbsp;&nbsp;Features enabled: false<strong>←地图生成器，后面那个应该是是否开启了巨大化世界</strong><br />
+Level generator options: <strong>←地图生成器设置</strong><br />
+Level spawn location: World: (228,64,256), Chunk: (at 4,4,0 in 14,16; contains blocks 224,0,256 to 239,255,271), Region: (0,0; contains chunks 0,0 to 31,31, blocks 0,0,0 to 511,255,511) <strong>←地图出生点位置（包括地图坐标、区块、Region）</strong><br />
+Level time: 201 game time, 201 day time<strong>←地图时间</strong><br />
+Level dimension: 0<strong>←地图维度，0为主世界</strong><br />
+Level storage version: 0x00000 - Unknown? <strong>←地图存储版本</strong><br />
+Level weather: Rain time: 0 (now: false), thunder time: 0 (now: false) <strong>←地图天气</strong><br />
+Level game mode: Game mode: creative (ID 1). Hardcore: false. Cheats: false<strong>←地图游戏模式</strong><br />
+Forced entities: 133 total; [省略]<br />
+Retry entities: 0 total; []<br />
+Server brand: fml,forge<strong>←服务器侧名称</strong><br />
+Server type: Integrated singleplayer server<strong>←服务器侧类型</strong><br />
+<strong>↓系统信息↓</strong><br />
+-- System Details --<br />
+Minecraft Version: 1.12.2<br />
+Operating System: Windows 10 (amd64) version 10.0<br />
+Java Version: 1.8.0_211, Oracle Corporation<br />
+Java VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation<br />
+Memory: 837386992 bytes (798 MB) / 4294967296 bytes (4096 MB) up to 4294967296 bytes (4096 MB)<br />
+JVM Flags: 6 total; -XX:+UseG1GC -XX:-UseAdaptiveSizePolicy -XX:-OmitStackTraceInFastThrow -Xmn128m -Xmx4096m -XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump<br />
+IntCache: cache: 6, tcache: 0, allocated: 13, tallocated: 95<br />
+FML: MCP 9.42 Powered by Forge 14.23.5.2838 211 mods loaded, 211 mods active<br />
+<strong>States（状态）: 'U' = Unloaded（已卸载） 'L' = Loaded（已加载） 'C' = Constructed （已构造）'H' = Pre-initialized（预初始化） 'I' = Initialized（初始化） 'J' = Post-initialized（后初始化） 'A' = Available（可用） 'D' = Disabled（已禁用） 'E' = Errored（出错）</strong><br />
+<table cellspacing="0" class="t_table" ><tr><td>State（状态）</td><td>ID</td><td>Version（版本）</td><td>Source（来源）</td><td>Signature（签名）</td></tr><tr><td>LCHIJA</td><td>minecraft</td><td>1.12.2</td><td>minecraft.jar</td><td>None</td></tr><tr><td>LCHIJA</td><td>mcp</td><td>9.42</td><td>minecraft.jar</td><td>None</td></tr><tr><td>LCHIJA</td><td>FML</td><td>8.0.99.99</td><td>forge-1.12.2-14.23.5.2838.jar</td><td>e3c3d50c7c986df74c645c0ac54639741c90a557</td></tr><tr><td>LCHIJA</td><td>forge</td><td>14.23.5.2838</td><td>forge-1.12.2-14.23.5.2838.jar</td><td>e3c3d50c7c986df74c645c0ac54639741c90a557</td></tr><tr><td>LCHIJA</td><td>creativecoredummy</td><td>1.0.0</td><td>minecraft.jar</td><td>None</td></tr><tr><td>LCHIJA</td><td>jecharacters</td><td>1.12.0-3.3.0</td><td>JustEnoughCharacters-1.12.0-3.3.0.jar</td><td>None</td></tr><tr><td>LCHIJA</td><td>micdoodlecore</td><td><br />
+</td><td>minecraft.jar</td><td>None</td></tr><tr><td>LCHIJA</td><td>smoothfontcoremc</td><td>1.12.2-1.16</td><td>minecraft.jar</td><td>None</td></tr></table><br />
+<br />
+<strong>（以下省略系统信息，包括加载的资源包，是否使用了VBO等，一般可基本不看）</strong><br />
+==========================================================<br />
+<br />
+</font></font><br />
+<font face="微软雅黑"><font size="3">通篇下来，有以下几个关键信息</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+1.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;这是在更新屏幕事件（渲染时）崩溃<br />
+2.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;崩溃的原因和i18nupdatemod有关系<br />
+3.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;这是按下一个按键时导致的崩溃<br />
+4.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;崩溃的根本原因是找不到jei的方法</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+由上面的关键信息进一步推理可知，这是i18nupdatemod模组和jei新版本不兼容引起的问题</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+我们可以尝试：</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+1.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;降级jei到旧版本<br />
+2.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;反馈给i18nupdatemod作者943（该问题已在新版本修复）<br />
+<br />
+<br />
+<br />
+<strong>接下来看看计算（ticking）实体时的崩溃（为了节省空间，前文提到过的内容不会再重复）：</strong><br />
+<br />
+</font></font><font face="微软雅黑"><font size="3"><strong>↓</strong></font></font><strong>提醒你下列核心mod已经安装（核心mod一般会修改MC原版的代码，因此它们也有导致崩溃的可能）</strong><font face="微软雅黑"><font size="3"><br />
+WARNING: coremods are present:</font></font><font face="微软雅黑"><font size="3"><br />
+&nbsp;&nbsp;LoadingPlugin (Bloodmoon(血月)-MC1.12.2-1.5.3.jar)<br />
+&nbsp;&nbsp;TheBetweenlandsLoadingPlugin (TheBetweenlands-3.4.9-core.jar)<br />
+&nbsp;&nbsp;Do not report to Forge! (If you haven't disabled the FoamFix coremod, try disabling it in the config! Note that this bit of text will still appear.) ([优化]FoamFix-0.10.5.jar)<br />
+Contact their authors BEFORE contacting forge<br />
+<br />
+// There are four lights!<br />
+<br />
+Time: 7/4/19 12:32 AM<br />
+Description: Ticking entity<br />
+<strong>↑告诉你在计算实体</strong><br />
+<br />
+<br />
+java.lang.NoSuchMethodError: net.minecraft.world.World.func_175682_a(Lnet/minecraft/util/EnumParticleTypes;ZDDDDDD[I)V<br />
+<strong>↑与前文相同的异常，但这次提到的是找不到MC内的方法</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at com.matez.wildnature.event.fallEvent.fallEvent(fallEvent.java:52)<br />
+<strong>↑传递实体掉落事件到名为wildnature的mod</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraftforge.fml.common.eventhandler.ASMEventHandler_300_fallEvent_fallEvent_LivingFallEvent.invoke(.dynamic)<br />
+<strong>↑传递实体掉落事件</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraftforge.fml.common.eventhandler.ASMEventHandler.invoke(ASMEventHandler.java:90)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraftforge.fml.common.eventhandler.EventBus.post(EventBus.java:187)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraftforge.common.ForgeHooks.onLivingFall(ForgeHooks.java:631)<br />
+<strong>（以下省略N行）</strong><br />
+<br />
+A detailed walkthrough of the error, its code path and all known details is as follows:<br />
+---------------------------------------------------------------------------------------<br />
+<br />
+-- Head --<br />
+Thread: Server thread<strong>←服务器主线程</strong><br />
+Stacktrace<strong>（堆栈跟踪）</strong>:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at com.matez.wildnature.event.fallEvent.fallEvent(fallEvent.java:52)<br />
+<strong>（以下省略N行，与上文大致相同）</strong><br />
+<br />
+-- Entity being ticked –<br />
+<strong>↑告诉你被计算的实体信息</strong><br />
+Details:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity Type: minecraft:spider (net.minecraft.entity.monster.EntitySpider)<br />
+<strong>↑实体类型，括号内为实体具体的类</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity ID: 4279<br />
+<strong>↑实体的ID（生成时自动分配）</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity Name: Spider<br />
+<strong>↑实体名称</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity's Exact location: -510.30, 38.00, -606.92<br />
+<strong>↑实体的精确坐标</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity's Block location: World: (-511,38,-607), Chunk: (at 1,2,1 in -32,-38; contains blocks -512,0,-608 to -497,255,-593), <br />
+Region: (-1,-2; contains chunks -32,-64 to -1,-33, blocks -512,0,-1024 to -1,255,-513)<br />
+<strong>↑实体所在的位置（包括方块位置、区块位置、Region位置）</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity's Momentum: -0.03, -1.25, -0.07<br />
+<strong>↑实体的动量</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity's Passengers: []<br />
+<strong>↑乘着实体的实体</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity's Vehicle: ~~ERROR~~ NullPointerException: null<br />
+<strong>↑实体乘着的实体（这里因为不存在而出现了NPE，即空指针异常）</strong><br />
+<strong>（以下省略N行）</strong><br />
+Loaded coremods (and transformers): <br />
+<strong>加载的核心mod（和transformers&lt;-可以理解成修改class的玩意）：</strong><br />
+LoadingPlugin (Bloodmoon(血月)-MC1.12.2-1.5.3.jar)<br />
+&nbsp;&nbsp;lumien.bloodmoon.asm.ClassTransformer<br />
+TheBetweenlandsLoadingPlugin (TheBetweenlands-3.4.9-core.jar)<br />
+&nbsp;&nbsp;thebetweenlands.core.TheBetweenlandsClassTransformer<br />
+Do not report to Forge! (If you haven't disabled the FoamFix coremod, try disabling it in the config! Note that this bit of text will still appear.) ([优化]FoamFix-0.10.5.jar)<br />
+&nbsp;&nbsp;pl.asie.foamfix.coremod.FoamFixTransformer<br />
+==========================================================<br />
+概览上面的崩溃报告，我们可以得到下列的关键信息：</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+1.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;崩溃与wildnature这个mod有关<br />
+2.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;找不到的是MC自身的方法<br />
+3.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;崩溃是在实体掉落时发生的</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+由此可以得出解决办法：</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+1.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;删除相关的核心mod看看是否恢复正常<br />
+2.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;如果不是，删除该mod并反馈给作者</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+不过一般核心mod导致的这种问题很少在游戏时发生，所以此处直接删除了该mod<br />
+<br />
+==========================================================<br />
+<br />
+Forge也提供了一个自动删除出错实体的方法，但并不推荐使用，因为可能会导致数据丢失</font></font><br />
+<font face="微软雅黑"><font size="3">在config\forge.cfg中</font></font><div class="blockcode"><div id="code_l4V"><ol><li>&nbsp; &nbsp; # Set this to true to remove any Entity that throws an error in its update method instead of closing the server and reporting a crash log. BE WARNED THIS COULD SCREW UP EVERYTHING USE SPARINGLY WE ARE NOT RESPONSIBLE FOR DAMAGES.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 设置此项为true后，如果在调用某实体的更新方法时出现异常，则会以删除该实体的方式来防止服务器崩溃<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 警告：这个选项可以弄糟一切东西，我们不会为此选项带来的损失负责<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; B:removeErroringEntities=false<br />
+<li><br />
+<li>&nbsp; &nbsp; # Set this to true to remove any TileEntity that throws an error in its update method instead of closing the server and reporting a crash log. BE WARNED THIS COULD SCREW UP EVERYTHING USE SPARINGLY WE ARE NOT RESPONSIBLE FOR DAMAGES.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 设置此项为true后，如果在调用某实体方块的更新方法时出现异常，则会以删除该实体方块的方式来防止服务器崩溃<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 警告：这个选项可以弄糟一切东西，我们不会为此选项带来的损失负责<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;B:removeErroringTileEntities=false</ol></div><em onclick="copycode($('code_l4V'));">复制代码</em></div><br />
+
+<br />
+<font face="微软雅黑"><font size="3"><br />
+<strong><font size="4">特殊：字节码崩溃</font><br />
+</strong><br />
+前面提到，可以通过搜索E来看看出错的mod并删除，但这并不适用于字节码崩溃。<br />
+因为这个是因为调用了有问题的代码导致的，也就是说，其原因是核心mod把代码改坏了或JVM不兼容该代码：<br />
+下面是一个启动时的崩溃：<br />
+WARNING: coremods are present:<br />
+<strong>↓核心mod列表</strong><br />
+&nbsp;&nbsp;BetterFoliageLoader ([更好的叶子]BetterFoliage-MC1.12-2.1.10.jar)<br />
+&nbsp;&nbsp;SSLoadingPlugin ([一年四季]SereneSeasons-1.12.2-1.2.15-universal.jar)<br />
+&nbsp;&nbsp;CXLibraryCore ([前置-更大容量的箱子]cxlibrary-1.12.1-1.6.1.jar)<br />
+&nbsp;&nbsp;DynamicSurroundingsCore (DynamicSurroundings-core-1.12.2-3.5.4.3.jar)<br />
+&nbsp;&nbsp;Inventory Tweaks Coremod ([R键整理]InventoryTweaks-1.63.jar)<br />
+Contact their authors BEFORE contacting forge<br />
+<strong>（中间省略）</strong><br />
+Description: Unexpected error<br />
+java.lang.VerifyError: Operand stack overflow<br />
+<strong>↑校验错误：操作数的堆栈溢出</strong><br />
+Exception Details:<br />
+<strong>↑异常详细信息</strong><br />
+&nbsp;&nbsp;Location</font></font><font face="微软雅黑"><font size="3">:<strong>←</strong></font></font><font face="微软雅黑"><font size="3"><strong>位置</strong></font></font><font face="微软雅黑"><font size="3"><br />
+<strong>↓一般来说，修改代码的时候会打印日志<br />
+↓我们需要在启动日志搜索这个类RenderChunk<br />
+↓如果搜索不到，请将核心mod一个个卸载尝试是否能够启动</strong><br />
+net/minecraft/client/renderer/chunk/RenderChunk.func_178581_b(FFFLnet/minecraft/client/renderer/chunk/ChunkCompileTaskGenerator;)V @542: aload<br />
+&nbsp;&nbsp;Reason:<br />
+&nbsp; &nbsp; Exceeded max stack size.</font></font><br />
+==========================================================<br />
+<br />
+<font face="微软雅黑"><font size="3"><strong>还有一个典型的让其他mod背黑锅的崩溃：</strong></font></font><br />
+<font face="微软雅黑"><font size="3">net.minecraftforge.fml.common.LoaderExceptionModCrash: Caught exception from<strong> Applied Energistics 2 </strong>(appliedenergistics2)<br />
+Caused by: java.lang.VerifyError: JVMVRFY012 堆栈形状不一致 类=net/minecraftforge/client/model/ModelLoader$VanillaModelWrapper，方法=getTextures()Ljava/util/Collection;，pc=14<br />
+<strong>（以下省略N行）</strong><br />
+<strong>LCE</strong>&nbsp; &nbsp;| appliedenergistics2&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;| rv5-stable-11&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; | appliedenergistics2-rv5-stable-11.jar&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; | None&nbsp; &nbsp;&nbsp;&nbsp;</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">这里并不是AE2的问题，只是因为AE2调用了这个方法而已，</font></font><font face="微软雅黑"><font size="3">这里根据<a href="https://github.com/AppliedEnergistics/Applied-Energistics-2/issues/3792" target="_blank">https://github.com/AppliedEnergi ... stics-2/issues/3792</a>知道是CTM的问题，更新新版本即可</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+这些崩溃一般是因为forge版本不兼容、安装了错误的mod版本等等导致的，如果更新所有核心mod后仍无法启动，建议将核心mod一个个卸载尝试是否能够启动</font><br />
+<font size="3"></font><br />
+<font size="4"><strong>启动日志分析</strong></font><br />
+<br />
+<font size="3">在没有生成崩溃报告的情况下，我们需要查看日志，日志有六个等级，从上到下依次有：FATAL（致命）、ERROR（错误）、WARN（警告）、INFO（信息）、TRACE（追踪），一般来说，日志只会输出INFO等级及以上的信息。</font><br />
+<font size="3">日志一般位于logs（客户端在.minecraft\logs）文件夹下，有latest.log（最新日志）和debug.log（debug日志）</font><br />
+<font size="3">对于旧版本，还根据阶段和内容分开了日志，有</font><br />
+<font size="3">fml-junk-earlystartup.log（FML启动早期的输出，正如其名，是无用日志）</font><br />
+<font size="3">fml-server/client -x.log（x为分卷数字，FML服务器/客户端的之前的日志输出）</font><br />
+<font size="3">fml-server/client -latest.log（FML服务器/客户端的最新日志输出）</font><br />
+<font size="3">latest.log（原版服务器/客户端的日志输出）</font><br />
+<font size="3">FML：全称为Forge mod Loader，就是加载mod的玩意</font><br />
+<br />
+<font size="3">在看日志的时候，不能断章取义，只看SEVERE和WARNING级别，而应该联系上下文（Registering-&gt;注册，Discovering-&gt;寻找，Inspecting-&gt;查看，Ignoring-&gt;忽略）：</font><br />
+<br />
+<font size="3">[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleClassPath: [&lt;Java Class Path&gt;]&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleFolder: [D:\mc\应用\.minecraft\mods]&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleFolder: [D:\mc\应用\.minecraft\mods\1.12.2]&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Registering enumerator plugin DefaultEnumeratorPlugin: [com.mumfrey.liteloader.core.api.DefaultEnumeratorPlugin@273c947f]&nbsp;&nbsp;</font><br />
+<font size="3"><strong>=================寻找mod阶段======================</strong></font><br />
+<font size="3">[16:21:01] [main/INFO]: Discovering valid mod files in folder D:\mc\应用\.minecraft\mods&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'Decocraft-2.6.0_1.12.2.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\Decocraft-2.6.0_1.12.2.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'Flan's Mod-1.12.2-5.5.2.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\Flan's Mod-1.12.2-5.5.2.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'jei_1.12.2-4.13.1.225.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\jei_1.12.2-4.13.1.225.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'journeymap-1.12-5.4.9.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\journeymap-1.12-5.4.9.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'lostcities-1.12-2.0.17.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\lostcities-1.12-2.0.17.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'NGTLib2.4.3-20_forge-1.12.2-14.23.2.2611.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\modsundefinedGTLib2.4.3-20_forge-1.12.2-14.23.2.2611.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'PTRLib-1.0.2.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\PTRLib-1.0.2.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in 'RTM2.4.4-23_forge-1.12.2-14.23.2.2611.jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\RTM2.4.4-23_forge-1.12.2-14.23.2.2611.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Inspecting jar metadata in '【自定义人物】CustomNPCs_1.12.2(26aug18).jar'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Ignoring D:\mc\应用\.minecraft\mods\【自定义人物】CustomNPCs_1.12.2(26aug18).jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Discovering valid mod files in folder D:\mc\应用\.minecraft\mods\1.12.2&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:01] [main/INFO]: Discovering tweaks on class path...&nbsp;&nbsp;</font><br />
+<font size="3"><strong>=================加载mod阶段======================</strong></font><br />
+<font size="3">[16:21:02] [main/INFO]: Baking listener list for EnumerationObserver with 1 listeners&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Registering discovered mod files in folder D:\mc\应用\.minecraft\mods&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Registering discovered mod files in folder D:\mc\应用\.minecraft\mods\1.12.2&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Initialising LiteLoader Mixins&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Compatibility level set to JAVA_8&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: LiteLoader PREINIT complete&nbsp;&nbsp;</font><br />
+<font size="3"><strong>==========注入tweaker（可以理解为改代码的玩意）阶段============</strong></font><br />
+<font size="3">[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.transformers.event.EventProxyTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.launch.LiteLoaderTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.client.transformers.CrashReportTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.transformers.event.EventTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.common.transformers.LiteLoaderPacketTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.transformers.event.json.ModEventInjectionTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Calling tweak class optifine.OptiFineForgeTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: acceptOptions&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: injectIntoClassLoader&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: [optifine.OptiFineClassTransformer:dbg:221]: OptiFine ClassTransformer&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: [optifine.OptiFineClassTransformer:dbg:221]: OptiFine ZIP file: E:\hmcldownloads\librariesundefinedet\optifine\optifine\1.12.2-HD_U_E4_pre1\optifine-1.12.2-HD_U_E4_pre1.jar&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.FMLDeobfTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Loading tweak class name org.spongepowered.asm.launch.MixinTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Loading tweak class name org.spongepowered.asm.mixin.EnvironmentStateTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Loading tweak class name com.mumfrey.liteloader.launch.LiteLoaderTweaker$PreInitTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.relauncher.CoreModManager$FMLPluginWrapper</font><br />
+<font size="3"><strong>=================文件校验开始====================</strong></font><br />
+<font size="3">[16:21:07] [main/INFO]: Found valid fingerprint for Minecraft Forge. Certificate fingerprint e3c3d50c7c986df74c645c0ac54639741c90a557&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Found valid fingerprint for Minecraft. Certificate fingerprint cd99959656f753dc28d863b46769f7f8fbaefcfc&nbsp;&nbsp;</font><br />
+<font size="3"><strong>============文件校验结束，开始进行代码修改=============</strong></font><br />
+<font size="3">[16:21:07] [main/INFO]: Calling tweak class net.minecraftforge.fml.relauncher.CoreModManager$FMLPluginWrapper&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Calling tweak class org.spongepowered.asm.launch.MixinTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Initialised Mixin FML Remapper Adapter with net.minecraftforge.fml.common.asm.transformers.deobf.FMLDeobfuscatingRemapper@36b9cb99&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Calling tweak class org.spongepowered.asm.mixin.EnvironmentStateTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Calling tweak class com.mumfrey.liteloader.launch.LiteLoaderTweaker$PreInitTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:07] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLDeobfTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:08] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.TerminalTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:08] [main/WARN]: Tweak class name org.spongepowered.asm.mixin.EnvironmentStateTweaker has already been visited -- skipping&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:08] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.TerminalTweaker&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:08] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: getLaunchArguments&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: Launching wrapped minecraft {net.minecraft.client.main.Main}&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: Injecting downstream transformers&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.transformers.event.EventTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.common.transformers.LiteLoaderPacketTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.transformers.event.json.ModEventInjectionTransformer'&nbsp;&nbsp;</font><br />
+<font size="3">[16:21:09] [main/INFO]: FML detected, switching to searge mappings&nbsp;&nbsp;</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong>↓此处为错误出现点，是崩溃的原因↓</strong></font><br />
+<font size="3">[16:21:11] [main/ERROR]: Unable to launch </font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong>↓此处为异常链，这是二级异常，我们从最底层往上看↓ </strong></font></font><br />
+<font face="微软雅黑"><font size="3">java.lang.reflect.InvocationTargetException: null&nbsp;&nbsp;</font><br />
+<font size="3"><strong>↑直接看异常名：调用目标（Invocation Target）的异常，后面的详细信息为null，说明没有指定信息，需要往下看</strong></font></font><br />
+<font face="微软雅黑"><font size="3">at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_60]&nbsp;&nbsp;</font><br />
+<font size="3">at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_60]&nbsp;&nbsp;</font><br />
+<font size="3">at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_60]&nbsp;&nbsp;</font><br />
+<font size="3">at java.lang.reflect.Method.invoke(Unknown Source) ~[?:1.8.0_60]&nbsp;&nbsp;</font><br />
+<font size="3">at net.minecraft.launchwrapper.Launch.launch(Launch.java:135) [launchwrapper-1.12.jar:?]&nbsp;&nbsp;</font><br />
+<font size="3">at net.minecraft.launchwrapper.Launch.main(Launch.java:28) [launchwrapper-1.12.jar:?]&nbsp;&nbsp;</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+Caused by: joptsimple.MultipleArgumentsForOptionException: Found multiple arguments for option width, but you asked for only one&nbsp;&nbsp;</font><br />
+<strong><font size="3">↑最低级异常已给出原因：Found multiple arguments for option width, but you asked for only one，翻译为：你给出的参数width有两个，但这里只能有一个。这里说的是启动参数，我们搜索arguments，发现与Optifine有关系，这里最终的原因是因为Liteloader和Optifine传递的启动参数重复了，所以不能同时使用--tweakclass参数加载的方式共存，需要将Optifine放在mods文件夹内以mod形式加载（感谢@gooding300 的纠正与解惑）</font><br />
+<font size="3">（以下省略N行）</font></strong></font><br />
+<font face="微软雅黑"><font size="3">Exception in thread &quot;main&quot; <strong>（在main线程发生异常）</strong></font><br />
+<font size="3"></font><br />
+<strong><font size="4">插件报错分析</font><br />
+</strong><br />
+<br />
+<font size="3">一般来说，插件报错都是配置问题，如果配置有错误，会在加载时给予提醒，比如最常见的编码错误：</font><br />
+<font size="3">[Server thread/ERROR]: Cannot load pluginsundefinedeverLag\config.yml</font><br />
+<font size="3">org.bukkit.configuration.InvalidConfigurationException:</font><br />
+<font size="3">unacceptable character '?' (0xD9A6) special characters are not allowed in &quot;'string'&quot;, position 1660<strong>（在第1660个字符发现无法解析的字符'?' (0xD9A6)，string类型不允许使用特殊字符）</strong></font><br />
+<font size="3">at org.bukkit.configuration.file.YamlConfiguration.loadFromString(YamlConfiguration.java:56) ~[patched_1.10.2.jar:git-Paper-817]</font><br />
+<font size="3"><strong>……(省略)</strong></font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">还有与插件事件有关的错误：</font><br />
+<br />
+<font size="3">[22:20:28 ERROR]: Could not pass event InventoryClickEvent to Jobs v4.11.1<strong>（无法将事件InventoryClickEvent传递给插件Jobs v4.11.1）</strong></font><br />
+<font size="3">org.bukkit.event.EventException<strong>←第二级异常</strong></font><br />
+<font size="3">at org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.ja</font><br />
+<font size="3">va:338) ~[JavaPluginLoader$1.class:1.7.10-R0.1-SNAPSHOT]</font><br />
+<font size="3">at org.bukkit.plugin.RegisteredListener.callEvent(RegisteredListener.jav</font><br />
+<font size="3">a:62) ~[RegisteredListener.class:1.7.10-R0.1-SNAPSHOT]</font><br />
+<font size="3"><strong>……(省略)</strong></font></font><br />
+<font face="微软雅黑"><font size="3">Caused by<strong>（意思为原因为，是异常链的标志）</strong>:</font><br />
+<font size="3">java.lang.NoSuchMethodError: org.bukkit.event.inventory.InventoryClic</font><br />
+<font size="3">kEvent.getClickedInventory()Lorg/bukkit/inventory/Inventory; ←第一级异常</font><br />
+<font size="3">at com.gamingmesh.jobs.listeners.JobsListener.onInventoryClick(JobsListe</font><br />
+<font size="3">ner.java:819) ~[?:?]</font><br />
+<font size="3"><strong>……(省略)</strong></font></font><br />
+<font face="微软雅黑"><font size="3">对于异常链，从下到上看，最下的是最低级的异常</font><br />
+<font size="3">这些报错的分析方法与上文分析客户端崩溃的方法基本相同</font><br />
+<font size="3"></font><br />
+<strong><font size="4">Watchdog报错分析</font></strong><br />
+<br />
+<font size="3">Watchdog报错在低配置服务器特别常见，比如Paper核心的特色报错（服务器未响应时dump一下服务器主线程，帮助分析卡服原因）：</font><br />
+<br />
+<font size="3">[Paper Watchdog Thread/ERROR]: --- DO NOT REPORT THIS TO PAPER - THIS IS NOT A BUG OR A CRASH ---</font><br />
+<font size="3"><strong>（不要报告给Paper开发者——这不是Bug或报错！！！）</strong></font><br />
+<font size="3">[Paper Watchdog Thread/ERROR]: The server has not responded for 35 seconds! Creating thread dump</font><br />
+<font size="3"><strong>（服务器已停止响应35秒！正在创建线程dump）</strong></font><br />
+<font size="3">[Paper Watchdog Thread/ERROR]: ------------------------------</font><br />
+<font size="3">[Paper Watchdog Thread/ERROR]: Server thread dump (Look for plugins here before reporting to Paper!):</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.net.SocketInputStream.socketRead0(Native Method)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.net.SocketInputStream.socketRead(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.net.SocketInputStream.read(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.net.SocketInputStream.read(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.InputRecord.readFully(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.InputRecord.readV3Record(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.InputRecord.read(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.SSLSocketImpl.readRecord(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.SSLSocketImpl.performInitialHandshake(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.SSLSocketImpl.startHandshake(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.security.ssl.SSLSocketImpl.startHandshake(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.net.</font><font size="3"><a href="http://www.protocol.https.HttpsClient.afterConnect" target="_blank">www.protocol.https.HttpsClient.afterConnect</a></font><font size="3">(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.net.</font><font size="3"><a href="http://www.protocol.https.AbstractDelegateHttpsURLConnection.connect" target="_blank">www.protocol.https.AbstractDelegateHttpsURLConnection.connect</a></font><font size="3">(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.net.</font><font size="3"><a href="http://www.protocol.http.HttpURLConnection.getInputStream0" target="_blank">www.protocol.http.HttpURLConnection.getInputStream0</a></font><font size="3">(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.net.</font><font size="3"><a href="http://www.protocol.http.HttpURLConnection.getInputStream" target="_blank">www.protocol.http.HttpURLConnection.getInputStream</a></font><font size="3">(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sun.net.</font><font size="3"><a href="http://www.protocol.https.HttpsURLConnectionImpl.getInputStream" target="_blank">www.protocol.https.HttpsURLConnectionImpl.getInputStream</a></font><font size="3">(Unknown Source)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.mojang.authlib.HttpAuthenticationService.performGetRequest(HttpAuthenticationService.java:130)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService.makeRequest(YggdrasilAuthenticationService.java:66)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService.fillGameProfile(YggdrasilMinecraftSessionService.java:180)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.destroystokyo.paper.profile.PaperMinecraftSessionService.fillGameProfile(PaperMinecraftSessionService.java:35)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService.fillProfileProperties(YggdrasilMinecraftSessionService.java:173)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.destroystokyo.paper.profile.PaperMinecraftSessionService.fillProfileProperties(PaperMinecraftSessionService.java:28)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.TileEntitySkull$1.load(TileEntitySkull.java:79)</font><br />
+<font size="3">[15:08:53] [Paper Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.TileEntitySkull$1.load(TileEntitySkull.java:46)</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+<strong>还有就是真正停止响应的报错（此时会强制停止服务器）：</strong></font></font><br />
+<font face="微软雅黑"><font size="3">The server has stopped responding!</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: Please report this to </font><font size="3"><a href="http://www.spigotmc.org/" target="_blank">http://www.spigotmc.org/</a></font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: Be sure to include ALL relevant console errors and Minecraft crash reports</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: Spigot version: git-Spigot-642f6d2-57ab4cf (MC: 1.12.2)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: ------------------------------</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: Server thread dump (Look for plugins here before reporting to Spigot!):</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: ------------------------------</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]: Current Thread: Server thread<strong>（服务器主线程）</strong></font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PID: 18 | Suspended<strong>（是否挂起）</strong>: false | Native<strong>（是否为本地线程）</strong>: false | State<strong>（状态）</strong>: WAITING</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Stack:</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.lang.Object.wait(Native Method)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.lang.Thread.join(Thread.java:1252)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;java.lang.Thread.join(Thread.java:1326)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.wasteofplastic.acidisland.Updater.waitForThread(Updater.java:361)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.wasteofplastic.acidisland.Updater.getResult(Updater.java:302)</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/ERROR]:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;com.wasteofplastic.acidisland.ASkyBlock.checkUpdatesNotify(ASkyBlock.java:579)</font><br />
+<font size="3"><strong>（以下线程信息省略）</strong></font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/INFO]: Startup script './start.sh' does not exist! Stopping server.</font><br />
+<font size="3">[07:31:15] [Spigot Watchdog Thread/INFO]: Stopping server</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+对于这类报错，与客户端的分析方式也相同，但主要分析服务器主线程，一步步顺藤摸瓜找原因，这需要了解java相关的类库和相关的线程知识，但对于这些命名规范的包名、类名和方法名来说，你知道专有名词的意思也能猜个八 九不离十：</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+Paper核心的特色报错：TileEntitySkull load（实体方块头颅加载？）-&gt; Yggdrasil fillGameProfile（玩家游戏信息？）-&gt; makeRequest（发送请求？）-&gt; net read ssl（看样子在联网）</font></font><br />
+<font face="微软雅黑"><font size="3">联想：看起来是一个头颅加载皮肤时联网获取皮肤引起的卡顿，为正常现象</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">停止响应的报错：checkUpdatesNotify（检查更新啊）-&gt;状态为WAITING（在等东西）-&gt;com.wasteofplastic.acidisland.Updater.wait（下面是一个插件的包名，应该是酸岛插件的问题）</font></font><br />
+<font face="微软雅黑"><font size="3">联想：应该是网络原因，禁止酸岛插件的检查更新就行了</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+在这里安利一下服务器监控插件</font></font><a href="https://www.mcbbs.net/forum.php?mod=viewthread&amp;tid=701333" target="_blank"><font size="3">yum</font></a><font face="微软雅黑"><font size="3">，可以很快捷地知道在主线程的网络操作</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">对于非上述类型的watchdog报错，一般是因为服务器配置较低或者代码较为低效，导致处理时间过长而关闭服务器，可以通过直接禁用Watchdog功能避免此问题。</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+对于旧版本，可以在server.properties中将max-tick-time设置为-1</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+而对于新版本，可以在spigot.yml中将timeout-time设置为一个比较大的值</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+同时，建议进行服务器的优化，可以看看这两篇优化教程：</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+【优化】服务器优化指南 | 和卡顿永远说再见</font><br />
+<font size="3"><a href="thread.html?t=774469" target="_blank">https://www.mcbbs.net/thread-774469-1-1.html</a></font></font><br />
+<font face="微软雅黑"><br />
+<font size="3">Minecraft服务器优化教程 —— 让多带50%的玩家不再是梦</font><br />
+<font size="3"><a href="thread.html?t=478126" target="_blank">https://www.mcbbs.net/thread-478126-1-1.html</a></font></font><br />
+<font face="微软雅黑"><br />
+<font size="3">也可以深入了解服务器配置文件，实现更加深度的优化：</font><br />
+<font size="3"><a href="thread.html?t=872611" target="_blank">https://www.mcbbs.net/thread-872611-1-1.html</a></font></font><br />
+<font face="微软雅黑"><br />
+<font size="3"></font><br />
+<strong><font size="4">Java虚拟机崩溃分析</font><br />
+</strong><br />
+<font size="3">这类报错较少见，但仍有发生，一般为显卡驱动bug、内存不足导致，有时也会由内存损坏等硬件问题导致，这类报错的文件命名为hs_err_pidxxxx.log，并位于.minecraft或服务器根目录下：</font><br />
+<font size="3">这里看看一个dll引起的报错：</font><br />
+<font size="3">##<strong>JRE检测到了一个致命错误：</strong></font><br />
+<font size="3">## A fatal error has been detected by the Java Runtime Environment:</font><br />
+<font size="3">#</font><br />
+<font size="3">#&nbsp;&nbsp;EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00000000693878bd, pid=7392, tid=0x0000000000001f84<strong>←异常类型，这个需要搜索解决方案</strong></font><br />
+<font size="3">#</font><br />
+<font size="3"># JRE version: Java(TM) SE Runtime Environment (8.0_211-b12) (build 1.8.0_211-b12)</font><br />
+<font size="3"># Java VM: Java HotSpot(TM) 64-Bit Server VM (25.211-b12 mixed mode windows-amd64 compressed oops)</font><br />
+<font size="3"># Problematic frame<strong>（产生问题的帧）</strong>:</font><br />
+<font size="3"># C&nbsp;&nbsp;[sqlite-3.7.2-sqlitejdbc.dll+0x478bd]<strong>←主要分析这个dll是干嘛的，搜索一下，更新与其相关的东西</strong></font><br />
+<font size="3">#</font><br />
+<font size="3"># Core dump written. Default location: D:\qiyuan\qiyuan\hs_err_pid7392.mdmp</font><br />
+<font size="3">#</font><br />
+<font size="3"># If you would like to submit a bug report, please visit:</font><br />
+<font size="3">#&nbsp; &nbsp;</font><font size="3"><a href="http://bugreport.java.com/bugreport/crash.jsp" target="_blank">http://bugreport.java.com/bugreport/crash.jsp</a></font><br />
+<font size="3">#</font><br />
+<strong><font size="3">#这个崩溃发生在JVM的本地代码之外</font><br />
+<font size="3">#请查看产生问题的帧以汇报问题</font></strong><br />
+<font size="3"># The crash happened outside the Java Virtual Machine in native code.</font><br />
+<font size="3"># See problematic frame for where to report the bug.</font><br />
+<font size="3"><strong>（中间省略，直接看Java的堆，此处分析方式与一般报错分析相同）</strong></font><br />
+<font size="3">Stack: [0x0000000066f60000,0x0000000067060000],&nbsp;&nbsp;sp=0x000000006705ee30,&nbsp;&nbsp;free space=1019k</font><br />
+<font size="3">J=compiled Java code<strong>（已编译的java代码）</strong>, j=interpreted<strong>（已解释）</strong>, Vv=VM code<strong>（虚拟机代码）</strong>, C=native code<strong>（本地代码）</strong></font><br />
+<font size="3">Native frames<strong>（本地代码帧）</strong>:&nbsp;&nbsp;C&nbsp;&nbsp;[sqlite-3.7.2-sqlitejdbc.dll+0x478bd]</font><br />
+<font size="3">Java frames<strong>（Java代码帧）</strong>:&nbsp;&nbsp;</font><br />
+<font size="3">J 21524&nbsp;&nbsp;org.sqlite.NativeDB.reset(J)I (0 bytes) @ 0x0000000005a9543b [0x0000000005a95400+0x3b]</font><br />
+<font size="3">J 24085 C1 org.sqlite.RS.close()V (81 bytes) @ 0x00000000065ff274 [0x00000000065ff040+0x234]</font><br />
+<font size="3">j&nbsp;&nbsp;org.sqlite.PrepStmt.executeUpdate()I+25</font><br />
+<font size="3">j&nbsp;&nbsp;fr.xephi.authme.datasource.SQLite.setUnlogged(Ljava/lang/String;)V+94<strong>←可知为Authme的数据库操作</strong></font><br />
+<font size="3">j&nbsp;&nbsp;fr.xephi.authme.datasource.CacheDataSource.setUnlogged(Ljava/lang/String;)V+8</font><br />
+<font size="3">j&nbsp;&nbsp;fr.xephi.authme.process.quit.AsynchronousQuit.processQuit(Lorg/bukkit/entity/Player;)V+176</font><br />
+<font size="3">j&nbsp;&nbsp;fr.xephi.authme.process.Management.lambda$performQuit$7(Lorg/bukkit/entity/Player;)V+5</font><br />
+<font size="3">j&nbsp;&nbsp;fr.xephi.authme.process.Management$$Lambda$63.run()V+8</font><br />
+<font size="3">J 35531 C2 org.bukkit.craftbukkit.v1_7_R4.scheduler.CraftAsyncTask.run()V (532 bytes) @ 0x000000000963e584 [0x000000000963e340+0x244]</font><br />
+<font size="3">J 32137 C2 java.util.concurrent.ThreadPoolExecutor.runWorker(Ljava/util/concurrent/ThreadPoolExecutor$Worker;)V (225 bytes) @ 0x0000000005449340 [0x0000000005448d60+0x5e0]</font><br />
+<font size="3">j&nbsp;&nbsp;java.util.concurrent.ThreadPoolExecutor$Worker.run()V+5</font><br />
+<font size="3">j&nbsp;&nbsp;java.lang.Thread.run()V+11</font><br />
+<font size="3">v&nbsp;&nbsp;~StubRoutines::call_stub</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">这里的解决方式是重置数据库，有的时候这类问题也与内存损坏有关联</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">下面是物理内存不足的报错：</font><br />
+<font size="3">#</font><br />
+<font size="3"># There is insufficient memory for the Java Runtime Environment to continue.</font><br />
+<font size="3"><strong>#因所需的内存不足，JRE无法继续运行</strong></font><br />
+<font size="3"># Native memory allocation (mmap) failed to map 352321536 bytes for Failed to commit area from 0x00000000dd000000 to 0x00000000f2000000 of length 352321536.</font><br />
+<font size="3"><strong>#因为无法提交从0x00000000dd000000到0x00000000f2000000地址，长度为352321536的区域，本地内存分配器（mmap）无法映射352321536个字节</strong></font><br />
+<font size="3"># Possible reasons:</font><br />
+<font size="3"><strong>#可能的原因</strong></font><br />
+<font size="3">#&nbsp; &nbsp;The system is out of physical RAM or swap space</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;系统物理内存或交换空间不足</strong></font><br />
+<font size="3">#&nbsp; &nbsp;The process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap</font><br />
+<font size="3"><strong>#&nbsp;&nbsp;这个进程运行时启用了CompressedOops参数，Java堆内存可能阻止了本地内存的增长</strong></font><br />
+<font size="3"># Possible solutions:</font><br />
+<font size="3"><strong># 可能的解决方案：</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Reduce memory load on the system</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;减少系统所占用的内存</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Increase physical memory or swap space</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;增加物理内存或交换空间</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Check if swap backing store is full</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;查看交换的backing store是否已满</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Decrease Java heap size (-Xmx/-Xms)</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;减少Java的堆内存（参数为-Xmx/-Xms）注：这里是减少启动器设置的内存</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Decrease number of Java threads</font><br />
+<font size="3"><strong>#&nbsp; &nbsp;减少Java的线程数</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Decrease Java thread stack sizes (-Xss)</font><br />
+<font size="3"><strong>#&nbsp;&nbsp;减少Java的线程堆栈大小（参数为-Xss）</strong></font><br />
+<font size="3">#&nbsp; &nbsp;Set larger code cache with -XX:ReservedCodeCacheSize=</font><br />
+<font size="3"><strong>#&nbsp;&nbsp;用-XX:ReservedCodeCacheSize=参数将代码缓存设置得更大</strong></font><br />
+<font size="3">#&nbsp; &nbsp;JVM is running with Unscaled Compressed Oops mode in which the Java heap is</font><br />
+<font size="3">#&nbsp; &nbsp;&nbsp;&nbsp;placed in the first 4GB address space. The Java Heap base address is the</font><br />
+<font size="3">#&nbsp; &nbsp;&nbsp;&nbsp;maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress</font><br />
+<font size="3">#&nbsp; &nbsp;&nbsp;&nbsp;to set the Java Heap base and to place the Java Heap above 4GB virtual address.</font><br />
+<strong><font size="3">#JVM运行在未缩放的压缩指针模式时，JAVA堆会被放在</font><br />
+<font size="3">#初始的4GB地址空间内，Java堆的基本地址是本地堆增长的最大限制</font><br />
+<font size="3">#请使用-XX:HeapBaseMinAddress来将Java堆的基本地址放置在4GB的虚拟内存地址之内</font></strong><br />
+<font size="3"># This output file may be truncated or incomplete.</font><br />
+<font size="3">#</font><br />
+<font size="3">#&nbsp;&nbsp;Out of Memory Error (os_windows.cpp:3371), pid=7780, tid=0x00000000000002f4</font><br />
+<font size="3">#</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3">按上面的解决方案来就行了</font><br />
+<br />
+<font size="3"></font><br />
+<strong><font size="5">总结</font></strong></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3">0.遇到问题，第一个做的应该是更新对应mod，因为这些问题可能已经在新版本中被解决。</font><br />
+<font size="3">1.报错并不可怕，你需要做的是认真分析报错，找到相关原因，一步步解决。</font><br />
+<font size="3">2.遇到莫名其妙、无法分析的错误时，可以在mojang的问题追踪器（</font><font size="3"><a href="https://bugs.mojang.com/" target="_blank">https://bugs.mojang.com/</a></font><font size="3">）、spigot和forge论坛、Github上搜索一下，那里可能已经有了解决方案。</font><br />
+<font size="3">3.搜索请搜索特别的词，如异常+描述信息（即第一行的内容）</font><br />
+<font size="3">4.如果实在不能解决，建议到对应问题mod的反馈处反馈（如果你会英文的话）。</font><br />
+<font size="3"></font><br />
+<strong><font size="5">附录</font></strong><br />
+<br />
+<strong><font size="4">常见崩溃</font><br />
+</strong><br />
+<font size="3">建议配合</font></font><font face="微软雅黑"><br />
+</font><br />
+<font face="微软雅黑"><font size="3"><a href="thread.html?t=516637" target="_blank">https://www.mcbbs.net/thread-516637-1-1.html</a></font></font><br />
+<font face="微软雅黑"><font size="3">https://www.mcbbs.net/thread-860103-1-1.html</font></font><br />
+<font face="微软雅黑"><font size="3">https://www.mcbbs.net/thread-729487-1-1.html</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="3">食用</font><br />
+<hr class="l" /><br />
+<font size="3">java.lang.IllegalStateException: failed to create a child event loop</font><br />
+<font size="3">Caused by: io.netty.channel.ChannelException: failed to open a new selector</font><br />
+<font size="3">Caused by: java.io.IOException: Unable to establish loopback connection</font><br />
+<font size="3">Caused by: java.net.SocketException: No buffer space available (maximum connections reached?): bind</font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+解决办法：如果不是vps，你可以拿着这个崩溃日志去找服务商</font><br />
+<font size="3">如果是vps，请检查你的后台进程是否正常，可能是中毒了</font><br />
+<font size="3">原因解释：</font><br />
+<font size="3"><a href="https://blog.csdn.net/itxiaohei323/article/details/8280702" target="_blank">https://blog.csdn.net/itxiaohei323/article/details/8280702</a></font><br />
+<font size="3"><a href="https://blog.csdn.net/yzy199391/article/details/78911329" target="_blank">https://blog.csdn.net/yzy199391/article/details/78911329</a></font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">java.lang.IllegalArgumentException: Cannot get property PropertyEnum{name=variant, clazz=class vazkii.botania.api.state.enums.PoolVariant, values=[DEFAULT, CREATIVE, DILUTED, FABULOUS]} as it does not exist in BlockStateContainer{block=minecraft:air, properties=[]}</font><br />
+<br />
+<font size="3">解决办法：卸载voxelmap并替换为其他的小地图mod</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">com.google.gson.JsonSyntaxException: java.io.EOFException: End of input at line 8 column 5</font><br />
+<font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at com.google.gson.Gson.fromJson(Gson.java:813)</font><br />
+<font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at com.google.gson.Gson.fromJson(Gson.java:768)</font><br />
+<font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.server.management.UserList.func_152679_g(UserList.java:202)</font><br />
+<br />
+<font size="3">解决办法：手动打开usercache.json进行修复</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">java.lang.UnsatisfiedLinkError:xxxxx\xxx.dll</font><br />
+<br />
+<font size="3">解决办法：请补上xxxx路径的dll，相关dll应该在对应的mod文件夹内</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">cpw.mods.fml.common.LoaderException: java.lang.NoClassDefFoundError: scala/collection/Seq（或者带有trove4j）</font><br />
+<br />
+<font size="3">解决办法：库文件缺失，请重新安装forge</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">报错一：org.lwjgl.LWJGLException: SetPixelFormat failed (-1073281958)</font><br />
+<font size="3">报错二：java.lang.IllegalStateException: GLFW error 65542: WGL: The driver does not appear to support OpenGL</font><br />
+<font size="3">报错三：org.lwjgl.LWJGLException: Pixel format not accelerated</font><br />
+<br />
+<font size="3">解决办法：用驱动精灵之类的东西更新显卡驱动，如果已经是最新，请前往对应的笔记本制造商官网下载驱动，如果仍提示报错二，请按下述教程操作：</font><br />
+<br />
+<font size="3">解决1代及2代Intel核显在Win10下无法使用OpenGL的问题</font><br />
+</font><a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fwww.liyanfeng.com%2Fpost%2F113.html" target="_blank"><font size="3">https://www.liyanfeng.com/post/113.html</font></a><font face="微软雅黑"><font size="3"><br />
+</font><br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">java.lang.OutOfMemoryError: unable to create new native thread</font><br />
+<br />
+<font size="3">解决方法：在JVM参数中加入-Xss1M</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">java.lang.IllegalAccessError: tried to access class cofh.api.transport.IEnderAttuned from class cofh.lib.transport.EnderRegistry</font><br />
+<br />
+<font size="3">解决方法：用压缩包打开非cofhteam自家mod（指除了热力膨胀以及其扩展、cothcore的mod）并删除cofh文件夹（记得删除前备份！）</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">Unsupported major.minor version 52.0</font><br />
+<br />
+<font size="3">解决方法：请使用java8</font><br />
+<br />
+</font><font face="微软雅黑"><hr class="l" /></font><font face="微软雅黑"><br />
+<font size="3">java.lang.IllegalArgumentException: Could not get provider type for dimension -xxx, does not exist</font><br />
+<br />
+<font size="3">解决方法：维度ID xxx冲突导致无法加载对应世界，请在配置文件进行维度ID的修改</font></font><font face="微软雅黑"><font size="3"><hr class="l" /></font></font><br />
+<font face="微软雅黑"><font size="3"><br />
+</font><br />
+<strong><font size="5">更新日志：</font></strong><br />
+<br />
+<font size="3">2019-8-20</font></font><font face="微软雅黑"><font size="3"><br />
+</font></font><font face="微软雅黑"><font size="3">1.删除了字节码崩溃中的误导内容</font></font><br />
+<font face="微软雅黑"><font size="3">2.补充了例子的解决办法<br />
+</font><br />
+<font size="3">2019-8-4</font><br />
+<br />
+<font size="3">1.大幅添加内容，完成剩余内容的更新</font><br />
+<font size="3">2.使用了更准确的翻译</font><br />
+<br />
+<font size="3">2019-6-10</font><br />
+<br />
+<font size="3">初次发布</font><br />
+</font><br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2019-6-10 14:22<br />
+<i class="pstatus"> 本帖最后由 xmdhs 于 2019-6-10 14:35 编辑 </i><br />
+<br />
+很详细，我一直是靠着观察别人答题的答案，然后从中找出的一点规律来答题的。<br />
+<br />
+所以经常闹笑话<img src="static/image/smiley/tong/lost_soul.png" smilieid="1436" border="0" alt="" /><br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>人气还没好呢</td></table></div></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ItIsEnderman&nbsp; &nbsp; <b>时间: </b>2019-6-10 14:29<br />
+最好有点典例<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>文豪小绝&nbsp; &nbsp; <b>时间: </b>2019-6-10 14:33<br />
+看啦是个巨佬没错了。。。我完全不懂报错问题和解决方法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>35348626@qq.com&nbsp; &nbsp; <b>时间: </b>2019-6-10 14:51<br />
+这也太帅了吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-6-10 15:41<br />
+sqlitejdbc指的是和Java和SQLite这个数据库通信用的JDBC接口。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Оil&nbsp; &nbsp; <b>时间: </b>2019-6-10 16:33<br />
+我感觉这个可以去申请茶馆精华帖系列的说.jpg<br />
+<a href="thread.html?t=856425" target="_blank">http://www.mcbbs.net/thread-856425-1-1.html</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>吕不才&nbsp; &nbsp; <b>时间: </b>2019-6-10 16:38<br />
+萌新表示，看不懂呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小cheng&nbsp; &nbsp; <b>时间: </b>2019-6-10 16:41<br />
+个个都成dalao，要问答版干嘛，但是还是感谢楼主给出教程。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mine新时代xs&nbsp; &nbsp; <b>时间: </b>2019-6-10 16:51<br />
+<i class="pstatus"> 本帖最后由 mine新时代xs 于 2019-6-10 17:08 编辑 </i><br />
+<br />
+2个小时更新这么多？！<br />
+<strike>从入门到放弃真的强</strike><br />
+启动日志分析那里不应该还有Error吗，并不是7个等级吧<img src="static/image/smiley/tong/chigua.png" smilieid="1464" border="0" alt="" /><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2331837537&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:14<br />
+坚持，初心不变。。哈哈希望大佬坚持下去。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:17<br />
+<i class="pstatus"> 本帖最后由 a1294790523 于 2019-6-10 17:22 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14593619&amp;ptid=872259" target="_blank"><font color="#999999">mine新时代xs 发表于 2019-6-10 16:51</font></a></font><br />
+2个小时更新这么多？！<br />
+<strike>从入门到放弃真的强</strike><br />
+启动日志分析那里不应该还有Error吗，并不是7个等级吧[: ...</blockquote></div><br />
+这个是Java自带的Logger的等级<br />
+我忘了MC的日志记录是log4j2333<br />
+log4j是六个等级<br />
+我去改改<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Zapic&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:25<br />
+这东西丢在茶馆里可惜了...<br />
+你可能需要找一个能够发教程的地方,而不是放在这种&quot;<strong>随便一个没有意义但不过很符合大众口味的破事水就能把真正有意义的帖子压下去的茶馆</strong>&quot;里...<br />
+创作者就要有创作者的尊严,决不让自己的聪明才智泯灭在鸡毛堆里.<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14593807&amp;ptid=872259" target="_blank"><font color="#999999">Zapic 发表于 2019-6-10 17:25</font></a></font><br />
+这东西丢在茶馆里可惜了...<br />
+你可能需要找一个能够发教程的地方,而不是放在这种&quot;随便一个没有意义但不过很符 ...</blockquote></div><br />
+但是有一个事实：技巧版没人看<img src="static/image/smiley/tong/chigua.png" smilieid="1464" border="0" alt="" /><br />
+而本指南就是为了扫盲的，茶馆我感觉很合适2333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>XY__MengXing&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:28<br />
+看不懂看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaopangju&nbsp; &nbsp; <b>时间: </b>2019-6-10 17:59<br />
+巨佬，，，，，，<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaopangju&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:01<br />
+<div class="quote"><blockquote><font color="#999999">a1294790523 发表于 2019-6-10 17:28</font><br />
+<font color="#999999">但是有一个事实：技巧版没人看<br />
+而本指南就是为了扫盲的，茶馆我感觉很合适2333 ...</font></blockquote></div><br />
+确实，我一般不会看技巧版的。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>。—。&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:19<br />
+我想我电脑里那几十个crash-report和十几个hs_err_pid有用了……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14592993&amp;ptid=872259" target="_blank"><font color="#999999">ItIsEnderman 发表于 2019-6-10 14:29</font></a></font><br />
+最好有点典例</blockquote></div><br />
+欢迎提供233<br />
+写的时候死活找不到<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>eee12367&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:24<br />
+大佬，8或9年的大佬才写的出<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lasooooobra&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:28<br />
+别问&nbsp; &nbsp;给好评就对了（一看就是个julao<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ItIsEnderman&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14594085&amp;ptid=872259" target="_blank"><font color="#999999">a1294790523 发表于 2019-6-10 18:22</font></a></font><br />
+欢迎提供233<br />
+写的时候死活找不到</blockquote></div><br />
+爱心申请帖里面翻我的或者MOD大佬的回复，里面还多XD<br />
+电脑上还攒了一堆<br />
+<br />
+马上有事出去一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NoName德里奇&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:36<br />
+大佬还是猛啊。<br />
+不过我有一个问题，如果这篇教程是写给一般通过服主和想混问答版爱心的萌新玩家，<br />
+在教程里包含这么多的编程专业术语真的好吗？<br />
+可能可读性会比较差吧。<br />
+不过专业性是绝对没问题的，这毕竟是只有大佬才能写出来的东西，我佛了。<br />
+支持一下大佬，建议申请精华。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14594171&amp;ptid=872259" target="_blank"><font color="#999999">NoName德里奇 发表于 2019-6-10 18:36</font></a></font><br />
+大佬还是猛啊。<br />
+不过我有一个问题，如果这篇教程是写给一般通过服主和想混问答版爱心的萌新玩家，<br />
+在教程里 ...</blockquote></div><br />
+这些东西是必须要了解的，我已经最大限度简化了<img src="static/image/smiley/tong/cry.png" smilieid="1453" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NoName德里奇&nbsp; &nbsp; <b>时间: </b>2019-6-10 18:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14594214&amp;ptid=872259" target="_blank"><font color="#999999">a1294790523 发表于 2019-6-10 18:42</font></a></font><br />
+这些东西是必须要了解的，我已经最大限度简化了</blockquote></div><br />
+行叭，大佬已经写得很强了，加油。<img src="static/image/smiley/mc_mob_food_plants/chicken.gif" smilieid="827" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>幽儿~&nbsp; &nbsp; <b>时间: </b>2019-6-10 19:26<br />
+可以可以 <br />
+来申请帖申精不？<br />
+XDD<br />
+<a href="thread.html?t=856425" target="_blank">http://www.mcbbs.net/thread-856425-1-1.html</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-10 19:48<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14594494&amp;ptid=872259" target="_blank"><font color="#999999">九幽之帝 发表于 2019-6-10 19:26</font></a></font><br />
+可以可以 <br />
+来申请帖申精不？<br />
+XDD</blockquote></div><br />
+这个帖子能申精Σ(っ °Д °;)っ？<br />
+申请了0.0<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>west.myth&nbsp; &nbsp; <b>时间: </b>2019-6-10 21:56<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14592968&amp;ptid=872259" target="_blank"><font color="#999999">xmdhs 发表于 2019-6-10 14:22</font></a></font><br />
+很详细，我一直是靠着观察别人答题的答案，然后从中找出的一点规律来答题的。<br />
+<br />
+所以经常闹笑话[:lost_soul: ...</blockquote></div><br />
+为什么突然多出这么多金粒？！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hummm&nbsp; &nbsp; <b>时间: </b>2019-6-10 22:41<br />
+好贴好贴<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mohuang521&nbsp; &nbsp; <b>时间: </b>2019-6-11 08:12<br />
+楼主很强啊，这都能列出来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Zapic&nbsp; &nbsp; <b>时间: </b>2019-6-13 16:23<br />
+提示: <em>该帖被管理员或版主屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>妹妹大人&nbsp; &nbsp; <b>时间: </b>2019-6-13 17:19<br />
+看不懂看不懂！但是我觉得看上去很厉害awa<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2019-6-13 19:03<br />
+<div class="quote"><blockquote>这里最终的原因是Liteloader和Optifine不能以库文件挂载的方式共存，需要将Optifine放在mods文件夹内以mod形式加载</blockquote></div><br />
+minecraft参数中去掉OptiFine的tweakClass参数即可，库文件挂载的方式可以共存的<br />
+<br />
+<strike>以及欢迎发在编程开发版块</strike><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-13 19:16<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14613536&amp;ptid=872259" target="_blank"><font color="#999999">gooding300 发表于 2019-6-13 19:03</font></a></font><br />
+minecraft参数中去掉OptiFine的tweakClass参数即可，库文件挂载的方式可以共存的<br />
+<br />
+<strike>以及欢迎发在编程开 ...</strike></blockquote></div><br />
+
+<br />
+但是看报错是weight参数重复 不是tweakClass参数的问题啊233<br />
+求解惑233<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>東風&nbsp; &nbsp; <b>时间: </b>2019-6-13 19:20<br />
+<div class="quote"><blockquote>对于无法判断的信息，可通过查看mod列表中状态有无E</blockquote></div><br />
+这个恐怕是最适合新人的方法了/笑哭<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2019-6-13 19:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14613664&amp;ptid=872259" target="_blank"><font color="#999999">a1294790523 发表于 2019-6-13 19:16</font></a></font><br />
+但是看报错是weight参数重复 不是tweakClass参数的问题啊233<br />
+求解惑233</blockquote></div><br />
+LaunchWrapper(<a href="https://github.com/Mojang/LegacyLauncher/blob/master/src/main/java/net/minecraft/launchwrapper/Launch.java" target="_blank">https://github.com/Mojang/Legacy ... wrapper/Launch.java</a>)<br />
+<div class="blockcode"><div id="code_RS2"><ol><li>final OptionSpec&lt;String&gt; tweakClassOption = parser.accepts(&quot;tweakClass&quot;, &quot;Tweak class(es) to load&quot;).withRequiredArg().defaultsTo(DEFAULT_TWEAK);<br />
+<li>...<br />
+<li>final List&lt;String&gt; tweakClassNames = new ArrayList&lt;String&gt;(options.valuesOf(tweakClassOption));</ol></div><em onclick="copycode($('code_RS2'));">复制代码</em></div><br />
+简而言之，无论有多少个tweakClass参数，LW均能正确获取参数，并会依次调用这些Tweaker，所以tweakClass参数加多了不会重复。<br />
+<br />
+但是，LW不出问题不代表这些Tweaker不出问题。<br />
+以LiteLoader的Tweaker（<a href="http://develop.liteloader.com/liteloader/LiteLoader/blob/master/src/main/java/com/mumfrey/liteloader/launch/LiteLoaderTweaker.java" target="_blank">http://develop.liteloader.com/li ... eLoaderTweaker.java</a>）为例，它会在LW启动时接受应该传入游戏的参数，并在游戏启动的时候返回给LW使这些参数真正传入游戏。<br />
+而OptiFine也会做同样的事情，这才是真正导致参数重复的原因。<br />
+<br />
+因此，我们只需要移除除了传递参数没有其他意义的OptiFine的Tweaker即可解决这一问题。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-6-13 19:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14613753&amp;ptid=872259" target="_blank"><font color="#999999">gooding300 发表于 2019-6-13 19:25</font></a></font><br />
+LaunchWrapper(https://github.com/Mojang/LegacyLauncher/blob/master/src/main/java/net/minecraft/lau ...</blockquote></div><div class="blockcode"><div id="code_ztO"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (final ITweaker tweaker : allTweakers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; argumentList.addAll(Arrays.asList(tweaker.getLaunchArguments()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_ztO'));">复制代码</em></div><br />
+懂了<br />
+也就是说Tweaker传回参数的时候出现了重复对吧0.0<br />
+感谢解惑<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>幻境雲達達&nbsp; &nbsp; <b>时间: </b>2019-6-14 15:45<br />
+
+<ignore_js_op>
+
+<img id="aimg_1329215" aid="1329215" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201906/14/154447vwkhk83kce8h5sbv.png" file="https://attachment.mcbbs.net/forum/201906/14/154447vwkhk83kce8h5sbv.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="192" id="aimg_1329215" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1329215_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>image.png</strong> <em class="xg1">(27.9 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTMyOTIxNXw1MTcwOGNjM3wxNjEzOTg0NDU0fDI0MTk0ODZ8ODcyMjU5&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-6-14 15:44 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+ 告诉我，为什么不发联机教程<br />
+<script type="text/javascript" reload="1">
+aimgcount[14619191] = ['1329215'];
+attachimggroup(14619191);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Coptimistic&nbsp; &nbsp; <b>时间: </b>2019-6-14 16:21<br />
+为大佬献上我的膝盖，完全看不懂的说。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Yao_Mei&nbsp; &nbsp; <b>时间: </b>2019-6-14 16:25<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>无心人书屋&nbsp; &nbsp; <b>时间: </b>2019-7-4 01:38<br />
+据说看完整篇，学习后可以看懂奔溃报告？<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jiruitao&nbsp; &nbsp; <b>时间: </b>2019-12-2 00:16<br />
+在人类的历史中问题总是会出现，我们几乎可以确定的说问题是必然出现的。<br />
+山洞居住起来并不舒适，所以我们学会建造居所。<br />
+石头做的工具并不好用，于是我们学会冶炼金属。<br />
+手工进行生产缓慢且没有效率，于是我们发明了机械。<br />
+人在历史上总是不断发现问题并且解决他们，我不确定我们为什么这么善于发现问题，也许生命本身具有寻求更高效率的倾向，又也许我们与其他生命与众不同，虽然原因不得而知，但问题的解决却必定带来效率的提升，解决问题这个行为本身对人类来说是伟大的，而乐意把他解决问题的方法和经验无私的教授别人是高尚的。<br />
+愿造物主总是使阳光洒在你的前路上，高尚的人。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1416868137&nbsp; &nbsp; <b>时间: </b>2019-12-3 14:03<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-12-3 14:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15901448&amp;ptid=872259" target="_blank"><font color="#999999">1416868137 发表于 2019-12-3 14:03</font></a></font><br />
+真全，不过一般崩服大多数区块/实体问题吧，这些崩服分析难度太大了</blockquote></div><br />
+这些问题想要真正解决的话得从代码级别上看了 根本不具有普适的解决方法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1985544594&nbsp; &nbsp; <b>时间: </b>2019-12-4 04:52<br />
+崩溃发生的原因这块写的挺仔细的 <hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>灼热小太阳&nbsp; &nbsp; <b>时间: </b>2020-3-12 15:09<br />
+爱了哈哈哈哈哈，最近一直想学习看崩溃日志来着，找了一天多翻到了这条，太感谢了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Rhythm&nbsp; &nbsp; <b>时间: </b>2020-3-12 15:14<br />
+这个教程写的比较尴尬<br />
+看得懂的人不需要看<br />
+需要看的看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2020-3-12 15:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16882451&amp;ptid=872259" target="_blank"><font color="#999999">Rhythm 发表于 2020-3-12 15:14</font></a></font><br />
+这个教程写的比较尴尬<br />
+看得懂的人不需要看<br />
+需要看的看不懂</blockquote></div><br />
+那欢迎你写一篇（<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>一拿林你和&nbsp; &nbsp; <b>时间: </b>2020-4-3 22:20<br />
+我貌似在这篇帖子里找到了蝙蝠二字<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>22743932&nbsp; &nbsp; <b>时间: </b>2020-4-4 16:07<br />
+谢谢楼主 学会了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2414091029&nbsp; &nbsp; <b>时间: </b>2020-5-8 14:56<br />
+看不懂，但感觉很nb的样子<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>FinDream&nbsp; &nbsp; <b>时间: </b>2020-5-8 18:35<br />
+妙阿，这不就好起来<strike>这不就可以直接丢链接了嘛</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Monsterssss&nbsp; &nbsp; <b>时间: </b>2020-5-18 20:16<br />
+谢谢楼主分享，学到了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wunaimzy&nbsp; &nbsp; <b>时间: </b>2020-11-27 00:31<br />
+谢谢楼主教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>凛夜丶雨月&nbsp; &nbsp; <b>时间: </b>2020-12-6 09:31<br />
+我居然学会了一点！！<br />
+如果是模组导致的崩溃就在里面找模组名称，看错误类型，尝试更新或者卸载模组，有需要时向作者反馈<br />
+<strike>还不行就把MC卸了！</strike><br />
+自己用大概够用了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>shenren3-f&nbsp; &nbsp; <b>时间: </b>2020-12-6 11:46<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

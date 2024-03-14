@@ -1,0 +1,141 @@
+<html>
+<head>
+<title>1.13（虚伪的）用雪球实现不用蓄力的弓 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.13（虚伪的）用雪球实现不用蓄力的弓 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1-qaz1-&nbsp; &nbsp; <b>时间: </b>2018-8-4 17:46<br />
+<b>标题: </b>1.13（虚伪的）用雪球实现不用蓄力的弓<br /><i class="pstatus"> 本帖最后由 qaz1-qaz1- 于 2018-8-4 18:44 编辑 </i><br />
+<br />
+<font size="7">引言<br />
+<hr class="l" /></font>在1.13中，execute store ... 取代了 stat，我一直在想，怎么样可以实现把nbt标签与命令的返回值联系起来呢？正巧，在维基上找到了这样的一段话：<br />
+<div class="quote"><blockquote>...将返回值储存在目标坐标方块在标签路径的NBT标签上...</blockquote></div><br />
+卧槽，如此神奇？那么就来试一试。<br />
+<font size="7">需要<hr class="l" /></font><br />
+1个命令方块<br />
+数据包里的函数<br />
+<font size="7">指令<hr class="l" /></font><br />
+循环型命令方块：<br />
+<div class="blockcode"><div id="code_H6R"><ol><li>function shoot:givedata</ol></div><em onclick="copycode($('code_H6R'));">复制代码</em></div><br />
+函数 givedata.mcfunction<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_X49"><ol><li><br />
+<li>#添加标签<br />
+<li>tag @a[nbt={Inventory:[{Slot:-106b,id:&quot;minecraft:bow&quot;}]}] add bow_player<br />
+<li>give @a[tag=bow_player,nbt={SelectedItem:{id:&quot;minecraft:snowball&quot;,Count:1b}}] snowball 1<br />
+<li>execute at @a[tag=bow_player] run tag @e[type=minecraft:snowball,limit=1,distance=..2,tag=] add bow_snowball<br />
+<li>#生成箭<br />
+<li>execute at @e[tag=bow_snowball] run summon minecraft:arrow ~ ~1 ~ {Tags:[&quot;bow_arrow&quot;],damage:4b,pickup:2b}<br />
+<li>#复制扔出雪球的 Motion<br />
+<li>execute store result entity @e[tag=bow_arrow,limit=1] Motion[0] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[0] 100<br />
+<li>execute store result entity @e[tag=bow_arrow,limit=1] Motion[1] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[1] 100<br />
+<li>execute store result entity @e[tag=bow_arrow,limit=1] Motion[2] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[2] 100<br />
+<li>#添加新tag以防被再次选择<br />
+<li>tag @e[tag=bow_snowball] add bow_snowball_old<br />
+<li>tag @e[tag=bow_arrow] add bow_arrow_old<br />
+<li>tag @e[tag=bow_snowball] remove bow_snowball<br />
+<li>tag @e[tag=bow_arrow] remove bow_arrow<br />
+<li>tag @a[tag=bow_player] remove bow_player<br />
+<li>#清除雪球<br />
+<li>kill @e[type=minecraft:snowball,tag=bow_arrow_old]<br />
+<li></ol></div><em onclick="copycode($('code_X49'));">复制代码</em></div></td></table></div></div><br />
+<font size="7">原理</font><br />
+<font size="7"><hr class="l" /></font>原理就是将雪球的Motion复制到弓箭上，使用<br />
+<div class="blockcode"><div id="code_tRJ"><ol><li>&lt;div&gt;execute store result entity @e[tag=bow_arrow,limit=1] Motion[0] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[0] 100&lt;/div&gt;&lt;div&gt;省略数组第一个元素以及第二个元素的复制命令，重复了<br />
+<li>&lt;/div&gt;</ol></div><em onclick="copycode($('code_tRJ'));">复制代码</em></div>这里要注意倍率中有0.01与100，因为Motion中的元素都是双精确浮点数（就是小数啦，现在还没搞清楚数据类型d与b）但一输出就变成整数了，这时这样可以取到2位的精度。<br />
+其他就没什么好说的了<br />
+<font size="7">使用说明以及因为</font>我没有做好的<font size="7">原因<hr class="l" /></font><br />
+将弓放到副手，左手拿一个普通的雪球（有nbt的话就会堆叠不到一起去）<br />
+右键丢出雪球，雪球会被立即替换成箭，会有显示bug（好像发现了什么）<br />
+箭会顺着雪球的轨迹走，直到落地或砸在生物上<br />
+<font color="red">请勿往自己脚下砸，会有伤害的</font><br />
+<font size="7"><font color="black">其他想说的<hr class="l" /></font></font><br />
+<font color="black">发现了一个bug，但是估计报告了也不会修复</font><br />
+如果在雪球的位置生成一个弓箭，弓箭还会是雪球的材质<br />
+<font color="black">在写函数的时候，开启日志，这样可以看是哪里错了（正版在启动器的设置中）</font><br />
+<font color="black">未在多人模式下进行测试</font><br />
+<font color="black">Mojang真不用心，雪球和箭的飞行算法是一样的，阻力呢，牛顿的眼泪233</font><br />
+<br />
+参考：<br />
+<a href="https://minecraft-zh.gamepedia.com/1.13#.E5.91.BD.E4.BB.A4.E6.A0.BC.E5.BC.8F_2" target="_blank"><font color="#0066cc">https://minecraft-zh.gamepedia.com/1.13#.E5.91.BD.E4.BB.A4.E6.A0.BC.E5.BC.8F_2</font></a><br />
+<font color="black">中文minecraft wiki 1.13-改动-命令格式</font><br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1235632" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTIzNTYzMnwzMDQwZTUxYnwxNjEzOTY1NDg2fDI0MTk0ODZ8ODExNzM5" target="_blank">bow.zip</a>
+
+<em class="xg1">(4.3 KB, 下载次数: 15)</em>
+</span>
+<div class="tip tip_4" id="attach_1235632_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2018-8-4 17:53 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>有毒○贰比&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:15<br />
+感觉高大上（数据包、函数什么的，搞得我一脸懵逼）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:29<br />
+所以终于能用指令做凋零弓了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1-qaz1-&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:31<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169080&amp;ptid=811739" target="_blank"><font color="#999999">xmdhs 发表于 2018-8-4 18:29</font></a></font><br />
+所以终于能用指令做凋零弓了</blockquote></div><br />
+什么叫凋零弓？？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:34<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169096&amp;ptid=811739" target="_blank"><font color="#999999">qaz1-qaz1- 发表于 2018-8-4 18:31</font></a></font><br />
+什么叫凋零弓？？</blockquote></div><br />
+曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。<br />
+<br />
+现在看用1.13的指令能轻易实现<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1-qaz1-&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169114&amp;ptid=811739" target="_blank"><font color="#999999">xmdhs 发表于 2018-8-4 18:34</font></a></font><br />
+曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。<br />
+<br />
+现在看用1.13的指令 ...</blockquote></div><br />
+原来如此<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2456309832&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:48<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169114&amp;ptid=811739" target="_blank"><font color="#999999">xmdhs 发表于 2018-8-4 18:34</font></a></font><br />
+曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。<br />
+<br />
+现在看用1.13的指令 ...</blockquote></div><br />
+那是什么小游戏，能说一下吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>动画片平&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169186&amp;ptid=811739" target="_blank"><font color="#999999">2456309832 发表于 2018-8-4 18:48</font></a></font><br />
+那是什么小游戏，能说一下吗</blockquote></div><br />
+起床战争<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>持斧只为皮&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:57<br />
+整合包分享一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2018-8-4 18:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169186&amp;ptid=811739" target="_blank"><font color="#999999">2456309832 发表于 2018-8-4 18:48</font></a></font><br />
+那是什么小游戏，能说一下吗</blockquote></div><br />
+<img id="aimg_lz2Cq" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/08/04/5b658625657ae.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1-qaz1-&nbsp; &nbsp; <b>时间: </b>2018-8-4 19:02<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13169234&amp;ptid=811739" target="_blank"><font color="#999999">持斧只为皮 发表于 2018-8-4 18:57</font></a></font><br />
+整合包分享一下</blockquote></div><br />
+数据包贴在下面了，安装论坛里有教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaowei233v&nbsp; &nbsp; <b>时间: </b>2018-8-5 16:58<br />
+1.8看着函数很无语啊awa<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>OG_Ryu&nbsp; &nbsp; <b>时间: </b>2018-8-5 17:21<br />
+是准备做枪战了吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>烈M煞&nbsp; &nbsp; <b>时间: </b>2018-8-10 19:01<br />
+感觉大佬好6（函数什么的，当然看不懂啦233333）
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

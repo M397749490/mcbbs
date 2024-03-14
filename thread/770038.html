@@ -1,0 +1,253 @@
+<html>
+<head>
+<title>【1.12function】在原版Minecraft内获取现实世界时间（丢人钟） - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【1.12function】在原版Minecraft内获取现实世界时间（丢人钟） <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2017-11-25 22:57<br />
+<b>标题: </b>【1.12function】在原版Minecraft内获取现实世界时间（丢人钟）<br /><i class="pstatus"> 本帖最后由 Vinogradov 于 2017-11-26 09:06 编辑 </i><br />
+<br />
+<font face="微软雅黑">所有版权归丢人素学姐（正版id：YijunYuan）所有。</font><br />
+<font face="微软雅黑"><font face="微软雅黑"><br />
+</font><br />
+//赶出来的教程，过几天慢慢完善</font><br />
+<font face="微软雅黑"><br />
+</font><br />
+<font face="微软雅黑">这个东西其实在CBL外群和几个我摸鱼的群里都已经知道了，不过由于被@pca006132玩命催稿，那我就在论坛写一下好了。<br />
+<br />
+<font size="5">注意：</font><br />
+</font><ul type="1" class="litype_1"><li><font face="微软雅黑">这里的现实世界时间指的是运行该系统的计算机的机器时间</font><li><font face="微软雅黑">我<strong><u><font color="#ff0000">不会</font></u></strong>给出用于生成mcfunction文件的代码。另外我不会为安装这个系统而造成地图的任何损坏负任何责任</font><li><font face="微软雅黑">根据1.13的快照的情况来看，这个系统无法直接运行在大于1.12.2的所有（快照）版本里。当然，主要的原理还是可行的，只是需要一些更改</font><li><font face="微软雅黑">可能在一段时间以后Panda4994会把这个系统的更新的版本放到Youtube上，当然这还没有定下来，会不会出现，怎么出现都还不一定</font><li><font face="微软雅黑">鉴于这并不是基于我的这个原理下最好的版本，而Panda4994和我都认为还能做更多改善（这我在后文中还会提到），他/她的存档我暂时不会发出来。当然不排除日后会发</font><li><font face="微软雅黑"><font color="#ff0000">安装该系统请使用只有y=0的一层的超平坦世界，否则可能会被埋在别的方块中（当然不影响功能）</font></font><li><font face="微软雅黑"><font color="#ff0000">安装只要将functions中的两个文件夹放进存档的functions并执行ooc.txt中的ooc即可</font></font><li><font face="微软雅黑"><font color="#ff0000">请在-5,1,-5附近安装，并把worldspawn设置到0,0,0附近，要看效果请进到生成的小黑屋，或者手持一个minecraft:clock看看效果<br />
+</font></font><li><font face="微软雅黑">命令中可能有一些小问题，我慢慢改<br />
+</font><br />
+</ul><font face="微软雅黑"><br />
+<br />
+<font size="5">记号与约定：</font><br />
+为了下文叙述简洁，我们不妨使用如下约定的记号：<br />
+</font><ul type="1" class="litype_1"><li><font face="微软雅黑">讲某个现实时间中的时间点，也就是[小时：分钟：秒]，记为(hh,mm,ss)的格式，如(23,48,59)即为23点48分59秒</font><li><font face="微软雅黑">下文的tick都不是红石刻。一般20tick=1秒</font><li><font face="微软雅黑">下文中的秒，指的都是现实时间中的秒<br />
+</font><br />
+</ul><font face="微软雅黑"><br />
+<font size="5">原理：</font><br />
+mc中，一般认为无法获取系统时间是因为，游戏中的时间是以tick为单位的。虽然我们都知道1s=20tick，但看过mc的代码就知道，这是建立在游戏不卡顿的前提下的。如果某一tick内要处理的“任务”非常多，那么这tick就完全有可能大于0.05秒（严重的卡顿甚至可以让1tick超过1秒）。<br />
+而另一方面，panda4994他们使用worldborder的方法，获得了每秒一次稳定且准确的脉冲。而这仍然是不够的，因为我们还是无法与现实时间“对齐”。也就是说，我们只能知道某段时间有多长（以秒为单位），而无法知道某个时间点的确切时间。即使我们手工把时钟和现实时间对齐了（比如在现实(00,00,00)把钟设置成(00,00,00)然后启动），在重启游戏，或者是单机模式下按了esc到菜单（此时游戏内tick是停止的）的情况下，时钟与现实时间就会失去同步。<br />
+因此，我们需要做到：<br />
+</font><ul type="1" class="litype_1"><li><font face="微软雅黑">与现实时间的即时同步</font><li><font face="微软雅黑">在游戏中断重启后，在短时间内自动使时钟恢复与现实时间的对齐<br />
+</font><br />
+</ul><font face="微软雅黑"><br />
+实现第一点是基于对command block的输出的观察。<br />
+<br />
+当我们使用cb执行一个命令时，我们可以观察到输出大致是这样的：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1153949" aid="1153949" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201711/25/204409n9nfk881p21vkkpp.png" file="https://attachment.mcbbs.net/forum/201711/25/204409n9nfk881p21vkkpp.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1153949" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1153949_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2017-11-25_20.42.20.png</strong> <em class="xg1">(70.52 KB, 下载次数: 6)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk0OXxiMDY1ZGY3ZnwxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-11-25 20:44 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</font><font face="微软雅黑">注意红圈里的文字，这不就是我们所需要的时间吗！对着这个cb来一发blockdata，可以得到这些：<br />
+</font><div class="blockcode"><div id="code_NOD"><ol><li>[21:07:13] 数据标签未更改：{auto:1b,powered:0b,LastExecution:2357159L,SuccessCount:0,UpdateLastExecution:1b,conditionMet:1b,CustomName:&quot;@&quot;,Command:&quot;/setblock ~ ~1 ~ air 0 replace&quot;,x:-3,y:1,z:-19,id:&quot;minecraft:command_block&quot;,LastOutput:&quot;{&quot;extra&quot;:[{&quot;color&quot;:&quot;red&quot;,&quot;translate&quot;:&quot;commands.setblock.noChange&quot;}],&quot;text&quot;:&quot;[20:42:10] &quot;}&quot;,TrackOutput:1b}</ol></div><em onclick="copycode($('code_NOD'));">复制代码</em></div><font face="微软雅黑">如果我们能保证输出稳定不变，那就可以通过testforblock来匹配某个固定的时间点了。<br />
+如，我们不妨设在[x=0,y=0,z=0]放着一个repeating_command_block[auto=1b,face=north]{Command:&quot;/ayaka&quot;}。显然这个cb会一直运行失败，因为根本没有这样的命令，但我们获得了稳定的，带时间戳的输出。<br />
+我们可以使用另一个rcb X，来匹配[x=0,y=0,z=0]处的这个rcb，并具体到LastOutput：<br />
+</font><div class="blockcode"><div id="code_vuT"><ol><li>/testforblock 0 0 0 repeating_command_block 1 {LastOutput:&quot;{&quot;extra&quot;:[{&quot;color&quot;:&quot;red&quot;,&quot;translate&quot;:&quot;commands.generic.notFound&quot;}],&quot;text&quot;:&quot;[02:00:14] &quot;}&quot;}</ol></div><em onclick="copycode($('code_vuT'));">复制代码</em></div><font face="微软雅黑">这样，在(02,00,14)时，X就会执行成功。我们在X上接一个conditional的ccb Y，使得X执行成功时，Y可以将当前时间距离(00,00,00)的秒数，即hour*24*60+minute*60+second写入计分板。（可以使用三个ccb，或者写一个function将时，分，秒直接分别写入记分板J，但是这样会使得ccb或者mcfunction文件大量增加，影响游戏体验，所以我没有这样做）<br />
+但是由于Minecraft没有通配符，上面的这种操作一次性只能匹配一个时间点，而一天有24*60*60=86400秒，因此需要穷举所有这些时间点。<br />
+显然，使这些rcb一直全部处于工作状态是十分愚蠢的，这会使得游戏变得**卡顿（不用质疑这个结论，也不用再去试，因为我试过了。。。）。所以我们需要将这86400个工作单元分组。我将每15秒分为一组，每次执行一组中的cb，并在每组的最后一秒执行成功后，关闭这组并启动下一组。这样，这部分中，每tick最多就只有20个不到的命令在执行，基本解决了卡顿问题。另外，为了使组间切换更加方便，我对每一组用了一个必能执行成功的rcb Z来驱动每一组的cb，而每个工作单元中的X设置为conditonal=false的ccb，Y设置为conditonal=true的ccb，依次接在Z上，并在这串cb的最后接上两个conditonal的ccb，用于组间切换。<br />
+这样，这部分就一共有1+24*60*60/15*(1+15*2+2)=190081个cb。<br />
+我们将这部分称为常规系统。<br />
+<br />
+现在我们解决第二个问题，也就是如何在这个系统无法同步（也就是当前显示时间并不在正在工作的这组cb的检测范围中）时，修复这个系统。<br />
+为了检测这个系统是否还在正常工作，每100tick检测一次，当前J中分数是否与40tick之前一样（这句话有点绕，但应该不难理解，实现起来也不难）。显然，如果这个系统正常工作着，那么J中的分数在经过40tick以后（注意40tick至少是两秒）必然会改变。而如果这个系统已经与现实时间脱离同步，即当前工作的那组cb中没有一个能匹配到当前时间，那么J中的分数就不会改变。<br />
+当检测到系统工作不正常时，我们启动修复系统。<br />
+修复系统会同时检测所有以下时间点：(*,*,0),(*,*,15),(*,*,30),(*,*,45)，也就是对应着常规系统工作的那部分的cb的每组的第一个时间点。当然，修复系统工作的期间，存档会变得相对卡顿。当修复系统匹配到某个时间点时(h,m,s)时，会先将常规系统全部停止，再启动常规系统中包含(h,m,s)的那组。<br />
+这部分有24*4+24*60*4*30+10=17386个cb。<br />
+<br />
+当然剩下的事情就简单了，用简单的计算（10个cb）我们把J中分数换算成时分秒分别放到计分板中，再用4*8=32个cb输出到一个告示牌（因为有些数字需要补0来对齐冒号，所以需要8组，每组来判断时，分，秒是否分别小于10，来决定计分板上的文字）。<br />
+<br />
+另外，我检测了玩家是否手持一个minecraft:clock，如果拿着就把时间输出到title（subtitle提示MachineTime）。这部分需要44个cb（同样会有补0对齐的问题，所以需要的比较多）。<br />
+<br />
+统计一下，这个系统一共用了190081+17386+10+32+44=207553个cb。<br />
+<br />
+要放这么多cb，手工肯定是不可能的，因此我写了个mcfunction生成器，生成了二十几个mcfunction文件来批量放置cb。<br />
+<br />
+<font size="5">改进：</font><br />
+</font><ul><li><font face="微软雅黑">修复系统每启动一次，最多需要花15+5=20秒让常规系统恢复正常工作，且在修复期间会比较卡顿。panda4994基于这个idea做了一个几乎瞬间修复且基本无卡顿的版本，但具体原理我还没有研究清楚，再加上我们都觉得1.13以后这个系统会修改，所以现在暂时不放出panda的版本。另外pca006132也提了一个方法，但我暂时懒得做了，他那个应该也很不错。</font><li><font face="微软雅黑">这个系统会使游戏的log爆炸。基本上4分钟以内MultiMC就会报出log已经超过100000行，所以请自行调整gamerule。<br />
+</font><br />
+</ul><font face="微软雅黑"><br />
+<font size="5">截图：</font><br />
+
+<ignore_js_op>
+
+<img id="aimg_1153972" aid="1153972" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201711/25/223625xpninpq913p1wqw3.png" file="https://attachment.mcbbs.net/forum/201711/25/223625xpninpq913p1wqw3.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1153972" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1153972_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2017-11-25_22.33.35.png</strong> <em class="xg1">(652.77 KB, 下载次数: 12)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk3Mnw5NDhlMDdlY3wxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-11-25 22:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1153974" aid="1153974" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201711/25/223752rzxr7302443mgdl8.jpg" file="https://attachment.mcbbs.net/forum/201711/25/223752rzxr7302443mgdl8.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1153974" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1153974_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2017-11-25_22.32.47.jpg</strong> <em class="xg1">(245.35 KB, 下载次数: 13)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk3NHw4MjFlMDM5N3wxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-11-25 22:37 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1153971" aid="1153971" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201711/25/223624yrefzotbpxatixhf.png" file="https://attachment.mcbbs.net/forum/201711/25/223624yrefzotbpxatixhf.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1153971" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1153971_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2017-11-25_22.33.03.png</strong> <em class="xg1">(45.67 KB, 下载次数: 8)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk3MXw4ZjExNzZiOXwxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-11-25 22:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1153973" aid="1153973" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201711/25/223626hbuw7iyks5wnw57u.png" file="https://attachment.mcbbs.net/forum/201711/25/223626hbuw7iyks5wnw57u.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1153973" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1153973_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2017-11-25_22.3**.png</strong> <em class="xg1">(321.03 KB, 下载次数: 9)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk3M3wyY2ZjYWU0ZnwxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-11-25 22:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<font size="5">感谢：</font><br />
+</font><ul><li><font face="微软雅黑">玄素，在我刚形成这个idea时告诉了我很多技术性的细节</font><li><font face="微软雅黑">panda4994，给了我很多技术上的建议，并制作了一个无卡顿的版本</font><li><font face="微软雅黑">pca006132，玩命催我写教程</font><li><font face="微软雅黑">CBL外群和RacerftCraft中的各位</font><li><font face="微软雅黑">等<br />
+</font><br />
+</ul><font face="微软雅黑">
+<ignore_js_op>
+
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1153977" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTE1Mzk3N3xkZmU5NjNlZXwxNjEzOTUzMzQ2fDI0MTk0ODZ8NzcwMDM4" target="_blank">Time.rar</a>
+
+<em class="xg1">(477.96 KB, 下载次数: 119)</em>
+</span>
+<div class="tip tip_4" id="attach_1153977_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2017-11-25 22:53 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+</font><br />
+<script type="text/javascript" reload="1">
+aimgcount[12540115] = ['1153949','1153971','1153972','1153973','1153974'];
+attachimggroup(12540115);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3261298764&nbsp; &nbsp; <b>时间: </b>2017-11-25 23:10<br />
+哇<br />
+大佬就是不一样<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Mithey&nbsp; &nbsp; <b>时间: </b>2017-11-26 06:58<br />
+<i class="pstatus"> 本帖最后由 Mithey 于 2017-11-26 06:59 编辑 </i><br />
+<br />
+我不会给出用于生成mcfunction文件的代码。另外我不会为安装这个系统而造成地图的任何损坏负任何责任<br />
+<br />
+摔锅<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>:spgbigfan:&nbsp; &nbsp; <b>时间: </b>2017-11-26 09:16<br />
+穷举为所欲为<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BILO&nbsp; &nbsp; <b>时间: </b>2017-11-26 17:14<br />
+好复杂啊。。。（支持一下）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sjx&nbsp; &nbsp; <b>时间: </b>2017-12-3 19:58<br />
+用cb/function完成复杂任务，总要用穷举<br />
+不穷举怎么行？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>artsin&nbsp; &nbsp; <b>时间: </b>2017-12-19 18:45<br />
+厉害了。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fengzhihui&nbsp; &nbsp; <b>时间: </b>2019-9-23 15:18<br />
+6666666666<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=http%3A%2F%2Fwww.szxhuv.com" target="_blank"><img id="aimg_bw9KW" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://www.szxhuv.com" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><font color="#fbf2db"><strong>隧道炉</strong></font></a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>boomfire&nbsp; &nbsp; <b>时间: </b>2020-2-2 06:57<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>慵懒的橙子&nbsp; &nbsp; <b>时间: </b>2020-2-2 10:11<br />
+谢谢 我顺便来做个任务<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>霖邈a&nbsp; &nbsp; <b>时间: </b>2020-2-2 11:44<br />
+感谢你的帮助666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>我叫伯爵&nbsp; &nbsp; <b>时间: </b>2020-2-18 18:53<br />
+围观楼上几个警告<br />
+话说这么多cb放在function游戏真的不会卡顿么<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2020-2-20 11:15<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16442778&amp;ptid=770038" target="_blank"><font color="#999999">我叫伯爵 发表于 2020-2-18 18:53</font></a></font><br />
+围观楼上几个警告<br />
+话说这么多cb放在function游戏真的不会卡顿么</blockquote></div><br />
+现在V3只剩1个cb了，别的都放function里，而且每tick只有几十个命令在跑，不会卡。<br />
+<br />
+另外需要说明的是现在能拆字符串了，那丢人钟基于穷举的实现就显得没什么意义了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>《无语》&nbsp; &nbsp; <b>时间: </b>2020-5-2 21:14<br />
+这令我的服务器崩了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>nybornhawk&nbsp; &nbsp; <b>时间: </b>2021-1-23 17:48<br />
+新技能get + 1
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

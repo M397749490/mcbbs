@@ -1,0 +1,90 @@
+<html>
+<head>
+<title>Bukkit Conversation API 简单介绍 —— 处理玩家输入 So Easy！ - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Bukkit Conversation API 简单介绍 —— 处理玩家输入 So Easy！ <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>桃渊林&nbsp; &nbsp; <b>时间: </b>2016-8-12 14:48<br />
+<b>标题: </b>Bukkit Conversation API 简单介绍 —— 处理玩家输入 So Easy！<br /><i class="pstatus"> 本帖最后由 hcrgm1 于 2020-2-15 18:36 编辑 </i><br />
+<br />
+最近梨子提起了一个叫“org.bukkit.conversations”的包是干啥用的，哇，这个包谁知道啊什么鬼？字面上的意思是对话，Bukkit的Javadoc说这个包是玩家与插件的信息交流用的，应该是获取玩家输入的消息然后由插件处理？那就探讨一下吧。<br />
+目前大多数开发者都不知道这个包，所以蠢蠢地写了各种处理玩家输入的框架，比如：<br />
+<img id="aimg_UDF9i" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i4.piimg.com/502917/aa03ccbb79d1e87d.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+所以我决定编写这个教程<br />
+了解下此包的结构-&gt;<a href="https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/conversations/package-summary.html" target="_blank">https://hub.spigotmc.org/javadoc ... ackage-summary.html</a><br />
+<font size="5">1.Conversable接口</font><br />
+这个接口代表可以与插件交流的对象，目前ConsoleCommandSender和Player类实现了这个接口.<br />
+<font size="5">2.Prompt</font><br />
+这个是对话的核心，你需要编写一个Prompt类，需要实现此接口。不过Bukkit已经提供了一些常用的抽象类，比如ValidatingPrompt（可以验证玩家输入的Prompt），你要用直接继承就好。你想偷懒就直接用Bukkit给你的，不过自己实现完全没有问题。<br />
+更多的Prompt可以看看javadoc。<br />
+对话开始后，getPromptText方法的返回值将会显示给玩家，当作提示，玩家输入信息后，会调用acceptInput方法，这个方法就是处理玩家输入的信息的，根据玩家的输入，返回Prompt，可以是新的Prompt，可以是用来结束对话的Prompt（Prompt.END_OF_CONVERSATION）。<br />
+这里给一个ValidatingPrompt食用实例：<br />
+<div class="blockcode"><div id="code_Jkb"><ol><li>private class MyPrompt extends ValidatingPrompt {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public String getPromptText(ConversationContext context) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return &quot;Input something?&quot;; //给玩家的提示消息<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected boolean isInputValid(ConversationContext context, String input)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true; //检查玩家的输入是否正确，这里直接返回true了，实际上就不是这样了<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; //处理玩家的输入<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; protected Prompt acceptValidatedInput(ConversationContext context, String input) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;context.getForWhom().sendRawMessage(&quot;Conversation end, your input is:&quot; + input); //输出玩家输入的信息(input)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Prompt.END_OF_CONVERSATION; //结束对话<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Jkb'));">复制代码</em></div><br />
+<font size="5">3.构建Conversation对象</font><br />
+Conversation是一个普通的类，但是一般不是直接new的，需要用ConversationFactory进行构建。<br />
+创建ConversationFactory对象，然后对着javadoc里讲的方法附加些属性，最后就用buildConversation方法构建出Conversation对象。<br />
+这里就贴一个非常基础的实例吧，要设置更多的属性还是看javadoc。<br />
+<div class="blockcode"><div id="code_au7"><ol><li>Conversation conversation = new ConversationFactory(this)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.withFirstPrompt(new MyPrompt())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.addConversationAbandonedListener(new ConversationAbandonedListener() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void conversationAbandoned(ConversationAbandonedEvent abandonedEvent) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (abandonedEvent.gracefulExit()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;abandonedEvent.getContext().getForWhom().sendRawMessage(&quot;exit&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;})<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;.buildConversation(player);</ol></div><em onclick="copycode($('code_au7'));">复制代码</em></div><br />
+this为插件对象，player为玩家对象。当然ConsoleCommandSender也可以。withFirstPrompt就是设置对话的第一个Prompt，addConversationAbandonedListener就是增加对话放弃监听器，这里的行为是放弃会话时给玩家发送“exit”消息。<br />
+接着，开始对话。<br />
+<div class="blockcode"><div id="code_J18"><ol><li>conversation.begin();</ol></div><em onclick="copycode($('code_J18'));">复制代码</em></div><br />
+你只需要做好你的对话，然后剩下的事是Bukkit的了。<br />
+效果：<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><a href="http://dvideo.oss-us-west-1.aliyuncs.com/convdemo.flv" target="_blank">http://dvideo.oss-us-west-1.aliyuncs.com/convdemo.flv</a></td></table></div></div><br />
+最后贴上我测试时写的代码，可以自己改一改，快速上手Conversation API：<a href="http://git.oschina.net/hcrgm/codes/6vi4juo1h8ag93nrbekqy" target="_blank">http://git.oschina.net/hcrgm/codes/6vi4juo1h8ag93nrbekqy</a><br />
+可惜GitHub Gist被墙...<br />
+<br />
+剩下的仔细咀嚼javadoc并动手吧，如果有哪些不懂的可以提问，我会解答<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鸭蛋只吃黄&nbsp; &nbsp; <b>时间: </b>2016-9-23 17:47<br />
+这句最重要...<div class="quote"><blockquote>ConsoleCommandSender和Player类实现了这个接口</blockquote></div>，一看就明白了。<br />
+给楼主点个赞，这才是开发者应该干的事情。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Gaint&nbsp; &nbsp; <b>时间: </b>2016-10-9 17:29<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;这个很好，<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ByZYM&nbsp; &nbsp; <b>时间: </b>2017-1-9 18:23<br />
+有个没看懂的是，怎么开始下一个prompt<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ByZYM&nbsp; &nbsp; <b>时间: </b>2017-1-9 18:25<br />
+意思是每一句对话都要写一个prompt来操作么<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Jonjs_Dada&nbsp; &nbsp; <b>时间: </b>2017-8-30 13:43<br />
+<i class="pstatus"> 本帖最后由 Jonjs_Dada 于 2020-2-19 21:05 编辑 </i><br />
+<br />
+dalao的世界，萌新路过，没人看见我吧<br />
+2020/2/19编辑一下，终于看懂了<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

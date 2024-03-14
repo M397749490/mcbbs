@@ -1,0 +1,307 @@
+<html>
+<head>
+<title>[答案]CBer的execute问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[答案]CBer的execute问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-6-23 19:53<br />
+<b>标题: </b>[答案]CBer的execute问题<br />昨晚在茶馆发了个猜猜乐: <a href="thread.html?t=594475" target="_blank">http://www.mcbbs.net/thread-594475-1-1.html</a><br />
+问题是这样的: execute @e ~ ~ ~ ... summon ArmorStand，这个指令在初始实体不同数目的时候出来的结果是什么，并要求给出原理<br />
+由于没人成功猜出来，所以我今天就来开估啦~<br />
+<br />
+其实这条问题是很容易的，不过你需要明白execute及选择器的运作<br />
+execute的运作就是<font color="#ff0000">先选择一堆实体</font>，然后<font color="#ff0000">由选择了的实体去执行命令</font><br />
+选择器在<font color="#ff0000">选择好了实体之后就不会改变</font>(比如execute @e ~ ~ ~ summon ArmorStand，初始实体数为2，那就只会执行2次)，所以第一个execute的数目是<font color="#ff0000">不会无限增加下去</font>的<br />
+不过，<font color="#ff0000">后面嵌套</font>的那些execute会<font color="#ff0000">根据执行时存在的实体</font>去选择，所以那个执行次数会变大的很快(因此就不是2^嵌套数那么多个实体)<br />
+<br />
+下面举个例子<br />
+(初始实体数为2)<br />
+<div class="blockcode"><div id="code_klB"><ol><li>execute @e ~ ~ ~ execute @e ~ ~ ~ summon Armorstand<br />
+<li>execute @e ~ ~ ~ <br />
+<li>&nbsp;&nbsp;[当前实体数为2]<br />
+<li>&nbsp; &nbsp; execute @e ~ ~ ~ <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;[当前实体数为2]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand<br />
+<li>&nbsp; &nbsp; execute @e ~ ~ ~ <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;[当前实体数为4]<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; summon Armorstand</ol></div><em onclick="copycode($('code_klB'));">复制代码</em></div><br />
+所以实体数会是8<br />
+<br />
+然后execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ summon Armorstand，这条命令，初始实体数为2，执行完的数量会是多少呢?<br />
+其实能够透过以上的方法去计算出来的，然而人手算就挺麻烦，mc算的话就卡，所以我写了个脚本(python的)<br />
+<div class="blockcode"><div id="code_F35"><ol><li>def execute(count, depth):<br />
+<li>&nbsp; &nbsp; if (depth &gt; 0):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for i in range(count):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;count = execute(count, depth-1)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return count<br />
+<li>&nbsp; &nbsp; else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return count * 2</ol></div><em onclick="copycode($('code_F35'));">复制代码</em></div><br />
+count就是实体数，depth就是execute的数量-1(就是需要嵌套的execute数量)<br />
+<br />
+好了，可能昨天有很多人尝(zuo)试(si)去计算execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ summon Armorstand，然后发现即使初始实体数为2，那个最后出来的实体数会大得惊人(还没算完就卡死了)，为什么会如此呢?<br />
+从以上那个想法来看，我们可以把execute(2,3)简化为execute(execute(2,2),2)。(最外层的执行第一次可以省略，第二次就是把第一次的count拿过来当初始数值)<br />
+问题来了，execute(2,2)的输出是2048，所以execute(2,3)=execute(2048,2)<br />
+2048次貌似不多对吧，问题在于这还有嵌套...嵌套下去就是2048*(天文数字)的循环次数...<br />
+而这个数就是execute(2048,1)的数目:66185228434044942951864067458396061614989522267577311297802947435570493724401440549267868490798926773634494383968047143923956857140205406402740536087446083831052036848232439995904404992798007514718326043410570379830870463780085260619444417205199197123751210704970352727833755425876102776028267313405809429548880554782040765277562828362884238325465448520348307574943345990309941642666926723379729598185834735054732500415409883868361423159913770812218772711901772249553153402287759789517121744336755350465901655205184917370974202405586941211065395540765567663193297173367254230313612244182941999500402388195450053080383488<br />
+也就是说，execute(2048,2)里面循环执行的第二次，里面就需要执行66185228434044942951864067458396061614989522267577311297802947435570493724401440549267868490798926773634494383968047143923956857140205406402740536087446083831052036848232439995904404992798007514718326043410570379830870463780085260619444417205199197123751210704970352727833755425876102776028267313405809429548880554782040765277562828362884238325465448520348307574943345990309941642666926723379729598185834735054732500415409883868361423159913770812218772711901772249553153402287759789517121744336755350465901655205184917370974202405586941211065395540765567663193297173367254230313612244182941999500402388195450053080383488次循环...问题在于这个数字还会指数式的上涨，会上涨2047次...而且只是这循环我估计我的电脑也很难计算出来了...我选择狗带<br />
+<br />
+因此，我们可以放弃计算最后那个给dalao的题目了(有数学dalao的话或许可以试试，起码我不会)<br />
+我们也能看到execute选择器挺特别的执行方式，也是挺一颗赛艇的<br />
+//最重要的是，我们得到了以很短的指令生成大量实体的方法(误)<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>20020607&nbsp; &nbsp; <b>时间: </b>2016-6-23 19:58<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>爱心魔王FHC&nbsp; &nbsp; <b>时间: </b>2016-6-23 20:07<br />
+<strike>这个故事告诉我们，学好数学很重要</strike><br />
+说白的了就是2的n次方？= =||<br />
+然而我至今都没有去实验<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>麦白&nbsp; &nbsp; <b>时间: </b>2016-6-23 20:11<br />
+后面一堆数字。<br />
+生动形象的告诉了我们这些不是一般人能看的懂的。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-6-23 20:23<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10400512&amp;ptid=594698" target="_blank"><font color="#999999">FHC红石 发表于 2016-6-23 20:07</font></a></font><br />
+<strike>这个故事告诉我们，学好数学很重要</strike><br />
+说白的了就是2的n次方？= =||<br />
+然而我至今都没有去实验 ...</blockquote></div><br />
+对，因为execute @e summon就是把实体数*2而已，问题只是是2的多少次方而已23333<br />
+看来那个次方数还是蛮大的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MODlover&nbsp; &nbsp; <b>时间: </b>2016-6-24 16:51<br />
+用TNT把，保证你够爽<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>林扬骐&nbsp; &nbsp; <b>时间: </b>2016-6-24 17:44<br />
+的确是一个很简单的问题来着……（卡死电脑必备233）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Lucky_fish0w0&nbsp; &nbsp; <b>时间: </b>2016-6-24 23:15<br />
+卡死电脑新技能get√<br />
+要不是有上限的话我早就算出来了= =<br />
+再嵌套10~20次会怎样...<br />
+再配合循环性命令方块会怎样...<br />
+<br />
+算了java虚拟机都不一定活的了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lcplcplcp&nbsp; &nbsp; <b>时间: </b>2016-6-24 23:26<br />
+卧槽有毒。。<br />
+这东西真他妈猜得出来才怪了=,=<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-6-24 23:27<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10406027&amp;ptid=594698" target="_blank"><font color="#999999">cx62d 发表于 2016-6-24 23:15</font></a></font><br />
+卡死电脑新技能get√<br />
+要不是有上限的话我早就算出来了= =<br />
+再嵌套10~20次会怎样...</blockquote></div><br />
+那个算不出来吧，那循环次数简直了...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Lucky_fish0w0&nbsp; &nbsp; <b>时间: </b>2016-6-24 23:47<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10406069&amp;ptid=594698" target="_blank"><font color="#999999">pca006132 发表于 2016-6-24 23:27</font></a></font><br />
+那个算不出来吧，那循环次数简直了...</blockquote></div><br />
+你忘了c语言的有上限啦！<br />
+于是unsigned为0，没有那个unsigned为一坨负数√<br />
+<br />
+最后我能说什么呢= =<br />
+<strike>要是计算器上能编程那就好了XD应该不会有上限的</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-6-25 00:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10406147&amp;ptid=594698" target="_blank"><font color="#999999">cx62d 发表于 2016-6-24 23:47</font></a></font><br />
+你忘了c语言的有上限啦！<br />
+于是unsigned为0，没有那个unsigned为一坨负数√</blockquote></div><br />
+没bigint吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>840196733mw&nbsp; &nbsp; <b>时间: </b>2016-7-2 17:07<br />
+exe让mc崩溃的最快方法 = = （手动滑稽）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>你会在哪&nbsp; &nbsp; <b>时间: </b>2016-7-3 13:09<br />
+<br />
+感想楼主分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MODlover&nbsp; &nbsp; <b>时间: </b>2016-7-23 14:56<br />
+<i class="pstatus"> 本帖最后由 MODlover 于 2016-7-23 14:59 编辑 </i><br />
+<br />
+execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ execute @e ~ ~ ~ summon Armorstand<br />
+放进CB里面执行<br />
+保证电脑卡爆要是我找到了能在服务器无权限执行指令的BUG，我一定会执行一次这个指令23333<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2016-7-24 00:37<br />
+实际上不就是2的几次方么……我在制作计算电路的时候和写WinAPI常量的时候太常用到了=-=<br />
+<br />
+不过还是支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-7-24 00:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597190&amp;ptid=594698" target="_blank"><font color="#999999">langyo 发表于 2016-7-24 00:37</font></a></font><br />
+实际上不就是2的几次方么……我在制作计算电路的时候和写WinAPI常量的时候太常用到了=-=<br />
+<br />
+不过还是支持 ...</blockquote></div><br />
+这数字我尝试算出来的时候我电脑卡死了(我用的python，然而我相信如果是用c的话我电脑直接蓝屏了)，这是2的几次方？这就算是次方数也已经是天文数字了好不好？而且我倒是想看看什么电路和WinAPI什么时候要那么大的数值了，还要经常用到<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2016-7-24 00:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597207&amp;ptid=594698" target="_blank"><font color="#999999">pca006132 发表于 2016-7-24 00:44</font></a></font><br />
+这数字我尝试算出来的时候我电脑卡死了(我用的python，然而我相信如果是用c的话我电脑直接蓝屏了)，这是2 ...</blockquote></div><br />
+先普及一下小知识：<br />
+内存地址等等均由二进制表示（虽然通常在写的时候为了不闪瞎人眼用十六进制给人看）<br />
+计算机运算中，通常所能运算的最大位数取决于其规定的系统位数，比如早期的8位、16位，分别就能运算2[sub]8[/sub]和2[sub]16[/sub]的数<br />
+WindowsAPI里，有很大一部分参数是靠常量来给一些特定选项的，比如MessageBox的YESNO，OK，OKCANCEL这些常量，实际上就是这个lang类型的4字节数每一位都看着加，有重复的就位与运算<br />
+<br />
+天文数字？是，你算出来之后的确是天文数字，但是它能压缩成一个2[sub]n[/sub]也没多少人吐槽，因为没有人关心它具体算出来之后数字是多少<br />
+<br />
+我刚刚再看了你的猜谜贴，在只有一个armorstand和一个玩家的情况下，execute的实际次数是2[sub]exe指令个数+1[/sub]-1，应该没错<br />
+<br />
+毕竟家用电脑不适合作科学运算嘛……你算的时候卡死很正常，因为几年前我算的时候我的蓝屏了=-=……<br />
+<br />
+还有什么吐槽尽管来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2016-7-24 01:11<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597244&amp;ptid=594698" target="_blank"><font color="#999999">pca006132 发表于 2016-7-24 01:11</font></a></font><br />
+你说在WinAPI经常用到，然而哪儿需要用上那么大的常数呢？难道你所谓的经常用上是泛指一切2^n的数值吗？ ...</blockquote></div><br />
+我等会再算一次；但是，如果刚开始的实体个数不定呢？如果在中途突然又kill部分实体呢？后面该怎么算？公式怎么写？这纯粹就是2的n次方吗？<br />
+<br />
+WinAPI每个提供常量的参数都是long类型，然后是4字节32位，也就是说我这个只有最大能用到2[sub]32[/sub]<br />
+<br />
+虽然这也算是在互相交流，但是听你的语气不对啊，感觉很不和善，像要吃了我似得=-=<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-7-24 01:11<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597224&amp;ptid=594698" target="_blank"><font color="#999999">langyo 发表于 2016-7-24 00:58</font></a></font><br />
+先普及一下小知识：<br />
+内存地址等等均由二进制表示（虽然通常在写的时候为了不闪瞎人眼用十六进制给人看）<br />
+ ...</blockquote></div><br />
+你说在WinAPI经常用到，然而哪儿需要用上那么大的常数呢？难道你所谓的经常用上是泛指一切2^n的数值吗？那我也是佩服了，这也是宽得很。如果你觉得那数字是那么简单2^4-1的话我也不用玩了，你能仔细看看那代码吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2016-7-24 01:23<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597256&amp;ptid=594698" target="_blank"><font color="#999999">langyo 发表于 2016-7-24 01:11</font></a></font><br />
+我等会再算一次；但是，如果刚开始的实体个数不定呢？如果在中途突然又kill部分实体呢？后面该怎么算？公 ...</blockquote></div><br />
+我优化后专门算4execute3初始实体，那数字要算2048步，第一步数字写出来已经超过long的限制太多了，之后还是次方的上去，所以不可能是那么小。然后我可以肯定的告诉你这是2的n次方*初始实体数，因为execute summon本身就是*2的运算。至于中途kill实体嘛...你别逗我好不好这是一条命令，你怎么中途kill？我的语气不好那是因为我觉得你的语气就是看不起这数字<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>langyo&nbsp; &nbsp; <b>时间: </b>2016-7-24 10:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597272&amp;ptid=594698" target="_blank"><font color="#999999">pca006132 发表于 2016-7-24 01:23</font></a></font><br />
+我优化后专门算4execute3初始实体，那数字要算2048步，第一步数字写出来已经超过long的限制太多了，之后 ...</blockquote></div><br />
+你认为我看不起这些数字？<br />
+那你告诉我，我哪句话说过我看不起这些数字了？<br />
+<br />
+当然，execute summon的确是将实体数量x2，这个我能肯定；其它的我不都说了我等下去算=-=你急啥<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awpak78&nbsp; &nbsp; <b>时间: </b>2016-7-24 12:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10597207&amp;ptid=594698" target="_blank"><font color="#999999">pca006132 发表于 2016-7-24 00:44</font></a></font><br />
+这数字我尝试算出来的时候我电脑卡死了(我用的python，然而我相信如果是用c的话我电脑直接蓝屏了)，这是2 ...</blockquote></div><br />
+自己写套基于字符串的运算函数就可以算了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awpak78&nbsp; &nbsp; <b>时间: </b>2016-7-25 11:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10599715&amp;ptid=594698" target="_blank"><font color="#999999">awpak78 发表于 2016-7-24 12:18</font></a></font><br />
+自己写套基于字符串的运算函数就可以算了</blockquote></div><br />
+好吧，我彻底放弃，就算有gmplib可变精度库，运算量也比CPU速度高了好几个数量级……循环到死的节奏。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>nixiang&nbsp; &nbsp; <b>时间: </b>2016-7-25 23:49<br />
+LZ是好人！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lrf8643&nbsp; &nbsp; <b>时间: </b>2017-1-19 15:50<br />
+你那代码要怎么加载。。。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lrf8643&nbsp; &nbsp; <b>时间: </b>2017-1-19 16:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11367948&amp;ptid=594698" target="_blank"><font color="#999999">lrf8643 发表于 2017-1-19 15:50</font></a></font><br />
+你那代码要怎么加载。。。</blockquote></div><br />
+@pca006132<br />
+我是不是搞错了什么东西。。。<br />
+<br />
+<img id="aimg_bmkNM" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i1.piimg.com/581791/4724bf5567d48518.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2017-1-19 18:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11368033&amp;ptid=594698" target="_blank"><font color="#999999">lrf8643 发表于 2017-1-19 16:00</font></a></font><br />
+@pca006132<br />
+我是不是搞错了什么东西。。。</blockquote></div><br />
+encoding问题么...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>九零君&nbsp; &nbsp; <b>时间: </b>2017-1-19 20:57<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11370464&amp;ptid=594698" target="_blank"><font color="#999999">九零君 发表于 2017-1-19 21:10</font></a></font><br />
+不会发图吗，新人</blockquote></div><br />
+吗去掉......打错字了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>九零君&nbsp; &nbsp; <b>时间: </b>2017-1-19 21:09<br />
+感觉没有啥用，但是膜拜<img src="static/image/smiley/rabbit/47.GIF" smilieid="697" border="0" alt="" />
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTAzNjk4M3xlZmI3ODBiM3wxNjEzOTE0MjMzfDI0MTk0ODZ8NTk0Njk4&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1036983" class="xw1" target="_blank">u=873244209,3424333241&amp;amp;fm=23&amp;amp;gp=0_meitu_1.jpg</a>
+<em class="xg1">(30.16 KB, 下载次数: 0)</em>
+</p>
+<div class="tip tip_4" id="aid1036983_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTAzNjk4M3xlZmI3ODBiM3wxNjEzOTE0MjMzfDI0MTk0ODZ8NTk0Njk4&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2017-1-19 21:09 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1036983', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1036983', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1036983" aid="1036983" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201701/19/210941sunt6xf4nrfvigfr.jpg" file="https://attachment.mcbbs.net/forum/201701/19/210941sunt6xf4nrfvigfr.jpg.thumb.jpg" alt="u=873244209,3424333241&amp;amp;fm=23&amp;amp;gp=0_meitu_1.jpg" title="u=873244209,3424333241&amp;amp;fm=23&amp;amp;gp=0_meitu_1.jpg" w="300" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[11370461] = ['1036983'];
+attachimggroup(11370461);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>九零君&nbsp; &nbsp; <b>时间: </b>2017-1-19 21:10<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11370461&amp;ptid=594698" target="_blank"><font color="#999999">九零君 发表于 2017-1-19 21:09</font></a></font><br />
+感觉没有啥用，但是膜拜</blockquote></div><br />
+不会发图吗，新人<img src="static/image/smiley/rabbit/39.gif" smilieid="689" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2017-11-26 20:27<br />
+<i class="pstatus"> 本帖最后由 ruhuasiyu 于 2017-11-26 20:51 编辑 </i><br />
+<br />
+f_a(n)=f_{a-1}^n(n)<br />
+f_2(n)=2^n n, f_2(n)=8<br />
+f_3(n)=f_2(f_2(...(f_2(n))...)),f_3(n)=2^11=2048<br />
+f_4(n)=f_2(f_2(...(f_2(2-48)) 共嵌套2048次，所以大概和 2↑↑2048相当<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><br />
+所以a个execute n个实体的话应该和 2↑↑...↑↑n相当，一共a-1个箭头<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><br />
+<br />
+<br />
+<br />
+a↑↑b表示b个a形成的指数塔<br />
+a↑↑↑b=a↑↑(a↑↑b)<br />
+a↑↑↑↑b=a↑↑↑(a↑↑↑b)<br />
+以此类推<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>贤Xian_zn_er&nbsp; &nbsp; <b>时间: </b>2017-11-28 13:03<br />
+233333333333333333333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zghh008&nbsp; &nbsp; <b>时间: </b>2020-3-3 02:17<br />
+翻老帖，会被禁言么？<br />
+（x，1）的答案应该是2的x次方乘以x，<br />
+（x，2）的答案应该是（2的x次方乘以x，1）<br />
+所以那个题的答案应该是2的（2059+2的2059次方）的次方<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zghh008&nbsp; &nbsp; <b>时间: </b>2020-3-3 02:30<br />
+我刚刚在oeis.org上面搜索了一下。发现了这个数列（初始实体为2）a054874<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w279179736&nbsp; &nbsp; <b>时间: </b>2020-3-3 09:33<br />
+兄弟加油期待好作品啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>赤空宝宝&nbsp; &nbsp; <b>时间: </b>2020-3-3 10:37<br />
+呃呃呃呃呃呃有毒<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w279179736&nbsp; &nbsp; <b>时间: </b>2020-3-3 10:55<br />
+兄弟加油期待好作品啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w279179736&nbsp; &nbsp; <b>时间: </b>2020-3-3 10:56<br />
+兄弟加油期待好作品啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w279179736&nbsp; &nbsp; <b>时间: </b>2020-3-3 10:57<br />
+兄弟加油期待好作品啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w279179736&nbsp; &nbsp; <b>时间: </b>2020-3-3 11:20<br />
+兄弟加油期待好作品啊兄弟加油期待好作品啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ChenMoToMore&nbsp; &nbsp; <b>时间: </b>2020-3-19 18:18<br />
+来挖坟了，我算出了最终结果，文本大小1.21m<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ChenMoToMore&nbsp; &nbsp; <b>时间: </b>2020-3-19 18:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17034760&amp;ptid=594698" target="_blank"><font color="#999999">ChenMoToMore 发表于 2020-3-19 18:18</font></a></font><br />
+来挖坟了，我算出了最终结果，文本大小1.21m</blockquote></div><br />
+我q2232030028<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Neubulaeko&nbsp; &nbsp; <b>时间: </b>2020-4-13 12:02<br />
+这是……什么级别的fast-growing…<br />
+一旦递归起来速度就开始奇妙了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

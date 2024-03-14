@@ -1,0 +1,182 @@
+<html>
+<head>
+<title>Forge关于如何让自己实体在水中自然生成的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>Forge关于如何让自己实体在水中自然生成的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zvvzxzko2006&nbsp; &nbsp; <b>时间: </b>2015-5-10 21:37<br />
+<b>标题: </b>Forge关于如何让自己实体在水中自然生成的问题<br /><i class="pstatus"> 本帖最后由 zvvzxzko2006 于 2015-5-10 21:40 编辑 </i><br />
+<br />
+最近在做一个MOD，里面的食人鱼已经做好，不过实测发现，EntityRegistry.addSpawn();<br />
+<br />
+这个方法不能像想象中的在水中生成食人鱼。食人鱼只能在岸边生成。<br />
+研究了一下源代码。发现SpawnAnimals.canCreatureTypeSpawnAtLocation()这个函数为关键生成函数。<br />
+贴一下代码：<br />
+<div class="blockcode"><div id="code_gcg"><ol><li><br />
+<li>public static boolean canCreatureTypeSpawnAtLocation(EntityLiving.SpawnPlacementType p_180267_0_, World worldIn, BlockPos pos)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!worldIn.getWorldBorder().contains(pos))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Block block = worldIn.getBlockState(pos).getBlock();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//此句为生物可以在水中生成的关键代码！<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (p_180267_0_ == EntityLiving.SpawnPlacementType.IN_WATER)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return block.getMaterial().isLiquid() &amp;&amp; worldIn.getBlockState(pos.down()).getBlock().getMaterial().isLiquid() &amp;&amp; !worldIn.getBlockState(pos.up()).getBlock().isNormalCube();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//其余情况就如wiki中讲的了，水中无法生成生物。。。。。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; BlockPos blockpos1 = pos.down();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!worldIn.getBlockState(blockpos1).getBlock().canCreatureSpawn(worldIn, blockpos1, p_180267_0_))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Block block1 = worldIn.getBlockState(blockpos1).getBlock();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean flag = block1 != Blocks.bedrock &amp;&amp; block1 != Blocks.barrier;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return flag &amp;&amp; !block.isNormalCube() &amp;&amp; !block.getMaterial().isLiquid() &amp;&amp; !worldIn.getBlockState(pos.up()).getBlock().isNormalCube();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_gcg'));">复制代码</em></div><br />
+上面代码已经很明确的指出，本函数第一个参数要等于EntityLiving.SpawnPlacementType.IN_WATER这个量，才可以在水中生成生物。<br />
+而EntityLiving.SpawnPlacementType.IN_WATER到底是什么东西？<br />
+这里找到定义代码<br />
+<div class="blockcode"><div id="code_Xl6"><ol><li><br />
+<li>&nbsp; &nbsp;public static enum SpawnPlacementType<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ON_GROUND,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IN_AIR,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IN_WATER;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private static final String __OBFID = &quot;CL_00002255&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_Xl6'));">复制代码</em></div><br />
+不需要过多解释，就是一个枚举类型，枚举了3个量，从字面意思可以明显看出有三种出生点类型：地面、空中、水中。<br />
+<br />
+相对来说，我们更关心哪里用到了这个枚举变量。查找调用，发现了关键代码<br />
+<div class="blockcode"><div id="code_TwX"><ol><li><br />
+<li>public class EntitySpawnPlacementRegistry<br />
+<li>{<br />
+<li>&nbsp; &nbsp; //定义了一个哈希映射表，此表维护了各种官方的动物实体类及其生成点类型<br />
+<li>&nbsp; &nbsp; private static final HashMap field_180110_a = Maps.newHashMap();<br />
+<li>&nbsp; &nbsp; private static final String __OBFID = &quot;CL_00002254&quot;;<br />
+<li>&nbsp; &nbsp; //外部代码通过这个函数可以访问本类的哈希映射表中，某动物实体类对应的生成点类型<br />
+<li>&nbsp; &nbsp; public static EntityLiving.SpawnPlacementType func_180109_a(Class p_180109_0_)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return (EntityLiving.SpawnPlacementType)field_180110_a.get(p_180109_0_);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; //初始化了哈希映射表<br />
+<li>&nbsp; &nbsp; static<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityBat.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityChicken.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityCow.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityHorse.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityMooshroom.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityOcelot.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityPig.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityRabbit.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySheep.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySnowman.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySquid.class, EntityLiving.SpawnPlacementType.IN_WATER);//水中生成的生物：乌贼<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityIronGolem.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityWolf.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityVillager.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityDragon.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityWither.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityBlaze.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityCaveSpider.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityCreeper.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityEnderman.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityEndermite.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityGhast.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityGiantZombie.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityGuardian.class, EntityLiving.SpawnPlacementType.IN_WATER);//水中生成的生物：海洋圣殿守护者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityMagmaCube.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityPigZombie.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySilverfish.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySkeleton.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySlime.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntitySpider.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityWitch.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field_180110_a.put(EntityZombie.class, EntityLiving.SpawnPlacementType.ON_GROUND);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//我自己加入的测试代码，发现加入这两句话后，我定义的食人鱼确实可以在水中生成了。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//field_180110_a.put(EntityPiranha.class, EntityLiving.SpawnPlacementType.IN_WATER);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//field_180110_a.put(EntityLivefish.class, EntityLiving.SpawnPlacementType.IN_WATER);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_TwX'));">复制代码</em></div><br />
+代码中的的EntitySpawnPlacementRegistry类正是保存官方原版生物的生成类型映射表。其中可以发现乌贼和海洋圣殿守护者的生成类型为EntityLiving.SpawnPlacementType.IN_WATER。<br />
+<br />
+最后，让我们来顺一下：<br />
+主程序在生成生物的时候，会调用canCreatureTypeSpawnAtLocation()来判断当前位置是否适合生成该生物群系中的生物。而传入的参数1正是具体到某生物的生成地类型。这个生成地点类型，主程序会在之前的代码中通过调用EntityLiving.SpawnPlacementType func_180109_a()来确定。<br />
+<br />
+就拿乌贼举例：在生成生物的时候，主程序会调用EntityLiving.SpawnPlacementType func_180109_a()，获得乌贼的生成地点类型为EntityLiving.SpawnPlacementType.IN_WATER。然后将生成地点类型传入到canCreatureTypeSpawnAtLocation()中，以判断是否可以在某地点生成。其中关键判断语句为<br />
+<div class="blockcode"><div id="code_mnV"><ol><li><br />
+<li>if (p_180267_0_ == EntityLiving.SpawnPlacementType.IN_WATER)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return block.getMaterial().isLiquid() &amp;&amp; worldIn.getBlockState(pos.down()).getBlock().getMaterial().isLiquid() &amp;&amp; !worldIn.getBlockState(pos.up()).getBlock().isNormalCube();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_mnV'));">复制代码</em></div><br />
+在满足其他条件的情况下，乌贼就可以在水中生成了。<br />
+<br />
+<br />
+<br />
+<br />
+了解了这些原理后，就发现一个严重的问题。对于moder来说，制作一个普通的陆地生物还好说，但是如果做一个水生生物的话就比较麻烦了，原因就在于moder不能往SpawnPlacementType 中的哈希映射表添加新的映射项。。。。。（ private static final HashMap field_180110_a = Maps.newHashMap();看到那个private了没有。。。）但是如果使用coremod的话或许可以克服这个问题吧。不过目前来说，感觉coremod比较难。<br />
+另外，如果forge能更新出支持往上面那个类中的哈希表中添加映射项的函数，或许也可以解决这个问题。<br />
+对于这个问题你有什么看法呢？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>914554688wyt&nbsp; &nbsp; <b>时间: </b>2015-5-13 21:17<br />
+{:10_494:} 笨办法就是在下面生成一个方块后再召唤生物再去掉方块<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zvvzxzko2006&nbsp; &nbsp; <b>时间: </b>2015-5-14 18:40<br />
+<i class="pstatus"> 本帖最后由 zvvzxzko2006 于 2015-5-14 18:41 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8165052&amp;ptid=444072" target="_blank"><font color="#999999">914554688wyt 发表于 2015-5-13 21:17</font></a></font><br />
+笨办法就是在下面生成一个方块后再召唤生物再去掉方块</blockquote></div><br />
+本主题讨论的是自然生成，而不是人为生成。所以。。。这个笨方法如何去实现还是蛮复杂的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>914554688wyt&nbsp; &nbsp; <b>时间: </b>2015-5-14 19:04<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8168129&amp;ptid=444072" target="_blank"><font color="#999999">zvvzxzko2006 发表于 2015-5-14 18:40</font></a></font><br />
+本主题讨论的是自然生成，而不是人为生成。所以。。。这个笨方法如何去实现还是蛮复杂的 ...</blockquote></div><br />
+嗷呜{:10_493:} ..也对&nbsp;&nbsp;不过似乎有可以无视修饰符的方法哦？ baidu一下？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GA_空人&nbsp; &nbsp; <b>时间: </b>2015-5-19 13:15<br />
+如果只是临时解决一下的话<br />
+Field fieldMap=EntitySpawnPlacementRegistry.getclass().getDeclaredField(&quot;field_180110_a&quot;);<br />
+fieldMap.setAccessible(true);<br />
+HashMap spawnMap=(HashMap)fieldMap.get(null);//因为是静态的所以直接传入null<br />
+spawnMap.put()<br />
+这样就可以了？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yuxuanchiadm&nbsp; &nbsp; <b>时间: </b>2015-5-20 11:19<br />
+同意5楼意见，反射解决问题。另外你更新Forge版本了，至少forge1.8-11.14.1.1402可以直接添加<br />
+<div class="blockcode"><div id="code_x0q"><ol><li>&nbsp; &nbsp; public static void setPlacementType(Class&lt;? extends Entity&gt; entityClass, EntityLiving.SpawnPlacementType placementType)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(!field_180110_a.containsKey(entityClass))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;field_180110_a.put(entityClass, placementType);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_x0q'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zvvzxzko2006&nbsp; &nbsp; <b>时间: </b>2015-5-20 21:41<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8196638&amp;ptid=444072" target="_blank"><font color="#999999">GA_空人 发表于 2015-5-19 13:15</font></a></font><br />
+如果只是临时解决一下的话<br />
+Field fieldMap=EntitySpawnPlacementRegistry.getclass().getDeclaredField(&quot;fi ...</blockquote></div><br />
+哦！涨姿势了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zvvzxzko2006&nbsp; &nbsp; <b>时间: </b>2015-5-20 21:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=8200140&amp;ptid=444072" target="_blank"><font color="#999999">yuxuanchiadm 发表于 2015-5-20 11:19</font></a></font><br />
+同意5楼意见，反射解决问题。另外你更新Forge版本了，至少forge1.8-11.14.1.1402可以直接添加<br />
+ ...</blockquote></div><br />
+涨姿势了！
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

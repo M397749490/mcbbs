@@ -1,0 +1,242 @@
+<html>
+<head>
+<title>【LAY Studio|CAM开发随笔】关于实现自定义同种多物品无序合成的讨论 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【LAY Studio|CAM开发随笔】关于实现自定义同种多物品无序合成的讨论 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CR_019&nbsp; &nbsp; <b>时间: </b>2020-4-25 23:19<br />
+<b>标题: </b>【LAY Studio|CAM开发随笔】关于实现自定义同种多物品无序合成的讨论<br /><i class="pstatus"> 本帖最后由 CR_019 于 2020-5-1 14:19 编辑 </i><br />
+<br />
+20/5/1<br />
+<font size="4">待讨论问题：如何免穷举解决可互换物品（如木头的不同变种）的检测</font><br />
+<br />
+<br />
+本帖讨论主题如题，一般的自定义配方中都是使用探测指定容器nbt的方式检查容器内物品是否符合配方要求，比如：<br />
+<br />
+<div class="blockcode"><div id="code_gnZ"><ol><li>execute if block ~ ~ ~ minecraft:barrel{Items:[{id:&quot;minecraft:yellow_dye&quot;,tag:{saccharomyce:1b}},{id:&quot;minecraft:wheat&quot;},{id:&quot;minecraft:wheat&quot;},{id:&quot;minecraft:glass_bottle&quot;}]} if entity @s[scores={CAM_table_count=4}] unless data block ~ ~ ~ {Items:[{id:&quot;minecraft:apple&quot;,tag:{id:&quot;cam:red_string&quot;}}]} run replaceitem block ~ ~ ~ container.16 string{display:{Name:&quot;{&quot;translate&quot;:&quot;item.cam.red_string&quot;,&quot;italic&quot;:&quot;false&quot;}&quot;},CustomModelData:9102027,CAM_output:1b,id:&quot;cam:red_string&quot;}</ol></div><em onclick="copycode($('code_gnZ'));">复制代码</em></div><br />
+但这样不能检测符合条件的nbt项的个数，这样就使在不能指定slot标签辅助判定的无序合成配方的判定中，对多个同种物品检测增加了难度。<br />
+直接用上方代码会出现问题：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1570514" aid="1570514" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202004/25/224559m22858anxsmj5zwk.png" file="https://attachment.mcbbs.net/forum/202004/25/224559m22858anxsmj5zwk.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1570514" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1570514_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2020-04-25_22.45.32.png</strong> <em class="xg1">(193.85 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU3MDUxNHxkNzUzZTlhNXwxNjE0MDMwMzI4fDI0MTk0ODZ8MTAyOTQ0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-4-25 22:45 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+这是原定配方<br />
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_1570515" aid="1570515" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202004/25/224559m3oxqxvhppvazim8.png" file="https://attachment.mcbbs.net/forum/202004/25/224559m3oxqxvhppvazim8.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1570515" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1570515_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2020-04-25_22.45.35.png</strong> <em class="xg1">(194.01 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU3MDUxNXw5OTI5MTMzM3wxNjE0MDMwMzI4fDI0MTk0ODZ8MTAyOTQ0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-4-25 22:45 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+这是意外情况<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+为此，一周前我想了一个较为繁琐的方法，见下方隐藏内容中。但实际上可以简便地判定。见下。<br />
+20/4/30<br />
+感谢@<font size="2">VCS-Official</font><font size="2"> 的方案，可以使用execute if 来判定符合条件的NBT项个数，</font><font size="2">利用这一性质可以简易地判定容器里的所需的物品个数</font><br />
+<font size="2">例：探测容器内有2个小麦：</font><br />
+<div class="blockcode"><div id="code_c61"><ol><li>execute store result score @s CAM_SLout if data block ~ ~ ~ Items[{id:&quot;minecraft:wheat&quot;}]</ol></div><em onclick="copycode($('code_c61'));">复制代码</em></div>当返回2时，判定成功。<br />
+<font size="2">结合@chyx 的建议：当有多个可换用物品时，结合制作合成系统，这一类物品总个数不会太多的特点，可利用穷举，将最终分数相加。</font><font size="2">当然有关木头的变种。。。。暂无很好的解决方案</font><br />
+<font size="2"><br />
+</font><br />
+<font size="2">此方法1.13-1.15通用。</font><br />
+<font size="4"><br />
+<br />
+</font><br />
+<img id="aimg_K5L5d" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/4.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+20/4/25<br />
+以下为我的原始的，较繁琐的方案：<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><font size="3">由于使用了storage，因此此方法只能在1.15及以上版本中使用，要兼容至1.14，请将有关storage的部分改成其他类型标签</font><br />
+<br />
+<br />
+<br />
+在论坛内搜索无果，在有关合成的原版模组贴中，比如<a href="thread.html?t=850972" target="_blank">这里</a>，还有<a href="https://github.com/ruhuasiyu/CraftingPlusPlus/tree/master/other_datapacks/%E5%90%88%E6%88%90%E9%80%9A%E7%94%A8%E5%A4%84%E7%90%86" target="_blank">这里</a>，都没有相应做法<br />
+<div class="quote"><blockquote>支持无序合成，但不支持多项同种物品的无序合成</blockquote></div><br />
+所以，我自己想出了一个相对简单的方法。需使用两条函数。<br />
+以下为思维导图<br />
+
+<ignore_js_op>
+
+<img id="aimg_1570532" aid="1570532" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202004/25/231219s77nzgnyygtvgm4s.png" file="https://attachment.mcbbs.net/forum/202004/25/231219s77nzgnyygtvgm4s.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="478" id="aimg_1570532" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1570532_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>无序合成.png</strong> <em class="xg1">(41.76 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU3MDUzMnxmZmViYTYzYnwxNjE0MDMwMzI4fDI0MTk0ODZ8MTAyOTQ0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-4-25 23:12 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+使用时，以合成台处的盔甲架执行以下两条指令：<br />
+<div class="blockcode"><div id="code_D79"><ol><li>data modify storage cam:craft target set value &quot;minecraft:wheat&quot;←（这里填需要的物品ID）<br />
+<li>function cam:machine/crafting_table/shapeless/main←（这里填下面主函数所在路径）</ol></div><em onclick="copycode($('code_D79'));">复制代码</em></div><br />
+在合成的具体命令中加入分数判断即可，这里是@s[scores={CAM_SLout=2}]<br />
+0、在load函数预置3个计分板（名称随意）<br />
+<div class="blockcode"><div id="code_uY1"><ol><li>scoreboard objectives add CAM_shapeless dummy<br />
+<li>scoreboard objectives add CAM_SLtemp dummy<br />
+<li>scoreboard objectives add CAM_SLout dummy</ol></div><em onclick="copycode($('code_uY1'));">复制代码</em></div><br />
+
+<br />
+1、主函数<br />
+<div class="blockcode"><div id="code_AC6"><ol><li>#初始化<br />
+<li>data remove storage cam:craft out<br />
+<li>data modify storage cam:craft temp set from block ~ ~ ~ Items<br />
+<li>data modify storage cam:craft target1 set from storage cam:craft target<br />
+<li>data remove storage cam:craft temp[{tag:{CAM_bg:1b}}]<br />
+<li>#递归<br />
+<li>function cam:machine/crafting_table/shapeless/loop←（这里填递归函数所在路径）<br />
+<li>#输出<br />
+<li>execute store result score @s CAM_SLout run data get storage cam:craft out</ol></div><em onclick="copycode($('code_AC6'));">复制代码</em></div>2、递归函数<br />
+<div class="blockcode"><div id="code_NZc"><ol><li>#检测列表长度<br />
+<li>execute store result score @s CAM_SLtemp run data get storage cam:craft temp<br />
+<li>#判断id是否符合<br />
+<li>execute unless score @s CAM_SLtemp matches 0 store result score @s CAM_shapeless run data modify storage cam:craft target1 set from storage cam:craft temp[0].id<br />
+<li>execute if score @s CAM_shapeless matches 0 run data modify storage cam:craft out append from storage cam:craft temp[0]<br />
+<li>#删除本项，为下一项的判断作准备<br />
+<li>data remove storage cam:craft temp[0]<br />
+<li>#复位与递归<br />
+<li>data modify storage cam:craft target1 set from storage cam:craft target<br />
+<li>execute unless score @s CAM_SLtemp matches 0 run function cam:machine/crafting_table/shapeless/loop</ol></div><em onclick="copycode($('code_NZc'));">复制代码</em></div>宏观原理：见思维导图<br />
+<br />
+具体判断：利用data get和data modify命令返回值：<br />
+<div class="quote"><blockquote>get<br />
+当指定的为实体/方块实体时<br />
+List&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;该 列表 包含的 项 个数（可能溢出）</blockquote></div><div class="quote"><blockquote>modify<br />
+<br />
+当成功编辑时，返回 1；<br />
+当编辑失败，或是编辑后的值和之前完全一致时，返回 0。</blockquote></div><br />
+来判断列表长度和元素是否匹配。<br />
+结果<br />
+
+<ignore_js_op>
+
+<img id="aimg_1570536" aid="1570536" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202004/25/231920qc700wcg66es2gs6.png" file="https://attachment.mcbbs.net/forum/202004/25/231920qc700wcg66es2gs6.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1570536" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1570536_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2020-04-25_23.18.56.png</strong> <em class="xg1">(200.71 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU3MDUzNnxhYzYwMTIyMXwxNjE0MDMwMzI4fDI0MTk0ODZ8MTAyOTQ0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-4-25 23:19 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1570535" aid="1570535" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202004/25/231920cvesm6zsd0v76857.png" file="https://attachment.mcbbs.net/forum/202004/25/231920cvesm6zsd0v76857.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1570535" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1570535_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2020-04-25_23.19.00.png</strong> <em class="xg1">(201.47 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU3MDUzNXxhZDhjOGZmOXwxNjE0MDMwMzI4fDI0MTk0ODZ8MTAyOTQ0Mg%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-4-25 23:19 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</td></table></div></div><br />
+<font size="4">参考资料：</font><br />
+<a href="thread.html?t=808124" target="_blank">[命令] 【CBL|SPG】[1.14.4] 命令返回值列表</a><font size="4"><br />
+</font><br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[17833241] = ['1570514','1570515','1570532','1570535','1570536'];
+attachimggroup(17833241);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chyx&nbsp; &nbsp; <b>时间: </b>2020-4-25 23:31<br />
+可是一旦有煤啊 木炭啊这样可以互换的东西就很难受了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>VCS-Official&nbsp; &nbsp; <b>时间: </b>2020-4-25 23:46<br />
+似乎有点麻烦...<br />
+现在头脑不太清醒，不怎么理解。<br />
+<br />
+我们是使用store获取同种物品的数量、总被占据的槽数来判定是否通过的。<br />
+相比起这种传统做法，这种新方法有什么优势吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sonter&nbsp; &nbsp; <b>时间: </b>2020-5-1 08:48<br />
+感觉好麻烦根本看不懂如果用store得到同样的数量，没啥意思啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CR_019&nbsp; &nbsp; <b>时间: </b>2020-5-1 08:53<br />
+<i class="pstatus"> 本帖最后由 CR_019 于 2020-5-1 09:16 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=17956183&amp;ptid=1029442" target="_blank"><font color="#999999">sonter 发表于 2020-5-1 08:48</font></a></font><br />
+感觉好麻烦根本看不懂如果用store得到同样的数量，没啥意思啊</blockquote></div><br />
+
+<br />
+我一开始没有想到（我太菜了），前面是昨天编辑的内容。一个问题的解决，效果相同时，当然要从简。不过论坛内没有相关做法，就填一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>woaibaihu&nbsp; &nbsp; <b>时间: </b>2020-7-14 10:05<br />
+鹅鹅鹅饿鹅鹅鹅鹅鹅鹅饿<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>kunkun520&nbsp; &nbsp; <b>时间: </b>2020-7-29 20:40<br />
+mcbbs有你更精彩！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>私‘’恋&nbsp; &nbsp; <b>时间: </b>2020-8-1 21:39<br />
+<br />
+感觉好麻烦根本看不懂
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

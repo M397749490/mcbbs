@@ -1,0 +1,189 @@
+<html>
+<head>
+<title>1.13 forge mod开发教程（长期更新） - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.13 forge mod开发教程（长期更新） <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-2-16 22:08<br />
+<b>标题: </b>1.13 forge mod开发教程（长期更新）<br /><i class="pstatus"> 本帖最后由 森林蝙蝠 于 2019-4-3 23:53 编辑 </i><br />
+<br />
+最近forge终于千呼万唤始出来地更新了1.13版本，虽然尚未真正稳定，好歹也是个能拿出来见人的版本了，赶时髦做了这个教程。<br />
+<strong>注意：forge的代码随时可能变化，这个教程也不会太稳定！</strong><br />
+<br />
+在1.13，gradlew setupDecompWorkspace已经不复存在，不要想着用它去构建forge开发环境了，在idea内直接打开build.gradle即可，类似下图：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1291974" aid="1291974" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201902/16/213520zrz4akgb74a9rtrt.png" file="https://attachment.mcbbs.net/forum/201902/16/213520zrz4akgb74a9rtrt.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1291974" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1291974_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ图片20190216213456.png</strong> <em class="xg1">(103.07 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI5MTk3NHw0OGUxMjMxOXwxNjEzOTc3MDA4fDI0MTk0ODZ8ODQ1NzA3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-2-16 21:35 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+（详情见此：<a href="thread.html?t=827002" target="_blank">http://www.mcbbs.net/thread-827002-1-1.html</a> 第1篇）<br />
+注意：选择default wrapper来配置环境即可，现在不能使用gradle 4.9以上的版本去构建，否则就会出错。<br />
+<br />
+JDK8和11均可用来制作forge mod，但是有一点必须提及的是，JDK自带的JS引擎nashorn即将被移除，而coremod系统使用的就是nashorn，颇有一种49年入国军的感觉；<br />
+万恶的Scala依赖终于被移除了，以后的普通玩家终于不用享受下载游戏时，被akka actor这个根本用不到的框架卡住的尴尬了。<br />
+如我先前的帖子所说，forge 1.13大量使用函数式接口，某海螺和某4z这对夫妇（划掉）可以使用他们心爱的函数式去编程了。<br />
+<br />
+<br />
+<br />
+<br />
+<i>package </i>com.xxxx.yourmod<br />
+<i>import </i>net.minecraft.block.Block;<br />
+<i>import </i>net.minecraft.init.Blocks;<br />
+<i>import </i>net.minecraftforge.common.MinecraftForge;<br />
+<i>import </i>net.minecraftforge.event.RegistryEvent;<br />
+<i>import </i>net.minecraftforge.eventbus.api.SubscribeEvent;<br />
+<i>import </i>net.minecraftforge.fml.InterModComms;<br />
+<i>import </i>net.minecraftforge.fml.common.Mod;<br />
+<i>import </i>net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;<br />
+<i>import </i>net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;<br />
+<i>import </i>net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;<br />
+<i>import </i>net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;<br />
+<i>import </i>net.minecraftforge.fml.event.server.FMLServerStartingEvent;<br />
+<i>import </i>net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;<br />
+<i>import </i>org.apache.logging.log4j.LogManager;<br />
+<i>import </i>org.apache.logging.log4j.Logger;<br />
+<br />
+<i>import </i>java.util.stream.Collectors;<br />
+<br />
+<i>// The value here should match an entry in the META-INF/mods.toml file<br />
+</i>@Mod(MOD_ID)<br />
+<i>public class </i>YourMod<br />
+{<br />
+&nbsp; &nbsp; <i>// Directly reference a log4j logger.<br />
+</i><i>private static final </i>Logger LOGGER = LogManager.<i>getLogger</i>();<br />
+&nbsp; &nbsp; public static final String MOD_ID=“YourMod”;<br />
+<br />
+&nbsp; &nbsp; <i>public </i>YourMod() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// Register the setup method for modloading<br />
+</i>FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(<i>this</i>::setup);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// Register the enqueueIMC method for modloading<br />
+</i>FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(<i>this</i>::enqueueIMC);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// Register the processIMC method for modloading<br />
+</i>FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(<i>this</i>::processIMC);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// Register the doClientStuff method for modloading<br />
+</i>FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(<i>this</i>::doClientStuff);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//添加名为preInit的监听器，addListener()方法是也<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(this::preInit);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//添加名为postInit的监听器，addListener()方法是也<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;FMLJavaModLoadingContext.<i>get</i>().getModEventBus().addListener(this::postInit);&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// Register ourselves for server and other game events we are interested in<br />
+</i>MinecraftForge.EVENT_BUS.register(<i>this</i>);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <i>private void </i>setup(<i>final </i>FMLCommonSetupEvent event)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// some preinit code<br />
+</i>LOGGER.info(&quot;HELLO FROM PREINIT&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LOGGER.info(&quot;DIRT BLOCK &gt;&gt; {}&quot;, Blocks.DIRT.getRegistryName());<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <br />
+&nbsp; &nbsp; public void preInit(FMLCommonSetupEvent evt)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;LOGGER.info(&quot;** TRUMP!&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//事件参数同为FMLCommonSetupEvent，所以该方法与setup()方法等效，特意列出，是为了让读者与1.12的FMLPreInitializationEvent关联起来<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <br />
+&nbsp; &nbsp; public void postInit(InterModProcessEvent evt)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//FMLPostInitializationEvent不复存在，变成了这个<br />
+&nbsp; &nbsp; }&nbsp; &nbsp;<br />
+&nbsp; &nbsp; <i>private void </i>doClientStuff(<i>final </i>FMLClientSetupEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// do something that can only be done on the client<br />
+</i>LOGGER.info(&quot;Got game settings {}&quot;, event.getMinecraftSupplier().get().gameSettings);<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; //IMC，InterModComms，一个向mod发送消息的forge机制，阿仇的永恒发条整合包就是通过TE的IMC支持魔改了TE的合成表<br />
+&nbsp; &nbsp; <i>private void </i>enqueueIMC(<i>final </i>InterModEnqueueEvent event)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// some example code to dispatch IMC to another mod<br />
+</i>InterModComms.<i>sendTo</i>(&quot;yourmod&quot;, &quot;helloworld&quot;, () -&gt; { LOGGER.info(&quot;Hello world from the MDK&quot;); <i>return </i>&quot;Hello world&quot;;});<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <i>private void </i>processIMC(<i>final </i>InterModProcessEvent event)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// some example code to receive and process InterModComms from other mods<br />
+</i>LOGGER.info(&quot;Got IMC&quot;, event.getIMCStream().<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; map(m-&gt;m.getMessageSupplier().get()).<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; collect(Collectors.<i>toList</i>()));<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <i>// You can use SubscribeEvent and let the Event Bus discover methods to call<br />
+</i>@SubscribeEvent<br />
+&nbsp; &nbsp; <i>public void </i>onServerStarting(FMLServerStartingEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>// do something when the server starts<br />
+</i>LOGGER.info(&quot;HELLO from server starting&quot;);<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <i>// You can use EventBusSubscriber to automatically subscribe events on the contained class (this is subscribing to the MOD<br />
+</i><i>&nbsp; &nbsp; // Event bus for receiving Registry Events)<br />
+</i>@Mod.EventBusSubscriber(bus=Mod.EventBusSubscriber.Bus.MOD)<br />
+&nbsp; &nbsp; <i>public static class </i>RegistryEvents {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@SubscribeEvent<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<i>public static void </i>onBlocksRegistry(<i>final </i>RegistryEvent.Register&lt;Block&gt; blockRegistryEvent) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<i>// register a new block here<br />
+</i>LOGGER.info(&quot;HELLO from Register Block&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+</font><font color="Black">&nbsp; &nbsp; }<br />
+</font><br />
+<font color="Black">}</font><br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[13894428] = ['1291974'];
+attachimggroup(13894428);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MashKJo&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:16<br />
+请问Forge模组官方开发教程在哪儿啊，看了一下开发文档只是介绍了一些库。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>森林蝙蝠&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13913323&amp;ptid=845707" target="_blank"><font color="#999999">MashKJo 发表于 2019-2-19 21:16</font></a></font><br />
+请问Forge模组官方开发教程在哪儿啊，看了一下开发文档只是介绍了一些库。 ...</blockquote></div><br />
+一直都不怎么样，所以第三方教程大行其是。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Observateurs&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:44<br />
+收藏了, 内容挺好的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Yecgaa_&nbsp; &nbsp; <b>时间: </b>2019-2-21 10:56<br />
+支持支持，希望大佬更完<br />
+（函数式最棒了）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>啊妖妖舞&nbsp; &nbsp; <b>时间: </b>2019-3-11 17:25<br />
+收藏一波，然后坐等更新<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>啧啧啧22&nbsp; &nbsp; <b>时间: </b>2019-7-25 23:12<br />
+4z大佬的很多东西已经不能用了，Harbinger讲的不是很清，坐等大佬更新<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>陈宇鹏&nbsp; &nbsp; <b>时间: </b>2019-7-30 15:29<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sulinly&nbsp; &nbsp; <b>时间: </b>2019-7-30 15:38<br />
+正在找呢，谢谢了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

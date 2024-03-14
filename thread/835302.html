@@ -1,0 +1,453 @@
+<html>
+<head>
+<title>基岩版官方服务端MOD的安装和编写 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>基岩版官方服务端MOD的安装和编写 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ginkgo06&nbsp; &nbsp; <b>时间: </b>2018-12-24 16:49<br />
+<b>标题: </b>基岩版官方服务端MOD的安装和编写<br /><i class="pstatus"> 本帖最后由 Ginkgo06 于 2018-12-24 16:59 编辑 </i><br />
+<div class="blockcode"><div id="code_Rrp"><ol><li><br />
+<li></ol></div><em onclick="copycode($('code_Rrp'));">复制代码</em></div><font style="background-color:rgb(247, 247, 247)"><font size="5">Minecraft基岩版 MOD的安装以及编写</font></font><br />
+<font style="background-color:rgb(247, 247, 247)">我的博客有排版更加完善的版本 <a href="http://blog.haojie06.me/bedrock_mod/" target="_blank">http://blog.haojie06.me/bedrock_mod/</a> 欢迎来访</font><br />
+<font style="background-color:rgb(247, 247, 247)"><font style="font-size:14px"><strong>转载请注明出处，有问题请留下评论，也希望大佬能够指出文章中的问题</strong></font></font><br />
+<strong><font style="background-color:rgb(247, 247, 247)"><font style="font-size:14px"><br />
+</font></font></strong><br />
+<strong><font style="background-color:rgb(247, 247, 247)"><font style="font-size:14px">文章有点长，如果感兴趣请耐心看完，我参考的教程是Mod Loader的作者MCMrARM编写的Wiki <a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-lin ... embly-&amp;-Hooking</a> </font></font></strong><br />
+<strong><font style="background-color:rgb(247, 247, 247)"><font style="font-size:14px">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking， 原版是英文版，我翻译了一下主要的步骤，总结并解释了一些要点，水平渣，不会cpp，仅作参考</font></font></strong><br />
+<font size="3"></font><br />
+<font size="3"><strong>下载了SD</strong></font><strong>K后把SDK添加到环境变量中去</strong><br />
+<div class="blockcode"><div id="code_Ie5"><ol><li>nano /etc/profile<br />
+<li>#在最后一行添加<br />
+<li>export MODLOADER_SDK=$MODLOADER_SDK/home/bedrock/ModDev<br />
+<li>#之前在$MODLOADER_SDK后面加了引号可把自己坑惨了...注意<br />
+<li>#SDK（解压的文件夹）所在的路径<br />
+<li>#保存后执行<br />
+<li>source&nbsp;&nbsp;/etc/profile<br />
+<li>echo $MODLOADER_SDK<br />
+<li>#此时便可以看见我们SDK的路径了</ol></div><em onclick="copycode($('code_Ie5'));">复制代码</em></div><br />
+<hr class="l" /><br />
+<font size="3">&lt;span id=&quot;3&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>尝试编写Mod</strong></font><br />
+<br />
+<font size="3"><strong>这里我采用的开发方式是直接在服务器上创建mod文件，并利用VSCODE的ssh插件在电脑上编辑这个mod，此外g++等等环境需要配置好。</strong> <strong>Mod Loader属于第三方的扩展，Mod SDK可以在Loader的下载页中获得，SDK提供了 C和C++的API</strong> <i>尽管只学过C，但这次还是采用C++吧...</i> 基岩版官方服务端使用C++编写，Mod也相应的采用了C/C++来编写，浏览作者<strong>MCMrARM</strong>的Wiki，首先我们可以看到对Mod SDK中 <a href="https://github.com/minecraft-linux/server-modloader/wiki/Hooking-API" target="_blank"><strong>Hooking API</strong>的介绍</a>,看到Hook(钩子)这个词，我们可以了解到，Mod采取的机制是对诸如命中、移动、跳跃等等游戏中的<strong>事件</strong>进行Hook，当这些事件发生时，Mod会进行处理。</font><br />
+<br />
+<font size="3">&lt;span id=&quot;4&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>Mod SDK 以C++ API为例</strong></font><br />
+<br />
+<font size="3">以SDK中提供的C++Api为例，SDK提供了C++的 <i>作用域基础上的钩子（Hook）,在这些钩子之上建立了基于宏的静态Hook API</i> <strong>自己翻译得好烂啊...看原文吧</strong> <i>The library provides a simple C++ scoped-based hook (modloader::AutoHook), and a macro-based static hook API is built upon it:</i></font><br />
+<br />
+<div class="blockcode"><div id="code_b78"><ol><li>//代码如下<br />
+<li>// #include &lt;modloader/statichook.h&gt;<br />
+<li><br />
+<li>#define THook2(iname, ret, sym, args...) ...<br />
+<li>#define THook(ret, sym, args...) ...<br />
+<li>#define TClasslessInstanceHook2(iname, ret, sym, args...) ...<br />
+<li>#define TClasslessInstanceHook(ret, sym, args...) ...<br />
+<li>#define TInstanceHook2(iname, ret, sym, type, args...) ...<br />
+<li>#define TInstanceHook(ret, sym, type, args...) ...<br />
+<li>#define TStaticHook2(iname, ret, sym, type, args...) ...<br />
+<li>#define TStaticHook(ret, sym, type, args...) ...</ol></div><em onclick="copycode($('code_b78'));">复制代码</em></div><br />
+<font size="3">这里需要提到的一点就是C++中的 name mangling规则（命名粉碎规则），这个规则会给函数不同的签名，以明确具体调用的是哪一个函数，避免调用重载的函数时会出现二义性 <a href="https://blog.csdn.net/u013220338/article/details/51472322" target="_blank">具体一些的例子</a></font><br />
+<br />
+<font size="3">可以看见这里定义了一些static Hook 的写法,宏中的钩子会hook签名为sym,返回类型为ret且参数为args的函数，而<strong>TInstanceHook 和 TStaticHook</strong>两个宏因为没有iname字段，所以<strong>必须要给出有效的类名</strong>。</font><br />
+<br />
+<font size="3">作者对不同宏作用的介绍以及我的理解:</font><br />
+<br />
+<font size="3"><ul><li>You should use THook for hooking global functions, that are not part of any class. <i>当要hook的函数为全局函数而不是某一个类的一部分时使用THook <strong>例如 printf()</strong></i><li>You should use TInstanceHook for hooking member functions. Requires a full class declaration<i>使用TInstanceHook hook成员函数（不是静态），需要完整地声明类 <strong>例如DedicatedServer::run()</strong></i><li>Use TClasslessInstanceHook if you do not want to use a full class declaration<i>如果不想使用完整的类的声明时使用</i><li>You should use TStaticHook for hooking static (class) functions. Requires a full class declaration<i>想要hook 静态函数时使用,需要完整的类的声明 <strong>例如</strong>Common::getServerVersionString()</i><li>Use TClasslessInstanceHook if you do not want to use a full class declaration<i>反之</i><br />
+</ul></font><br />
+<font size="3"><strong>对于full class declaration的解释</strong> <i>Requires a full class declaration means that to use it you need to declare the class somewhere and include it (class DedicatedServer { }; in an included header is OK, but a forward declaration like class DedicatedServer; is not enough).</i></font><br />
+<br />
+<font size="3">意思是如果我要使用需要full class declaration的Hook时，需要在代码中包含这个类的声明（或者是包含包含了这个类的声明的头文件，如果只在代码中创建一个引用（不知道C++中怎么说的）是不够的）</font><br />
+<br />
+<font size="3"><strong>如果在一个Mod中需要多次hook一个函数，需要使用后缀为2的宏并且传递不同的第一个参数（iname）</strong></font><br />
+<br />
+<font size="3">&lt;span id=&quot;5&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>HelloMinecraft MOD</strong></font><br />
+<br />
+<font size="3"><strong>创建HelloMinecraftMod</strong> <i>这里我们会用到ModLoader的Loger工具</i> Loger有以下几个等级的输出</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>verbose<li>debug<li>info<li>warn<li>error<br />
+编辑 testmod.cpp<br />
+</ul></font><br />
+<div class="blockcode"><div id="code_R8Y"><ol><li>#include填入头文件路径,如果不使用绝对路径需要在编译时指明<br />
+<li>#include &lt;/home/bedrock/ModDev/include/modloader/log.h&gt;<br />
+<li>using namespace modloader;<br />
+<li><br />
+<li>extern &quot;C&quot; void modloader_on_server_start(void* serverInstance) {<br />
+<li>&nbsp; &nbsp; Log::verbose(&quot;BeginMod&quot;, &quot;Hello Minecraft!&quot;);<br />
+<li>&nbsp; &nbsp; Log::info(&quot;BeginMod&quot;,&quot;BeginServer&quot;);<br />
+<li>&nbsp; &nbsp; Log::debug(&quot;BeginMod&quot;,&quot;CreateByhaojie&quot;)<br />
+<li>}</ol></div><em onclick="copycode($('code_R8Y'));">复制代码</em></div><br />
+<font size="3"><strong>编译生成.so mod文件</strong> /home/bedrock/ModDev# g++ testmod.cpp -std=c++11 -I ${MODLOADER_SDK}/include/ -L ${MODLOADER_SDK}/lib/ -lserver_modloader -shared -fPIC -o BeginMod.so</font><br />
+<br />
+<font size="3"><strong>注意</strong></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>-L用于指明连接的库所在的文件夹<li>-l用于指明具体的库<li>-I指明#include的文件所在的文件夹<br />
+</ul></font><br />
+<font size="3">没有报错就说明成功了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">ls</font> 在当前文件夹出现了 <strong>BeginMod.so</strong> 文件，这个就是我们的MOD了，将它移动到服务端文件夹中的mods文件夹中并启动服务端 <strong>请使用 ./start_modloader 启动服务器</strong> 在启动的过程中我们便可以在命令行中看见输出了，第一个MOD成功（虽然还没有实际作用） <img id="aimg_fHpbb" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhpeopwoqj30cg01y0sm.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">&lt;span id=&quot;6&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>创建一个具有实际作用的MOD （爆炸箭矢）</strong></font><br />
+<br />
+<font size="3">参考作者的wiki <a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking</a> 为了实现具体的功能我们需要将服务端解包，这里还需要<strong>掌握一定的汇编知识</strong> 我们这里使用到IDA解包 <a href="https://www.hex-rays.com/products/ida/support/download_freeware.shtml" target="_blank">下载</a> IDA有一款插件<strong>HexRays CodeXplorer</strong>似乎可以把汇编语言转化为更好懂的形式？不过这次还没有使用。</font><br />
+<br />
+<font size="3"><strong>开始制作</strong></font><br />
+<br />
+<font size="3">使用IDA-&gt;new-&gt;选择从官网下载的服务端压缩包解压后的 <strong>bedrock_server</strong> 文件 （注意这个文件没有扩展名，所以在选择是要将文件类型改为所有文件*） <img id="aimg_BNBx5" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhqm95zn8j30pt0eimy8.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">然后便开始解包 耗时十来分钟</font><br />
+<br />
+<font size="3"><img id="aimg_M0Qss" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhqgjnem8j31hc0smwgf.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">感觉这个IDA查找起来非常耗CPU啊，低压i5占用100%????... ps：卡顿是因为还在建立索引，当索引建立完毕之后就不卡了。</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>找到需要Hook的函数<br />
+我们要创建一个箭矢碰撞后爆炸的MOD，首先我们要找到箭矢碰撞的函数，<strong>::onHit</strong> （其实找到对应的函数是非常困难的一件事情，毕竟这里面的函数太多了。而且官方并没有给出说明...）<br />
+你是不是以为我们的目标是 <strong>Throwable::onHit</strong> ？但经过对Arrow的继承树的查看我们可以发现（作者发现的），Throwable并没有出现过，实际上我们应该使用的是 <strong>ProjectileComponent::onHit</strong><li>Hooking的函数名<br />
+找到事件发生的函数之后怎么对其进行Hook呢？<br />
+首先我们要<strong>获得这个函数的 mangled name</strong>（关于mangled name前面有介绍），在IDA中双击FunctionName在IDA VIEW里面展示具体的函数。<br />
+<img id="aimg_X3B9C" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxly1fyhrwypvu3j31dw0lrgok.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+</ul></font><br />
+<font size="3">在这里我们可以看见一串以<strong>_ZN</strong> 开头的字符(_ZN是name mangling 的 symbol) <i>eg：_ZN19ProjectileComponent5onHitERK9HitResult</i></font><br />
+<br />
+<font size="3">我们Hook时使用的就是这个名字，在IDA里面无法查看函数的返回值以及函数是否是静态的，IDA可以对这个返回值进行猜测，不过据作者MCMrARM所说，猜测的一般会失败...注释中所写的也不是完全正确的。（难道只能自己猜了嘛？？）</font><br />
+<br />
+<font size="3"><strong>公布结果：ProjectileComponent::onHit的返回值为void</strong></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>编写MOD，检测击中<br />
+看注释吧，这里还没有爆炸，只是当事件发生的时候在控制台输出<br />
+</ul></font><br />
+<font size="3"><img id="aimg_sny17" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxly1fyhtaof2orj31hc0hjaea.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /> 编写完成之后像之前一样进行编译 <img id="aimg_f7Do8" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://blog.haojie06.me/wp-content/uploads/2018/12/629f10bb7e3b838ddd78e2cf4a221d82.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<div class="blockcode"><div id="code_siJ"><ol><li> g++ testmod.cpp -std=c++11 -I ${MODLOADER_SDK}/include/ -L ${MODLOADER_SDK}/lib/ -lserver_modloader -shared -fPIC -o explodeArrow.so</ol></div><em onclick="copycode($('code_siJ'));">复制代码</em></div><br />
+<font size="3">满怀期待地打开服务器，捡起弓箭，shot，然后发现控制台并没有输出????....</font><br />
+<br />
+<font size="3">问题解决了，真是个低级的错误，看上面的指令就能发现问题，我<strong>忘了修改源代码文件</strong>的名字了！！将 testmod.cpp 改为 explodeArrow.cpp 编译，成功之后将.so移动到../mods下，启动游戏，掏出弓箭，射击，控制台成功显示！ <img id="aimg_E29Uw" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://blog.haojie06.me/wp-content/uploads/2018/12/507972e58106d8d3a9baf3a830a28274.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>编写MOD，处理击中之后的爆炸<br />
+<strong>添加爆炸效果</strong><br />
+已经能检测到击中事件了，接下来我们要做的就是在击中的坐标处引发一次爆炸<br />
+</ul></font><br />
+<font size="3">首先我们要在IDA中找到负责爆炸的函数,搜索 ::explode,这一次我们使用的是<strong>Level</strong>(ModLoader作者在wiki中指明，说实话我也不知道怎么选择) Level::explode 现在我们面临的问题是<strong>如何获得level的指针以及爆炸的方块的源以及位置。</strong></font><br />
+<br />
+<font size="3"><strong>因为如前面所说 <i>TInstanceHook hook成员函数（不是静态），需要完整地声明类</i></strong> 因此我们要像下面这样声明需要使用到的方法</font><br />
+<br />
+<font size="3"><ul><li>声明获得Actor指针的方法<br />
+使用<strong>ProjectileComponent::getEntity()</strong> 我们可以获得一个额 Actor* 指针（实体的指针，根据wiki所说，之所以不是getActor是因为几个版本前的更新Mojang还没有彻底将Entity转变为Actor）<br />
+</ul></font><br />
+<div class="blockcode"><div id="code_rhQ"><ol><li>//添加<br />
+<li>class Actor;<br />
+<li>class ProjectileComponent {<br />
+<li>public:<br />
+<li>&nbsp;&nbsp;Actor&amp; getEntity();<br />
+<li>};</ol></div><em onclick="copycode($('code_rhQ'));">复制代码</em></div><br />
+<font size="3"><ul><li><font size="3">声明获得Level<i> and BlockSource</i>指针的方法</font><br />
+<br />
+<div class="blockcode"><div id="code_xkZ"><ol><li>//添加<br />
+<li>class BlockSource;<br />
+<li>class Level;<br />
+<li>class Actor {<br />
+<li>public:<br />
+<li>BlockSource* getRegion() const;<br />
+<li>Level* getLevel();<br />
+<li>};</ol></div><em onclick="copycode($('code_xkZ'));">复制代码</em></div><br />
+<li><font size="3">最后我们要从HITRESULT中获得击中的坐标（即爆炸坐标），声明获得坐标的方法 HitResult::getPos() const 会返回一个 Vec3 const&amp; 因此我们先声明 Vec3，再声明这个方法</font><br />
+<br />
+<div class="blockcode"><div id="code_pZa"><ol><li>class Vec3;<br />
+<li>class HitResult {<br />
+<li>public:<br />
+<li>Vec3 const&amp; getPos() const;<br />
+<li>};·</ol></div><em onclick="copycode($('code_pZa'));">复制代码</em></div><br />
+<li><font size="3">声明爆炸的方法，<strong>各个参数的意思我们也不知道，只能不断地修改，然后在游戏中测试</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_m9f"><ol><li>class Level {<br />
+<li>public:<br />
+<li>void explode(BlockSource&amp;, Actor*, Vec3 const&amp;, float, bool, bool, float, bool);<br />
+<li>};</ol></div><em onclick="copycode($('code_m9f'));">复制代码</em></div><br />
+</ul></font><br />
+<font size="3"><strong>最后 ，在TInstanceHook中添加，当弓箭击中物体时，这个hook便会调用其中的方法做出响应</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_KdJ"><ol><li>TInstanceHook(void, _ZN19ProjectileComponent5onHitERK9HitResult, ProjectileComponent, HitResult const&amp; hitResult) {<br />
+<li>&nbsp;&nbsp;Log::verbose(TAG, &quot;ProjectileComponent::onHit&quot;);<br />
+<li>&nbsp;&nbsp;original(this, hitResult);<br />
+<li>&nbsp;&nbsp;Actor&amp; entity = this-&gt;getEntity();<br />
+<li>&nbsp;&nbsp;entity.getLevel()-&gt;explode(*entity.getRegion(), nullptr, hitResult.getPos(), 5.f, /* 是否产生燃烧 */ false, /*是否破坏方块 */ true, 1.f, true);<br />
+<li>}</ol></div><em onclick="copycode($('code_KdJ'));">复制代码</em></div><br />
+<font size="3">如果编译出错请查看作者的完整代码<a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking</a></font><br />
+<br />
+<font size="3">完成了这些，我们的爆炸箭矢MOD的源代码就完成了，最后编译之后将.so移动到../mods文件夹下，开启server 弓箭射击..<strong>BOOM！</strong></font><br />
+<br />
+<font size="3">&lt;span id=&quot;7&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>总结</strong></font><br />
+<br />
+<font size="3">一开始我以为官方服务器是没有MOD了的，没想到能在github上发现这个MODLoader，而且作者MCMrARM大大还热心的写了wiki教程，一步一步的写出了一个基岩版官方服务端的MOD，不过要说做BDS的MOD开发还是会面临一些很大的问题</font><br />
+<br />
+<font size="3"><ul><li>官方没有很好的API支持，写一个MOD还得解包<li>解包后函数过多，很难确定究竟应该Hook哪一个函数<li>资料非常的少<br />
+</ul></font><br />
+<font size="3">在这个框架下MOD的潜力有多大?之后基岩版服务器的MOD还会有什么发展，这都是值得我们拭目以待的。</font><br />
+转自我的博客 blog.haojie06.me<br />
+<font size="6"><strong>Minecraft基岩版 MOD的安装以及编写</strong></font><br />
+<br />
+<font size="3"><strong>转载请注明出处，有问题请留下评论，也希望大佬能够指出文章中的问题</strong> <strong>文章有点长，如果感兴趣请耐心看完，我参考的教程是Mod Loader的作者MCMrARM编写的Wiki<a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking</a>， 原版是英文版，我翻译了一下主要的步骤，总结并解释了一些要点，水平渣，不会cpp，仅作参考</strong></font><br />
+<br />
+<font size="5"><strong>目录</strong></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li><a href="https://www.mcbbs.net/#1" target="_blank">安装ModLoader</a><li><a href="https://www.mcbbs.net/#2" target="_blank">安装ModSdk</a><li><a href="https://www.mcbbs.net/#3" target="_blank">尝试编写MOD</a><font size="3"><br />
+<ul type="1" class="litype_1"><li><a href="https://www.mcbbs.net/#4" target="_blank">ModSdk介绍(以C++ API为例)</a><li><a href="https://www.mcbbs.net/#5" target="_blank">第一个MOD,Hello Minecraft</a><li><a href="https://www.mcbbs.net/#6" target="_blank">具有实际作用的MOD，爆炸箭矢</a><br />
+</ul></font><li><a href="https://www.mcbbs.net/#7" target="_blank">总结</a><br />
+</ul></font><br />
+<hr class="l" /><br />
+<font size="3"><img id="aimg_RAi8P" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxly1fyhvur7alug30re0dcqvn.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /> 昨天安装好了微软推出的Minecraft基岩版官方服务端，这个服务端虽然非常的接近原版，但相对于其它的第三方版本，它少了一个很重要的功能，&quot;MOD&quot;，没有了MOD也就少了许多趣味，当然，我怎么会甘心？</font><br />
+<br />
+<font size="3">今天，在万能的Github上搜索<strong>Bedrock Dedicate Server</strong>的时候，搜索结果中出现的<strong><a href="https://github.com/codehz/bedrock-modloader" target="_blank">bedrock-modloader</a></strong> 吸引了我的眼球，不是说没有MOD嘛，这里怎么又有一个loader了呢？</font><br />
+<br />
+<hr class="l" /><br />
+<font size="3">&lt;span id=&quot;1&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>安装ModLoader</strong></font><br />
+<br />
+<font size="3">参看作者的wiki，安装这个loader很简单，已经有了现成的脚本。在服务器的目录中执行 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">wget <a href="http://mrarm.io/u/setup_server_modloader.sh" target="_blank">http://mrarm.io/u/setup_server_modloader.sh</a></font> 这个脚本没有指定脚本的解释器，于是我在脚本开始处添加<strong>#!/binbash</strong>,之后再使用chmod +x setup_server_modloader.sh 以及 ./setup_server_modloader.sh 便可以实现一键安装，之后再查看目录，便可以看见Mods文件夹以及 start_modloader.sh 启动脚本。</font><br />
+<br />
+<font size="3"><strong>安装启动器是很简单，但是哪里有Mod呢？我找了挺久，反正是没有找到写好的Mod（当然和之前的Java以及PHP的Mode不兼容），只在作者的Wiki发现了<a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%231:-Basics-&amp;-setting-up-the-SDK" target="_blank">Making Mods</a></strong> 的介绍，看来在服务端的初期，这些东西都得自己动手啊。</font><br />
+<br />
+<hr class="l" /><br />
+<font size="3">&lt;span id=&quot;1&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>安装MODSDK</strong></font><br />
+<br />
+<font size="3"><a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%231:-Basics-&amp;-setting-up-the-SDK" target="_blank">查看wiki</a> 首先需要前往作者的github<a href="https://github.com/minecraft-linux/server-modloader/releases" target="_blank">下载SDK</a>并解压。</font><br />
+<br />
+<font size="3">在服务器上进行操作</font><br />
+<br />
+<div class="blockcode"><div id="code_K5K"><ol><li>mkdir /home/moddev<br />
+<li>cd /home/moddev<br />
+<li>wget https://github.com/minecraft-linux/server-modloader/releases/download/v0.0.1-alpha1/mod_sdk.zip<br />
+<li>unzip mod_sdk.zip<br />
+<li>#创建一个mod<br />
+<li>test testmod.cpp<br />
+<li>#之后我采取的方式是在VSCODE上编辑（当然你也可以直接在服务器上使用Vim或者Nano）</ol></div><em onclick="copycode($('code_K5K'));">复制代码</em></div><br />
+<font size="3"><strong>下载了SDK后把SDK添加到环境变量中去</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_DGO"><ol><li>nano /etc/profile<br />
+<li>#在最后一行添加<br />
+<li>export MODLOADER_SDK=$MODLOADER_SDK/home/bedrock/ModDev<br />
+<li>#之前在$MODLOADER_SDK后面加了引号可把自己坑惨了...注意<br />
+<li>#SDK（解压的文件夹）所在的路径<br />
+<li>#保存后执行<br />
+<li>source /etc/profile<br />
+<li>echo $MODLOADER_SDK<br />
+<li>#此时便可以看见我们SDK的路径了</ol></div><em onclick="copycode($('code_DGO'));">复制代码</em></div><br />
+<hr class="l" /><br />
+<font size="3">&lt;span id=&quot;3&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>尝试编写Mod</strong></font><br />
+<br />
+<font size="3"><strong>这里我采用的开发方式是直接在服务器上创建mod文件，并利用VSCODE的ssh插件在电脑上编辑这个mod，此外g++等等环境需要配置好。</strong> <strong>Mod Loader属于第三方的扩展，Mod SDK可以在Loader的下载页中获得，SDK提供了 C和C++的API</strong> <i>尽管只学过C，但这次还是采用C++吧...</i> 基岩版官方服务端使用C++编写，Mod也相应的采用了C/C++来编写，浏览作者<strong>MCMrARM</strong>的Wiki，首先我们可以看到对Mod SDK中 <a href="https://github.com/minecraft-linux/server-modloader/wiki/Hooking-API" target="_blank"><strong>Hooking API</strong>的介绍</a>,看到Hook(钩子)这个词，我们可以了解到，Mod采取的机制是对诸如命中、移动、跳跃等等游戏中的<strong>事件</strong>进行Hook，当这些事件发生时，Mod会进行处理。</font><br />
+<br />
+<font size="3">&lt;span id=&quot;4&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>Mod SDK 以C++ API为例</strong></font><br />
+<br />
+<font size="3">以SDK中提供的C++Api为例，SDK提供了C++的 <i>作用域基础上的钩子（Hook）,在这些钩子之上建立了基于宏的静态Hook API</i> <strong>自己翻译得好烂啊...看原文吧</strong> <i>The library provides a simple C++ scoped-based hook (modloader::AutoHook), and a macro-based static hook API is built upon it:</i></font><br />
+<br />
+<div class="blockcode"><div id="code_Eds"><ol><li>//代码如下<br />
+<li>// #include &lt;modloader/statichook.h&gt;<br />
+<li><br />
+<li>#define THook2(iname, ret, sym, args...) ...<br />
+<li>#define THook(ret, sym, args...) ...<br />
+<li>#define TClasslessInstanceHook2(iname, ret, sym, args...) ...<br />
+<li>#define TClasslessInstanceHook(ret, sym, args...) ...<br />
+<li>#define TInstanceHook2(iname, ret, sym, type, args...) ...<br />
+<li>#define TInstanceHook(ret, sym, type, args...) ...<br />
+<li>#define TStaticHook2(iname, ret, sym, type, args...) ...<br />
+<li>#define TStaticHook(ret, sym, type, args...) ...</ol></div><em onclick="copycode($('code_Eds'));">复制代码</em></div><br />
+<font size="3">这里需要提到的一点就是C++中的 name mangling规则（命名粉碎规则），这个规则会给函数不同的签名，以明确具体调用的是哪一个函数，避免调用重载的函数时会出现二义性 <a href="https://blog.csdn.net/u013220338/article/details/51472322" target="_blank">具体一些的例子</a></font><br />
+<br />
+<font size="3">可以看见这里定义了一些static Hook 的写法,宏中的钩子会hook签名为sym,返回类型为ret且参数为args的函数，而<strong>TInstanceHook 和 TStaticHook</strong>两个宏因为没有iname字段，所以<strong>必须要给出有效的类名</strong>。</font><br />
+<br />
+<font size="3">作者对不同宏作用的介绍以及我的理解:</font><br />
+<br />
+<font size="3"><ul><li>You should use THook for hooking global functions, that are not part of any class. <i>当要hook的函数为全局函数而不是某一个类的一部分时使用THook <strong>例如 printf()</strong></i><li>You should use TInstanceHook for hooking member functions. Requires a full class declaration<i>使用TInstanceHook hook成员函数（不是静态），需要完整地声明类 <strong>例如DedicatedServer::run()</strong></i><li>Use TClasslessInstanceHook if you do not want to use a full class declaration<i>如果不想使用完整的类的声明时使用</i><li>You should use TStaticHook for hooking static (class) functions. Requires a full class declaration<i>想要hook 静态函数时使用,需要完整的类的声明 <strong>例如</strong>Common::getServerVersionString()</i><li>Use TClasslessInstanceHook if you do not want to use a full class declaration<i>反之</i><br />
+</ul></font><br />
+<font size="3"><strong>对于full class declaration的解释</strong> <i>Requires a full class declaration means that to use it you need to declare the class somewhere and include it (class DedicatedServer { }; in an included header is OK, but a forward declaration like class DedicatedServer; is not enough).</i></font><br />
+<br />
+<font size="3">意思是如果我要使用需要full class declaration的Hook时，需要在代码中包含这个类的声明（或者是包含包含了这个类的声明的头文件，如果只在代码中创建一个引用（不知道C++中怎么说的）是不够的）</font><br />
+<br />
+<font size="3"><strong>如果在一个Mod中需要多次hook一个函数，需要使用后缀为2的宏并且传递不同的第一个参数（iname）</strong></font><br />
+<br />
+<font size="3">&lt;span id=&quot;5&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>HelloMinecraft MOD</strong></font><br />
+<br />
+<font size="3"><strong>创建HelloMinecraftMod</strong> <i>这里我们会用到ModLoader的Loger工具</i> Loger有以下几个等级的输出</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>verbose<li>debug<li>info<li>warn<li>error<br />
+编辑 testmod.cpp<br />
+</ul></font><br />
+<div class="blockcode"><div id="code_W32"><ol><li>#include填入头文件路径,如果不使用绝对路径需要在编译时指明<br />
+<li>#include &lt;/home/bedrock/ModDev/include/modloader/log.h&gt;<br />
+<li>using namespace modloader;<br />
+<li><br />
+<li>extern &quot;C&quot; void modloader_on_server_start(void* serverInstance) {<br />
+<li>Log::verbose(&quot;BeginMod&quot;, &quot;Hello Minecraft!&quot;);<br />
+<li>Log::info(&quot;BeginMod&quot;,&quot;BeginServer&quot;);<br />
+<li>Log::debug(&quot;BeginMod&quot;,&quot;CreateByhaojie&quot;)<br />
+<li>}</ol></div><em onclick="copycode($('code_W32'));">复制代码</em></div><br />
+<font size="3"><strong>编译生成.so mod文件</strong> /home/bedrock/ModDev# g++ testmod.cpp -std=c++11 -I ${MODLOADER_SDK}/include/ -L ${MODLOADER_SDK}/lib/ -lserver_modloader -shared -fPIC -o BeginMod.so</font><br />
+<br />
+<font size="3"><strong>注意</strong></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>-L用于指明连接的库所在的文件夹<li>-l用于指明具体的库<li>-I指明#include的文件所在的文件夹<br />
+</ul></font><br />
+<font size="3">没有报错就说明成功了 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">ls</font> 在当前文件夹出现了 <strong>BeginMod.so</strong> 文件，这个就是我们的MOD了，将它移动到服务端文件夹中的mods文件夹中并启动服务端 <strong>请使用 ./start_modloader 启动服务器</strong> 在启动的过程中我们便可以在命令行中看见输出了，第一个MOD成功（虽然还没有实际作用） <img id="aimg_BdSd3" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhpeopwoqj30cg01y0sm.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">&lt;span id=&quot;6&quot;&gt;</font><br />
+<br />
+<font size="4"><strong>创建一个具有实际作用的MOD （爆炸箭矢）</strong></font><br />
+<br />
+<font size="3">参考作者的wiki <a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking</a> 为了实现具体的功能我们需要将服务端解包，这里还需要<strong>掌握一定的汇编知识</strong> 我们这里使用到IDA解包 <a href="https://www.hex-rays.com/products/ida/support/download_freeware.shtml" target="_blank">下载</a> IDA有一款插件<strong>HexRays CodeXplorer</strong>似乎可以把汇编语言转化为更好懂的形式？不过这次还没有使用。</font><br />
+<br />
+<font size="3"><strong>开始制作</strong></font><br />
+<br />
+<font size="3">使用IDA-&gt;new-&gt;选择从官网下载的服务端压缩包解压后的 <strong>bedrock_server</strong> 文件 （注意这个文件没有扩展名，所以在选择是要将文件类型改为所有文件*） <img id="aimg_LRZDr" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhqm95zn8j30pt0eimy8.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">然后便开始解包 耗时十来分钟</font><br />
+<br />
+<font size="3"><img id="aimg_L2Aqq" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxgy1fyhqgjnem8j31hc0smwgf.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3">感觉这个IDA查找起来非常耗CPU啊，低压i5占用100%????... ps：卡顿是因为还在建立索引，当索引建立完毕之后就不卡了。</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>找到需要Hook的函数<br />
+我们要创建一个箭矢碰撞后爆炸的MOD，首先我们要找到箭矢碰撞的函数，<strong>::onHit</strong> （其实找到对应的函数是非常困难的一件事情，毕竟这里面的函数太多了。而且官方并没有给出说明...）<br />
+你是不是以为我们的目标是 <strong>Throwable::onHit</strong> ？但经过对Arrow的继承树的查看我们可以发现（作者发现的），Throwable并没有出现过，实际上我们应该使用的是 <strong>ProjectileComponent::onHit</strong><li>Hooking的函数名<br />
+找到事件发生的函数之后怎么对其进行Hook呢？<br />
+首先我们要<strong>获得这个函数的 mangled name</strong>（关于mangled name前面有介绍），在IDA中双击FunctionName在IDA VIEW里面展示具体的函数。<br />
+<img id="aimg_YoxC2" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxly1fyhrwypvu3j31dw0lrgok.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+</ul></font><br />
+<font size="3">在这里我们可以看见一串以<strong>_ZN</strong> 开头的字符(_ZN是name mangling 的 symbol) <i>eg：_ZN19ProjectileComponent5onHitERK9HitResult</i></font><br />
+<br />
+<font size="3">我们Hook时使用的就是这个名字，在IDA里面无法查看函数的返回值以及函数是否是静态的，IDA可以对这个返回值进行猜测，不过据作者MCMrARM所说，猜测的一般会失败...注释中所写的也不是完全正确的。（难道只能自己猜了嘛？？）</font><br />
+<br />
+<font size="3"><strong>公布结果：ProjectileComponent::onHit的返回值为void</strong></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>编写MOD，检测击中<br />
+看注释吧，这里还没有爆炸，只是当事件发生的时候在控制台输出<br />
+</ul></font><br />
+<font size="3"><img id="aimg_tGp4a" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://ws1.sinaimg.cn/large/0077u2dxly1fyhtaof2orj31hc0hjaea.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /> 编写完成之后像之前一样进行编译 <img id="aimg_V6pOx" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://blog.haojie06.me/wp-content/uploads/2018/12/629f10bb7e3b838ddd78e2cf4a221d82.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<div class="blockcode"><div id="code_TvF"><ol><li> g++ testmod.cpp -std=c++11 -I ${MODLOADER_SDK}/include/ -L ${MODLOADER_SDK}/lib/ -lserver_modloader -shared -fPIC -o explodeArrow.so</ol></div><em onclick="copycode($('code_TvF'));">复制代码</em></div><br />
+<font size="3">满怀期待地打开服务器，捡起弓箭，shot，然后发现控制台并没有输出????....</font><br />
+<br />
+<font size="3">问题解决了，真是个低级的错误，看上面的指令就能发现问题，我<strong>忘了修改源代码文件</strong>的名字了！！将 testmod.cpp 改为 explodeArrow.cpp 编译，成功之后将.so移动到../mods下，启动游戏，掏出弓箭，射击，控制台成功显示！ <img id="aimg_QYVua" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://blog.haojie06.me/wp-content/uploads/2018/12/507972e58106d8d3a9baf3a830a28274.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>编写MOD，处理击中之后的爆炸<br />
+<strong>添加爆炸效果</strong><br />
+已经能检测到击中事件了，接下来我们要做的就是在击中的坐标处引发一次爆炸<br />
+</ul></font><br />
+<font size="3">首先我们要在IDA中找到负责爆炸的函数,搜索 ::explode,这一次我们使用的是<strong>Level</strong>(ModLoader作者在wiki中指明，说实话我也不知道怎么选择) Level::explode 现在我们面临的问题是<strong>如何获得level的指针以及爆炸的方块的源以及位置。</strong></font><br />
+<br />
+<font size="3"><strong>因为如前面所说 <i>TInstanceHook hook成员函数（不是静态），需要完整地声明类</i></strong> 因此我们要像下面这样声明需要使用到的方法</font><br />
+<br />
+<font size="3"><ul><li>声明获得Actor指针的方法<br />
+使用<strong>ProjectileComponent::getEntity()</strong> 我们可以获得一个额 Actor* 指针（实体的指针，根据wiki所说，之所以不是getActor是因为几个版本前的更新Mojang还没有彻底将Entity转变为Actor）<br />
+</ul></font><br />
+<div class="blockcode"><div id="code_HeQ"><ol><li>//添加<br />
+<li>class Actor;<br />
+<li>class ProjectileComponent {<br />
+<li>public:<br />
+<li>Actor&amp; getEntity();<br />
+<li>};</ol></div><em onclick="copycode($('code_HeQ'));">复制代码</em></div><br />
+<font size="3"><ul><li><font size="3">声明获得Level<i> and BlockSource</i>指针的方法</font><br />
+<br />
+<div class="blockcode"><div id="code_qaQ"><ol><li>//添加<br />
+<li>class BlockSource;<br />
+<li>class Level;<br />
+<li>class Actor {<br />
+<li>public:<br />
+<li>BlockSource* getRegion() const;<br />
+<li>Level* getLevel();<br />
+<li>};</ol></div><em onclick="copycode($('code_qaQ'));">复制代码</em></div><br />
+<li><font size="3">最后我们要从HITRESULT中获得击中的坐标（即爆炸坐标），声明获得坐标的方法 HitResult::getPos() const 会返回一个 Vec3 const&amp; 因此我们先声明 Vec3，再声明这个方法</font><br />
+<br />
+<div class="blockcode"><div id="code_YrJ"><ol><li>class Vec3;<br />
+<li>class HitResult {<br />
+<li>public:<br />
+<li>Vec3 const&amp; getPos() const;<br />
+<li>};·</ol></div><em onclick="copycode($('code_YrJ'));">复制代码</em></div><br />
+<li><font size="3">声明爆炸的方法，<strong>各个参数的意思我们也不知道，只能不断地修改，然后在游戏中测试</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_yI1"><ol><li>class Level {<br />
+<li>public:<br />
+<li>void explode(BlockSource&amp;, Actor*, Vec3 const&amp;, float, bool, bool, float, bool);<br />
+<li>};</ol></div><em onclick="copycode($('code_yI1'));">复制代码</em></div><br />
+</ul></font><br />
+<font size="3"><strong>最后 ，在TInstanceHook中添加，当弓箭击中物体时，这个hook便会调用其中的方法做出响应</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_YXB"><ol><li>TInstanceHook(void, _ZN19ProjectileComponent5onHitERK9HitResult, ProjectileComponent, HitResult const&amp; hitResult) {<br />
+<li>Log::verbose(TAG, &quot;ProjectileComponent::onHit&quot;);<br />
+<li>original(this, hitResult);<br />
+<li>Actor&amp; entity = this-&gt;getEntity();<br />
+<li>entity.getLevel()-&gt;explode(*entity.getRegion(), nullptr, hitResult.getPos(), 5.f, /* 是否产生燃烧 */ false, /*是否破坏方块 */ true, 1.f, true);<br />
+<li>}</ol></div><em onclick="copycode($('code_YXB'));">复制代码</em></div><br />
+<font size="3">如果编译出错请查看作者的完整代码<a href="https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking" target="_blank">https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&amp;-Hooking</a></font><br />
+<br />
+<font size="3">完成了这些，我们的爆炸箭矢MOD的源代码就完成了，最后编译之后将.so移动到../mods文件夹下，开启server 弓箭射击..<strong>BOOM！</strong></font><br />
+<br />
+<font size="3">&lt;span id=&quot;7&quot;&gt;</font><br />
+<br />
+<font size="5"><strong>总结</strong></font><br />
+<br />
+<font size="3">一开始我以为官方服务器是没有MOD了的，没想到能在github上发现这个MODLoader，而且作者MCMrARM大大还热心的写了wiki教程，一步一步的写出了一个基岩版官方服务端的MOD，不过要说做BDS的MOD开发还是会面临一些很大的问题</font><br />
+<br />
+<font size="3"><ul><li>官方没有很好的API支持，写一个MOD还得解包<li>解包后函数过多，很难确定究竟应该Hook哪一个函数<li>资料非常的少<br />
+</ul></font><br />
+<font size="3">在这个框架下MOD的潜力有多大?之后基岩版服务器的MOD还会有什么发展，这都是值得我们拭目以待的。</font><br />
+[/code]<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ginkgo06&nbsp; &nbsp; <b>时间: </b>2018-12-24 16:55<br />
+MARKDOWN转换出问题了，尴尬..<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>641844114&nbsp; &nbsp; <b>时间: </b>2019-3-29 16:03<br />
+期待官方插件的完善！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lein317&nbsp; &nbsp; <b>时间: </b>2019-9-18 19:22<br />
+用hook的方式？我以为，官方提供扩展呢。hook多高级的方式啊。太难了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lein317&nbsp; &nbsp; <b>时间: </b>2019-9-18 19:23<br />
+我看有些群，提到js，意思不是可以用js？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mohist&nbsp; &nbsp; <b>时间: </b>2019-10-5 17:08<br />
+教程不错，正在学习，谢谢啦<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ginkgo06&nbsp; &nbsp; <b>时间: </b>2019-10-29 10:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15626496&amp;ptid=835302" target="_blank"><font color="#999999">lein317 发表于 2019-9-18 19:23</font></a></font><br />
+我看有些群，提到js，意思不是可以用js？</blockquote></div><br />
+目前官方的服务端移除了脚本引擎，而且光依靠官方的脚本引擎也很难实现插件的功能，如果想用脚本制作插件可以尝试使用stoneserver，我写了两篇文章介绍<br />
+<a href="https://blog.haojie06.com/setup-stoneserver/" target="_blank">https://blog.haojie06.com/setup-stoneserver/</a><br />
+<a href="https://blog.haojie06.com/stoneserver_plugin_dev/" target="_blank">https://blog.haojie06.com/stoneserver_plugin_dev/</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ginkgo06&nbsp; &nbsp; <b>时间: </b>2019-11-9 00:25<br />
+结果stoneserver弃坑了，又回到了最初的起点。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ff947944101&nbsp; &nbsp; <b>时间: </b>2019-11-9 22:04<br />
+很好，支持一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ginkgo06&nbsp; &nbsp; <b>时间: </b>2019-11-10 12:53<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15817803&amp;ptid=835302" target="_blank"><font color="#999999">ff947944101 发表于 2019-11-9 22:04</font></a></font><br />
+很好，支持一下</blockquote></div><br />
+如果现在还想用这样的方法做插件的话，可以查看bdlauncher这个项目 <a href="https://github.com/Sysca11/bdlauncher" target="_blank">https://github.com/Sysca11/bdlauncher</a> 原理类似，然后他已经有一些插件的代码了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dooos&nbsp; &nbsp; <b>时间: </b>2020-2-25 22:31<br />
+所以说基岩版官方服务端mod怎么添加呢<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>北斗七星Chk&nbsp; &nbsp; <b>时间: </b>2020-3-6 11:08<br />
+希望您能把该教程移至基岩版插件&amp;服务端里，并把其类型改为教程，我已发布加载插件开服教程，希望您能与我配合！（把JS的教程也搬运过来，行吗？）
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

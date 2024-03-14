@@ -1,0 +1,227 @@
+<html>
+<head>
+<title>PVPIN教程RL--NMS中的NBT数据读写 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>PVPIN教程RL--NMS中的NBT数据读写 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-20 22:56<br />
+<b>标题: </b>PVPIN教程RL--NMS中的NBT数据读写<br />本教程系PVPIN教程复刻系列<br />
+索引见<a href="thread.html?t=1034477" target="_blank">https://www.mcbbs.net/thread-1034477-1-1.html</a><br />
+本教程不做排版，如果你觉得不舒服，可以选择退出本页面<br />
+本教程所有代码全部在coding开源，详见索引本教程可能存在一定吞代码问题，总体上以开源地址的代码为准<br />
+<br />
+NMS（或者说Minecraft源码）中相关于某个实体对象的全部NBT数据的保存方式是什么？<br />
+<br />
+写NBT数据时，方法一般叫做save<br />
+读NBT数据是，方法一般叫做load<br />
+<br />
+但是注意了：<br />
+NMS中不是某个对象的全部数据就直接运用同一个NBTTagCompound去存储的<br />
+如果你们期待一个这样的方法<br />
+<div class="blockcode"><div id="code_f6W"><ol><li><br />
+<li>public void load(NBTTagCompound nbt){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; this.nbt = nbt;<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_f6W'));">复制代码</em></div><br />
+那你们一定会失望的。。。<br />
+因为在NMS的类当中，所有的属性都是分开存储的，也就是比如说NBT记录了实体的UUID和实体的位置坐标，那么实体类一定有两个实例变量，一个是UUID，一个是坐标，并不会把一堆数据放在一起<br />
+而当你调用了save方法的时候，他会把数据拼凑在一起，如<br />
+<div class="blockcode"><div id="code_D07"><ol><li><br />
+<li>public void save(NBTTagCompound nbt){<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; nbt.setFloat(&quot;Health&quot;,this.health);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; //不是真实的NMS代码，这是一个提炼出来的逻辑，假想了有一个设置血量的操作<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_D07'));">复制代码</em></div><br />
+当你有一堆这样的代码之后，你就可以拼凑出一个完整的NBT了<br />
+比如说UUID、坐标、血量、装甲等等等等<br />
+<br />
+那么我们继续思考，<br />
+血量、坐标等等这些，全都是一类实体所共有的属性<br />
+那么此时，逻辑就抽离出来了<br />
+NMS中，把这些NBT的保存都写在了接口里<br />
+或者说，接口代表了一类 类的公有属性，那么显然就可以保存那些公有的属性<br />
+所以NMS当中对NBT数据保存的另外一个重要特点就是：逐级保存<br />
+也就是说，在保存了某个接口所特有的属性（比如说，可以长大的生物就要保存年龄）<br />
+之后，会调用其super方法，再进行NBT保存（比如说，可以长大的生物一定是Insentient生物，那么此时，调用super的同名方法，就会保存Insentient生物的公有属性：有盔甲栏，也就是进行盔甲、手持物品的保存）<br />
+这样子逐级调用（往往会调用很多次），就可以一点一点拼凑出完整的NBT了<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+比如说海龟<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FOrb8WGsvAQJ5ozV" target="_blank"><img id="aimg_Ix85c" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/20/Orb8WGsvAQJ5ozV.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+注：以上为MCP的反混淆，可自行查看NMS中的EntityTurtle类<br />
+这个类是怎么写NBT数据的？<br />
+当我们调用writeAdditional方法时，做了这么几件事<br />
+注：把这个看作是save方法，它的notch名叫做b，也就是你们反编译nms得到的方法名<br />
+<br />
+<div class="blockcode"><div id="code_iBf"><ol><li><br />
+<li>&nbsp;&nbsp;public void b(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; super.b(nbttagcompound);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;HomePosX&quot;, es().getX());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;HomePosY&quot;, es().getY());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;HomePosZ&quot;, es().getZ());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;HasEgg&quot;, eq());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;TravelPosX&quot;, et().getX());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;TravelPosY&quot;, et().getY());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;TravelPosZ&quot;, et().getZ());<br />
+<li>&nbsp;&nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_iBf'));">复制代码</em></div><br />
+注：这些属性对应的意义参见<br />
+<a href="https://wiki.biligame.com/mc/%E6%B5%B7%E9%BE%9F#.E6.95.B0.E6.8D.AE.E5.80.BC" target="_blank">https://wiki.biligame.com/mc/%E6 ... 0.E6.8D.AE.E5.80.BC</a><br />
+<br />
+它的父类是EntityAnimal，<br />
+<div class="blockcode"><div id="code_VO7"><ol><li><br />
+<li>&nbsp;&nbsp;public void b(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; super.b(nbttagcompound);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;InLove&quot;, this.loveTicks);<br />
+<li>&nbsp; &nbsp; if (this.breedCause != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.a(&quot;LoveCause&quot;, this.breedCause); <br />
+<li>&nbsp;&nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_VO7'));">复制代码</em></div><br />
+注：这些属性对应的意义参见<br />
+<a href="https://wiki.biligame.com/mc/%E6%B5%B7%E9%BE%9F#.E6.95.B0.E6.8D.AE.E5.80.BC" target="_blank">https://wiki.biligame.com/mc/%E6 ... 0.E6.8D.AE.E5.80.BC</a><br />
+&quot;可繁殖生物额外字段&quot;<br />
+<br />
+EntityAnimal的父类是EntityAgeable<br />
+<div class="blockcode"><div id="code_qKg"><ol><li><br />
+<li>&nbsp;&nbsp;public void b(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; super.b(nbttagcompound);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;Age&quot;, getAge());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;ForcedAge&quot;, this.c);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;AgeLocked&quot;, this.ageLocked);<br />
+<li>&nbsp;&nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_qKg'));">复制代码</em></div><br />
+注：这些属性对应的意义参见<br />
+<a href="https://wiki.biligame.com/mc/%E6%B5%B7%E9%BE%9F#.E6.95.B0.E6.8D.AE.E5.80.BC" target="_blank">https://wiki.biligame.com/mc/%E6 ... 0.E6.8D.AE.E5.80.BC</a><br />
+&quot;可繁殖生物额外字段&quot;<br />
+刚刚的Ageable和Animal加起来相当于是“可繁殖生物”<br />
+<br />
+EntityAnimal的父类是EntityInsentient<br />
+<div class="blockcode"><div id="code_I4T"><ol><li><br />
+<li><br />
+<li>&nbsp;&nbsp;public void b(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; super.b(nbttagcompound);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;CanPickUpLoot&quot;, canPickupLoot());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;PersistenceRequired&quot;, this.persistent);<br />
+<li>&nbsp; &nbsp; NBTTagList nbttaglist = new NBTTagList();<br />
+<li>&nbsp; &nbsp; for (Iterator&lt;ItemStack&gt; iterator = this.by.iterator(); iterator.hasNext(); nbttaglist.add(nbttagcompound1)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;ItemStack itemstack = iterator.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;NBTTagCompound nbttagcompound1 = new NBTTagCompound();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (!itemstack.isEmpty())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;itemstack.save(nbttagcompound1); <br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;ArmorItems&quot;, nbttaglist);<br />
+<li>&nbsp; &nbsp; NBTTagList nbttaglist1 = new NBTTagList();<br />
+<li>&nbsp; &nbsp; for (Iterator&lt;ItemStack&gt; iterator1 = this.bx.iterator(); iterator1.hasNext(); nbttaglist1.add(nbttagcompound2)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;ItemStack itemstack1 = iterator1.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;NBTTagCompound nbttagcompound2 = new NBTTagCompound();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (!itemstack1.isEmpty())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;itemstack1.save(nbttagcompound2); <br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;HandItems&quot;, nbttaglist1);<br />
+<li>&nbsp; &nbsp; NBTTagList nbttaglist2 = new NBTTagList();<br />
+<li>&nbsp; &nbsp; float[] afloat = this.dropChanceArmor;<br />
+<li>&nbsp; &nbsp; int i = afloat.length;<br />
+<li>&nbsp; &nbsp; int j;<br />
+<li>&nbsp; &nbsp; for (j = 0; j &lt; i; j++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;float f = afloat[j];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttaglist2.add(NBTTagFloat.a(f));<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;ArmorDropChances&quot;, nbttaglist2);<br />
+<li>&nbsp; &nbsp; NBTTagList nbttaglist3 = new NBTTagList();<br />
+<li>&nbsp; &nbsp; float[] afloat1 = this.dropChanceHand;<br />
+<li>&nbsp; &nbsp; j = afloat1.length;<br />
+<li>&nbsp; &nbsp; for (int k = 0; k &lt; j; k++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;float f1 = afloat1[k];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttaglist3.add(NBTTagFloat.a(f1));<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;HandDropChances&quot;, nbttaglist3);<br />
+<li>&nbsp; &nbsp; if (this.leashHolder != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;NBTTagCompound nbttagcompound2 = new NBTTagCompound();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (this.leashHolder instanceof EntityLiving) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;UUID uuid = this.leashHolder.getUniqueID();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound2.a(&quot;UUID&quot;, uuid);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} else if (this.leashHolder instanceof EntityHanging) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;BlockPosition blockposition = ((EntityHanging)this.leashHolder).getBlockPosition();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound2.setInt(&quot;X&quot;, blockposition.getX());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound2.setInt(&quot;Y&quot;, blockposition.getY());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound2.setInt(&quot;Z&quot;, blockposition.getZ());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.set(&quot;Leash&quot;, nbttagcompound2);<br />
+<li>&nbsp; &nbsp; } else if (this.bG != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.set(&quot;Leash&quot;, this.bG.clone());<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;LeftHanded&quot;, isLeftHanded());<br />
+<li>&nbsp; &nbsp; if (this.lootTableKey != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.setString(&quot;DeathLootTable&quot;, this.lootTableKey.toString());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (this.lootTableSeed != 0L)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttagcompound.setLong(&quot;DeathLootTableSeed&quot;, this.lootTableSeed); <br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; if (isNoAI())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.setBoolean(&quot;NoAI&quot;, isNoAI()); <br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;<br />
+<li></ol></div><em onclick="copycode($('code_I4T'));">复制代码</em></div><br />
+
+<br />
+EntityInsentient的父类是EntityLiving<br />
+<div class="blockcode"><div id="code_kil"><ol><li><br />
+<li>&nbsp;&nbsp;public void b(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; nbttagcompound.setFloat(&quot;Health&quot;, getHealth());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setShort(&quot;HurtTime&quot;, (short)this.hurtTicks);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setInt(&quot;HurtByTimestamp&quot;, this.hurtTimestamp);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setShort(&quot;DeathTime&quot;, (short)this.deathTicks);<br />
+<li>&nbsp; &nbsp; nbttagcompound.setFloat(&quot;AbsorptionAmount&quot;, getAbsorptionHearts());<br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;Attributes&quot;, GenericAttributes.a(getAttributeMap()));<br />
+<li>&nbsp; &nbsp; if (!this.effects.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;NBTTagList nbttaglist = new NBTTagList();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Iterator&lt;MobEffect&gt; iterator = this.effects.values().iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;while (iterator.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MobEffect mobeffect = iterator.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nbttaglist.add(mobeffect.a(new NBTTagCompound()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.set(&quot;ActiveEffects&quot;, nbttaglist);<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; nbttagcompound.setBoolean(&quot;FallFlying&quot;, isGliding());<br />
+<li>&nbsp; &nbsp; getBedPosition().ifPresent(blockposition -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; paramNBTTagCompound.setInt(&quot;SleepingX&quot;, blockposition.getX());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; paramNBTTagCompound.setInt(&quot;SleepingY&quot;, blockposition.getY());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; paramNBTTagCompound.setInt(&quot;SleepingZ&quot;, blockposition.getZ());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp; nbttagcompound.set(&quot;Brain&quot;, this.bo.&lt;NBTBase&gt;a(DynamicOpsNBT.a));<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;</ol></div><em onclick="copycode($('code_kil'));">复制代码</em></div><br />
+上述两个接口加起来拼出了“生物共同标签”<br />
+</td></table></div></div><br />
+上述均为实体NBT的一个小小的例子展示<br />
+而物品NBT就简单很多，原因？<br />
+原因就在于物品没有那么复杂的继承关系，属性也较少<br />
+所以只需要记录下id、数量，之后就直接保存自定义NBT<br />
+<div class="blockcode"><div id="code_yj6"><ol><li><br />
+<li>&nbsp;&nbsp;public NBTTagCompound save(NBTTagCompound nbttagcompound) {<br />
+<li>&nbsp; &nbsp; MinecraftKey minecraftkey = IRegistry.ITEM.getKey(getItem());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setString(&quot;id&quot;, (minecraftkey == null) ? &quot;minecraft:air&quot; : minecraftkey.toString());<br />
+<li>&nbsp; &nbsp; nbttagcompound.setByte(&quot;Count&quot;, (byte)this.count);<br />
+<li>&nbsp; &nbsp; if (this.tag != null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;nbttagcompound.set(&quot;tag&quot;, this.tag.clone()); <br />
+<li>&nbsp; &nbsp; return nbttagcompound;<br />
+<li>&nbsp;&nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_yj6'));">复制代码</em></div><br />
+读到这里，我相信读者都理解了NBT的存储操作了<br />
+至于NBT的读取，我相信读者已经有这个能力去探究的<br />
+<br />
+那么这里，我埋下一个伏笔：<br />
+有没有发现，物品NBT留出了一个“tag”数据键，存放自定义NBT数据？<br />
+而实体，没有。换句话说无法直接给实体存储自定义的NBT数据键值对，就算写在NBT数据包里面了，照样无法被load进实体（这些接口在读取的时候也只会读取对应的NBT数据键）<br />
+该怎么做？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>啦啦啦....&nbsp; &nbsp; <b>时间: </b>2020-7-20 23:45<br />
+<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" />11111111
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

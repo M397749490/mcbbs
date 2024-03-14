@@ -1,0 +1,560 @@
+<html>
+<head>
+<title>[插件]解决1.7.5后的服务器配置文件中文变Unicode码问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[插件]解决1.7.5后的服务器配置文件中文变Unicode码问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2015-12-25 13:12<br />
+<b>标题: </b>[插件]解决1.7.5后的服务器配置文件中文变Unicode码问题<br /><i class="pstatus"> 本帖最后由 andylizi 于 2016-4-19 14:08 编辑 </i><br />
+<div class="quote"><blockquote><font size="3">1.9服务器已修复这个bug，所以此问题只限于1.7.5-1.8.8服务器</font></blockquote></div><br />
+正题<br />
+我的ColorMOTD插件在1.7.2服务器里，自动生成的配置文件：（版主别说我广告之类的……不举个梨子哪成）<br />
+<img id="aimg_Q62z6" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i4.tietuku.com/95080b93dadf2bb5.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+我的ColorMOTD插件在1.8服务器里，自动生成的配置文件：<br />
+<img id="aimg_wjZ7o" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i4.tietuku.com/72bfd6aa811663e6.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+大概除了机器，只有鬼能看懂了。不止是我的ColorMOTD，所有的插件的配置文件里的中文全部都会变成这样。<br />
+现在我的ColorMOTD的发布贴有一堆反馈这问题的，各种看不懂<br />
+郁闷。1.7.5以前的服务器完全没这问题<br />
+于是经过我<strike>九九八十一天</strike>的追查，终于找到了罪魁祸首<strike>并将其逮捕归案</strike><br />
+<img id="aimg_S1K1x" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i4.tietuku.com/0ad04dfb840e3cdf.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+多了一行代码。<br />
+这就是原因。<br />
+【解决办法 - 对于插件开发者】<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_DtT"><ol><li>public void reloadCustomConfig() throws Throwable {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!dataFolder.exists()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dataFolder.mkdirs();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;File configFile = new File(dataFolder, &quot;config.yml&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!configFile.exists()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;configFile.createNewFile();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;config = YamlConfiguration.loadConfiguration(configFile);&nbsp;&nbsp;//加载配置文件<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;DumperOptions yamlOptions = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Field f = YamlConfiguration.class.getDeclaredField(&quot;yamlOptions&quot;);&nbsp; &nbsp;//获取类YamlConfiguration里的匿名yamlOptions字段<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yamlOptions = new DumperOptions(){&nbsp;&nbsp;//将yamlOptions字段替换为一个DumperOptions的匿名内部类，里面替换了setAllowUnicode方法让其永远无法设置为true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void setAllowUnicode(boolean allowUnicode) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.setAllowUnicode(false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void setLineBreak(DumperOptions.LineBreak lineBreak) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yamlOptions.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.set(config, yamlOptions); //把新的yamlOptions偷梁换柱回去<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}catch(ReflectiveOperationException ex){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_DtT'));">复制代码</em></div><br />
+这是我的ColorMOTD插件内配置文件夹加载器中的一个方法<br />
+平常插件加载配置文件都是使用<br />
+<div class="blockcode"><div id="code_sZ3"><ol><li>saveDefaultConfig();<br />
+<li>reloadConfig();</ol></div><em onclick="copycode($('code_sZ3'));">复制代码</em></div><br />
+然后通过getConfig()访问<br />
+我这个方法代替了saveDefaultConfig()、reloadConfig()和getConfig()的功能，<br />
+其中使用了2个全局变量需要说明：<br />
+<div class="blockcode"><div id="code_pDx"><ol><li>File dataFolder;&nbsp;&nbsp;//也就是主类中getDataFolder()的返回值<br />
+<li>FileConfiguration config;&nbsp;&nbsp;//替代getConfig()，读取配置文件时就操作它好了</ol></div><em onclick="copycode($('code_pDx'));">复制代码</em></div><br />
+这个方法关键是把YamlConfiguration里的yaml设置DumperOptions里面的setAllowUnicode方法覆盖掉，使其无法被设为true<br />
+然后就解决了╮(╯▽╰)╭<br />
+<hr class="l" /><br />
+如果你不想把getConfig()替代掉，还想使用旧的方法，可以在reloadConfig()后，get内容之前运行这段代码<br />
+<div class="blockcode"><div id="code_O7L"><ol><li>DumperOptions yamlOptions = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Field f = YamlConfiguration.class.getDeclaredField(&quot;yamlOptions&quot;);&nbsp; &nbsp;//获取类YamlConfiguration里的匿名yamlOptions字段<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yamlOptions = new DumperOptions(){&nbsp;&nbsp;//将yamlOptions字段替换为一个DumperOptions的匿名内部类，里面替换了setAllowUnicode方法让其永远无法设置为true<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void setAllowUnicode(boolean allowUnicode) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.setAllowUnicode(false);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void setLineBreak(DumperOptions.LineBreak lineBreak) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;yamlOptions.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;f.set(getConfig(), yamlOptions); //把新的yamlOptions偷梁换柱回去<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}catch(ReflectiveOperationException ex){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_O7L'));">复制代码</em></div><br />
+也是一样的。不过如果再次调用reloadConfig()方法则又需要执行该段代码</td></table></div></div><br />
+【解决办法 - 对于服主】<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>
+<ignore_js_op>
+
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_864404" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=ODY0NDA0fDRjYmQzZjI0fDE2MTM4ODExMjl8MjQxOTQ4Nnw1MzQwNzU%3D" target="_blank">DumperOptions.rar</a>
+
+<em class="xg1">(12.28 KB, 下载次数: 239)</em>
+</span>
+<div class="tip tip_4" id="attach_864404_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2016-4-19 14:08 上传</div>
+点击文件名下载附件
+<br />阅读权限: 10
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+关闭服务器，将上面那个rar解压，里面有个DumperOptions.class文件，把你的服务器核心jar用压缩文件管理工具打开，进入<br />
+<div class="blockcode"><div id="code_zq1"><ol><li>\org\yaml\snakeyaml</ol></div><em onclick="copycode($('code_zq1'));">复制代码</em></div>文件夹内，替换旧的DumperOptions.class。<br />
+<img id="aimg_oF2Ef" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://i4.tietuku.com/fe276d1cee0c368c.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></td></table></div></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>尘曲&nbsp; &nbsp; <b>时间: </b>2015-12-26 03:06<br />
+{:10_553:}码字辛苦了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RecursiveG&nbsp; &nbsp; <b>时间: </b>2015-12-26 08:01<br />
+于是不得不继续面对编码问题，为了可读性放弃可移植性，<br />
+个人认为这种方式不可取。<br />
+（另一群人跑过来问你：本地配置好的服务端上传到服务器怎么不能跑了呀？）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1QAZ3EDCS&nbsp; &nbsp; <b>时间: </b>2015-12-26 09:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9531482&amp;ptid=534075" target="_blank"><font color="#999999">RecursiveG 发表于 2015-12-26 08:01</font></a></font><br />
+于是不得不继续面对编码问题，为了可读性放弃可移植性，<br />
+个人认为这种方式不可取。<br />
+（另一群人跑过来问你： ...</blockquote></div><br />
+事实上转码还是很方便的= =<br />
+但是....中文全部变成U码是很痛苦的一件事..<br />
+每次我都要转换来转换去<br />
+麻烦程度可想而知<br />
+所以<br />
+给梨子赞一个<br />
+我是梨子的脑残粉~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2015-12-26 11:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9531482&amp;ptid=534075" target="_blank"><font color="#999999">RecursiveG 发表于 2015-12-26 08:01</font></a></font><br />
+于是不得不继续面对编码问题，为了可读性放弃可移植性，<br />
+个人认为这种方式不可取。<br />
+（另一群人跑过来问你： ...</blockquote></div><br />
+至少我解决了2333对于小白来说这是很头疼滴<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2015-12-26 11:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9531482&amp;ptid=534075" target="_blank"><font color="#999999">RecursiveG 发表于 2015-12-26 08:01</font></a></font><br />
+于是不得不继续面对编码问题，为了可读性放弃可移植性，<br />
+个人认为这种方式不可取。<br />
+（另一群人跑过来问你： ...</blockquote></div><br />
+话说google的common.io包里面貌似有编码判断的API，我知道这种判断不一定准，不过应该还是有用的，只是不知道好不好用，也不知道服务端核心文件里的common包有没有加进来这部分<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2015-12-26 13:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9532645&amp;ptid=534075" target="_blank"><font color="#999999">splt 发表于 2015-12-26 11:25</font></a></font><br />
+话说google的common.io包里面貌似有编码判断的API，我知道这种判断不一定准，不过应该还是有用的，只是不 ...</blockquote></div><br />
+加了commons.io、codec和lang。话说这个编码跟unicode没关系，unicode严格来说又不是编码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2015-12-26 13:56<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9533481&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2015-12-26 13:25</font></a></font><br />
+加了commons.io、codec和lang。话说这个编码跟unicode没关系，unicode严格来说又不是编码 ...</blockquote></div><br />
+他说的是可移植性，应该是说的编码问题吧？用你的方法解决中文变u码的问题，可移植性用这个解决，不知可以否<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2015-12-26 14:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9533687&amp;ptid=534075" target="_blank"><font color="#999999">splt 发表于 2015-12-26 13:56</font></a></font><br />
+他说的是可移植性，应该是说的编码问题吧？用你的方法解决中文变u码的问题，可移植性用这个解决，不知可 ...</blockquote></div><br />
+我覆盖的DumperOptions类里面并没有任何跟编码有关系的内容<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2015-12-26 14:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9533693&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2015-12-26 14:00</font></a></font><br />
+我覆盖的DumperOptions类里面并没有任何跟编码有关系的内容</blockquote></div><br />
+嗯确实是这样……<br />
+那个人说可移植性应该是说Linux和Windows要上使用带中文的配置文件需要不同的编码吧？而没有中文的u码就能解决这个问题，或许这也是bukkit强制设为u码的原因？<br />
+<br />
+他的意思是本地配好的服务端由于编码不同无法直接在服务器使用，那么我就想或许可以用判断编码的方式给配置文件自动转个码，解决这个问题？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Viosin&nbsp; &nbsp; <b>时间: </b>2016-1-1 13:14<br />
+Unicode转码网站：<a href="http://sandbox.runjs.cn/show/p0wqxbgx" target="_blank">http://sandbox.runjs.cn/show/p0wqxbgx</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Viosin&nbsp; &nbsp; <b>时间: </b>2016-1-1 13:16<br />
+cauldron服主咋办QAQ<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-1-2 10:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9562295&amp;ptid=534075" target="_blank"><font color="#999999">Viosin 发表于 2016-1-1 13:14</font></a></font><br />
+Unicode转码网站：http://sandbox.runjs.cn/show/p0wqxbgx</blockquote></div><br />
+如果你喜欢编辑一次配置文件转码一次，请便<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>123mbcz123&nbsp; &nbsp; <b>时间: </b>2016-2-6 15:51<br />
+强转我不反对。<br />
+你能不给我转错行么？<br />
+转完直接乱码[翻译成gbk]<br />
+我都不能汉化了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-2-6 15:55<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9786043&amp;ptid=534075" target="_blank"><font color="#999999">123mbcz123 发表于 2016-2-6 15:51</font></a></font><br />
+强转我不反对。<br />
+你能不给我转错行么？<br />
+转完直接乱码[翻译成gbk]</blockquote></div><br />
+请问你在说啥啊我没听懂<br />
+另外为什么你不试试utf-8<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>123mbcz123&nbsp; &nbsp; <b>时间: </b>2016-2-6 16:05<br />
+java.lang.NoSuchMethodError: org.yaml.snakeyaml.DumperOptions.getExplicitRoot()L<br />
+org/yaml/snakeyaml/nodes/Tag;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:262)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:234)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.yaml.snakeyaml.Yaml.dump(Yaml.java:209)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.bukkit.configuration.file.YamlConfiguration.saveToString(YamlConf<br />
+iguration.java:40)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.bukkit.configuration.file.FileConfiguration.save(FileConfiguratio<br />
+n.java:103)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.github.paperspigot.PaperSpigotConfig.readConfig(PaperSpigotConfig<br />
+.java:98)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.github.paperspigot.PaperSpigotConfig.init(PaperSpigotConfig.java:<br />
+62)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.github.paperspigot.PaperSpigotConfig.&lt;clinit&gt;(PaperSpigotConfig.j<br />
+ava:40)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.server.v1_7_R4.ItemBucket.&lt;init&gt;(ItemBucket.java:18)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.server.v1_7_R4.Item.l(Item.java:114)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.server.v1_7_R4.DispenserRegistry.b(SourceFile:358)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at net.minecraft.server.v1_7_R4.MinecraftServer.main(MinecraftServer.jav<br />
+a:821)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at org.bukkit.craftbukkit.Main.main(Main.java:199)<br />
+paperspigot-1.7.10<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>123mbcz123&nbsp; &nbsp; <b>时间: </b>2016-2-6 16:42<br />
+<i class="pstatus"> 本帖最后由 123mbcz123 于 2016-2-6 16:53 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9786080&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-2-6 15:55</font></a></font><br />
+请问你在说啥啊我没听懂<br />
+另外为什么你不试试utf-8</blockquote></div><br />
+第一个。<br />
+把汉化文件放进去[gbk编码]<br />
+假设第一行为<br />
+name: 商店<br />
+自动转化结果为<br />
+name: &quot;\u935f\u55d7\u7c35&quot;<br />
+我很好奇。他是如何把两个字转化成3个字<br />
+\u935f\u55d7\u7c35转成gbk为 &quot;鍟嗗簵&quot;<br />
+然后就乱码了。。自动转换有问题。。手动转码没问题。<br />
+还有。按照你的方法替换报错了。。1。8.7没问题1.7.10报错。。<br />
+详见另一条留言uft-8 都试了多少遍<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2016-2-12 18:33<br />
+今天才想起来，去翻了api，FileConfiguration发现了SYSTEM_UTF，是在public final static修饰并在static块初始化的，我觉得吧_(:зゝ∠)_直接用反射去掉final修饰然后把值改了，就OK了=￣ω￣=<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-2-12 19:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9827025&amp;ptid=534075" target="_blank"><font color="#999999">splt 发表于 2016-2-12 18:33</font></a></font><br />
+今天才想起来，去翻了api，FileConfiguration发现了SYSTEM_UTF，是在public final static修饰并在static块 ...</blockquote></div><br />
+似乎final static是无法修改的？<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=349553" target="_blank">@RecursiveG</a>&nbsp;&nbsp;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>云闪&nbsp; &nbsp; <b>时间: </b>2016-2-12 20:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9827327&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-2-12 19:14</font></a></font><br />
+似乎final static是无法修改的？@RecursiveG</blockquote></div><br />
+可以的，你field.setModifier把final修饰去掉就好了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>914554688wyt&nbsp; &nbsp; <b>时间: </b>2016-2-14 10:25<br />
+其实不打紧啊..&nbsp;&nbsp;放进这玩意里去转一下就可以了
+<ignore_js_op>
+
+<img id="aimg_896421" aid="896421" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201602/14/102344m7tkkso2jjjmrbto.png" file="https://attachment.mcbbs.net/forum/201602/14/102344m7tkkso2jjjmrbto.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="619" id="aimg_896421" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_896421_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20160214102421.png</strong> <em class="xg1">(6.94 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=ODk2NDIxfGE0M2Q4NTYxfDE2MTM4ODExMjl8MjQxOTQ4Nnw1MzQwNzU%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2016-2-14 10:23 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<script type="text/javascript" reload="1">
+aimgcount[9839243] = ['896421'];
+attachimggroup(9839243);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-2-14 11:50<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9839243&amp;ptid=534075" target="_blank"><font color="#999999">914554688wyt 发表于 2016-2-14 10:25</font></a></font><br />
+其实不打紧啊..&nbsp;&nbsp;放进这玩意里去转一下就可以了</blockquote></div><br />
+你要不嫌麻烦我也无所谓233<br />
+对于开发者来说，用户第一是最重要的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>X_mingyu&nbsp; &nbsp; <b>时间: </b>2016-3-12 16:50<br />
+插件开发者一次性解决好多插件的U码也会累死的吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-3-21 10:15<br />
+在启动程序后门加上-Dfile.encoding=UTF-8不就得了吗？<br />
+如：JAVA -Xmx256M -jar spigot-1.8.8.jar -Dfile.encoding=UTF-8<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-3-21 11:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025304&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-3-21 10:15</font></a></font><br />
+在启动程序后门加上-Dfile.encoding=UTF-8不就得了吗？<br />
+如：JAVA -Xmx256M -jar spigot-1.8.8.jar -Dfile.e ...</blockquote></div><br />
+这是控制“字符编码”，但unicode编码指的又不是。。别弄混了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-3-21 11:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025446&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-3-21 11:26</font></a></font><br />
+这是控制“字符编码”，但unicode编码指的又不是。。别弄混了</blockquote></div><br />
+同是解决方法！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-3-21 11:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025464&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-3-21 11:29</font></a></font><br />
+同是解决方法！</blockquote></div><br />
+
+<br />
+UTF-8跟unicode是不一样的，utf-8指的是把字符编码为byte[]并把byte[]解码为字符的方式，然而unicode跟这个没有直接关系<br />
+例如：<br />
+
+<ignore_js_op>
+
+<img id="aimg_910089" aid="910089" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201603/21/113333zny7a2upuu1upu7u.png" file="https://attachment.mcbbs.net/forum/201603/21/113333zny7a2upuu1upu7u.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="243" id="aimg_910089" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_910089_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20160321113426.png</strong> <em class="xg1">(3.32 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=OTEwMDg5fDYzYTE3MmJmfDE2MTM4ODExMjl8MjQxOTQ4Nnw1MzQwNzU%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2016-3-21 11:33 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+
+<ignore_js_op>
+
+<img id="aimg_910090" aid="910090" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201603/21/113341f77b7knsj7ksps2n.png" file="https://attachment.mcbbs.net/forum/201603/21/113341f77b7knsj7ksps2n.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="401" id="aimg_910090" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_910090_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20160321113502.png</strong> <em class="xg1">(36.54 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=OTEwMDkwfGQwZDA2YWVjfDE2MTM4ODExMjl8MjQxOTQ4Nnw1MzQwNzU%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2016-3-21 11:33 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+我也不知道该怎么形容好了<br />
+<br />
+对了，你的-Dfile.encoding=UTF-8有错误，jvm参数必须加在-jar前面，不然就变成了jar参数了<script type="text/javascript" reload="1">
+aimgcount[10025479] = ['910089','910090'];
+attachimggroup(10025479);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-3-21 11:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025479&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-3-21 11:33</font></a></font><br />
+UTF-8跟unicode是不一样的，utf-8指的是把字符编码为byte[]并把byte[]解码为字符的方式，然而unicode跟这 ...</blockquote></div><br />
+难道不是解决方法吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-3-21 11:47<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025508&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-3-21 11:45</font></a></font><br />
+难道不是解决方法吗？</blockquote></div><br />
+我说了utf-8跟unicode不一样，那你加上utf-8怎么可能解决unicode编码的问题？<br />
+<strike>你这人是不是跟我有仇，一边私信跟我扯一边回帖跟我扯</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-3-21 12:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025513&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-3-21 11:47</font></a></font><br />
+我说了utf-8跟unicode不一样，那你加上utf-8怎么可能解决unicode编码的问题？<br />
+<strike>你这人是不是跟我有仇， ...</blockquote></div><br />
+我记得我之前测试过<br />
+我用llinux主机的时候<br />
+编码UTF-8,不会出现unicode编码的问题<br />
+服务器版本是1.8.8<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-3-21 12:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025590&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-3-21 12:17</font></a></font><br />
+我记得我之前测试过<br />
+我用llinux主机的时候<br />
+编码UTF-8,不会出现unicode编码的问题</blockquote></div><br />
+好吧，不争了，你自己去windows环境下试试你的代码吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-3-21 12:21<br />
+<i class="pstatus"> 本帖最后由 芒果苦力怕 于 2016-3-21 12:24 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10025591&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-3-21 12:18</font></a></font><br />
+好吧，不争了，你自己去windows环境下试试你的代码吧</blockquote></div><br />
+嗯，你也可以去试试<br />
+@andylizi嗯，我去试(别生气哈)<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>haixing&nbsp; &nbsp; <b>时间: </b>2016-3-27 16:59<br />
+弄了这个以后，我之前的插件config会自动变成中文的吗，还是会出现错误无法使用？需要把之前的config重新建一遍吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>18278436235&nbsp; &nbsp; <b>时间: </b>2016-3-27 17:06<br />
+spigot1.8替换完之后泵崩服 -<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-4-19 03:47<br />
+<div class="quote"><blockquote>---- Minecraft Crash Report ----<br />
+// Why did you do that?<br />
+<br />
+Time: 16-4-19 上午3:42<br />
+Description: Exception in server tick loop<br />
+<br />
+java.lang.NoSuchMethodError: org.yaml.snakeyaml.DumperOptions.getSplitLines()Z<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.yaml.snakeyaml.emitter.Emitter.&lt;init&gt;(Emitter.java:198)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:237)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:206)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.yaml.snakeyaml.Yaml.dump(Yaml.java:181)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.bukkit.configuration.file.YamlConfiguration.saveToString(YamlConfiguration.java:40)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.bukkit.configuration.file.FileConfiguration.save(FileConfiguration.java:103)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.bukkit.craftbukkit.v1_8_R3.CraftServer.saveConfig(CraftServer.java:272)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.bukkit.craftbukkit.v1_8_R3.CraftServer.&lt;init&gt;(CraftServer.java:212)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.PlayerList.&lt;init&gt;(PlayerList.java:71)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.DedicatedPlayerList.&lt;init&gt;(SourceFile:14)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.DedicatedServer.init(DedicatedServer.java:176)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.MinecraftServer.run(MinecraftServer.java:525)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at java.lang.Thread.run(Unknown Source)<br />
+<br />
+<br />
+A detailed walkthrough of the error, its code path and all known details is as follows:<br />
+---------------------------------------------------------------------------------------<br />
+<br />
+-- System Details --<br />
+Details:<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Minecraft Version: 1.8.8<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Operating System: Windows Server 2008 R2 (amd64) version 6.1<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Java Version: 1.8.0_73, Oracle Corporation<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Java VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Memory: 179200744 bytes (170 MB) / 245891072 bytes (234 MB) up to 954728448 bytes (910 MB)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; JVM Flags: 3 total; -Xmx1G -XX:+AggressiveOpts -XX:+UseCompressedOops<br />
+&nbsp; &nbsp; &nbsp; &nbsp; IntCache: cache: 0, tcache: 0, allocated: 0, tallocated: 0<br />
+&nbsp; &nbsp; &nbsp; &nbsp; CraftBukkit Information: <br />
+&nbsp; &nbsp;Running: CraftBukkit version git-Spigot-5f38d38-9d7764c (MC: 1.8.8) (Implementing API version 1.8.8-R0.1-SNAPSHOT) <br />
+&nbsp; &nbsp;Failed to handle CraftCrashReport:<br />
+java.lang.NullPointerException<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.MinecraftServer.getOnlineMode(MinecraftServer.java:1285)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at org.bukkit.craftbukkit.v1_8_R3.CraftCrashReport.call(CraftCrashReport.java:20)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.CrashReportSystemDetails.a(SourceFile:78)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.CrashReport.h(CrashReport.java:127)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.CrashReport.&lt;init&gt;(CrashReport.java:34)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.server.v1_8_R3.MinecraftServer.run(MinecraftServer.java:577)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; at java.lang.Thread.run(Unknown Source)<br />
+<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Profiler Position: N/A (disabled)<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Is Modded: Definitely; Server brand changed to 'Spigot'<br />
+&nbsp; &nbsp; &nbsp; &nbsp; Type: Dedicated Server (map_server.txt)</blockquote></div><br />
+替换完后开服，没开起来，就崩掉了，然后就生成了蹦服报告<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-4-19 09:51<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10136695&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-4-19 03:47</font></a></font><br />
+替换完后开服，没开起来，就崩掉了，然后就生成了蹦服报告</blockquote></div><br />
+woc。。。难道每个服务端版本都升级一次snakeyaml吗。。。稍等，马上解决<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-4-19 12:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10137019&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-4-19 09:51</font></a></font><br />
+woc。。。难道每个服务端版本都升级一次snakeyaml吗。。。稍等，马上解决</blockquote></div><br />
+好了吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-4-19 12:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10137257&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-4-19 12:28</font></a></font><br />
+好了吗？</blockquote></div><br />
+请发出你使用的服务端核心<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>芒果苦力怕&nbsp; &nbsp; <b>时间: </b>2016-4-19 13:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10137286&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2016-4-19 12:28</font></a></font><br />
+请发出你使用的服务端核心</blockquote></div><br />
+<a href="http://pan.baidu.com/s/1dFnZziD" target="_blank">http://pan.baidu.com/s/1dFnZziD</a><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-4-19 14:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=10137602&amp;ptid=534075" target="_blank"><font color="#999999">芒果苦力怕 发表于 2016-4-19 13:26</font></a></font><br />
+http://pan.baidu.com/s/1dFnZziD</blockquote></div><br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_920079" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=OTIwMDc5fDk5YmM4ZDhhfDE2MTM4ODExMjl8MjQxOTQ4Nnw1MzQwNzU%3D" target="_blank">DumperOptions.rar</a>
+
+<em class="xg1">(12.28 KB, 下载次数: 14)</em>
+</span>
+<div class="tip tip_4" id="attach_920079_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2016-4-19 14:03 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2016-5-19 15:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=9786418&amp;ptid=534075" target="_blank"><font color="#999999">123mbcz123 发表于 2016-2-6 16:42</font></a></font><br />
+第一个。<br />
+把汉化文件放进去[gbk编码]<br />
+假设第一行为</blockquote></div><br />
+报错已解决。重下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>haixing&nbsp; &nbsp; <b>时间: </b>2017-1-15 00:20<br />
+KC端核心里，怎么没这个文件，也没\yaml\snakeyaml<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2017-1-15 07:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11339837&amp;ptid=534075" target="_blank"><font color="#999999">haixing 发表于 2017-1-15 00:20</font></a></font><br />
+KC端核心里，怎么没这个文件，也没\yaml\snakeyaml</blockquote></div><br />
+你不会打开了minecraft.server.jar吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>haixing&nbsp; &nbsp; <b>时间: </b>2017-1-15 14:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11340252&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2017-1-15 07:22</font></a></font><br />
+你不会打开了minecraft.server.jar吧</blockquote></div><br />
+不是啊，你看
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTAzNDMzNXxmZmQ4ZThiNXwxNjEzODgxMTI5fDI0MTk0ODZ8NTM0MDc1&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1034335" class="xw1" target="_blank">[0E14ABTL$CXMV8_{U$%0UA.png</a>
+<em class="xg1">(26.37 KB, 下载次数: 2)</em>
+</p>
+<div class="tip tip_4" id="aid1034335_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTAzNDMzNXxmZmQ4ZThiNXwxNjEzODgxMTI5fDI0MTk0ODZ8NTM0MDc1&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2017-1-15 14:40 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1034335', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1034335', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1034335" aid="1034335" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/201701/15/144019idm16qj2h699ndzv.png" file="https://attachment.mcbbs.net/forum/201701/15/144019idm16qj2h699ndzv.png.thumb.jpg" alt="[0E14ABTL$CXMV8_{U$%0UA.png" title="[0E14ABTL$CXMV8_{U$%0UA.png" w="486" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[11342467] = ['1034335'];
+attachimggroup(11342467);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>haixing&nbsp; &nbsp; <b>时间: </b>2017-1-17 15:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11340252&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2017-1-15 07:22</font></a></font><br />
+你不会打开了minecraft.server.jar吧</blockquote></div><br />
+<img src="static/image/smiley/rabbit/40.gif" smilieid="690" border="0" alt="" />怎么办，难道是我有什么搞错了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>刘在石&nbsp; &nbsp; <b>时间: </b>2017-1-21 16:15<br />
+请问KC端怎么解决,代码也改了还是不行,代替文件也不行,因为服务端本体里没有那个文件。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>andylizi&nbsp; &nbsp; <b>时间: </b>2017-1-21 16:33<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11381464&amp;ptid=534075" target="_blank"><font color="#999999">刘在石 发表于 2017-1-21 16:15</font></a></font><br />
+请问KC端怎么解决,代码也改了还是不行,代替文件也不行,因为服务端本体里没有那个文件。。 ...</blockquote></div><br />
+你不会打开了minecraft.server.jar吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>刘在石&nbsp; &nbsp; <b>时间: </b>2017-1-21 18:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11381621&amp;ptid=534075" target="_blank"><font color="#999999">andylizi 发表于 2017-1-21 16:33</font></a></font><br />
+你不会打开了minecraft.server.jar吧</blockquote></div><br />
+真没有 = =<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Innovators&nbsp; &nbsp; <b>时间: </b>2017-2-4 18:29<br />
+即使替换了 还是会自动转码啊..<br />
+版本是1.8.8PaperSpigot<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mcbbs2050&nbsp; &nbsp; <b>时间: </b>2018-3-11 19:04<br />
+Thermos 模组服的核心文件里没有那个 \org\yaml\snakeyaml 目录，该肿么办呢？
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,174 @@
+<html>
+<head>
+<title>[已解决][nms求助] 如何读取.lang文件使生成相应的可操作类 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[已解决][nms求助] 如何读取.lang文件使生成相应的可操作类 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-8-10 21:33<br />
+<b>标题: </b>[已解决][nms求助] 如何读取.lang文件使生成相应的可操作类<br /><i class="pstatus"> 本帖最后由 1609089074 于 2019-11-20 18:15 编辑 </i><br />
+<br />
+本菜在开发插件时想增加语言文本信息读取功能，正好想起mc有自己专属的语言文本格式 *.lang 文件类型，估摸着应该可以直接用 nms 帮助读取语言文件。<br />
+我通过 mcp 导出了 nms 源码后，在包 net.minecraft.util.text.translation 下名为 LanguageMap 的类（在原nms内等同为LocaleLanguage类）发现相关的功能实现，类内有个实例字段：<br />
+<div class="blockcode"><div id="code_lV0"><ol><li>private final Map&lt;String, String&gt; languageList = Maps.&lt;String, String&gt;newHashMap();</ol></div><em onclick="copycode($('code_lV0'));">复制代码</em></div><br />
+应该就是用于储存从语言文本文件内读取的 关键字（key） 和 翻译文本（value） ，但是我发现仅在该类唯一一个构造方法里往该 Map 中 put入键值，而此构造方法是无参数的，其内直接指明读取资源路径 “/assets/minecraft/lang/en_us.lang” ，不言而喻，这里自然是对应mc英文语言文本，而大家应该都是知道咱mc是自带多国语言的。以下是通过 mcp 导出的该类源码：<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_zT1"><ol><li>package net.minecraft.util.text.translation;<br />
+<li><br />
+<li>import com.google.common.base.Splitter;<br />
+<li>import com.google.common.collect.Iterables;<br />
+<li>import com.google.common.collect.Maps;<br />
+<li>import java.io.IOException;<br />
+<li>import java.io.InputStream;<br />
+<li>import java.util.IllegalFormatException;<br />
+<li>import java.util.Map;<br />
+<li>import java.util.regex.Pattern;<br />
+<li>import org.apache.commons.io.Charsets;<br />
+<li>import org.apache.commons.io.IOUtils;<br />
+<li><br />
+<li>public class LanguageMap<br />
+<li>{<br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Pattern that matches numeric variable placeholders in a resource string, such as &quot;%d&quot;, &quot;%3$d&quot;, &quot;%.2f&quot;<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private static final Pattern NUMERIC_VARIABLE_PATTERN = Pattern.compile(&quot;%(\\d+\\$)?[\\d\\.]*[df]&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* A Splitter that splits a string on the first &quot;=&quot;.&nbsp;&nbsp;For example, &quot;a=b=c&quot; would split into [&quot;a&quot;, &quot;b=c&quot;].<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private static final Splitter EQUAL_SIGN_SPLITTER = Splitter.on('=').limit(2);<br />
+<li><br />
+<li>&nbsp; &nbsp; /** Is the private singleton instance of StringTranslate. */<br />
+<li>&nbsp; &nbsp; private static final LanguageMap instance = new LanguageMap();<br />
+<li>&nbsp; &nbsp; private final Map&lt;String, String&gt; languageList = Maps.&lt;String, String&gt;newHashMap();<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* The time, in milliseconds since epoch, that this instance was last updated<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private long lastUpdateTimeInMilliseconds;<br />
+<li><br />
+<li>&nbsp; &nbsp; public LanguageMap()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;InputStream inputstream = LanguageMap.class.getResourceAsStream(&quot;/assets/minecraft/lang/en_us.lang&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (String s : IOUtils.readLines(inputstream, Charsets.UTF_8))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!s.isEmpty() &amp;&amp; s.charAt(0) != 35)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String[] astring = (String[])Iterables.toArray(EQUAL_SIGN_SPLITTER.split(s), String.class);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (astring != null &amp;&amp; astring.length == 2)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String s1 = astring[0];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String s2 = NUMERIC_VARIABLE_PATTERN.matcher(astring[1]).replaceAll(&quot;%$1s&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.languageList.put(s1, s2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.lastUpdateTimeInMilliseconds = System.currentTimeMillis();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (IOException var7)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Return the StringTranslate singleton instance<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; static LanguageMap getInstance()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return instance;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Translate a key to current language.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public synchronized String translateKey(String key)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.tryTranslateKey(key);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Translate a key to current language applying String.format()<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public synchronized String translateKeyFormat(String key, Object... format)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String s = this.tryTranslateKey(key);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return String.format(s, format);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (IllegalFormatException var5)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;Format error: &quot; + s;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Tries to look up a translation for the given key; spits back the key if no result was found.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; private String tryTranslateKey(String key)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String s = (String)this.languageList.get(key);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return s == null ? key : s;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Returns true if the passed key is in the translation table.<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public synchronized boolean isKeyTranslated(String key)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.languageList.containsKey(key);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* Gets the time, in milliseconds since epoch, that this instance was last updated<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public long getLastUpdateTimeInMilliseconds()<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.lastUpdateTimeInMilliseconds;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_zT1'));">复制代码</em></div><br />
+</td></table></div></div><br />
+所以在这有个疑问，minecraft怎么把其他语言文本文件加载到这个类里的<br />
+<div class="blockcode"><div id="code_imx"><ol><li>private final Map&lt;String, String&gt; languageList = Maps.&lt;String, String&gt;newHashMap()</ol></div><em onclick="copycode($('code_imx'));">复制代码</em></div>字段里的？<br />
+以及，如果我想通过该类加载我自定义路径的*.lang语言文本文件，应该如何实现更为合适呢？<br />
+（ps:把这个类copy到自己插件包里的操作可能看起来冗余了些<font size="1"><font color="#fffacd"><font style="background-color:lemonchiffon">，如果将插件开源，这样直接copyNMS的行为会不会造成对mojang侵权？？</font></font></font>）<br />
+（nms类太多了，这里作为一只辣鸡菜鸟好似大海捞针，实在翻不过来，给各位巨佬们先跪了orz~）<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-8-10 22:13<br />
+Minecraft 负责本地化的类在客户端里。所以你不可能在服务器上找到任何本地化相关的内容。<br />
+你看到的 LanguageMap 算是类似历史遗留的东西。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-8-10 22:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15278983&amp;ptid=900275" target="_blank"><font color="#999999">u.s.knowledge 发表于 2019-8-10 22:13</font></a></font><br />
+Minecraft 负责本地化的类在客户端里。所以你不可能在服务器上找到任何本地化相关的内容。<br />
+你看到的 Langua ...</blockquote></div><br />
+噢噢谢谢提醒！那么若从mcp导出的jar源码里copy部分对.lang文件的读写功能内容到我的插件里，这个行为可取吗（违反协议或是直接侵权，无论开不开源插件？）？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-8-10 23:18<br />
+语言文件的格式很简单，你完全可以自己实现一个读取lang文件的类啊。。。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>吕易天&nbsp; &nbsp; <b>时间: </b>2019-8-10 23:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15279134&amp;ptid=900275" target="_blank"><font color="#999999">1609089074 发表于 2019-8-10 22:25</font></a></font><br />
+噢噢谢谢提醒！那么若从mcp导出的jar源码里copy部分对.lang文件的读写功能内容到我的插件里，这个行为可 ...</blockquote></div><br />
+你自己写个语言处理类不好吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-8-11 00:27<br />
+啊！老想着调用现成的东西，刚一看.lang里内容其实跟.propreties差不多，自己写个处理类确实没多大难度。。。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,140 @@
+<html>
+<head>
+<title>bukkit如何储存，读取方块 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>bukkit如何储存，读取方块 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Seals_Tak&nbsp; &nbsp; <b>时间: </b>2020-5-31 19:53<br />
+<b>标题: </b>bukkit如何储存，读取方块<br />bukkit如何保存一个方块的全部数据(包括容器内的物品、朝向等)到一个文件中，并且可以再次读取和放置该方块<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-1 23:08<br />
+自己手动序列化(因为没用过不清楚是不是已经有这种车轮了<br />
+<br />
+比如新建一个类 来保存方块的各种信息<br />
+然后按一定规格保存起来<br />
+<br />
+要用的时候反向序列化一下自己的这个<br />
+就出来了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏雨吖&nbsp; &nbsp; <b>时间: </b>2020-6-2 21:39<br />
+<i class="pstatus"> 本帖最后由 M8_mve 于 2020-6-2 21:46 编辑 </i><br />
+<br />
+mc里保存方块是用int值id映射方块，方块特殊数据保存在区块的tileEntity里面，可以参考一下这个<br />
+<div class="blockcode"><div id="code_vt5"><ol><li>public static void saveBlock(DataOutputStream out, Block block) throws IOException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; if (block.getType() == Material.AIR)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;out.writeByte(0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;out.flush();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; out.writeByte(1);<br />
+<li>&nbsp; &nbsp; Chunk chunk = block.getChunk();<br />
+<li>&nbsp; &nbsp; int x = block.getX() &amp; 15;<br />
+<li>&nbsp; &nbsp; int y = block.getY() &amp; 15;<br />
+<li>&nbsp; &nbsp; int z = block.getZ() &amp; 15;<br />
+<li>&nbsp; &nbsp; int sectionY = block.getY() &gt;&gt; 4;<br />
+<li>&nbsp; &nbsp; net.minecraft.server.v1_12_R1.Chunk nmsChunk = ((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle();<br />
+<li>&nbsp; &nbsp; net.minecraft.server.v1_12_R1.ChunkSection section = nmsChunk.getSections()[sectionY];<br />
+<li>&nbsp; &nbsp; int id = net.minecraft.server.v1_12_R1.Block.REGISTRY_ID.getId(section.getBlocks().a(x, y, z));<br />
+<li>&nbsp; &nbsp; out.writeInt(id);<br />
+<li>&nbsp; &nbsp; net.minecraft.server.v1_12_R1.TileEntity tileEntity = nmsChunk.getTileEntities().get(new net.minecraft.server.v1_12_R1.BlockPosition(x, y, z));<br />
+<li>&nbsp; &nbsp; if (tileEntity == null)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;out.writeByte(0);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; else<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;out.writeByte(1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.NBTTagCompound tileEntityNBT = new net.minecraft.server.v1_12_R1.NBTTagCompound();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;tileEntity.save(tileEntityNBT);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.NBTCompressedStreamTools.a(tileEntityNBT, (DataOutput) out);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; out.flush();<br />
+<li>}<br />
+<li>public static Block loadBlock(DataInputStream in, World to, int x, int y, int z) throws IOException<br />
+<li>{<br />
+<li>&nbsp; &nbsp; boolean noAir = in.readBoolean();<br />
+<li>&nbsp; &nbsp; if (noAir)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int chunkX = x &gt;&gt; 4;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int chunkZ = z &gt;&gt; 4;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int sectionY = y &gt;&gt; 4;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;x &amp;= 15;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;y &amp;= 15;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;z &amp;= 15;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Chunk chunk = to.getChunkAt(chunkX, chunkZ);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.ChunkSection section = ((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle().getSections()[sectionY];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int id = in.readInt();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_12_R1.IBlockData data = net.minecraft.server.v1_12_R1.Block.REGISTRY_ID.fromId(id);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (data == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;net.minecraft.server.v1_12_R1.Block block = net.minecraft.server.v1_12_R1.Block.getById(id &gt;&gt; 4);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (block != null) try<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; data = block.fromLegacyData(id &amp; 15);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;catch (Exception ignored)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; data = block.getBlockData();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;section.getBlocks().setBlock(x, y, z, data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean hasTileEntity = in.readBoolean();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (hasTileEntity)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;net.minecraft.server.v1_12_R1.NBTTagCompound tileEntityNBT = net.minecraft.server.v1_12_R1.NBTCompressedStreamTools.a(in);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;net.minecraft.server.v1_12_R1.TileEntity tileEntity = net.minecraft.server.v1_12_R1.TileEntity.create(((org.bukkit.craftbukkit.v1_12_R1.CraftWorld)to).getHandle(), tileEntityNBT);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle().a(tileEntity);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; else<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;to.getBlockAt(x, y, z).setType(Material.AIR);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return to.getBlockAt(x, y, z);<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_vt5'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Seals_Tak&nbsp; &nbsp; <b>时间: </b>2020-6-6 17:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18439300&amp;ptid=1054857" target="_blank"><font color="#999999">M8_mve 发表于 2020-6-2 21:39</font></a></font><br />
+mc里保存方块是用int值id映射方块，方块特殊数据保存在区块的tileEntity里面，可以参考一下这个<br />
+ ...</blockquote></div><br />
+谢谢dalao的回答，但我还没有详细了解NMS，请问还有用bukkit来保存方块的方法吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-6 18:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18459260&amp;ptid=1054857" target="_blank"><font color="#999999">Seals_Tak 发表于 2020-6-6 17:30</font></a></font><br />
+谢谢dalao的回答，但我还没有详细了解NMS，请问还有用bukkit来保存方块的方法吗 ...</blockquote></div><br />
+TileEntity显然是最适合的<br />
+<br />
+说白了就是对着tile entity操作nbt<br />
+<br />
+当然你也可以针对具体情况去使用bk封装的<br />
+<br />
+比如说保存一个箱子你就可以使用chest这个接口<br />
+<br />
+但是本质上都是tile entity<br />
+<br />
+大部分方块都没有这个tile <br />
+<br />
+只有那些有数据的才会有tile（指的不是id数据，是其它数据）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Seals_Tak&nbsp; &nbsp; <b>时间: </b>2020-6-6 19:04<br />
+我的NMS是net.minecraft.server.v1_14_R1，<br />
+<br />
+net.minecraft.server.v1_14_R1.Block block = net.minecraft.server.v1_14_R1.Block.getById(id &gt;&gt; 4);里的.getById和<br />
+data = block.fromLegacyData(id &amp; 15);里的.fromLegacyData方法用不了，请问要怎样解决<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏雨吖&nbsp; &nbsp; <b>时间: </b>2020-6-6 19:57<br />
+<i class="pstatus"> 本帖最后由 M8_mve 于 2020-6-6 20:14 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18461016&amp;ptid=1054857" target="_blank"><font color="#999999">Seals_Tak 发表于 2020-6-6 19:04</font></a></font><br />
+我的NMS是net.minecraft.server.v1_14_R1，<br />
+<br />
+net.minecraft.server.v1_14_R1.Block block = net.minecraft. ...</blockquote></div>1.14的话，区域格式好像有变，你可以自己再去看一下ChunkRegionLoader里面的代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sanqiue&nbsp; &nbsp; <b>时间: </b>2020-7-25 04:52<br />
+听说WE有你要的保存数据的方法，可以直接用
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

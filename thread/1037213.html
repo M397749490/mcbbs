@@ -1,0 +1,329 @@
+<html>
+<head>
+<title>PVPIN教程RL--BukkitRunnable的使用 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>PVPIN教程RL--BukkitRunnable的使用 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-7 10:12<br />
+<b>标题: </b>PVPIN教程RL--BukkitRunnable的使用<br /><i class="pstatus"> 本帖最后由 William_Shi 于 2020-7-5 13:18 编辑 </i><br />
+<font face="Times New Roman"><font size="4"><font color="#000000"><strong>本教程系PVPIN教程复刻系列<br />
+索引见<a href="thread.html?t=1034477" target="_blank">https://www.mcbbs.net/thread-1034477-1-1.html</a><br />
+本教程不做排版，如果你觉得不舒服，可以选择退出本页面<br />
+本教程所有代码全部在coding开源，详见索引</strong></font></font></font><font face="Times New Roman"><font size="4"><font color="#000000"><strong><br />
+本教程可能存在一定吞代码问题，总体上以开源地址的代码为准<br />
+<br />
+本教程涵盖内容：<br />
+BukkitRunnable的使用、如何将BukkitRunnable配合事件监听使用<br />
+如果你因为排版不好粗略阅读、CV代码，你会学到如何做一把弓，这把弓射出的箭在飞行时不断播放水花的粒子效果，击中目标就会在目标处放置一格水，<br />
+如果你认真阅读本教程并无视排版，你会学到如何架构上述程序提高效率，以及我关于Bukkit任务调度方式的经验<br />
+学完本教程你对程序架构和BukkitRunnable的应用方面肯定会有一定提升<br />
+<br />
+<br />
+介绍本节实例：<br />
+我们需要做一把弓，这把弓射出的箭在飞行时<br />
+不断播放水花的粒子效果，击中目标就会在目标处放置一格水<br />
+（创意来自PVPIN）<br />
+<br />
+分析这个功能我们首先需要定义一把弓（为了方便，此处不会教学你应该怎么让弓与众不同）<br />
+我们直接用物品名字判断是不是我们的弓的名字（实际开发中，如果你有很多物品需要自定义，建议你最初架构的时候就预留NBT的数据键，比如说MyPluginCustomizedItem，数据包可以是Byte数据包，然后设置为1，当你需要判断物品是不是你自定义的物品时你可以直接使用NBT混合数据包的hasKey方法以减少不必要的判断）<br />
+其次我们需要监听箭被发射出去，此时获取箭的发射者，判断是不是玩家（当然也可以实体或者什么别的拿着你的弓，但是这里不考虑了）<br />
+如果是，那么获取其手中的物品堆，并判断是不是你的弓如果是你的弓，接下来就需要对着这根箭进行处理了<br />
+需要处理两个部分，一为定时播放水花粒子，二为击中则放水实现较为简单，即注册一个新BukkitRunnable<br />
+每次生成之前都先检测你的这个箭实体 isValid 和 isInBlock，如果不再Valid就注销自身，如果inBlock就将AttachedBlock替换成水方块，如果既valid也并非inBlock就播放水花效果<br />
+那么为什么不使用一个临时事件监听呢？<br />
+原因很简单，如果有插件清理了实体，那么这个事件监听将永远不被注销导致性能下降，而且事件监听的本质是反射，如果你的 箭同时被发射太多次将会极大拖慢效率，但是BKRunnable本质上是不断把任务推给主线程，不存在过多效率问题<br />
+那么为什么不使用一个永久的箭击中事件监听呢？<br />
+如果使用事件监听势必涉及UUID的判断，比如把所有水花箭的UUID存入列表，如果你涉及很多种箭，还用UUID判断就会需要对着一个Map中的所有列表逐一进行匹配<br />
+当然也可以对着箭实体操作PersistentDataHolder，但是这是1.14+才有的内容，低版本没有，如果使用的确可以不再涉及UUID操作而是直接读取你所定义的实体数据，具体可看海螺螺大佬教程。<br />
+以上：架构与整体思路完整了<br />
+<br />
+那么，什么是BukkitRunnable呢？<br />
+BukkitRunnable是一种任务调度器，他负责不断把一段代码推给线程来执行<br />
+<br />
+runTask(Plugin plugin)<br />
+让Bukkit任务调度器在下一个tick运行任务.<br />
+runTaskAsynchronously(Plugin plugin)<br />
+在Bukkit任务调度器异步运行这个任务.<br />
+runTaskLater(Plugin plugin, long delay)<br />
+在指定tick后执行该任务.&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+runTaskLaterAsynchronously(Plugin plugin, long delay)<br />
+让Bukkit任务调度器在指定的tick后异步执行这个任务.<br />
+runTaskTimer(Plugin plugin, long delay, long period)<br />
+在指定时间后开始以指定的间隔不断执行任务.<br />
+runTaskTimerAsynchronously(Plugin plugin, long delay, long period)<br />
+让Bukkit任务调度器在指定的tick后开始异步的以指定的间隔不断执行任务.<br />
+注：所有的时间单位均为tick，以Long为类型，20L是20tick，20tick是一秒<br />
+<br />
+这么多的调度方法有什么区别呢？<br />
+带有long delay的都代表了延迟（请不要随意对准主线程使用sleep！会导致整个服务器停止运作！）<br />
+带有long period的都代表了循环<br />
+方法名带有Async都是异步任务，其他的都是把任务推给主线程完成<br />
+如果可能，请多使用异步任务，因为mc服务器大部分任务都在主线程完成，所以降低主线程负担是极为必要的，但是几乎任何涉及到mc的操作都不能异步，比如异步放一个方块显然不行，这也就是一直被强调的线程安全问题，如果你是在其他线程操作mc中内容，直接使用runTask方法把任务推给主线程就好<br />
+而延迟执行也有较大的用处，比如说PlayerRespawnEvent被触发的瞬间，玩家并没有真正“复活”，因为事件监听不是回调，事件监听先传递事件给插件，插件修改事件结果，最后事件才会发生，所以在这个事件内直接操作玩家对象是不行的，必须要延迟至少1tick<br />
+还有一些如在玩家关闭物品栏事件内让玩家打开新物品栏，那么还是如上所述，事件发生时原物品栏并未关闭，你如果这样直接打开新物品栏，势必导致现有的将被关闭但还没有被关闭的物品栏被关闭，那么又一次触发这个事件，还是相同的物品栏将要被关闭，于是死循环<br />
+直接覆写 run 方法<br />
+比如说</strong></font></font></font><div class="blockcode"><div id="code_C8U"><ol><li>new BukkitRunnable(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void run(){<br />
+<li>//To Do xxx<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}.runTaskTimer(Bukkit.getPluginManager().getPlugin(&quot;PVPINDemoRL&quot;),0L,10L);</ol></div><em onclick="copycode($('code_C8U'));">复制代码</em></div><font face="Times New Roman"><font size="4"><font color="#000000"><strong>以上是匿名内部类<br />
+当然由此可知也可以直接写一个类继承BukkitRunnable，并覆写run方法，通过实例化这个类的方式来调度任务不过这种方法缺点在于一个类只可能有一个run方法，一旦写死不能改变，建议在某个BukkitRunnable多处被调用的时候提高复用性<br />
+<br />
+不过注意 如果使用匿名内部类，引用的变量必须是final或effectively final，也就是说如果你想操作外部的变量，最好把它做成一个只有一个元素的数组，或者是Map来操作<br />
+之后我再介绍一种较为重要的思想--counter<br />
+比如说我希望一个bkrunnable想要运行指定次数之后结束，就可以使用counter</strong></font></font></font><div class="blockcode"><div id="code_s0x"><ol><li>new BukkitRunnable(){</ol></div><em onclick="copycode($('code_s0x'));">复制代码</em></div><font face="Times New Roman"><font size="4"><font color="#000000"><strong>通过这种方法，就可以免除一些堆砌的bukkitrunnable<br />
+<br />
+接下来看本实例的代码，我将通过这些代码直观呈现怎么使用BKRunnable<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+
+<ignore_js_op>
+
+<img id="aimg_1586412" aid="1586412" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/164151am3lxgh9snxmhwpl.png" file="https://attachment.mcbbs.net/forum/202005/06/164151am3lxgh9snxmhwpl.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="589" id="aimg_1586412" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586412_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>5.png</strong> <em class="xg1">(200.4 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjQxMnwxZmU2YzliMHwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:41 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</td></table></div></div><br />
+主类很简单，就是注册了一个事件监听，注意我的主类和一般主类不一样，是因为这个教程我自写了模块管理<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+
+<ignore_js_op>
+
+<img id="aimg_1586414" aid="1586414" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/164151pfamffkibm6hbkka.png" file="https://attachment.mcbbs.net/forum/202005/06/164151pfamffkibm6hbkka.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1586414" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586414_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>6.png</strong> <em class="xg1">(283.23 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjQxNHw0ZTEyMDJiZnwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:41 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1586413" aid="1586413" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/164151r99h04qoc8thc4he.png" file="https://attachment.mcbbs.net/forum/202005/06/164151r99h04qoc8thc4he.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1586413" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586413_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>7.png</strong> <em class="xg1">(312.49 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjQxM3xlOGM4NjE1NHwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:41 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</td></table></div></div><br />
+<br />
+<br />
+这是事件监听，我先用一连串if做了类型检测，确保抛射物发射者是玩家，以及发射的弓有元数据、有自定义名且自定义名为镜水天音<br />
+最后就是重中之重的BKRunnable<br />
+检测箭是不是Valid、和是不是InBlock<br />
+如果不Valid说明实体被清理了或者箭被人捡走了，取消bkrunnable<br />
+如果InBlock说明击中了，此时把击中方块替换为水，取消bkrunnable<br />
+如果都不是，那么播放水的粒子效果<br />
+最后就是具体效果了<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>
+<ignore_js_op>
+
+<img id="aimg_1586386" aid="1586386" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/163224togpp35caqib5e5w.jpg" file="https://attachment.mcbbs.net/forum/202005/06/163224togpp35caqib5e5w.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1586386" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586386_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1588753945000.jpg</strong> <em class="xg1">(78.29 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjM4NnxlYWI3YzJiY3wxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:32 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1586385" aid="1586385" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/163224en6v4hhyzn4dhvt7.png" file="https://attachment.mcbbs.net/forum/202005/06/163224en6v4hhyzn4dhvt7.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1586385" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586385_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>4.png</strong> <em class="xg1">(231.39 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjM4NXw4YTAwODVkZXwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:32 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1586384" aid="1586384" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/163224m3ua19wmdqo6cwe7.png" file="https://attachment.mcbbs.net/forum/202005/06/163224m3ua19wmdqo6cwe7.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1586384" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586384_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(27.29 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjM4NHwyNzNmYjkwZnwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:32 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+
+<ignore_js_op>
+
+<img id="aimg_1586383" aid="1586383" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202005/06/163224wzzzvsti2wbfllnt.png" file="https://attachment.mcbbs.net/forum/202005/06/163224wzzzvsti2wbfllnt.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="670" id="aimg_1586383" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1586383_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2.png</strong> <em class="xg1">(19.07 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTU4NjM4M3xjODJmMDE2MXwxNjE0MDMyNTMxfDI0MTk0ODZ8MTAzNzIxMw%3D%3D&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-5-6 16:32 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+需要注意，按我的代码，可能根本没有什么明显的粒子效果<br />
+原因有二<br />
+一是BKRunnable每10tick才运行一次，因此只有1/2秒才会播放一次粒子，相比于箭的速度肯定太慢<br />
+二是粒子count很小，因此每次只生成一两个粒子很不明显<br />
+解决方法很简单<br />
+只需要把你的BKRunnable循环加快（比如5L，2L）<br />
+以及调大粒子count就好了，如spawnParticle(xxx,xxx,10)<br />
+</td></table></div></div><br />
+<br />
+</strong></font></font></font><font face="Times New Roman"><font size="4"><font color="#000000"><strong>如果你有任何疑问可加群讨论，我的群目前只有十几个人，只能保证每个问题都被回复（我或RainEffect），莫老的群有几百个人，不时有大佬来解答问题，讨论氛围也热烈。<br />
+<br />
+</strong></font></font></font><br />
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[18015801] = ['1586383','1586384','1586385','1586386','1586412','1586413','1586414'];
+attachimggroup(18015801);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jiajia005200&nbsp; &nbsp; <b>时间: </b>2020-5-7 17:38<br />
+支持支持，学到了<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>结城希亚&nbsp; &nbsp; <b>时间: </b>2020-5-7 17:40<br />
+我一般喜欢专门开个包放Task类<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-7 17:46<br />
+emmmmm<br />
+BukkitRunnable 和 Runnable 有什么差别嘛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-7 19:13<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18091525&amp;ptid=1037213" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-7 17:46</font></a></font><br />
+emmmmm<br />
+BukkitRunnable 和 Runnable 有什么差别嘛</blockquote></div><br />
+<font size="4">这个问题我不敢说能很全面的回答</font><br />
+<font size="4">就如海螺螺大佬在关于通信的教程里说的，BKScheduler、BKRunnable都可以把任务推给主线程，以解决异步任务（Async监听、网络线程）带来的线程安全问题</font><br />
+<font size="4">其次的话BKRunnable不需要你给线程命名，如果自写多线程需要你规范命名、统一管理调度，而BKRunnable的异步任务显然是一个实现了统一管理线程的轮子，多数情况下没必要再去重复造轮子，除非有特殊需求</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>新科&nbsp; &nbsp; <b>时间: </b>2020-5-8 08:40<br />
+这个想法真的不错，不过希望能有个统一一点的网站，这样子查询教程会更方便<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-8 10:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18100587&amp;ptid=1037213" target="_blank"><font color="#999999">新科 发表于 2020-5-8 08:40</font></a></font><br />
+这个想法真的不错，不过希望能有个统一一点的网站，这样子查询教程会更方便 ...</blockquote></div><br />
+感谢支持<br />
+其实PVPIN复刻真的已经有组织的在进行了<br />
+或许快了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>新科&nbsp; &nbsp; <b>时间: </b>2020-5-8 10:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18102426&amp;ptid=1037213" target="_blank"><font color="#999999">William_Shi 发表于 2020-5-8 10:00</font></a></font><br />
+感谢支持<br />
+其实PVPIN复刻真的已经有组织的在进行了<br />
+或许快了</blockquote></div><br />
+时光貌似之前出过一个 mccreate 来着，不过最后也是无法访问为结尾了。。<br />
+期待大佬们能成功复刻并且能开的长久一点，我也是从PVPIN才接触到真正的编程语言，希望复刻后的网站可以帮助更多的人。<img src="static/image/smiley/mc_mob_food_plants/Notch.gif" smilieid="839" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-5-8 10:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18102570&amp;ptid=1037213" target="_blank"><font color="#999999">新科 发表于 2020-5-8 10:07</font></a></font><br />
+时光貌似之前出过一个 mccreate 来着，不过最后也是无法访问为结尾了。。<br />
+期待大佬们能成功复刻并且能开 ...</blockquote></div><br />
+我可以给你一个预告：你应该先去学一下TypeScript<br />
+当然如果你只想用用GUI编程那就不需要<br />
+<br />
+复刻长久应该可以做到<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AuroraCruiser&nbsp; &nbsp; <b>时间: </b>2020-6-10 17:09<br />
+干货满满啊 支持一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏雨吖&nbsp; &nbsp; <b>时间: </b>2020-7-5 12:54<br />
+<div class="quote"><blockquote>(BukkitRunnable) ()-&gt; {<br />
+// To Do<br />
+}.runTask();</blockquote></div><br />
+这是lambda？那么，可不可以麻烦你先百度一下lambda<br />
+Java什么时候支持抽象类lambda了？<br />
+可以请你发一下代码开源地址吗？<br />
+我猜你连自己的代码能不能编译都不知道叭<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-5 13:03<br />
+<i class="pstatus"> 本帖最后由 William_Shi 于 2020-7-5 13:06 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18803794&amp;ptid=1037213" target="_blank"><font color="#999999">夏雨吖 发表于 2020-7-5 12:54</font></a></font><br />
+这是lambda？那么，可不可以麻烦你先百度一下lambda<br />
+Java什么时候支持抽象类lambda了？<br />
+可以请你发一下代 ...</blockquote></div><br />
+之前代码被吞掉了，我再用code修改的时候炸了，<a href="https://celestialrealm.coding.net/public/PVPINDemoRL/PVPINDemoRL/git/files" target="_blank">https://celestialrealm.coding.ne ... PINDemoRL/git/files</a><br />
+以开源地址为准<br />
+示例代码没有任何问题，我想<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏雨吖&nbsp; &nbsp; <b>时间: </b>2020-7-5 13:17<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18803917&amp;ptid=1037213" target="_blank"><font color="#999999">William_Shi 发表于 2020-7-5 13:03</font></a></font><br />
+之前代码被吞掉了，我再用code修改的时候炸了，https://celestialrealm.coding.net/public/PVPINDemoRL/PV ...</blockquote></div><br />
+那可不可以麻烦你先把帖子里面的误导代码改掉？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-5 13:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18804077&amp;ptid=1037213" target="_blank"><font color="#999999">夏雨吖 发表于 2020-7-5 13:17</font></a></font><br />
+那可不可以麻烦你先把帖子里面的误导代码改掉？</blockquote></div><br />
+全部删完了，感谢提醒，全部修改掉了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

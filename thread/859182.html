@@ -1,0 +1,119 @@
+<html>
+<head>
+<title>[1.12.2-1.7.10][Sampler——采样器]性能分析工具 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.12.2-1.7.10][Sampler——采样器]性能分析工具 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GiNYAi&nbsp; &nbsp; <b>时间: </b>2019-4-20 19:43<br />
+<b>标题: </b>[1.12.2-1.7.10][Sampler——采样器]性能分析工具<br /><i class="pstatus"> 本帖最后由 GiNYAi 于 2020-1-24 22:28 编辑 </i><br />
+<br />
+Sampler是一个可以用来分析运行缓慢或者相关问题的性能分析工具,他可以在客户端/服务器端上运行.<br />
+<font color="Black"><font style="background-color:black">如果只分析Cpu时间也可以考虑<a href="thread.html?t=823209" target="_blank">Spark</a></font></font><br />
+<br />
+在更完善的手册或GUI完成之前,目标用户大体是高端玩家或者被Mod/整合包作者索要Debug信息的玩家.<br />
+<br />
+它最重要的功能有:<br />
+<ul><li>一个采样分析器,可以用来观察MC具体在哪里花费了它的时间. 子命令:start,(wait),stop,export.<li>基于事件的采样器开关.子命令:trigger.<li>精确的Tickrate信息.F3 或者 子命令:tps.<li>记录ticking的游戏对象的数量.子命令:counts.输入纬度ID的话会显示更详细的信息.<li>内存信息与垃圾回收统计.子命令:memory.<li>高亮显示tile entity special renderers(潜在的渲染时间会比较长的方块):子命令:tesr.<li>高亮显示区块更新的源头.子命令:renderupdates.<li>各种各样不同的子命令,可以分析网络IO,区块加载,保存,寻找方块/实体,...<br />
+</ul><br />
+这个Mod设计时十分注意,不要产生额外的负担,所以在分析的时候只有非常小的性能消耗.<br />
+它的功能非常的广泛,最好使用help功能探索.<br />
+<br />
+目前的交互方式是完全命令驱动的.<br />
+服务器端的命令请使用`/sampler help`查看,<br />
+客户端的命令则需要使用`/csampler help`.<br />
+<br />
+所有服务器端的命令都遵循格式`/sampler &lt;subcommand&gt; [&lt;arguments&gt;...]`,<br />
+而客户端的则是`/csampler &lt;subcommand&gt; [&lt;arguments&gt;...]`<br />
+子命令的详细信息则可以使用`/(c)sampler help &lt;subcommand&gt;`获得.<br />
+<br />
+Wiki:<a href="https://wiki.industrial-craft.net/index.php?title=Using_Sampler" target="_blank">https://wiki.industrial-craft.net/index.php?title=Using_Sampler</a><br />
+<hr class="l" /><br />
+辨识问题<br />
+<hr class="l" /><br />
+第一步是将问题大体的分类为客户端,服务器端或者是内存不足.<br />
+<br />
+<font size="3"><strong>内存不足</strong></font><br />
+Java虚拟机(JVM)通过垃圾回收器(GC)为应用程序(MC)管理内存.当应用程序为了其数据/操作请求内存空间的时候,JVM会从池子(堆Heap)中拿出一点.把空间还回堆中则是由GC完成的.GC检查哪些数据(对象)是不再 被使用(可到达) 的然后释放其空间.<br />
+垃圾回收通常是快速可靠的循环,然而当内存的需求超过堆的大小,问题就出现了.最常见的原因是配置的堆空间(JVM参数-Xmx=&lt;size&gt;)并不充足,有时也有可能是因为错误的Mod的代码导致的内存泄漏,JVM参数设置错误,或者开启MC服务器而没有设置nogui.<br />
+<br />
+典型症状:<br />
+<ul><li>过长的启动时间,甚至完全未响应<li>在运行时未响应,特别是在客户端侧,在F3中显示的堆使用下降时掉帧.<li>在未响应时,CPU的所有核心都在工作<li>堆使用`F3 /(c)sampler memory`总是接近上限.<li>高的GC次数或时间占比,`/(c)sampler memory`的最后两行都应当低于30000&quot;ppm of uptime&quot; 在启动的几分钟之后.<li>因为OutOfMemoryError (GC Overhead exceeded 等)崩溃<br />
+</ul><br />
+需要注意的是这些未响应和内存需求激增也许由其他的因素造成,这些症状并不是100%可靠的指标.<br />
+<br />
+<font size="3"><strong>客户端</strong></font><br />
+客户端侧的问题在Client线程上,也就是说渲染部分.因为客户端的计算主要是依靠插值法,而不是单人游戏中存在的隐藏的服务器线程.<br />
+<br />
+典型症状:<br />
+<ul><li>低FPS<li>掉帧-游戏对鼠标的响应并不流畅<li>偶尔甚至会未响应,通常与大量区块更新有关<li>并不平稳的帧时间曲线(由Sampler添加到F3中)<li>cpu使用不超过2个核心<br />
+</ul><br />
+<br />
+未响应的症状通常与低内存的问题重叠<br />
+<br />
+<font size="3"><strong>服务器侧</strong></font><br />
+所有在在独立服务器端/单人游戏服务器线程上发生的事情.<br />
+<br />
+典型的症状<br />
+<ul><li>方块并没有被立即破坏,或者重新出现.<li>不流畅的天空盒运动(星星/太阳的运动并不流畅,或者跳回过去)<li>GUI(比如箱子)并不会立即打开.<li>服务器控制台/日志中的&quot;Can't keep up&quot; warnings<li>低平均tps或者tick时间突高,可以使用/sampler tps观察.(avg=平均,应当低于50ms,max=2分钟内的最高,应当低于500ms)<li>F3中显示的tps低或者不稳定(需要在服务器和客户端都安装Sampler)<br />
+</ul><br />
+<br />
+注意Sampler总是会在刚开启的2分钟显示高的平均/最高值,因为最初的几个tick总是非常的缓慢,并且使统计结果产生了偏差.<br />
+The tick time will routinely go below 50 ms (tick rate over 20) after a lag spike to bring the average rate back in line with the target.<br />
+Forge/Mc服务器GUI或者其他的mod报告的tps/tick时间是不准确的.<br />
+<br />
+帧时间Debug图表<br />
+<hr class="l" /><br />
+Sampler向Debug界面(F3)添加了一个图表,显示最近2k个帧的绘制时间,输出是未过滤的并且能够显示游戏运行是否平滑,是否缓慢或者掉帧.<br />
+<img id="aimg_qc3c0" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://wx1.sinaimg.cn/mw690/0065vZfyly1g2996o9cuaj30a009c751.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+横(x)轴表示所有记录了的帧,旧的帧靠右,而新的在左边.纵(y)轴表示帧时间,即绘制一个具体的帧消耗的时间.帧时间的倒数即是Fps.因为这个图表显示的是帧时间,所以越低越好.<br />
+4个横向的白线表示了重要的真时间.从下往上分别表示0ms(无限fps),1/60=16.67ms(60fps),1/30=33.33ms(30fps),1/15=66.67ms(15FPS).超出这个区域的仍会保持线性缩放.<br />
+这个图表本身使用了两个颜色,蓝色表示在客户端tick中使用的时间(模拟),绿色表示余下的(渲染,vsync,misc).<br />
+新版本的Sampler在图表底部添加红色的箭头表示GC,他们展示了Sampler监测的垃圾回收的时间,可以观察一个帧时间过高是否由GC引起.<br />
+<br />
+使用VisualVM<br />
+<hr class="l" /><br />
+<a href="https://visualvm.github.io/" target="_blank">VisualVM</a>可以被用来查看Sampler export/trigger命令导出的nps文件.使用VisualVM打开一个nps文件的方法,选择菜单中的文件(F)-装入(L)-文件类型改为nps-然后选择想要的文件.<br />
+<br />
+<strong>基础</strong><br />
+下面的截图展示了VisualVM如何显示结果:<br />
+<img id="aimg_nXvvs" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://wx2.sinaimg.cn/mw690/0065vZfyly1g299u8o7vxj30ru0kogp8.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+在最上方的名为&quot;CPU: ...&quot;的标签,代表特定的nps文件,每个打开的文件都有一个标签.&quot;调用树&quot;,&quot;热点&quot;,&quot;组合&quot;选择不同的数据的视图.只有&quot;调用树&quot;是需要关注的.&quot;热点&quot;可能看起来比较有趣,但是通常会产生误导所以最好忽略.<br />
+分析应该总是从这几步开始:<br />
+<ul type="1" class="litype_1"><li>根据想要分析的内容,查找&quot;Server thread&quot; (A) 或者&quot;Client thread&quot;. Server thread = &quot;/sampler&quot;, Client thread = &quot;/csampler&quot;.<li>检查时间栏(C)中的数据与调用栏(D)中的数据,如果使用Sampler的默认,每次调用的时间大约在10ms,在示例中61587 调用 * 10 ms = 615870 ms,与622150 ms足够接近,如果数据差的太多,代表JVM并没有在总是执行代码-通常因为当时正在垃圾回收-所以侧写的数据的是无价值的,使用&quot;/(c)sampler memory&quot; .<li>展开Server/Client thread来看时间都去哪里了.<br />
+</ul><br />
+<br />
+The red bar (B) shows how much of the time was spent in the current entry (row) and its children. This is a top-down view that gradually fans out into the different areas of the program, starting with Server/Client thread, going into the game loop, then dividing into doing actual work and sleeping/waiting for the next simulation step. The actual work splits further into ticking blocks, entities, loading chunks etc.<br />
+<br />
+Every entry refers to either a method or &quot;Self time&quot;. A method entry is for time spent in the named method invoked by the parent, self time by the parent itself. In the example MinecraftServer.run spends 77.2% in MinecraftServer.tick, 22.8% in Thread.sleep and 0% in itself. A substantial Thread.sleep time means that the thread is partially idle and has spare CPU time, which is optimal.<br />
+<br />
+Investigation in the example scenario would continue by unfolding MinecraftServer.tick a couple times, noticing that eventually 42% go towards entity simulation and 20% towards block ticks with nothing below sticking out too much. Without severe outliers that could be targeted specifically, like by removing a problematic tile entity, broad problem categories can still be helped through generic administrative measures. Block ticks and entities both depend on the number of loaded chunks, managing chunk loading, reducing the view distance and restarting the server all reduce the loaded chunk count. Entities can be culled by limiting mob farm use and searching for rogue setups like out of control mob spawners.<br />
+<br />
+Identifying a locatable problem like too much load from net.minecraft.entity.EntityLiving can be followed up by finding the responsible game objects using the &quot;/(c)sampler find&quot; command, e.g. &quot;/sampler find net.minecraft.entity.EntityLiving --chunkCounts&quot; to retrieve a quantity-ordered list of all chunks containing EntityLiving instances.<br />
+<br />
+Note that the method names are usually obfuscated in Minecraft, e.g. &quot;tick&quot; may get replaced with &quot;func_someNumber&quot;, but it is still possible to see the class name. Those names can be translated by MCPBot or by looking at the methods.csv file that comes with a Forge development environment. <br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>二哈大魔王&nbsp; &nbsp; <b>时间: </b>2019-4-20 20:30<br />
+哇 这个是个好东西啊。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1723624171&nbsp; &nbsp; <b>时间: </b>2019-4-27 12:19<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huangzhidong&nbsp; &nbsp; <b>时间: </b>2019-4-28 13:16<br />
+话说官网1.12到1.7，怎么到这就被阉了呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GiNYAi&nbsp; &nbsp; <b>时间: </b>2019-4-28 22:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14285991&amp;ptid=859182" target="_blank"><font color="#999999">huangzhidong 发表于 2019-4-28 13:16</font></a></font><br />
+话说官网1.12到1.7，怎么到这就被阉了呢</blockquote></div><br />
+因为没看见<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wslps&nbsp; &nbsp; <b>时间: </b>2020-5-29 01:45<br />
+终于找到了 感谢楼主分享
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

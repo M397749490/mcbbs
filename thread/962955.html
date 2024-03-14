@@ -1,0 +1,148 @@
+<html>
+<head>
+<title>关于forge1.12.2中SimpleImpl数据同步的一点小问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于forge1.12.2中SimpleImpl数据同步的一点小问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zxcvbnm156&nbsp; &nbsp; <b>时间: </b>2020-2-18 16:16<br />
+<b>标题: </b>关于forge1.12.2中SimpleImpl数据同步的一点小问题<br /><i class="pstatus"> 本帖最后由 zxcvbnm156 于 2020-2-18 16:19 编辑 </i><br />
+<br />
+大佬们虽然文字有点多，但是脉络很清晰，希望大家能帮我看下<br />
+我的forge版本是1.12.2<br />
+首先我为玩家添加了能储存金币数量的能力系统。然后想在打开玩家背包栏的时候在界面上绘制一段文字显示玩家的金币。我的实现思路是这样子的：<font color="#bbb529">@SideOnly</font>(Side.<font color="#9876aa"><i>CLIENT</i></font>)<br />
+<font color="#bbb529">@SubscribeEvent<br />
+</font><font color="#cc7832">public static void </font><font color="#ffc66d">onRenderGuiScreen</font>(GuiOpenEvent event)<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">if</font>(event.getGui() <font color="#cc7832">instanceof </font>GuiInventory)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;event.setCanceled(<font color="#cc7832">true</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>Minecraft.<i>getMinecraft</i>().displayGuiScreen(<font color="#cc7832">new </font>FantasyValleyInventory(Minecraft.<i>getMinecraft</i>().<font color="#9876aa">player</font>))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>SimpleNetworkWrapperLoader.<font color="#9876aa"><i>simpleNetworkWrapper</i></font>.sendToServer(<font color="#cc7832">new </font>GetMoneyRequest())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>IMoneyStorage capability=Minecraft.<i>getMinecraft</i>().<font color="#9876aa">player</font>.getCapability(CapabilitiesLoader.<font color="#9876aa"><i>moneyStorage</i></font><font color="#cc7832">,null</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>Minecraft.<i>getMinecraft</i>().<font color="#9876aa">fontRenderer</font>.drawString(<font color="#6a8759">&quot;</font><font color="#6a8759">当前金币</font><font color="#6a8759">:&quot;</font><font color="#cc7832">,</font><font color="#6897bb">0</font><font color="#cc7832">,</font><font color="#6897bb">0</font><font color="#cc7832">,</font><font color="#6897bb">0xFFFFFFFF</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<font style="color:rgb(169, 183, 198)"><font style="background-color:rgb(43, 43, 43)"><font face="Consolas"><font style="font-size:9.8pt">}</font></font></font></font>首先我在客户端监听玩家打开背包的事件，if里面前两句代码是我截断了游戏自带的背包界面然后自己重绘了一个，可以别管它。然后第三句我向服务器发送了一个new GetMoneyRequest()，这个GetMoneyRequest的实现代码是这样子的：<br />
+<font color="#cc7832">public class </font>GetMoneyRequest <font color="#cc7832">implements </font>IMessage<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font><font color="#ffc66d">GetMoneyRequest</font>(){}<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">fromBytes</font>(ByteBuf buf)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp; }<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">toBytes</font>(ByteBuf buf)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp; }<br />
+}<br />
+它是空的，因为我只是用来提醒服务器要返回玩家金币，所以发送了一个空包。<br />
+之后便是服务器处理这个包的类：<br />
+<font color="#cc7832">public class </font>ServerMessageHandler <font color="#cc7832">implements </font>IMessageHandler&lt;GetMoneyRequest<font color="#cc7832">,</font>MoneyInfo&gt;<br />
+{<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public </font>MoneyInfo <font color="#ffc66d">onMessage</font>(GetMoneyRequest message<font color="#cc7832">, </font>MessageContext ctx)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;EntityPlayerMP player=ctx.getServerHandler().<font color="#9876aa">player</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>IMoneyStorage capability=player.getCapability(CapabilitiesLoader.<font color="#9876aa"><i>moneyStorage</i></font><font color="#cc7832">,null</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new </font>MoneyInfo(capability.getCoin()<font color="#cc7832">,</font>capability.getTicket())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}<br />
+代码很简单，前两句是为了获取服务端玩家的金钱储存能力系统<br />
+然后第三句利用能力系统里面getCoin(),getTicket()两个接口返回的数据（分别代表金币，点券）new一个新的Message然后Return给客户端<br />
+这里的MoneyInfo具体实现是这样的（因为图片数量受限我就直接发文字代码了）：<br />
+<font color="#cc7832">public class </font>MoneyInfo <font color="#cc7832">implements </font>IMessage<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font><font color="#ffc66d">MoneyInfo</font>(){}<br />
+&nbsp; &nbsp; <font color="#cc7832">public int </font><font color="#9876aa">coin</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public int </font><font color="#9876aa">ticket</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public </font><font color="#ffc66d">MoneyInfo</font>(<font color="#cc7832">int </font>coin<font color="#cc7832">, int </font>ticket)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">this</font>.<font color="#9876aa">coin</font>=coin<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this</font>.<font color="#9876aa">ticket</font>=ticket<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">fromBytes</font>(ByteBuf buf)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buf.writeInt(<font color="#9876aa">coin</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>buf.writeInt(<font color="#9876aa">ticket</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">toBytes</font>(ByteBuf buf)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa">coin</font>=buf.readInt()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa">ticket</font>=buf.readInt()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}<br />
+<br />
+这个类也很简单，就是存了金币和点券的数据<br />
+之后我在客户端又写了一个处理这个返回的数据包的类，具体的实现是这样的：<br />
+<font color="#cc7832">public class </font>ClientMessageHandler <font color="#cc7832">implements </font>IMessageHandler&lt;MoneyInfo<font color="#cc7832">, </font>IMessage&gt;<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font><font color="#ffc66d">ClientMessageHandler</font>(){}<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public </font>IMessage <font color="#ffc66d">onMessage</font>(MoneyInfo message<font color="#cc7832">, </font>MessageContext ctx)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">int </font>coin=message.<font color="#9876aa">coin</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int </font>ticket=message.<font color="#9876aa">ticket</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>Minecraft.<i>getMinecraft</i>().addScheduledTask(()-&gt;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;EntityPlayerSP player= Minecraft.<i>getMinecraft</i>().<font color="#9876aa">player</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>IMoneyStorage capability=player.getCapability(CapabilitiesLoader.<font color="#9876aa"><i>moneyStorage</i></font><font color="#cc7832">,null</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>capability.setCoin(<font color="#b389c5">coin</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>capability.setTicket(<font color="#b389c5">ticket</font>)<font color="#cc7832">;</font>})<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}<br />
+也很简单，就是先获取客户端玩家的能力系统，然后把返回过来的数据利用能力系统setCoin()和setTicket()两个接口填写到能力系统里面。<br />
+最后就是回到这里：<br />
+<font color="#bbb529">@SideOnly</font>(Side.<font color="#9876aa"><i>CLIENT</i></font>)<br />
+<font color="#bbb529">@SubscribeEvent<br />
+</font><font color="#cc7832">public static void </font><font color="#ffc66d">onRenderGuiScreen</font>(GuiOpenEvent event)<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">if</font>(event.getGui() <font color="#cc7832">instanceof </font>GuiInventory)<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;event.setCanceled(<font color="#cc7832">true</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>Minecraft.<i>getMinecraft</i>().displayGuiScreen(<font color="#cc7832">new </font>FantasyValleyInventory(Minecraft.<i>getMinecraft</i>().<font color="#9876aa">player</font>))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>SimpleNetworkWrapperLoader.<font color="#9876aa"><i>simpleNetworkWrapper</i></font>.sendToServer(<font color="#cc7832">new </font>GetMoneyRequest())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>IMoneyStorage capability=Minecraft.<i>getMinecraft</i>().<font color="#9876aa">player</font>.getCapability(CapabilitiesLoader.<font color="#9876aa"><i>moneyStorage</i></font><font color="#cc7832">,null</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>Minecraft.<i>getMinecraft</i>().<font color="#9876aa">fontRenderer</font>.drawString(<font color="#6a8759">&quot;</font><font color="#6a8759">当前金币</font><font color="#6a8759">:&quot;</font><font color="#cc7832">,</font><font color="#6897bb">0</font><font color="#cc7832">,</font><font color="#6897bb">0</font><font color="#cc7832">,</font><font color="#6897bb">0xFFFFFFFF</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}<br />
+因为刚才已经把数据加载到本地了，所以if里面第四第五句代码就是把本地能力系统里面的数据绘制到游戏界面上。最后就是我注册SimpleNetworkWrapper的代码：<br />
+<font color="#cc7832">public class </font>SimpleNetworkWrapperLoader<br />
+{<br />
+&nbsp; &nbsp; <font color="#cc7832">int </font><font color="#9876aa">ID</font>=<font color="#6897bb">0</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public static final </font>SimpleNetworkWrapper <font color="#9876aa"><i>simpleNetworkWrapper </i></font>= NetworkRegistry.<font color="#9876aa"><i>INSTANCE</i></font>.newSimpleChannel(FantasyValley.<font color="#9876aa"><i>MODID</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public </font><font color="#ffc66d">SimpleNetworkWrapperLoader</font>()<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa"><i>simpleNetworkWrapper</i></font>.registerMessage(ClientMessageHandler.<font color="#cc7832">class, </font>MoneyInfo.<font color="#cc7832">class,</font><font color="#9876aa">ID</font>++<font color="#cc7832">, </font>Side.<font color="#9876aa"><i>CLIENT</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa"><i>simpleNetworkWrapper</i></font>.registerMessage(ServerMessageHandler.<font color="#cc7832">class,</font>GetMoneyRequest.<font color="#cc7832">class,</font><font color="#9876aa">ID</font>++<font color="#cc7832">,</font>Side.<font color="#9876aa"><i>SERVER</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}以上就是我的实现思路，但是我进入游戏后打开背包后游戏就崩溃了，然后弹出那个背景是泥土的画面，上面写着这么一句话（因为图片上传数量受限，就直接码字了）：<br />
+连接已丢失<br />
+A fatal error has occurred, this connection is terminated<br />
+然后IDEA的控制台里面弹了这么一串红色文字：<br />
+Caused by:java.lang.IndexOutOfBoundsException: readerIndex(0)+length(4) exceeds writerIndex(1): UnpooledByteBufAllocator$InstrumentedUnpooledUnsafeHeapByteBuf(ridx:0,widx:1,cap:256)<br />
+我知道是越界错误，可是我实在没看出我的代码里面哪里涉及到越界了。代码肯定是客户端给服务端发数据包那一句引发的，我测试过了，因为注释掉那句就能正常运行了。希望大家能帮帮我，太感谢了。<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zwtll&nbsp; &nbsp; <b>时间: </b>2020-2-25 15:04<br />
+老哥，我也是发包的时候跟你一模一样的报错，如果你解决了请帮帮我，谢谢！<img src="static/image/smiley/tong/cry.png" smilieid="1453" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zxcvbnm156&nbsp; &nbsp; <b>时间: </b>2020-2-27 17:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16556912&amp;ptid=962955" target="_blank"><font color="#999999">zwtll 发表于 2020-2-25 15:04</font></a></font><br />
+老哥，我也是发包的时候跟你一模一样的报错，如果你解决了请帮帮我，谢谢！ ...</blockquote></div><br />
+我解决了，你需要帮助的话把QQ私发给我，我加你帮你看看
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

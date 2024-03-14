@@ -1,0 +1,129 @@
+<html>
+<head>
+<title>1.14execute和function命令执行顺序的问题 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.14execute和function命令执行顺序的问题 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Chelover_C60&nbsp; &nbsp; <b>时间: </b>2019-10-17 16:59<br />
+<b>标题: </b>1.14execute和function命令执行顺序的问题<br />昨天我在看问答版时，看到了<a href="thread.html?t=920561" target="_blank">这个问题</a>。<div class="quote"><blockquote>2.有很多堆as，每堆很多as重叠在一起互相之间没有区分度，如何让每堆只剩一个as</blockquote></div><br />
+看到第二问的时候，我想到利用execute不同实体执行命令的微延迟（这个究竟该怎么称呼？）来仅给一堆盔甲架中的某一个盔甲架加标签，以此来区分不同盔甲架。因此，我写出了以下命令<br />
+<div class="blockcode"><div id="code_GP8"><ol><li>/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep</ol></div><em onclick="copycode($('code_GP8'));">复制代码</em></div>但是在实际执行中，所有盔甲架都被添加了标签。由于当时比较晚，就没再继续研究，先去睡了。<strike>结果第二天发现被抢答了</strike><br />
+第二天我在研究的时候，写了以下的命令<br />
+<div class="blockcode"><div id="code_e93"><ol><li>/execute as @e[type=minecraft:armor_stand] at @s run function abc:123</ol></div><em onclick="copycode($('code_e93'));">复制代码</em></div>abc:123.mcfunction<br />
+<div class="blockcode"><div id="code_l0h"><ol><li>execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep</ol></div><em onclick="copycode($('code_l0h'));">复制代码</em></div>在执行时，确实做到了每堆只有一个盔甲架加被添加了标签。同时，我用僵尸做了类似的实验，结果完全相同。那么问题来了：<br />
+<br />
+wiki对execute的执行顺序表述如下：<br />
+<div class="quote"><blockquote>游戏会在处理run后的命令和存储子命令之前，先处理其他子命令，故run后的命令和存储子命令无法影响其他子命令。run后的命令和存储子命令也无法相互影响。<div align="right">——<a href="https://minecraft-zh.gamepedia.com/%E5%91%BD%E4%BB%A4/execute" target="_blank">命令/execute - Minecraft Wiki，最详细的官方我的世界百科</a></div></blockquote></div><br />
+那么上面的两种方法的主体命令都是execute，去掉run子命令后的主体命令是<font style="background-color:White"><i>execute as @e[type=minecraft:armor_stand] at @s</i></font>，两者没有区别，因此不存在处理顺序上的区别。run子命令后，一个是<font style="background-color:White"><i>execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep</i></font>，一个是<font style="background-color:White"><i>function abc:123</i></font>，但是由于<font style="background-color:White"><i>function abc:123</i></font>实际上就是<font style="background-color:White"><i>execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep</i></font>，所以两者还是没有区别，那么为什么执行结果就会不同呢？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b> SPGoding&nbsp; &nbsp; <b>时间: </b>2019-10-17 16:59<br />
+<i class="pstatus"> 本帖最后由 梓榆 于 2019-10-17 21:30 编辑 </i><br />
+<br />
+两年前的旧东西了<br />
+<a href="thread.html?t=770198" target="_blank">https://www.mcbbs.net/thread-770198-1-1.html</a><br />
+<br />
+<hr class="l" /><br />
+<strong><font size="5">一</font></strong><br />
+execute as @e at @s run execute ...<br />
+<strong>完全</strong>等价于<br />
+execute as @e at @s ...<br />
+<br />
+两条命令根本没有分开，解析是一起完成的，运算是一起完成的。<br />
+<br />
+事实上 ⊙u⊙ 的<a href="thread.html?t=920648" target="_blank">解释</a>是完全正确的。as、at、unless 三个子命令按顺序执行，其中每个子命令在执行的时候会<strong>同时</strong>操作<strong>多个</strong>命令执行源（包括命令的执行者、执行位置等）。<br />
+<br />
+<hr class="l" /><br />
+<strong><font size="5">二</font></strong><br />
+execute as @e at @s run function ...<br />
+解析分开了，运算分开了，实体及时更新了。<br />
+<br />
+<hr class="l" /><br />
+<strong><font size="5">源码</font></strong><br />
+<div class="blockcode"><div id="code_mzX"><ol><li>((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)CommandManager.literal(&quot;execute&quot;).requires((class_2168_1) -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return class_2168_1.hasPermissionLevel(2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;})).then(CommandManager.literal(&quot;run&quot;).redirect(commandDispatcher_1.getRoot()))).then(addConditionArguments(literalCommandNode_1, CommandManager.literal(&quot;if&quot;), true))).then(addConditionArguments(literalCommandNode_1, CommandManager.literal(&quot;unless&quot;), false))).then(CommandManager.literal(&quot;as&quot;).then(CommandManager.argument(&quot;targets&quot;, EntityArgumentType.entities()).fork(literalCommandNode_1, (commandContext_1) -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;List&lt;ServerCommandSource&gt; list_1 = Lists.newArrayList();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Iterator var2 = EntityArgumentType.getOptionalEntities(commandContext_1, &quot;targets&quot;).iterator();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;while(var2.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Entity class_1297_1 = (Entity)var2.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;list_1.add(((ServerCommandSource)commandContext_1.getSource()).withEntity(class_1297_1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return list_1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}))))</ol></div><em onclick="copycode($('code_mzX'));">复制代码</em></div><br />
+懒得解释了，因为我根本看不懂。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雪颜の顾&nbsp; &nbsp; <b>时间: </b>2019-10-17 17:55<br />
+把/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep<br />
+改成/execute as @e[type=minecraft:armor_stand] at @s unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep<br />
+试一试，或许可能就是这个原因<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>⊙u⊙&nbsp; &nbsp; <b>时间: </b>2019-10-17 18:16<br />
+<div class="blockcode"><div id="code_VMA"><ol><li>execute as @e[type=armor_stand] at @s unless entity @e[distance=..0.01,type=armor_stand,tag=keep] run tag @s add keep<br />
+<li><br />
+<li>execute as @e[type=armor_stand] at @s run function abc:123<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;#abc:123<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;execute unless entity @e[distance=..0.01,type=armor_stand,tag=keep] run tag @s add keep</ol></div><em onclick="copycode($('code_VMA'));">复制代码</em></div><br />
+按照你的说法的话处理流程应该是这样...<br />
+<br />
+1)<br />
+as&nbsp; &nbsp; 以所有适格对象为目标 &gt; 筛选完毕<br />
+at&nbsp; &nbsp; 各目标使用自身坐标 &gt; 获取完毕<br />
+unless&nbsp; &nbsp; 检测是否满足条件 &gt; 全员通过<br />
+<br />
+<strong>run tag&nbsp; &nbsp; 全员按顺序执行tag[我tag我自己]</strong><br />
+<br />
+2)<br />
+as&nbsp; &nbsp; 以所有适格对象为目标 &gt; 筛选完毕<br />
+at&nbsp; &nbsp; 各目标使用自身坐标 &gt; 获取完毕<br />
+<br />
+<br />
+<strong>run function&nbsp; &nbsp; 全员按顺序执行function[按顺序到function里走一遍]</strong><br />
+AS1&nbsp; &nbsp; 通过unless &gt; 给自己加tag<br />
+AS2+&nbsp; &nbsp; 不通过unless &gt; 没有tag<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Chelover_C60&nbsp; &nbsp; <b>时间: </b>2019-10-17 20:56<br />
+<div class="quote"><blockquote><font color="#999999">雪颜の顾 发表于 2019-10-17 17:55</font><br />
+<font color="#999999">把/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,typ ...</font></blockquote></div><br />
+这里加一个run execute就是为了把两段命令分割开，以此操控微延迟。<br />
+另外我试过去掉run execute，没有达到理想效果<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Chelover_C60&nbsp; &nbsp; <b>时间: </b>2019-10-17 20:57<br />
+<i class="pstatus"> 本帖最后由 CHElover_C60 于 2019-10-17 22:09 编辑 </i><br />
+<div class="quote"><blockquote><font color="#999999">⊙u⊙ 发表于 2019-10-17 18:16</font><br />
+<font color="#999999">按照你的说法的话处理流程应该是这样...<br />
+<br />
+1)<br />
+</font></blockquote></div><br />
+/execute as @e[type=minecraft:armor_stand] at @s <font color="red">run execute</font> unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep<br />
+第一种里at @s后接着有run execute，把两段命令分开了<br />
+<br />
+<br />
+<br />
+<br />
+<hr class="l" /><br />
+来自选好最佳之后<br />
+如果你强调了run execute等于啥都没有，或者强调了所有目标选择器同时完成解析，我应该会考虑给个最佳<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chyx&nbsp; &nbsp; <b>时间: </b>2019-10-18 01:23<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15738198&amp;ptid=920648" target="_blank"><font color="#999999">CHElover_C60 发表于 2019-10-17 20:56</font></a></font><br />
+这里加一个run execute就是为了把两段命令分割开，以此操控微延迟。<br />
+另外我试过去掉run execute，没有达 ...</blockquote></div><br />
+主要的问题就是这样它分不开。<br />
+你写了一个function就分开了。<br />
+<br />
+<br />
+（那天晚上我写好了第一个题目，然后一看第二个题目一个命令不行，打不断，需要函数，这就得现场建数据包，又太晚了，就睡了。<br />
+我又不想发没有自己试过的指令XD<br />
+第二天起来被抢了XD）
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

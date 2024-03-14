@@ -1,0 +1,111 @@
+<html>
+<head>
+<title>【1.13】数据包接口规范 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【1.13】数据包接口规范 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-1-24 16:15<br />
+<b>标题: </b>【1.13】数据包接口规范<br /><i class="pstatus"> 本帖最后由 pca006132 于 2018-1-24 17:24 编辑 </i><br />
+<br />
+<strong><font size="7">数据包接口规范</font></strong><br />
+<blockquote><div class="quote"><blockquote>&nbsp;&nbsp;RFC，当前版本0.1.3</blockquote></div><br />
+</blockquote><blockquote>本帖子将会与github上的规范同步。<br />
+规范、std数据包已经发了上github: <a href="https://github.com/CommandBlockLogic/std" target="_blank">https://github.com/CommandBlockLogic/std</a></blockquote><br />
+<strong><font size="6">引言</font></strong><br />
+本规范希望能透过定义部分规定，让数据包作者共同遵守，最终能编写可读性及扩展性更高的数据包。<br />
+本规范主要针对希望开放接口供其他数据包使用，以及希望使用其他数据包接口的数据包。<br />
+为了方便统一管理模块，本规范会同时提供一个 <font style="background-color:white">std</font> 模块，实现部分单一模块较为困难实现的功能。<br />
+<br />
+<strong><font size="6">名词定义</font></strong><br />
+为了方便，本文将会先定义一些名词，以免过于累赘。<br />
+<ul><li>模块: 数据包内的不同目录(文件夹)，但不包括如tags, functions等定义内部文件种类的目录。<li>重构: 即改变数据包架构，如改变模块名称、把部分命令移到别的函数内的行为。<li>内部函数: 即该命令函数的实际内容。为了只在某条件下运行那命令函数，而把实际内容移至别的命令函数，并把命令函数内容改为 <font style="background-color:white">execute (条件检查) run function 内部函数</font>。<br />
+</ul><br />
+<strong><font size="6">命名、结构规范</font></strong><br />
+所有模块、命令函数等的名称，应遵从<i><font color="green">snake_case</font></i>的要求，单词之间以<font style="background-color:white">_</font>分开。如需序号亦应在序号后加上<font style="background-color:white">_</font>分开，以免混淆。<br />
+<blockquote><div class="quote"><blockquote>&nbsp;&nbsp;(如 <font style="background-color:white">2_json</font> 与 <font style="background-color:white">2json</font> 意思有所不同。前者为序号。后者的<font style="background-color:white">2</font>能解读为to，即变为，的意思)</blockquote></div><br />
+</blockquote>命名空间可加上<font style="background-color:white">作者标识_</font>前缀，可以为组织名称。以避免发生命名冲突。所有命名空间名称应长于4个字符，并且应避免与现有mod、其他数据包的命名空间出现冲突。(它们都是使用这个系统，出现冲突可能带来未知影响。)<br />
+单一数据包只应有一个命名空间，其他命名空间只应该用作处理命令函数标签、接口实现等事情。<br />
+<ul><li>需要在高频运行的命令函数(主函数，一个模块只可有一个，不包括子模块)应命名为 <font style="background-color:white">tick</font>。如无依赖则应加上 <font style="background-color:white">std:tick</font> 标签。<li>应最先运行的命令函数(系统状态改变时)应命名为 <font style="background-color:white">init</font>。<li>需要在数据包加载时运行的命令函数应放在 <font style="background-color:white">_init</font> 模块内，放在命名空间之下。<li>在移除数据包时执行的命令函数应命名为 <font style="background-color:white">(命名空间):delete</font>。<br />
+</ul><br />
+<strong><font size="6">数据包加载、移除</font></strong><br />
+<br />
+<strong><font size="5">加载执行命令</font></strong><br />
+每个数据包加载时应先执行如下命令：<br />
+<div class="blockcode"><div id="code_AB2"><ol><li># 宣示成功加载:<br />
+<li>scoreboard players set #(命名空间) common 0<br />
+<li># 宣示实现的接口<br />
+<li>scoreboard players set #(接口定义的假名) common 0<br />
+<li># 其他命令...</ol></div><em onclick="copycode($('code_AB2'));">复制代码</em></div><br />
+<strong><font size="5">加载方式</font></strong><br />
+没有依赖：使用 <font style="background-color:white">std:load</font> 标签。（<font style="background-color:white">std:load</font>之前会定义<font style="background-color:white">common</font>这个记分板变量供其他数据包作数据包沟通使用）<br />
+当数据包出现加载依赖时，如b需要在a之后加载(常见于接口使用)。以下假设它们的命名空间分别为b和a。<br />
+<ul><li>a应定义一个命令函数标签，名为 <font style="background-color:white">(a):dependents</font>，在a加载后(执行完a的<font style="background-color:white">_init</font>模块内的函数后)执行那标签的命令函数。基本上所有打算开放接口的数据包都应该定义这个标签，其命名空间应避免和其他模块产生冲突。<li>而b的<font style="background-color:white">_init</font>模块内的命令函数应加上<font style="background-color:white">(a):dependents</font> 标签，不应加上<font style="background-color:white">std:load</font> 标签。<br />
+</ul><blockquote><div class="quote"><blockquote>如需使用 <font style="background-color:white">std</font> 数据包里的库，直接调用 <font style="background-color:white">std:(库)/init</font> 即可，<font style="background-color:white">std:load</font>保证了 <font style="background-color:white">std</font> 数据包必定在此命令函数执行前加载完毕。</blockquote></div><br />
+</blockquote><br />
+<strong><font size="5">卸载数据包</font></strong><br />
+除了地图专用 (map-specific) 的数据包以外，其他数据包应定义 <font style="background-color:white">(命名空间):delete</font> 以供移除相关资料，并调用 <font style="background-color:white">#(命名空间):delete</font>以移除依赖其的数据包。其子模块亦应提供删除用命令函数，并加上 <font style="background-color:white">(依赖数据包命名空间):delete</font> 标签，以在依赖模块被删除时一并删除。<br />
+<br />
+<strong><font size="5">检测成功加载</font></strong><br />
+数据包应包含 <font style="background-color:white">(命名空间):check</font> 函数以检测其有否正确加载，以及其需要的接口有没有被实现。此命令函数应加上 <font style="background-color:white">std:check</font> 标签。<br />
+例子：<br />
+<div class="blockcode"><div id="code_c45"><ol><li># foo:check<br />
+<li># 如果#foo不为0则代表有部分检查出现错误，之后tick的模块应该检查这分数决定应否执行。<br />
+<li>execute unless score #foo common matches 0 run say 数据包foo未能正确加载！<br />
+<li># 检查接口，发现问题则设置 #foo common 分数为1。如果#foo common分数不为1则不用检查，因为已经出问题了。<br />
+<li>execute if score #foo common matches 0 store result score #foo common unless score #foo_interface1 common matches 0 run 数据包foo的接口 interface1 没有被实现！<br />
+<li># 检查依赖函数(不是加载依赖，故此可独立加载，需要检测)，发现问题则设置 #foo common 分数为1。如果#foo common分数不为1则不用检查，因为已经出问题了。<br />
+<li>execite if score #foo common matches 0 store result score #foo common unless score #std_rnd common matches 0 run 数据包std的rnd模组未能加载！数据包foo不能使用！</ol></div><em onclick="copycode($('code_c45'));">复制代码</em></div>所有拥有 <font style="background-color:white">std:check</font> 标签的命令函数都会在<strong>加载后第一游戏刻运行一次</strong>，早于第一个 <font style="background-color:white">std:tick</font> 执行。<br />
+<blockquote><div class="quote"><blockquote>&nbsp;&nbsp;注：使用<font style="background-color:white">std:check</font> <strong>不是</strong>依赖于<font style="background-color:white">std</font>数据包。</blockquote></div><br />
+</blockquote><br />
+<strong><font size="6">接口</font></strong><br />
+<br />
+<strong><font size="5">接口类型</font></strong><br />
+<ul><li>调用外部系统<br />
+<ul><li>命令函数：需要外部系统提供<strong>一个命令函数</strong>以达到指定功能。一般为地图专用数据包用接口。<li>命令函数标签：提供给外部系统<strong>聆听事件</strong>以作出处理。聆听此事件（拥有此标签）的命令函数<strong>可以多于一个</strong>。<blockquote><div class="quote"><blockquote>&nbsp;&nbsp;注意: 标签文件禁止使用 <font style="background-color:white">&quot;replace&quot;:true</font>，因为这样会影响到其他模块。<br />
+&nbsp;&nbsp;使用命令函数标签时应定义一个假名，被调用的函数只应在那假名为指定分数时执行(调用内部函数)。如需阻止之后其他函数执行，则可以更改那假名数值。如1为能够执行，0为不能执行。</blockquote></div><br />
+</blockquote><br />
+</ul><li>提供于外部系统<br />
+<ul><li>函数：传入分数，执行后回传处理后的分数或根据传入分数进行操作。<blockquote><div class="quote"><blockquote>&nbsp;&nbsp;注意：没人能保证传入的分数不会被改变。<br />
+&nbsp;&nbsp;建议使用 <font style="background-color:white">common</font> 记分板变量，传入分数假名建议为 <font style="background-color:white">#param</font>, <font style="background-color:white">#param1</font>...，而回传分数假名建议为 <font style="background-color:white">#result</font>, <font style="background-color:white">#result1</font>...</blockquote></div><br />
+</blockquote><br />
+</ul><li>其他，请参考实际数据包文档决定如何使用。<br />
+<ul><li>实体标记（marker）<li>记分板假名（fake player name）<br />
+</ul></ul><br />
+欢迎各位给点意见，比如规范上、命令、模块功能的意见。<br />
+<br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-1-24 16:31<br />
+规定得太多了<br />
+最关键的问题仅在于不同数据包之间的冲突问题，把这部分弄好就行了<br />
+其它的感觉没有这个必要规定，比如说init函数之类的，反正基本数据包都需要一个minecraft命名空间来标记tick和load函数，怎么规定其实无所谓啊<br />
+<br />
+感觉重点应该在命令空间名称、记分板、组、标签等全局内容的规范化，以及冲突时如何解决，包括同名namespace冲突的问题<br />
+尤其是minecraft命名空间，其中的loot_table, recipes发生冲突如何解决<br />
+以及tag的一些问题<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-1-24 16:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12641938&amp;ptid=776646" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-1-24 16:31</font></a></font><br />
+规定得太多了<br />
+最关键的问题仅在于不同数据包之间的冲突问题，把这部分弄好就行了<br />
+其它的感觉没有这个必要规 ...</blockquote></div><br />
+使用std是为了检查有没有成功加载，这标准是强烈不建议使用 minecraft:tick和minecraft:load的。<br />
+不同数据包之间冲突问题不是写数据包的时候能解决的，那是修数据包时候才能解决的。我不认为有一个好方法能解决那些冲突，比如你说的那些loot Table、recipe等等的冲突。<br />
+<br />
+而且看清楚标题，这是接口规范，主要是规范怎么使用、定义接口的。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-1-24 16:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12641955&amp;ptid=776646" target="_blank"><font color="#999999">pca006132 发表于 2018-1-24 16:35</font></a></font><br />
+使用std是为了检查有没有成功加载，这标准是强烈不建议使用 minecraft:tick和minecraft:load的。<br />
+不同数 ...</blockquote></div><br />
+哦，不懂接口是啥……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>白天&nbsp; &nbsp; <b>时间: </b>2018-1-29 21:04<br />
+如果以后大家在发布数据包的时候 除了有些帖子会注明版权协议 下面又注明&quot;本数据包遵循pca接口规范标准&quot;就厉害了w
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

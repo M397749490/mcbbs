@@ -1,0 +1,258 @@
+<html>
+<head>
+<title>PVPIN教程RL--Bukkit的事件监听循环理论分析（极度劝退 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>PVPIN教程RL--Bukkit的事件监听循环理论分析（极度劝退 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-27 10:26<br />
+<b>标题: </b>PVPIN教程RL--Bukkit的事件监听循环理论分析（极度劝退<br /><i class="pstatus"> 本帖最后由 William_Shi 于 2020-6-28 22:26 编辑 </i><br />
+<br />
+本文纯属Bukkit源码研究<br />
+起因是有一个新人问了Bukkit怎么知道某方法是事件监听处理方法的<br />
+本文其实就是一个思路的梳理<br />
+<br />
+该从哪里入手？<br />
+我们都知道，注册事件监听的过程是PluginManager#registerEvent（或者是events）<br />
+<a href="https://bukkit.windit.net/javadoc/org/bukkit/plugin/PluginManager.html" target="_blank">https://bukkit.windit.net/javado ... kkit.plugin.Plugin-</a><br />
+<br />
+那么我们就从PluginManager的实现类入手<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+package org.bukkit.plugin;<br />
+public final class SimplePluginManager implements PluginManager </td></table></div></div><br />
+<br />
+其中的注册监听的一个方法如下<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp;&nbsp;public void registerEvents(@NotNull Listener listener, @NotNull Plugin plugin) {<br />
+&nbsp; &nbsp; if (!plugin.isEnabled())<br />
+&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalPluginAccessException(&quot;Plugin attempted to register &quot; + listener + &quot; while not enabled&quot;); <br />
+&nbsp; &nbsp; for (Map.Entry&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt; entry : plugin.getPluginLoader().createRegisteredListeners(listener, plugin).entrySet())<br />
+&nbsp; &nbsp;&nbsp; &nbsp;getEventListeners(getRegistrationClass(entry.getKey())).registerAll(entry.getValue()); <br />
+&nbsp;&nbsp;}</td></table></div></div><br />
+<br />
+首先是检查插件有没有被启用，如果是被disable的插件那就没必要注册事件监听了<br />
+之后呢？<br />
+Map.Entry&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt;<br />
+这是Map.Entry&lt;K,V&gt;<br />
+也就是遍历Map的操作<br />
+遍历了plugin.getPluginLoader().createRegisteredListeners(listener, plugin).entrySet()<br />
+这又是一个什么Map呢<br />
+<br />
+我们接下来看org.bukkit.plugin.java.JavaPluginLoader<br />
+这是PluginLoader的具体实现类<br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp;&nbsp;@NotNull<br />
+&nbsp;&nbsp;public Map&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt; createRegisteredListeners(@NotNull Listener listener, @NotNull Plugin plugin) {<br />
+&nbsp; &nbsp; Set&lt;Method&gt; methods;<br />
+&nbsp; &nbsp; Validate.notNull(plugin, &quot;Plugin can not be null&quot;);<br />
+&nbsp; &nbsp; Validate.notNull(listener, &quot;Listener can not be null&quot;);<br />
+&nbsp; &nbsp; boolean useTimings = this.server.getPluginManager().useTimings();<br />
+&nbsp; &nbsp; Map&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt; ret = new HashMap&lt;&gt;();<br />
+&nbsp; &nbsp; try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method[] publicMethods = listener.getClass().getMethods();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method[] privateMethods = listener.getClass().getDeclaredMethods();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;methods = new HashSet&lt;&gt;(publicMethods.length + privateMethods.length, 1.0F);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;byte b;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;int i;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method[] arrayOfMethod1;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;for (i = (arrayOfMethod1 = publicMethods).length, b = 0; b &lt; i; ) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Method method = arrayOfMethod1<strong>;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;methods.add(method);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;b++;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;for (i = (arrayOfMethod1 = privateMethods).length, b = 0; b &lt; i; ) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Method method = arrayOfMethod1<strong>;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;methods.add(method);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;b++;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp; } catch (NoClassDefFoundError e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;plugin.getLogger().severe(&quot;Plugin &quot; + plugin.getDescription().getFullName() + &quot; has failed to register events for &quot; + listener.getClass() + &quot; because &quot; + e.getMessage() + &quot; does not exist.&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;return ret;<br />
+&nbsp; &nbsp; } <br />
+&nbsp; &nbsp; for (Method method : methods) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;EventHandler eh = method.&lt;EventHandler&gt;getAnnotation(EventHandler.class);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (eh == null)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (method.isBridge() || method.isSynthetic())<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;Class&lt;?&gt; checkClass;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if ((method.getParameterTypes()).length != 1 || !Event.class.isAssignableFrom(checkClass = method.getParameterTypes()[0])) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;plugin.getLogger().severe(String.valueOf(plugin.getDescription().getFullName()) + &quot; attempted to register an invalid EventHandler method signature \&quot;&quot; + method.toGenericString() + &quot;\&quot; in &quot; + listener.getClass());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;final Class&lt;? extends Event&gt; eventClass = checkClass.asSubclass(Event.class);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;method.setAccessible(true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Set&lt;RegisteredListener&gt; eventSet = ret.get(eventClass);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (eventSet == null) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;eventSet = new HashSet&lt;&gt;();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ret.put(eventClass, eventSet);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;for (Class&lt;?&gt; clazz = eventClass; Event.class.isAssignableFrom(clazz); clazz = clazz.getSuperclass()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (clazz.getAnnotation(Deprecated.class) != null) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Warning warning = clazz.&lt;Warning&gt;getAnnotation(Warning.class);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Warning.WarningState warningState = this.server.getWarningState();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!warningState.printFor(warning))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; plugin.getLogger().log(<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Level.WARNING, <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String.format(<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;\&quot;%s\&quot; has registered a listener for %s on method \&quot;%s\&quot;, but the event is Deprecated. \&quot;%s\&quot;; please notify the authors %s.&quot;, new Object[] { plugin.getDescription().getFullName(), <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;clazz.getName(), <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;method.toGenericString(), (<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;warning != null &amp;&amp; warning.reason().length() != 0) ? warning.reason() : &quot;Server performance will be affected&quot;, <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Arrays.toString(plugin.getDescription().getAuthors().toArray()) }), (warningState == Warning.WarningState.ON) ? (Throwable)new AuthorNagException(null) : null);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;final CustomTimingsHandler timings = new CustomTimingsHandler(&quot;Plugin: &quot; + plugin.getDescription().getFullName() + &quot; Event: &quot; + listener.getClass().getName() + &quot;::&quot; + method.getName() + &quot;(&quot; + eventClass.getSimpleName() + &quot;)&quot;, pluginParentTimer);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;EventExecutor executor = new EventExecutor() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public void execute(@NotNull Listener listener, @NotNull Event event) throws EventException {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!eventClass.isAssignableFrom(event.getClass()))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean isAsync = event.isAsynchronous();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!isAsync)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; timings.startTiming(); <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;method.invoke(listener, new Object[] { event });<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!isAsync)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; timings.stopTiming(); <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} catch (InvocationTargetException ex) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new EventException(ex.getCause());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} catch (Throwable t) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new EventException(t);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+&nbsp; &nbsp;&nbsp; &nbsp;eventSet.add(new RegisteredListener(listener, executor, eh.priority(), plugin, eh.ignoreCancelled()));<br />
+&nbsp; &nbsp; } <br />
+&nbsp; &nbsp; return ret;<br />
+&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;</td></table></div></div><br />
+<br />
+别急，仔细看<br />
+&nbsp; &nbsp; Map&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt; ret = new HashMap&lt;&gt;();<br />
+简写return为ret，这是创建map的操作<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method[] publicMethods = listener.getClass().getMethods();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method[] privateMethods = listener.getClass().getDeclaredMethods();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;methods = new HashSet&lt;&gt;(publicMethods.length + privateMethods.length, 1.0F);<br />
+<br />
+说白了就是把你整个实现Listener类的所有方法给存起来了（具体存储的，直接看上面）<br />
+接下来最最最最重要的，@Interface，给方法的注解<br />
+<br />
+&nbsp; &nbsp; for (Method method : methods) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;EventHandler eh = method.&lt;EventHandler&gt;getAnnotation(EventHandler.class);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (eh == null)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue; <br />
+<br />
+这里就检查了，方法有没有@EventHandler这个注解<br />
+如果有，那么再进行下一步添加事件监听的操作，否则就忽略<br />
+<br />
+ if ((method.getParameterTypes()).length != 1 || !Event.class.isAssignableFrom(checkClass = method.getParameterTypes()[0])) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;plugin.getLogger().severe(String.valueOf(plugin.getDescription().getFullName()) + &quot; attempted to register an invalid EventHandler method signature \&quot;&quot; + method.toGenericString() + &quot;\&quot; in &quot; + listener.getClass());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+<br />
+这个是什么？这是检查参数的长度<br />
+那就可以回答一个问题<a href="thread.html?t=1067519" target="_blank">https://www.mcbbs.net/forum.php? ... 067519&amp;pid=18709678</a><br />
+这个帖子的第二个事件监听<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;void onBreakPickaxe(PlayerItemBreakEvent e,Plugin plugin) {<br />
+<br />
+会在register的时候被过滤掉，因为参数列表长度不是1<br />
+（Bukkit不可能知道你的奇奇怪怪的参数，他只能给你Event对象，所以必须过滤<br />
+<br />
+不要乱，我们回到起点<br />
+ for (Map.Entry&lt;Class&lt;? extends Event&gt;, Set&lt;RegisteredListener&gt;&gt; entry : plugin.getPluginLoader().createRegisteredListeners(listener, plugin).entrySet())<br />
+&nbsp; &nbsp;&nbsp; &nbsp;getEventListeners(getRegistrationClass(entry.getKey())).registerAll(entry.getValue()); <br />
+<br />
+再来看<br />
+ <div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp;&nbsp;@NotNull<br />
+&nbsp;&nbsp;private HandlerList getEventListeners(@NotNull Class&lt;? extends Event&gt; type) {<br />
+&nbsp; &nbsp; try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;Method method = getRegistrationClass(type).getDeclaredMethod(&quot;getHandlerList&quot;, new Class[0]);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;method.setAccessible(true);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;return (HandlerList)method.invoke(null, new Object[0]);<br />
+&nbsp; &nbsp; } catch (Exception e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalPluginAccessException(e.toString());<br />
+&nbsp; &nbsp; } <br />
+&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;</td></table></div></div><br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp;&nbsp;@NotNull<br />
+&nbsp;&nbsp;private Class&lt;? extends Event&gt; getRegistrationClass(@NotNull Class&lt;? extends Event&gt; clazz) {<br />
+&nbsp; &nbsp; try {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;clazz.getDeclaredMethod(&quot;getHandlerList&quot;, new Class[0]);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;return clazz;<br />
+&nbsp; &nbsp; } catch (NoSuchMethodException e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (clazz.getSuperclass() != null &amp;&amp; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;!clazz.getSuperclass().equals(Event.class) &amp;&amp; <br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Event.class.isAssignableFrom(clazz.getSuperclass()))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return getRegistrationClass(clazz.getSuperclass().asSubclass(Event.class)); <br />
+&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalPluginAccessException(&quot;Unable to find handler list for event &quot; + clazz.getName() + &quot;. Static getHandlerList method required!&quot;);<br />
+&nbsp; &nbsp; } <br />
+&nbsp;&nbsp;}</td></table></div></div><br />
+<br />
+我们接触到了<a href="https://bukkit.windit.net/javadoc/org/bukkit/event/HandlerList.html" target="_blank">https://bukkit.windit.net/javado ... nt/HandlerList.html</a><br />
+<br />
+private HandlerList getEventListeners(@NotNull Class&lt;? extends Event&gt; type) <br />
+注意变量名Type<br />
+什么意思？每一个事件的类型，都有自己的对应的Handler，<br />
+这些Handler，按照事件监听的优先级，存储了事件监听的处理器<br />
+当callEvent时，按照优先级，一批一批触发<br />
+<br />
+public class HandlerList {<br />
+<br />
+&nbsp;&nbsp;private final EnumMap&lt;EventPriority, ArrayList&lt;RegisteredListener&gt;&gt; handlerslots;<br />
+<br />
+所以，上面在遍历了Map之后（不要乱掉，仔细思考）<br />
+其实就是获取了对应的EventHandler注解的方法的相关参数<br />
+得到了事件本身的Class，也就是事件的类型<br />
+然后获取这个事件的Handler<br />
+最后在这个Handler里面加入事件监听器<br />
+当callEvent的时候，就按照优先级去调用<br />
+至于@Interface的相关问题 可以看看<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=3343045" target="_blank">@蕾米洛伊</a> 的详尽回复<br />
+<a href="thread.html?t=1067519" target="_blank">https://www.mcbbs.net/forum.php? ... 067519&amp;pid=18709785</a></strong></strong><br />
+<strong>那么现在可能还有一个问题：到底哪里触发了事件监听？？？</strong><br />
+<strong>这都是OBC的CraftEventFactory以及具体的NMS类的实现了</strong><br />
+<strong>举个例子（Spigot1.15.2核心）</strong><br />
+<strong>EntityItem类（物品堆掉落物实体）</strong><strong>128行开始</strong><br />
+<br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">!</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">world</font><font color="#000000">.</font><font color="#000000">isClientSide</font><font color="#000000"> </font><font color="#000000">&amp;&amp;</font><font color="#000000"> </font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">age</font><font color="#000000"> </font><font color="#000000">&gt;=</font><font color="#000000"> </font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">world</font><font color="#000000">.</font><font color="#000000">spigotConfig</font><font color="#000000">.</font><font color="#000000">itemDespawnRate</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">CraftEventFactory</font><font color="#000000">.</font><font color="#000000">callItemDespawnEvent</font><font color="#000000">(</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">isCancelled</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">age</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">0</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#7f0055"><strong>return</strong></font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">die</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">}</font><font color="#000000"> </font><font color="#000000"><br />
+</font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>古明地兔&nbsp; &nbsp; <b>时间: </b>2020-6-27 11:38<br />
+加個[code吧]，看著實在不舒服<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-27 12:21<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18713667&amp;ptid=1068558" target="_blank"><font color="#999999">🐚♥ 发表于 2020-6-27 11:38</font></a></font><br />
+加個[code吧]，看著實在不舒服</blockquote></div><br />
+论坛的 [code插件] 吞代码的现象太严重了。。。很久以前贺兰写了半个小时的bungee config的详解全吞了，我写过的一个papi教程也吞过，总之code就不靠谱<br />
+<br />
+反正这些都是反编译SDK拿到的源码，在jdgui、fernflower核心的idea等等地方都可以看<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>结城希亚&nbsp; &nbsp; <b>时间: </b>2020-6-27 21:43<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18714408&amp;ptid=1068558" target="_blank"><font color="#999999">William_Shi 发表于 2020-6-27 12:21</font></a></font><br />
+论坛的 [code插件] 吞代码的现象太严重了。。。很久以前贺兰写了半个小时的bungee config的详解全吞了， ...</blockquote></div><br />
+只要粘贴过去用就没事<br />
+不要直接改已经整好的代码（纯文本也没事）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>LinKart&nbsp; &nbsp; <b>时间: </b>2020-6-29 01:01<br />
+秃头警告qwq 再掉就没了！！
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

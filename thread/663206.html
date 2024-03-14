@@ -1,0 +1,160 @@
+<html>
+<head>
+<title>MCmod制作 1.11(5.优化物品使用) - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>MCmod制作 1.11(5.优化物品使用) <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zkm00323&nbsp; &nbsp; <b>时间: </b>2017-1-16 13:53<br />
+<b>标题: </b>MCmod制作 1.11(5.优化物品使用)<br />上一张我们完成了血瓶的基本使用逻辑和功能<br />
+但这还不够完美<br />
+我希望他按住右键的时候可以像和药水一样有动作和声音<br />
+呢么我们可以参照一下原版药水的代码来给我们的血瓶加入这个功能<br />
+<br />
+1.优化物品使用体验<br />
+首先我们在ItemBloodsave里面重写getMaxItemUseDuration方法<br />
+<strong><font color="#0000ff">&nbsp; &nbsp; public int getMaxItemUseDuration(ItemStack stack){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return 32;<br />
+&nbsp; &nbsp; }</font></strong><br />
+<br />
+32就是32tick,1tick=1/20秒,所以等于要长按右键1.6秒才会触发onItemUseFinish方法<br />
+再加上下面的方法<br />
+<strong><font color="#0000ff">&nbsp; &nbsp; public EnumAction getItemUseAction(ItemStack stack){</font></strong><br />
+<strong><font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return EnumAction.DRINK;</font></strong><br />
+<strong><font color="#0000ff">&nbsp; &nbsp; }</font></strong><br />
+<br />
+<br />
+物品正在使用时候执行DRINK动作<br />
+<br />
+再来我们在原本的<font style="background-color:white">onItemRightClick</font>开头加入<br />
+<font color="#0000ff">&nbsp; &nbsp; public ActionResult&lt;ItemStack&gt; onItemRightClick(World world, EntityPlayer player, EnumHand handIn){<br />
+&nbsp; &nbsp;&nbsp; &nbsp; <strong> player.setActiveHand(handIn);</strong></font><br />
+<br />
+右键则设定玩家正在使用手里(handIn)的物品<br />
+<br />
+把之前右键回血的代码提取出来放到<font style="background-color:white">onItemUseFinish</font>方法里<br />
+<font color="#0000ff"><strong>public ItemStack onItemUseFinish(ItemStack item, World world, EntityLivingBase player) {</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(!world.isRemote){</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(item.getTagCompound().getInteger(&quot;bloodsave&quot;)&gt;0 &amp;&amp; !(player.getMaxHealth() == player.getHealth())){</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(player.getMaxHealth()-player.getHealth()&gt;item.getTagCompound().getInteger(&quot;bloodsave&quot;)){</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.heal(item.getTagCompound().getInteger(&quot;bloodsave&quot;));&nbsp;&nbsp;</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; item.getTagCompound().setInteger(&quot;bloodsave&quot;, 0);</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}else{</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; item.getTagCompound().setInteger(&quot;bloodsave&quot;,(item.getTagCompound().getInteger(&quot;bloodsave&quot;)-(int)(player.getMaxHealth()-player.getHealth())));</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.setHealth(player.getMaxHealth()); </strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font style="background-color:white">((EntityPlayer) player).addChatComponentMessage(new TextComponentString(&quot;bloodsave:&quot;+item.getTagCompound().getInteger(&quot;bloodsave&quot;)), true);</font></strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}&nbsp;&nbsp;</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return super.onItemUseFinish(item, world, player);</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp; }</strong></font><br />
+<br />
+我加了<font style="background-color:white">((EntityPlayer) player).addChatComponentMessage</font>方法,这会在玩家物品栏上方显示信息<br />
+<br />
+呢么现在的<font style="background-color:white">onItemRightClick</font>去除了补血方面的代码只留下扣血以及创建nbt的代码<br />
+ <font color="#0000ff">&nbsp; &nbsp;public ActionResult&lt;ItemStack&gt; onItemRightClick(World world, EntityPlayer player, EnumHand handIn){</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp; player.setActiveHand(handIn);</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(!world.isRemote){</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ItemStack item = player.getHeldItemMainhand();</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(item.getTagCompound()==null){</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; item.setTagCompound(new NBTTagCompound());</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; NBTTagCompound nbt = new NBTTagCompound();</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nbt.setInteger(&quot;bloodsave&quot;, 20);</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; item.getTagCompound().setTag(&quot;blood&quot;, nbt); </font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(player.isSneaking() &amp;&amp; item.getTagCompound().getInteger(&quot;bloodsave&quot;)&lt;20){</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int damage = new Random().nextInt(10)+1;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; int save = item.getTagCompound().getInteger(&quot;bloodsave&quot;);</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.setHealth(<strong>player.isCreative() ? player.getHealth()-0: player.getHealth()-damage</strong>);</font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <strong>((EntityPlayer) player).addChatComponentMessage(new TextComponentString(&quot;bloodsave:&quot;+item.getTagCompound().getInteger(&quot;bloodsave&quot;)+&quot;+&quot;+damage/2), true);</strong></font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; item.getTagCompound().setInteger(&quot;bloodsave&quot;, save + damage/2 &gt; 20 ? 20 : save + damage/2);&nbsp; &nbsp;&nbsp;&nbsp;</font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font style="background-color:white">player.stopActiveHand();</font></strong></font><br />
+<font color="#0000ff">}<strong>else if(player.isSneaking() &amp;&amp; item.getTagCompound().getInteger(&quot;bloodsave&quot;)==20)</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;((EntityPlayer) player).addChatComponentMessage(new TextComponentString(&quot;bloodsave:20&quot;), true);</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }</strong></font><br />
+<font color="#0000ff">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return new ActionResult(EnumActionResult.SUCCESS, player.getHeldItem(handIn));</font><br />
+<font color="#0000ff">&nbsp; &nbsp; }</font><br />
+<br />
+注意我加了<font style="background-color:white">player.stopActiveHand()</font>停止玩家手里物品的使用,这样就不会再触发onItemUseFinish方法<br />
+毕竟如果我们这一次动作是为了扣血,而不要补血<br />
+而在扣血指令呢里我添加了一个判断 是否为创造模式?不扣血:扣血<br />
+<br />
+最后我们还可以给物品添加可视化信息<br />
+<font color="#0000ff"><strong>&nbsp; &nbsp; public void addInformation(ItemStack stack, EntityPlayer playerIn, List&lt;String&gt; tooltip, boolean advanced) {</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;NBTTagCompound nbt = stack.getTagCompound();</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (nbt != null &amp;&amp; nbt.hasKey(&quot;bloodsave&quot;))</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;tooltip.add(&quot;bloodsave: &quot; + nbt.getInteger(&quot;bloodsave&quot;));</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;super.addInformation(stack, playerIn, tooltip, advanced);</strong></font><br />
+<font color="#0000ff"><strong>&nbsp; &nbsp; }</strong></font><br />
+<br />
+这样当你鼠标移到物品上时就会有bloodsave:XX这样的信息<br />
+
+<ignore_js_op>
+
+<img id="aimg_1034901" aid="1034901" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201701/16/132717jx6t66vswwklvwo7.jpg" file="https://attachment.mcbbs.net/forum/201701/16/132717jx6t66vswwklvwo7.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="297" id="aimg_1034901" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1034901_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>ggg.jpg</strong> <em class="xg1">(10.44 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTAzNDkwMXw5MDU2Y2YwMnwxNjEzOTI0MzEzfDI0MTk0ODZ8NjYzMjA2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-1-16 13:27 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+呢么这次的教程也就到此结束了<br />
+不过我觉得还不够完美<br />
+我希望物品贴图因应存血量而改变<br />
+呢么我们就留到下一章实现吧<br />
+<br />
+源文件<br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1034908" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTAzNDkwOHxlZWZhMzJmOHwxNjEzOTI0MzEzfDI0MTk0ODZ8NjYzMjA2" target="_blank">src_教程5.rar</a>
+
+<em class="xg1">(5.93 KB, 下载次数: 23)</em>
+</span>
+<div class="tip tip_4" id="attach_1034908_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2017-1-16 13:46 上传</div>
+点击文件名下载附件
+<br />覆盖src文件夹
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<script type="text/javascript" reload="1">
+aimgcount[11348283] = ['1034901'];
+attachimggroup(11348283);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>thestronger&nbsp; &nbsp; <b>时间: </b>2017-1-16 19:54<br />
+Good,go go go .........<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>OP1115&nbsp; &nbsp; <b>时间: </b>2017-3-14 07:22<br />
+我就喜欢放源码的 直接 谢了老兄 666666666666666
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,186 @@
+<html>
+<head>
+<title>[基础插件教程][Bukkit]让插件命令支持Tab自动补全 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[基础插件教程][Bukkit]让插件命令支持Tab自动补全 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-8-29 20:52<br />
+<b>标题: </b>[基础插件教程][Bukkit]让插件命令支持Tab自动补全<br /><i class="pstatus"> 本帖最后由 gooding300 于 2018-9-2 13:37 编辑 </i><br />
+<br />
+<font size="5"><strong>0.引言</strong></font><br />
+进行过<strong>1.13</strong>游戏的玩家都会知道，Mojang从这一版本开始为命令引入了一套<strong>自动的Tab补全</strong>，举个例子：<br />
+<img id="aimg_NtDj6" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/08/29/5b8685cb4ab20.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+当然，在<strong>1.13之前的版本</strong>，也可以通过手动按下Tab来完成这样的补全<br />
+<img id="aimg_WuY3Z" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/09/02/5b8b42175d91e.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+既然用过的人都说好，那么如何让<strong>自己的插件中的命令</strong>也能支持这样的自动补全呢？<br />
+所幸，Bukkit和Spigot为我们引入了相关的支持。<br />
+<br />
+<font size="5"><strong>1.新事物</strong></font><br />
+而这个提供了这一功能的接口名为 <a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fhub.spigotmc.org%2Fjavadocs%2Fspigot%2Forg%2Fbukkit%2Fcommand%2FTabCompleter.html" target="_blank"><strong>TabCompleter</strong></a> 。<br />
+顾名思义，这个接口就是用来进行Tab自动补全的，官方将实现了这个接口的类定义为“一个可以提供命令补全建议的类”，我在这里简称<strong>自动补全器</strong><br />
+这个接口中<strong>只有一个方法</strong>，名为<strong>onTabComplete</strong>。<div class="blockcode"><div id="code_yLG"><ol><li>public List&lt;String&gt; onTabComplete(CommandSender sender, Command command, String alias, String[] args);</ol></div><em onclick="copycode($('code_yLG'));">复制代码</em></div><br />
+这个方法可以如此介绍的：<br />
+<div class="quote"><blockquote>在用户输入命令时被调用，请求返回可能的<strong>命令补全列表</strong>。<br />
+参数 sender 命令的来源。如果玩家在命令方块中进行补全，将使用的参数是操作的玩家而不是被操作的命令方块。<br />
+参数 command 会被执行的命令<br />
+参数 alias 所使用的命令别名<br />
+参数 args 传递给命令的<strong>参数数组</strong>，包括<strong>尚未补全的参数</strong>。<br />
+返回 可能的<strong>命令补全列表</strong>，或返回null以使用默认的自动补全功能(玩家名称补全器)。</blockquote></div><br />
+例如在上图中，我们所看到的“minecraft:heart_of_the_sea”以及“minecraft:hearvy_weighted_pressure_plate”就是<strong>命令补全列表</strong>，“@p”、“hea”组成的数组就是<strong>参数数组</strong>。也就是说，借助这个接口，我们可以为自己的命令提供<strong>完全自定义的Tab补全</strong>了。<br />
+<br />
+<font size="5"><strong>2.如何使用</strong></font><br />
+先用一张图表示相关类的继承关系。<br />
+<img id="aimg_VXW1u" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://upload.cc/i1/2018/08/29/4sKbGI.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+一个普通的插件，都会有一个继承（extend）自<strong>JavaPlugin</strong>的类，这里称其为<strong>插件主类</strong>。<div class="blockcode"><div id="code_dJe"><ol><li>public class TestPlugin extends JavaPlugin {<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//插件启动<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_dJe'));">复制代码</em></div>抑或将命令的执行部分从插件主类中分离出去，单独实现（implement）<strong>CommandExecutor</strong>，这里称其为<strong>命令类</strong>。<br />
+<div class="blockcode"><div id="code_Ek4"><ol><li>public class TestCommand implements CommandExecutor {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Ek4'));">复制代码</em></div><br />
+由上文可知，只要一个类实现了<strong>TabCompleter</strong>，便可以提供<strong>自动补全功能</strong>，因此：<br />
+使用<strong>插件主类</strong>直接进行命令操作的，只需要<strong>覆写</strong>（Override）onTabComplete方法即可。<div class="blockcode"><div id="code_sgb"><ol><li>public class TestPlugin extends JavaPlugin {<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//插件启动<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public List&lt;String&gt; onTabComplete(CommandSender sender, Command command, String alias, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令补全<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_sgb'));">复制代码</em></div>使用<strong>独立命令类</strong>的，请将<strong>实现CommandExecutor改为实现TabExecutor</strong>（无需修改执行相关的代码），<strong>增加</strong>onTabComplete方法即可。<br />
+<div class="blockcode"><div id="code_biz"><ol><li>public class TestCommand implements TabExecutor {<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public List&lt;String&gt; onTabComplete(CommandSender sender, Command command, String alias, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//处理命令补全<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_biz'));">复制代码</em></div><br />
+最后，请不要忘记在setExecutor（设置命令执行器）的时候，也同时<strong>setTabCompleter</strong>（设置自动补全器）。<br />
+<br />
+<font size="5"><strong>3.示例</strong></font><br />
+在这个示例中，我们为“sub”这个命令进行了<strong>子命令补全</strong>。<br />
+<div class="blockcode"><div id="code_uze"><ol><li>import org.bukkit.command.Command;<br />
+<li>import org.bukkit.command.CommandSender;<br />
+<li>import org.bukkit.plugin.java.JavaPlugin;<br />
+<li><br />
+<li>import java.util.ArrayList;<br />
+<li>import java.util.Arrays;<br />
+<li>import java.util.List;<br />
+<li>import java.util.stream.Collectors;<br />
+<li><br />
+<li>public class TestPlugin extends JavaPlugin {<br />
+<li>&nbsp; &nbsp; private static final String COMMAND_NAME = &quot;sub&quot;;<br />
+<li>&nbsp; &nbsp; private String[] subCommands = {&quot;test&quot;, &quot;sample&quot;, &quot;sam&quot;};//子命令<br />
+<li><br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//注册命令对应的执行器<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getCommand(COMMAND_NAME).setExecutor(this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//注册命令对应的自动补全器<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//如果注册了执行器，且自动补全器和执行器在同一个类中，Bukkit会自动尝试将执行器实例转换为命令补全器实例<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//因此这里可以注册也可以不注册，若注册则不再尝试类型转换<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getCommand(COMMAND_NAME).setTabCompleter(this);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//将第二个参数发给命令执行者<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender.sendMessage(args.length &gt; 0 ? args[0] : &quot;nothing&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public List&lt;String&gt; onTabComplete(CommandSender sender, Command command, String alias, String[] args) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//如果不是能够补全的长度，则返回空列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (args.length &gt; 1) return new ArrayList&lt;&gt;();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//如果此时仅输入了命令&quot;sub&quot;，则直接返回所有的子命令<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (args.length == 0) return Arrays.asList(subCommands);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//筛选所有可能的补全列表，并返回<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Arrays.stream(subCommands).filter(s -&gt; s.startsWith(args[0])).collect(Collectors.toList());<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_uze'));">复制代码</em></div><br />
+<font size="5"><strong>4.进阶</strong></font><br />
+如果需要补全的是<strong>一个物品甚至更多的匹配</strong>选项该怎么办？<br />
+显然，不断的流式操作本质上是遍历，难以满足<strong>每输入一个字母都要进行补全</strong>的操作。<br />
+这时，就可以请上一个有名的数据结构——<strong>Trie</strong>了，这个数据结构又称为<strong>字典树</strong>或者<strong>前缀树</strong>。<br />
+这个数据结构正好能够解决这一需求，只需要在<strong>插件启动的时候生成这样一棵“树”</strong>，每次进行补全查询的时候只需要极少的时间（时间复杂度可以从O(n)优化到O(logn)）就能获得想要的结果。<br />
+<br />
+教程适用于Spigot/Bukkit服务端，教程内的所有代码均可以自由使用。<br />
+希望这个教程能起到抛砖引玉的作用，欢迎提出更好的实践方案，<strong>感谢您的耐心阅读</strong>。<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>海螺螺&nbsp; &nbsp; <b>时间: </b>2018-9-2 02:52<br />
+<i class="pstatus"> 本帖最后由 754503921 于 2018-9-2 03:02 编辑 </i><br />
+<div class="quote"><blockquote>而这个在1.13被引入，提供了这一功能的接口名为 TabCompleter 。</blockquote></div><br />
+这玩意儿真的是 1.13 引入的吗<br />
+这个接口我记得1.7.10的bukkit就有了，只不过彼时的Minecraft需要手按tab键补全<br />
+<br />
+<div class="quote"><blockquote>不断的流式操作纵然有多核运算的加持</blockquote></div><br />
+还有这句话什么意思 QAQ<br />
+<br />
+我想学学新的，比如新版本的命令参数类型，指定某个参数只能为int或者玩家啥的<br />
+33dalao请务必讲一讲<br />
+tab补全请求我觉得可以丢给另一个线程处理了直接发一个包回去，嗯，请也讲一讲<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gooding300&nbsp; &nbsp; <b>时间: </b>2018-9-2 13:47<br />
+<i class="pstatus"> 本帖最后由 gooding300 于 2018-9-2 14:06 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13291077&amp;ptid=818199" target="_blank"><font color="#999999">754503921 发表于 2018-9-2 02:52</font></a></font><br />
+这玩意儿真的是 1.13 引入的吗<br />
+这个接口我记得1.7.10的bukkit就有了，只不过彼时的Minecraft需要手按tab键 ...</blockquote></div><br />
+非常感谢您的建议，已针对您提出的问题再次查看了相关源码并进行了修正。<br />
+<br />
+1.经过搜索，确实在1.7.10的Bukkit文档中找到了这个类，已修改相关内容。<br />
+2.之前对Stream API的并行处理有所误解，未考虑到并行处理不能保证顺序，不适用于补全操作，现已修正。<br />
+3.经过查看Bukkit相关源码，仅发现了玩家名字补全器，原版其他类型的补全器应该尚未加入。<br />
+4.我觉得应该没有必要多线程处理，在Trie中匹配的时间复杂度仅为O(logn)，即使有一亿个待匹配项，只要限定最终的匹配项数量（例如只有一个字母的时候不匹配，否则网络也是个瓶颈），也可以在1ms内处理完毕。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>海螺螺&nbsp; &nbsp; <b>时间: </b>2018-9-6 14:00<br />
+<div class="quote"><blockquote>之前对Stream API的并行处理有所误解，未考虑到并行处理不能保证顺序</blockquote></div><br />
+为啥是并行处理，Arrays.stream 返回的应该不是一个并行流，并且要顺序的话 sorted() 就行<br />
+<br />
+至于多线程处理那个，假如我想做个插件搜索引擎（我有病），让百度补全，能不能在取得结果后直接向客户端发送补全包<br />
+<br />
+原版其他的补全器肯定是没有的，但是我们水桶开发者应该非常熟悉搞nms的操作了，你就研究下呗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1204074991&nbsp; &nbsp; <b>时间: </b>2019-5-26 09:50<br />
+怎么补全指令呢？好像只能补全参数的样子。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Tcaks_NB&nbsp; &nbsp; <b>时间: </b>2019-6-30 23:20<br />
+后排表示支持。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3072481711&nbsp; &nbsp; <b>时间: </b>2020-7-18 22:26<br />
+厉害了，楼主<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>空辉者也&nbsp; &nbsp; <b>时间: </b>2020-8-21 18:34<br />
+谢谢楼主，终于不用记插件命令了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>桃子酱ME&nbsp; &nbsp; <b>时间: </b>2020-8-22 03:49<br />
+楼主我爱你
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

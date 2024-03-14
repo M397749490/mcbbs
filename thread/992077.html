@@ -1,0 +1,253 @@
+<html>
+<head>
+<title>关于伪加载区块和玩家 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于伪加载区块和玩家 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>隔壁老吕&nbsp; &nbsp; <b>时间: </b>2020-3-20 20:32<br />
+<b>标题: </b>关于伪加载区块和玩家<br /><i class="pstatus"> 本帖最后由 隔壁老吕 于 2020-3-20 20:39 编辑 </i><br />
+<br />
+最近嘛，<br />
+帮朋友整一个RPG服，<br />
+写插件，<br />
+发现一堆<strong>黑货</strong>，<br />
+但是黑货大哥都经验丰富，<br />
+藏货十分隐蔽，<br />
+这就让我朋友十分蛋疼，<br />
+然后我就打算帮他写个查货的插件。<br />
+货在哪？<strong>容器</strong>和<strong>背包</strong>以及<strong>末影箱</strong><br />
+容器就可以联想到<strong>TileEntity</strong>，然后我就想起了<strong>Chunk</strong>的方法getTileEntities，<br />
+那么猜测一下，tileEntity的数据存在<strong>Chunk</strong>里，查mcwiki<br />
+哦，查到个好东西:<br />
+
+<ignore_js_op>
+
+<img id="aimg_1511146" aid="1511146" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/20/195514rjjydjlrhddrrfhj.png" file="https://attachment.mcbbs.net/forum/202003/20/195514rjjydjlrhddrrfhj.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1511146" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1511146_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200320195208.png</strong> <em class="xg1">(29.19 KB, 下载次数: 1)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTE0Nnw4NTE2YjQ1ZHwxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-20 19:55 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+那么这个有什么用呢？<br />
+首先，注意，MC并不会加载所有区块（不然你服务器<strong>内存原地爆炸</strong>奥）<br />
+所以由mcwiki知，我们可以通过遍历<strong>region</strong>中的<strong>mca</strong>文件来实现遍历<strong>Chunk</strong><div class="blockcode"><div id="code_mBL"><ol><li>public static void checkWorld(World world) {<br />
+<li>&nbsp; &nbsp; world.save();<br />
+<li>&nbsp; &nbsp; File folder = world.getWorldFolder();<br />
+<li>&nbsp; &nbsp; File region = new File(folder, &quot;region&quot;);<br />
+<li>&nbsp; &nbsp; for (File mca : region.listFiles()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int regionX = Integer.parseInt(mca.getName().split(&quot;\\.&quot;)[1]) * 32;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int regionY = Integer.parseInt(mca.getName().split(&quot;\\.&quot;)[2]) * 32;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (int x = 0; x &lt; 32; x++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (int y = 0; y &lt; 32; y++) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; checkChunk(world, regionX + x, regionY + y);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_mBL'));">复制代码</em></div>这时就有小伙伴问了，为啥要world.save();呢？因为mc的区块不是<strong>即时</strong>保存的，所以我们要<strong>手动</strong>保存一次来<strong>同步数据</strong><br />
+<strong>那么接下来就会有小伙伴问，</strong>checkChunk是啥玩意？<br />
+nm你急啥<br />
+其中，代码中的regionX + x和regionY + y即为<strong>Chunk</strong>的<strong>真实坐标</strong><br />
+<strong>然后，我们如何去伪加载区块呢？</strong><br />
+BukkitAPI肯定是做不到的（你能写出来我表演吃<strong>奥利给</strong>）<br />
+那么我们就能去翻翻<strong>NMS</strong>了<br />
+至于不知道<strong>NMS</strong>是啥的，那就当做不知道的吧<br />
+经过一番在mcbbs讲起来太麻烦的过程，我找到了原版里区块的加载器<strong>ChunkLoader</strong><br />
+<strong>那么怎么获取这玩意呢？</strong><br />
+<div class="blockcode"><div id="code_vIZ"><ol><li>Object nmsWorld = NBT.doMethod(world, &quot;getHandle&quot;);<br />
+<li>Object chunkProviderServer = NBT.doMethod(nmsWorld, &quot;getChunkProviderServer&quot;);<br />
+<li>if (chunkProviderServer == null) {<br />
+<li>&nbsp; &nbsp; chunkProviderServer = NBT.getField(nmsWorld, &quot;chunkProviderServer&quot;);<br />
+<li>}<br />
+<li>Object iChunkLoader = NBT.getField(chunkProviderServer, &quot;chunkLoader&quot;);</ol></div><em onclick="copycode($('code_vIZ'));">复制代码</em></div>然后就有小伙伴问，这个<strong>NBT</strong>又是什么玩意？它是我自己编写的一个工具类，用于完成<strong>反射操作</strong>及<strong>操作NBT</strong>，十分便捷（确信）<br />
+文件：
+<ignore_js_op>
+
+<img src="static/image/filetype/rar.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1511193" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTE5M3w2NzYzODFkZnwxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3" target="_blank">NBT.rar</a>
+
+<em class="xg1">(1.7 KB, 下载次数: 4)</em>
+</span>
+<div class="tip tip_4" id="attach_1511193_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2020-3-20 20:15 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+这时就会有小伙伴问，为啥要加“if (chunkProviderServer == null) {”呢？因为1.8没有getChunkProviderServer方法，只能获取chunkProviderServer的值<br />
+那么我们现在就获取了<strong>ChunkLoader，本体为ChunkRegionLoader，在NMS中可以找到</strong><br />
+
+<ignore_js_op>
+
+<img id="aimg_1511199" aid="1511199" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/20/201925az2ah8a0h8x780nq.png" file="https://attachment.mcbbs.net/forum/202003/20/201925az2ah8a0h8x780nq.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="510" id="aimg_1511199" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1511199_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200320201903.png</strong> <em class="xg1">(12.03 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTE5OXw4MjQ3MjcwY3wxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-20 20:19 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+然后反编译第一眼就看到一个方法，事实上他就是加载并导入区块到世界的方法<br />
+然后盯住其中的loadChunk方法<br />
+
+<ignore_js_op>
+
+<img id="aimg_1511201" aid="1511201" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/20/202107zv18znb63intyi3f.png" file="https://attachment.mcbbs.net/forum/202003/20/202107zv18znb63intyi3f.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1511201" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1511201_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200320202039.png</strong> <em class="xg1">(16.02 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTIwMXxmMDZkNmVjM3wxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-20 20:21 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+一看，秒啊，纯读取文件获取NBT，事实上他就是读取区块的方法<br />
+然后反射获取图示代码中的Object[] data<br />
+<div class="blockcode"><div id="code_nEU"><ol><li>Object[] data = (Object[]) NBT.doMethod(iChunkLoader, &quot;loadChunk&quot;, new ParamGroup(nmsWorld, NBT.Package.MINECRAFT_SERVER.getClass(&quot;World&quot;)), new ParamGroup(x, int.class), new ParamGroup(z, int.class));</ol></div><em onclick="copycode($('code_nEU'));">复制代码</em></div>那么区块NBT就是<br />
+<div class="blockcode"><div id="code_bYZ"><ol><li>Object nbtData = data[1];</ol></div><em onclick="copycode($('code_bYZ'));">复制代码</em></div>既然我们获取了NBT，那么再使出mcwiki大法<br />
+
+<ignore_js_op>
+
+<img id="aimg_1511217" aid="1511217" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/20/202550xgzzhuuibb2k6hbe.png" file="https://attachment.mcbbs.net/forum/202003/20/202550xgzzhuuibb2k6hbe.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1511217" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1511217_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200320202425.png</strong> <em class="xg1">(190.32 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTIxN3wzYmM1YWE4MnwxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-20 20:25 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+然后我们就可以看到tileEntities，秒啊！<br />
+<div class="blockcode"><div id="code_BGB"><ol><li>NBT level = new NBT(NBT.doMethod(nbtData, &quot;getCompound&quot;, new ParamGroup(&quot;Level&quot;)));<br />
+<li>List&lt;NBT&gt; tileEntities = level.getNBTList(&quot;TileEntities&quot;, 10);<br />
+<li>for (NBT nbtTileEntity : tileEntities) {<br />
+<li>&nbsp; &nbsp; List&lt;NBT&gt; items = nbtTileEntity.getNBTList(&quot;Items&quot;, 10);<br />
+<li>&nbsp; &nbsp; BlockContainer blockContainer = new BlockContainer(world.getName(), nbtTileEntity.getInt(&quot;x&quot;), nbtTileEntity.getInt(&quot;y&quot;), nbtTileEntity.getInt(&quot;z&quot;));<br />
+<li>&nbsp; &nbsp; if (!items.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (NBT item : items) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;blockContainer.items.add(item.toItemStack());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ret.add(blockContainer);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_BGB'));">复制代码</em></div>然后我们就可以遍历读取TileEntitiy<br />
+通过mcwiki，我们又能查到，<strong>Items</strong>即为方块物品的key<br />
+
+<ignore_js_op>
+
+<img id="aimg_1511222" aid="1511222" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/20/202836r2nr7z42k7n3myvy.png" file="https://attachment.mcbbs.net/forum/202003/20/202836r2nr7z42k7n3myvy.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="696" id="aimg_1511222" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1511222_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>QQ截图20200320202733.png</strong> <em class="xg1">(41.92 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUxMTIyMnwwYmM4NDg2MXwxNjE0MDIwMzAzfDI0MTk0ODZ8OTkyMDc3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-20 20:28 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+奥，上面已经写了，然后就可以用我的工具类将NBT直接转为物品<br />
+完整代码：<br />
+<div class="blockcode"><div id="code_o6G"><ol><li>public static List&lt;BlockContainer&gt; getChunkTileEntityBlocks(org.bukkit.World world, int x, int z) {<br />
+<li>&nbsp; &nbsp; List&lt;BlockContainer&gt; ret = new ArrayList&lt;&gt;();<br />
+<li>&nbsp; &nbsp; Object nmsWorld = NBT.doMethod(world, &quot;getHandle&quot;);<br />
+<li>&nbsp; &nbsp; Object chunkProviderServer = NBT.doMethod(nmsWorld, &quot;getChunkProviderServer&quot;);<br />
+<li>&nbsp; &nbsp; if (chunkProviderServer == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;chunkProviderServer = NBT.getField(nmsWorld, &quot;chunkProviderServer&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; Object iChunkLoader = NBT.getField(chunkProviderServer, &quot;chunkLoader&quot;);<br />
+<li>&nbsp; &nbsp; Object[] data = (Object[]) NBT.doMethod(iChunkLoader, &quot;loadChunk&quot;, new ParamGroup(nmsWorld, NBT.Package.MINECRAFT_SERVER.getClass(&quot;World&quot;)), new ParamGroup(x, int.class), new ParamGroup(z, int.class));<br />
+<li>&nbsp; &nbsp; if (data != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Object nbtData = data[1];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;NBT level = new NBT(NBT.doMethod(nbtData, &quot;getCompound&quot;, new ParamGroup(&quot;Level&quot;)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;List&lt;NBT&gt; tileEntities = level.getNBTList(&quot;TileEntities&quot;, 10);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (NBT nbtTileEntity : tileEntities) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;List&lt;NBT&gt; items = nbtTileEntity.getNBTList(&quot;Items&quot;, 10);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;BlockContainer blockContainer = new BlockContainer(world.getName(), nbtTileEntity.getInt(&quot;x&quot;), nbtTileEntity.getInt(&quot;y&quot;), nbtTileEntity.getInt(&quot;z&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!items.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (NBT item : items) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;blockContainer.items.add(item.toItemStack());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ret.add(blockContainer);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return ret;<br />
+<li>}</ol></div><em onclick="copycode($('code_o6G'));">复制代码</em></div>那么ret中即为该chunk的物品<br />
+经过实际测试通过这个办法伪加载的区块是不会载入到世界里的，并且可以随意异步操作<br />
+然后就能通过x，y，z值获取容器的真实方块并进行操作<br />
+<br />
+<strong>累死我了，玩家的待会写</strong><br />
+<strong>算了，玩家的不写了</strong><br />
+<script type="text/javascript" reload="1">
+aimgcount[17056332] = ['1511146','1511199','1511201','1511217','1511222'];
+attachimggroup(17056332);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>秋韵&nbsp; &nbsp; <b>时间: </b>2020-3-21 00:31<br />
+支持一下，老吕辛苦了<br />
+<img id="aimg_jM171" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/21/1Kby4ELwvfmeAnY.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

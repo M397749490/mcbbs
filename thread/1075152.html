@@ -1,0 +1,107 @@
+<html>
+<head>
+<title>关于服务端启动参数的分享 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于服务端启动参数的分享 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>redfish&nbsp; &nbsp; <b>时间: </b>2020-7-9 19:25<br />
+<b>标题: </b>关于服务端启动参数的分享<br /><i class="pstatus"> 本帖最后由 redfish 于 2020-7-9 19:35 编辑 </i><br />
+<br />
+<div align="left"><font face="宋体">关于服务端启动项的优化</font></div><br />
+<div align="left"><font face="宋体">写这个的目的呢，之前想分享被批灌水了，说没心得，所以啃了一下响应的内容。</font></div><br />
+<div align="left"><font face="宋体">下面是正文：</font></div><br />
+<div align="left"><font face="宋体">其实启动参数围绕的主要就是</font>gc<font face="宋体">的机制和相关的配置。</font></div><br />
+<div align="left"><font face="宋体">比较重要部分呢，会用红色标记，其他都是原理相关的和解释。</font></div><div align="left"><font face="宋体"><br />
+</font></div><br />
+<div align="left"><font face="宋体">一、</font></div><div align="left">GC<font face="宋体">的功能，就是回收内存的垃圾</font>(gabageCollect)<font face="宋体">。就是尽量让内存不要占用太多，但是，这一回收过程会短暂的暂停世界</font>(stop_the_wolrd)<font face="宋体">，也就停下手头的任务。这样对于</font>MC<font face="宋体">的服务端来说，如果频繁进行垃圾回收，或者垃圾回收的时间过长，都会影响到</font><font face="Calibri">TPS</font><font face="宋体">。</font></div><br />
+<div align="left"><font color="#ff0000"><font face="宋体">那么，</font>GC<font face="宋体">优化的目标就是减少垃圾回收次数和占用时间。</font></font></div><div align="left"><font face="宋体"><br />
+</font></div><br />
+<div align="left"><font face="宋体">二、</font></div><div align="left">GC<font face="宋体">方式的选择（参考</font><font face="Calibri">https://blog.csdn.net/high2011/article/details/80177473</font><font face="宋体">）</font></div><br />
+<div align="left"><font face="宋体">垃圾回收器目前分为</font>6<font face="宋体">种类型</font><font face="Calibri">, </font><font face="宋体">串行，并行，并发标记，</font><font face="Calibri">G1</font><font face="宋体">。</font></div><br />
+<div align="left"><font face="宋体">小数据量和小型应用，使用串行垃圾回收器即可。</font></div><div align="left"><font face="宋体">对于对响应时间无特殊要求的，可以使用并行垃圾回收器和并发标记垃圾回收器。（中大型应用）</font></div><div align="left"><font face="宋体">对于</font>heap<font face="宋体">可以分配很大的中大型应用，使用</font><font face="Calibri">G1</font><font face="宋体">垃圾回收器比较好，进一步优化和减少了</font><font face="Calibri">GC</font><font face="宋体">暂停时间。</font></div><br />
+<div align="left"><font color="#ff0000"><font face="宋体">可以看到</font>G1<font face="宋体">整好符合</font><font face="Calibri">MC</font><font face="宋体">服务器的优化要求，所以</font><font face="Calibri">G1</font><font face="宋体">是比较好的选择。</font></font></div><div align="left"><font face="宋体"><br />
+</font></div><br />
+<div align="left"><font face="宋体">三、</font></div><div align="left"><font face="宋体">参数的设置。这里就完全参考，只做一些解释</font></div><div align="left"><a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Faikar.co%2F2018%2F07%2F02%2Ftuning-the-jvm-g1gc-garbage-collector-flags-for-minecraft%2F" target="_blank"><u><font style="color:rgb(0, 0, 255)"><font face="&amp;quot;">https://aikar.co/2018/07/02/tuning-the-jvm-g1gc-garbage-collector-flags-for-minecraft/</font></font></u></a></div><div align="left"><font face="宋体">作者是</font>aikar<font face="宋体">，</font><font face="Calibri">paper</font><font face="宋体">版的</font><font face="Calibri">timings</font><font face="宋体">就是他写的</font></div><br />
+<div align="left"><font face="宋体">首先给出他的推荐参数</font></div><div align="left"><div class="blockcode"><div id="code_swH"><ol><li>java -Xms10G -Xmx10G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -jar paperclip.jar nogui</ol></div><em onclick="copycode($('code_swH'));">复制代码</em></div><br />
+</div><br />
+<div align="left"><font face="宋体">作者的建议：</font></div><div align="left"><font face="宋体">1、</font><font face="宋体">不要用尽设备的内存，保留</font>1-1.5G<font face="宋体">的配置给系统。</font></div><div align="left"><font face="宋体">2、</font><font face="宋体">建议内存</font>6G-10G<font face="宋体">，给更多的空间，</font><font face="Calibri">G1GC</font><font face="宋体">可以更好的工作。</font></div><div align="left">3、<font face="宋体">如果分配超过</font>12G<font face="宋体">，用下面的数值替代对应的配置</font></div><div align="left"><div class="blockcode"><div id="code_A0p"><ol><li>-XX:G1NewSizePercent=40<br />
+<li>-XX:G1MaxNewSizePercent=50<br />
+<li>-XX:G1HeapRegionSize=16M<br />
+<li>-XX:G1ReservePercent=15<br />
+<li>-XX:InitiatingHeapOccupancyPercent=20</ol></div><em onclick="copycode($('code_A0p'));">复制代码</em></div><br />
+</div><div align="left">4、<font face="宋体">如果需要记录</font>GC<font face="宋体">的</font><font face="Calibri">log</font><font face="宋体">，可以启用下面的配置</font></div><div align="left"><div class="blockcode"><div id="code_QCI"><ol><li>Java 8-10:-Xloggc:gc.log -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCTimeStamps -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=5 -XX:GCLogFileSize=1M<br />
+<li>Java 11+:-Xlog:gc*:logs/gc.log:time,uptime:filecount=5,filesize=1M</ol></div><em onclick="copycode($('code_QCI'));">复制代码</em></div><br />
+</div><br />
+<div align="left"><font face="宋体">接下来是具体配置项的解释</font></div><div align="left"><font face="宋体">一些翻译参考了</font><a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Ftech.meituan.com%2F2016%2F09%2F23%2Fg1.html" target="_blank"><u>https://tech.meituan.com/2016/09/23/g1.html</u></a></div><br />
+<div align="left">1、-Xms matching -Xmx</div><div align="left">初始堆和最大堆保持一致，</div><div align="left">HAVE UNUSED MEMORY!Unused memory is wasted memory</div><div align="left">空闲的内存都是浪费</div><br />
+<br />
+<div align="left"><font style="font-size:8pt">2、G1NewSizePercent</font></div><div align="left">就是年轻代首次分配的空间大小</div><div align="left">Minecraft has an extremely high a memory allocation rate, ranging to at least 800 Megabytes a second on a 30 player server! And this is mostly short lived objects (Block Position)</div><div align="left">MC会频繁触发内存分配，这一配置项呢会扩大（Eden）首次分配的空间，所以从默认的5%提高到了40%</div><div align="left">30人服务器至少保证800M的空间</div><br />
+<br />
+<div align="left"><font style="font-size:8pt">3、G1MixedGCLiveThresholdPercent</font></div><div align="left">年老代空间中的存活对象的占比，只有在此参数之下，才会被选入进入回收</div><div align="left">为了分配更多空间给年轻代，这个占比提高到了90%</div><br />
+<div align="left"><font style="font-size:8pt">4、G1ReservePercent=20</font></div><div align="left">待分配空间，因为mc的内存分配更新很疯狂，所以从默认的10%提高到20%</div><br />
+<div align="left">5、MaxTenuringThreshold=1</div><div align="left">年轻代到老年代晋升次数需求</div><div align="left">还是因为mc产生新生代速度太快，所以很快会溢出，而每次晋升都需要复制，所以直接把这个值设为1</div><br />
+<div align="left">6、SurvivorRatio=32</div><div align="left">年轻代存活率，降低以分配更多空间给新进的年轻代</div><br />
+<div align="left">7、AlwaysPreTouch</div><div align="left">强制分配操作系统的内存空间--（简单了解了一下，就是老年代才会向系统申请内存空间，而启动这个选项后，-Xms分配的空间被写入了0，可以直接使用。），作者的说明提到就是强制使用了透明大页管理（Transparent Huge Pages）</div><br />
+<div align="left">8、+DisableExplicitGC</div><div align="left">作者的意思呢，就是有的插件作者觉得自己能处理GC，就在插件里处理了，但是作者不信任，所以禁用了这种方式。</div><br />
+<div align="left">9、MaxGCPauseMillis=200</div><div align="left">GC 的最大停止时间，200就是4tick</div><div align="left"><font style="font-size:8pt"><br />
+</font></div><div align="left"><font size="2">10、+ParallelRefProcEnabled</font></div><div align="left"><font size="2">优化GC对弱引用检查的多线程支持，大概是这个意思</font></div><br />
+<div align="left"><font size="2">--XX:+UseLargePagesInMetaspace</font></div><div align="left"><font size="2">--XX:+UseTransparentHugePages</font></div><div align="left"><font size="2">这两个呢是大页面管理的内容，完全懵逼，需要jvm启用这个功能的话要加这个参数</font></div><br />
+<br />
+<div align="left"><font style="color:rgb(74, 74, 74)"><font face="Helvetica"><font style="font-size:8pt"><br />
+</font></font></font></div><div align="left"><font face="Helvetica"><font size="5"><font color="#000000">因为很多还是一知半解，希望有大佬能指正</font></font></font></div><br />
+当然，参数我都有实践过的<br />
+1.15.2生电服务器+粘液科技，虽然人不多，但都常年TPS保持20，内存只分配了6G<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>深拥v&nbsp; &nbsp; <b>时间: </b>2020-7-9 19:55<br />
+个人开这么多年服，实际体验是完全不需要启动参数，让虚拟机自己去调整...<br />
+甚至连广受好评的G1GC都不用emmm<br />
+不是拆台，当然用启动参数也没什么事，就是发表下自己的意见<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>redfish&nbsp; &nbsp; <b>时间: </b>2020-7-9 19:58<br />
+<i class="pstatus"> 本帖最后由 redfish 于 2020-7-9 20:16 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18862949&amp;ptid=1075152" target="_blank"><font color="#999999">深拥v 发表于 2020-7-9 19:55</font></a></font><br />
+个人开这么多年服，实际体验是完全不需要启动参数，让虚拟机自己去调整...<br />
+甚至连广受好评的G1GC都不用emmm ...</blockquote></div><br />
+但是我看到有问答版发的有TPS的问题，然后一看内存占用和CPU根本没满，这种问题优化游戏有用吗<br />
+这里简单说一下<br />
+<font color="#ff0000">配置参数的调优不是减少内存的使用，是减少内存垃圾回收占用的时间和频率，因为垃圾回收会停止整个虚拟机</font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>深拥v&nbsp; &nbsp; <b>时间: </b>2020-7-9 20:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18863003&amp;ptid=1075152" target="_blank"><font color="#999999">redfish 发表于 2020-7-9 19:58</font></a></font><br />
+但是我看到有问答版发的有TPS的问题，然后一看内存占用和CPU根本没满，这种问题优化游戏有用吗 ...</blockquote></div><br />
+内存和CPU占满了也不是什么好事，，，<br />
+关于TPS低的原因太多了，最好是现场分析<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>redfish&nbsp; &nbsp; <b>时间: </b>2020-7-9 20:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18863034&amp;ptid=1075152" target="_blank"><font color="#999999">深拥v 发表于 2020-7-9 20:00</font></a></font><br />
+内存和CPU占满了也不是什么好事，，，<br />
+关于TPS低的原因太多了，最好是现场分析<br />
+ ...</blockquote></div><br />
+我知道，但这绝对是一个方向，你不能指望频繁触发GC的虚拟机能提供好的吞吐量<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>清音巡绫&nbsp; &nbsp; <b>时间: </b>2020-7-9 21:53<br />
+java垃圾回收机制.jpg<br />
+甩垃圾车<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Daleynf&nbsp; &nbsp; <b>时间: </b>2020-7-10 13:57<br />
+<div class="quote"><blockquote><font color="#999999">redfish 发表于 2020-7-9 19:58</font><br />
+<font color="#999999">但是我看到有问答版发的有TPS的问题，然后一看内存占用和CPU根本没满，这种问题优化游戏有用吗<br />
+这里简单说 ...</font></blockquote></div><br />
+配置是硬道理，启动参数顶多辅助作用<br />
+并且占用高就是好现象吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>redfish&nbsp; &nbsp; <b>时间: </b>2020-7-10 14:36<br />
+<i class="pstatus"> 本帖最后由 redfish 于 2020-7-10 14:55 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18871267&amp;ptid=1075152" target="_blank"><font color="#999999">Daleynf 发表于 2020-7-10 13:57</font></a></font><br />
+配置是硬道理，启动参数顶多辅助作用<br />
+并且占用高就是好现象吗</blockquote></div><br />
+cpu 没满，但是tps有问题，说明设备性能根本没发挥出来，只能是别的问题，而可能的原因之一就是GC的问题，这时候<strike>游戏在怎么优化也没用</strike>游戏优化只是在限制玩家的自由，不让干着，不让干那。<br />
+cpu当然不要求占用高，但是你占用不高却出问题了就是使用方式有问题了。<br />
+内存 利用率低，这个请看上面的理解。如果看都没看就说没用当我没说。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

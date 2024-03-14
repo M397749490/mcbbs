@@ -1,0 +1,247 @@
+<html>
+<head>
+<title>另一种熔炉NBT配方的解决方案 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>另一种熔炉NBT配方的解决方案 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-6 21:11<br />
+<b>标题: </b>另一种熔炉NBT配方的解决方案<br /><i class="pstatus"> 本帖最后由 ruhuasiyu 于 2020-3-16 11:06 编辑 </i><br />
+<br />
+之前，我们可以通过添加相应配方，然后检测物品将要烧炼完毕时来替换产物并清理待烧炼物。这种做法的局限性一是若要求待烧炼物含指定NBT，则必须添加该物品的的烧炼配方，这就导致即使没有相应的NBT也会烧炼，个人建议为原物品也添加合理的烧炼配方，或者烧炼配方的产物和待烧炼物相同，同时不奖励经验值；二是即使产物应当可堆叠也无法正常堆叠，这时需配合漏斗等设备传输方可持续烧炼。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">情形</font></td><td><font face="Verdana">添加配方</font></td><td><font face="Verdana">注意事项</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">原版物品A-&gt;NBT物品B</font></td><td><font face="Verdana">A-&gt;B</font></td><td><font face="Verdana">在烧炼即将完成时生成产物。</font></td></tr><tr style="background-color:#FFFFFF"><td rowspan="2"><font face="Verdana">NBT物品A-&gt;原版物品B</font></td><td><font face="Verdana">A-&gt;B</font></td><td><font face="Verdana">同上一条。对于原版物品A，还需要清理产物或添加其它合适的烧炼效果。</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">A-&gt;C</font></td><td><font face="Verdana">同上一条。产物无法堆叠，需配合漏斗等设备传输方可持续烧炼。</font></td></tr><tr style="background-color:#FFFFFF"><td rowspan="2"><font face="Verdana">NBT物品A-&gt;NBT物品B</font></td><td><font face="Verdana">A-&gt;B</font></td><td><font face="Verdana">同上上条。若有其它烧炼配方可以得到原版物品B，则进行相应配方烧炼时的产物会直接变为NBT物品B，因此要排除这种情形。</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">A-&gt;C</font></td><td><font face="Verdana">同前两条。</font></td></tr></table><br />
+然后 <a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2504275" target="_blank">@chaoren019</a> 提醒我应该可以通过“检测待烧炼槽位为指定nbt时，用计分板储存烧炼刻数和燃料剩余时间，模拟烧炼过程，而跳过添加配方”，我便试着做了一下。<br />
+<br />
+检测燃料的燃烧值需要生成一个放置有铁矿石的熔炉，然后等待1tick获取其BurnTime。我们将熔炉原有物品信息记录在盔甲架主手上，只是在计算时会导致熔炉内物品闪烁一下。此外该方法在更换不同燃烧值物品时，燃烧火焰条会有所变化，这和通常烧炼配方有差异。<br />
+<br />
+首先在放置熔炉时为标记的盔甲架添加手持物来记录燃料的变化。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:tick</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">execute as @e[type=armor_stand,tag=cpp_furnace] at @s run function cpp:furnace/check</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/tick</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">execute unless block ~ ~ ~ furnace run kill @s<br />
+execute as @s[tag=cpp_check_fuel] run function cpp:furnace/fuel_get<br />
+execute unless predicate cpp:furnace/outfull if predicate cpp:furnace/furnace run function cpp:furnace/type</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/type</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana"># 燃料改变<br />
+execute as @s[tag=cpp_check_fuel] run function cpp:furnace/fuel_get<br />
+execute if data block ~ ~ ~ Items[{Slot:1b}] run function cpp:furnace/fuel_change_check<br />
+# 消耗燃料<br />
+execute as @s[tag=!cpp_check_fuel] if block ~ ~ ~ furnace{BurnTime:0s,Items:[{Slot:1b}]} run function cpp:furnace/fuel_use<br />
+# 进度 高炉、烟熏炉每次加2<br />
+execute unless block ~ ~ ~ furnace{BurnTime:0s} store result block ~ ~ ~ CookTime short 1 run scoreboard players add @s cppTick 1<br />
+execute if score @s cppTick matches 200.. run function cpp:furnace/done<br />
+# 停止<br />
+execute if block ~ ~ ~ furnace{BurnTime:0s} run scoreboard players reset @s cppTick<br />
+# 发光<br />
+execute as @e[type=armor_stand,tag=cpp_furnace] at @s if block ~ ~ ~ furnace[lit=false] unless block ~ ~ ~ furnace{BurnTime:0s} run function cpp:furnace/lit_true<br />
+execute as @e[type=armor_stand,tag=cpp_furnace] at @s if block ~ ~ ~ furnace[lit=true]{BurnTime:0s} run function cpp:furnace/lit_false</font></td></tr></table><br />
+当检测到燃料改变时，重新计算燃烧值。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/fuel_get</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">tag @s remove cpp_check_fuel<br />
+execute store result score @s cppValue run data get block ~ ~ ~ BurnTime<br />
+replaceitem block ~ ~ ~ container.0 air<br />
+data modify block ~ ~ ~ {} merge from entity @s HandItems[0].tag.storage</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/fuel_change_check</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">execute store result score #change cppValue run data modify entity @s HandItems[0].tag.id set from block ~ ~ ~ Items[{Slot:1b}].id<br />
+execute if score #change cppValue matches 1 run function cpp:furnace/fuel_change</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/fuel_change</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">data modify entity @s HandItems[0].tag.storage set from block ~ ~ ~<br />
+replaceitem block ~ ~ ~ container.0 iron_ore<br />
+replaceitem block ~ ~ ~ container.2 air<br />
+tag @s add cpp_check_fuel</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/fuel_use</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">execute store result block ~ ~ ~ BurnTime short 1 run scoreboard players get @s cppValue<br />
+execute store result block ~ ~ ~ Items[{Slot:1b}].Count byte 1 run data get block ~ ~ ~ Items[{Slot:1b}].Count 0.9999</font></td></tr></table><br />
+烧炼完毕时，通过战利品表生成产物，注意不能直接 loot replace 进熔炉的输出槽。烧炼完成时添加获取经验的配方记录，这里我们统一设定为每次0.15点，可以根据需要实现不同配方不同经验值。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/done</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">execute if data block ~ ~ ~ Items[{Slot:2b}] store result block ~ ~ ~ Items[{Slot:2b}].Count byte -1 run data get block ~ ~ ~ Items[{Slot:2b}].Count -1.0001<br />
+execute unless data block ~ ~ ~ Items[{Slot:2b}] run function cpp:furnace/done_loot<br />
+execute store result block ~ ~ ~ Items[{Slot:0b}].Count byte 1 run data get block ~ ~ ~ Items[{Slot:0b}].Count 0.9999<br />
+scoreboard players reset @s cppTick<br />
+data modify block ~ ~ ~ CookTime set value 0s<br />
+execute store result score #t cppValue run data get block ~ ~ ~ RecipesUsed.&quot;minecraft:charcoal&quot;<br />
+execute store result block ~ ~ ~ RecipesUsed.&quot;minecraft:charcoal&quot; int 1 run scoreboard players add #t cppValue 1</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/done_loot</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">clone ~ ~ ~ ~ ~ ~ ~ 255 ~<br />
+loot replace block ~ 255 ~ container.0 loot cpp:furnace/furnace<br />
+data modify block ~ 255 ~ Items[{Slot:0b}].Slot set value 2b<br />
+data modify block ~ ~ ~ Items append from block ~ 255 ~ Items[{Slot:2b}]<br />
+setblock ~ 255 ~ air</font></td></tr></table><br />
+修改熔炉的火焰外观。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/lit_true</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">data modify storage cpp:furnace {} merge from block ~ ~ ~ {}<br />
+execute if block ~ ~ ~ furnace[facing=east] run setblock ~ ~ ~ furnace[lit=true,facing=east]<br />
+execute if block ~ ~ ~ furnace[facing=west] run setblock ~ ~ ~ furnace[lit=true,facing=west]<br />
+execute if block ~ ~ ~ furnace[facing=south] run setblock ~ ~ ~ furnace[lit=true,facing=south]<br />
+execute if block ~ ~ ~ furnace[facing=north] run setblock ~ ~ ~ furnace[lit=true,facing=north]<br />
+data modify block ~ ~ ~ {} merge from storage cpp:furnace {}</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp:furnace/lit_false</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">data modify storage cpp:furnace {} merge from block ~ ~ ~ {}<br />
+execute if block ~ ~ ~ furnace[facing=east] run setblock ~ 255 ~ furnace[lit=false,facing=east]<br />
+execute if block ~ ~ ~ furnace[facing=west] run setblock ~ 255 ~ furnace[lit=false,facing=west]<br />
+execute if block ~ ~ ~ furnace[facing=south] run setblock ~ 255 ~ furnace[lit=false,facing=south]<br />
+execute if block ~ ~ ~ furnace[facing=north] run setblock ~ 255 ~ furnace[lit=false,facing=north]<br />
+data modify block ~ ~ ~ {} merge from storage cpp:furnace {}</font></td></tr></table><br />
+使用断言和战利品表来记录配方。这里断言需要分输出栏空和输出栏为相应产物两种情形。<br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp/loot_tables/furnace/outfull.json</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;condition&quot;: &quot;minecraft:location_check&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;predicate&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;block&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;nbt&quot;: &quot;{Items:[{Slot:2b,Count:64b}]}&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp/loot_tables/furnace/furnace.json</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;pools&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;rolls&quot;: 1,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;entries&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;type&quot;: &quot;minecraft:alternatives&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;children&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;conditions&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:location_check&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;predicate&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;block&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;nbt&quot;: &quot;{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}}]}&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;],<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;type&quot;: &quot;minecraft:loot_table&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;name&quot;: &quot;cpp:cooked_bear_meat&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]<br />
+}</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp/predicates/furnace/furnace1.json</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;condition&quot;: &quot;minecraft:alternative&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;terms&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:location_check&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;predicate&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;block&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;nbt&quot;: &quot;{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}}]}&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]<br />
+}</font></td></tr></table><br />
+<table cellspacing="0" class="t_table" ><tr style="background-color:#C0C0C0"><td><font face="Verdana">cpp/predicates/furnace/furnace.json</font></td></tr><tr style="background-color:#FFFFFF"><td><font face="Verdana">{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;condition&quot;: &quot;minecraft:alternative&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;terms&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:inverted&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;term&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;condition&quot;: &quot;minecraft:alternative&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;terms&quot;: [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:inverted&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;term&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;condition&quot;: &quot;minecraft:reference&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;name&quot;: &quot;cpp:furnace/furnace1&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; },<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:location_check&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;predicate&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;block&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;nbt&quot;: &quot;{Items:[{Slot:2b}]}&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; },<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;condition&quot;: &quot;minecraft:location_check&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&quot;predicate&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;block&quot;: {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;nbt&quot;: &quot;{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}},{Slot:2b,tag:{id:'cpp:cooked_bear_meat'}}]}&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]<br />
+}</font></td></tr></table><br />
+<br />
+<div align="center"><img id="aimg_zH4ON" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/06/BA9i6VKHgxzpPOD.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /> <img id="aimg_rXZwO" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/06/49CNTYiUQFa5nEh.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></div><br />
+[groupid=1009]The Command's Power[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Jokey_钥匙&nbsp; &nbsp; <b>时间: </b>2020-3-6 22:45<br />
+对不起 不想动脑子了<br />
+但是输出槽满64会出错吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ph-苯&nbsp; &nbsp; <b>时间: </b>2020-3-6 22:56<br />
+（小白发言）<br />
+放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？<br />
+我通常在远处强加载一个区块用来放方块，所有我开发的模组都使用同一个区块。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>聖夢韜&nbsp; &nbsp; <b>时间: </b>2020-3-7 09:14<br />
+厉害厉害啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-7 18:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16770355&amp;ptid=978624" target="_blank"><font color="#999999">七刀月复 发表于 2020-3-6 22:56</font></a></font><br />
+（小白发言）<br />
+放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？<br />
+我通常在远处强加载一个 ...</blockquote></div><br />
+放置的时候会卡一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>CR_019&nbsp; &nbsp; <b>时间: </b>2020-3-7 18:56<br />
+由于没有实测，只能在这里理论推理一下（顺便占个楼）：<br />
+1、类比于潜影盒戏法，为什么放置熔炉会卡，放潜影盒不卡？<br />
+2、如果不在高处放置熔炉，直接将熔炉输入、输出、烧炼进度用数据暂存起来，直接在原熔炉上搞个铁矿石（为避免视觉上有差错，可设置空白材质），然后将上述数据存回去，是否可以避免问题？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-8 09:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16783733&amp;ptid=978624" target="_blank"><font color="#999999">chaoren019 发表于 2020-3-7 18:56</font></a></font><br />
+由于没有实测，只能在这里理论推理一下（顺便占个楼）：<br />
+1、类比于潜影盒戏法，为什么放置熔炉会卡，放潜影 ...</blockquote></div><br />
+1 因为潜影盒是即用即毁，而熔炉会存在1tick<br />
+<br />
+2 我试试吧<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-8 09:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16770355&amp;ptid=978624" target="_blank"><font color="#999999">七刀月复 发表于 2020-3-6 22:56</font></a></font><br />
+（小白发言）<br />
+放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？<br />
+我通常在远处强加载一个 ...</blockquote></div><br />
+放置方块就是会卡，除非方块在1tick内就处理完了销毁了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>沈念6&nbsp; &nbsp; <b>时间: </b>2020-3-8 10:18<br />
+dddddddddddddddddddddddddd<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ph-苯&nbsp; &nbsp; <b>时间: </b>2020-3-8 12:22<br />
+<div class="quote"><blockquote><font color="#999999">ruhuasiyu 发表于 2020-3-8 09:59</font><br />
+<font color="#999999">放置方块就是会卡，除非方块在1tick内就处理完了销毁了</font></blockquote></div><br />
+那可以专门使用一个特殊位置的方块吗？不需要每次检测都放置，只要在模组加载时放置就行。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>非酋longes&nbsp; &nbsp; <b>时间: </b>2020-3-8 15:23<br />
+虽然看不懂但是666666就完事了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dv123321&nbsp; &nbsp; <b>时间: </b>2020-3-8 17:59<br />
+感觉用处不是恒大&nbsp;&nbsp;主要是卡服就是最大的弊病 如果整改搭配其他插件 应该能有更大的发挥作用<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-9 09:57<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16800045&amp;ptid=978624" target="_blank"><font color="#999999">dv123321 发表于 2020-3-8 17:59</font></a></font><br />
+感觉用处不是恒大&nbsp;&nbsp;主要是卡服就是最大的弊病 如果整改搭配其他插件 应该能有更大的发挥作用 ...</blockquote></div><br />
+命令并不多，并不卡<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ZYXZH&nbsp; &nbsp; <b>时间: </b>2020-3-9 10:49<br />
+6666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>基哥Grumm&nbsp; &nbsp; <b>时间: </b>2020-3-16 13:04<br />
+也就是说<br />
+能够自定义熔炉的烧炼配方以及产物吗<br />
+例如把腐肉丢进去烧成泥土也可以实现吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-17 11:25<br />
+<i class="pstatus"> 本帖最后由 隐退 于 2020-3-17 11:33 编辑 </i><br />
+<div class="quote"><blockquote>之前，我们可以通过添加相应配方，然后检测物品将要烧炼完毕时来替换产物并清理待烧炼物。</blockquote></div>u1s1，我觉得之前的方法挺好的，连接口都不用 <img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><br />
+<div class="quote"><blockquote>这种做法的局限性二是即使产物应当可堆叠也无法正常堆叠。</blockquote></div>我觉得这个问题应该可以修，直接用 scoreboard 和 execute store 命令改数量（<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2020-3-17 11:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16981480&amp;ptid=978624" target="_blank"><font color="#999999">隐退 发表于 2020-3-17 11:25</font></a></font><br />
+u1s1，我觉得之前的方法挺好的，连接口都不用 <br />
+我觉得这个问题应该可以修，直接用 scoreboard 和 e ...</blockquote></div><br />
+你说的我都考虑过，熔炉有一个特性，如果a烧成b，那么无论输出栏的b有什么nbt都会烧a然后输出栏数量直接+1<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-17 12:30<br />
+<i class="pstatus"> 本帖最后由 隐退 于 2020-3-17 13:27 编辑 </i><br />
+<br />
+想了一下，问题应该是在熔炼过程中更换物品（将带 NBT 的物品换成不带 NBT 或带不同 NBT 的 id 相同的物品）并不会更换产物。<hr class="l" />我觉得接口还是让（原版模组）整合包作者来写比较好（<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zzl2010&nbsp; &nbsp; <b>时间: </b>2020-3-20 16:05<br />
+谢谢&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qiuyang0191&nbsp; &nbsp; <b>时间: </b>2020-3-24 20:33<br />
+我只能说666来表示对大佬的敬佩之情<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>知雨晓雨&nbsp; &nbsp; <b>时间: </b>2020-3-25 02:18<br />
+喜欢喜欢we全文
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

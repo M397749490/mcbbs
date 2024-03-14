@@ -1,0 +1,254 @@
+<html>
+<head>
+<title>【TCP|Ms】1.13-pre 轨道炮卖萌+追踪弹道修正系统 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【TCP|Ms】1.13-pre 轨道炮卖萌+追踪弹道修正系统 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MsYqgzt&nbsp; &nbsp; <b>时间: </b>2018-6-26 18:20<br />
+<b>标题: </b>【TCP|Ms】1.13-pre 轨道炮卖萌+追踪弹道修正系统<br /><i class="pstatus"> 本帖最后由 MsYqgzt 于 2018-6-26 23:19 编辑 </i><br />
+<br />
+大家好呀，这里是<strike><font color="#808080">诈尸</font></strike>高考完的Ms，<br />
+虽然沉迷摸鱼到现在，不过多少也做了点东西出来，于是来跟大家分享分享。<br />
+<br />
+跳过剩余的开场白，这次分享一个轨道炮的实现方法。<br />
+不过轨道炮的子弹只是来卖萌的而已，呈现的核心部分在于实装在其之上的 <strong>追踪弹道修正系统</strong><br />
+<br />
+此追踪并非百发百中的必中，而是根据追踪目标的位置 对自身的弹道进行偏移修正，<br />
+通俗的说就是子弹的前进方向随着目标移动慢慢偏向目标位置，可实现更加真实的特效。<br />
+<br />
+<strong><font size="3">此模块可自定义 追踪的目标点 ——追踪目标的头部或脚部，也可自定义 追踪时的偏移速度 和 追踪角度范围</font></strong><br />
+<br />
+<font size="5">效果图：</font><br />
+<br />
+追踪范围内——追踪成功效果<br />
+<img id="aimg_jFf63" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://wx3.sinaimg.cn/large/0065s9Sdgy1fsopnwjx7og30js0dax6t.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+目标超出追踪范围——追踪失败效果<br />
+<img id="aimg_aB39l" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://wx3.sinaimg.cn/large/0065s9Sdgy1fsopo1dw7wg30js0da7wi.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+那么进入讲解环节<br />
+本次讲解涉及1.13的指令，如果对指令不了解的同学请自行转到指令讲解贴内学习<br />
+重点讲解追踪部分的运算，子弹的移动效果实现不做讲解。<br />
+<br />
+追踪模块代码：<br />
+<div class="blockcode"><div id="code_kh8"><ol><li>#子弹追踪曲线修正<br />
+<li>#Usage: execute as @e[tag=bullet,...] at @s run function pack:(...)/bullet_tracking<br />
+<li><br />
+<li>#Scoreboard<br />
+<li>scoreboard objectives add Bullet_RotX dummy<br />
+<li>scoreboard objectives add Bullet_RotY dummy<br />
+<li><br />
+<li>scoreboard objectives add ToTarget_RotX dummy<br />
+<li>scoreboard objectives add ToTarget_RotY dummy<br />
+<li><br />
+<li>scoreboard objectives add Math dummy<br />
+<li><br />
+<li>#Get_Data<br />
+<li>execute store result score @s Bullet_RotX run data get entity @s Rotation[0] 1000000<br />
+<li>execute store result score @s Bullet_RotY run data get entity @s Rotation[1] 1000000<br />
+<li><br />
+<li>#Get_ToTarget_Data<br />
+<li>execute as @s at @s anchored feet run tp @s ~ ~ ~ facing entity @e[type=!player,tag=!bullet,distance=..20,limit=1] feet<br />
+<li>#瞄准位置(eyes/feet)<br />
+<li><br />
+<li>execute store result score @s ToTarget_RotX run data get entity @s Rotation[0] 1000000<br />
+<li>execute store result score @s ToTarget_RotY run data get entity @s Rotation[1] 1000000<br />
+<li><br />
+<li>execute store result entity @s Rotation[0] float 0.000001 run scoreboard players get @s Bullet_RotX<br />
+<li>execute store result entity @s Rotation[1] float 0.000001 run scoreboard players get @s Bullet_RotY<br />
+<li><br />
+<li>#-----水平偏移-----<br />
+<li>#Offset_Calculation<br />
+<li>scoreboard players operation @s Math = @s ToTarget_RotX<br />
+<li>scoreboard players operation @s Math -= @s Bullet_RotX<br />
+<li><br />
+<li>#&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;偏移探测范围↓&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 偏移角度参数↓<br />
+<li>execute as @s at @s if score @s Math matches -90000000..0 run tp @s ~ ~ ~ ~-2 ~<br />
+<li>execute as @s at @s if score @s Math matches 0..90000000 run tp @s ~ ~ ~ ~2 ~<br />
+<li><br />
+<li>#-----竖直偏移-----<br />
+<li>#Offset_Calculation<br />
+<li>scoreboard players operation @s Math = @s ToTarget_RotY<br />
+<li>scoreboard players operation @s Math -= @s Bullet_RotY<br />
+<li><br />
+<li>#&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 偏移探测范围↓&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;偏移角度参数↓<br />
+<li>execute as @s at @s if score @s Math matches -90000000..0 run tp @s ~ ~ ~ ~ ~-2<br />
+<li>execute as @s at @s if score @s Math matches 0..90000000 run tp @s ~ ~ ~ ~ ~2<br />
+<li></ol></div><em onclick="copycode($('code_kh8'));">复制代码</em></div><br />
+
+<br />
+此代码附件内同样也有，需要的同学可自行搬用<br />
+<br />
+<br />
+<font size="5">核心思路:</font><br />
+1.13指令系统中，记分板能够读取实体的NBT数据，并存储为整形（integer），因此可以将实体的Rotation存储到记分板内。<br />
+但实际的情况中，实体的Rotation是浮点数（float），为了使追踪系统尽量精确，需要将存储到记分板的 小数 数值进行放大，<br />
+把小数的数值转换成整数存储进记分板，在数据回调至实体NBT时再缩小存入。<br />
+<br />
+<strong>简单介绍记分板的作用：</strong><br />
+Bullet_RotX、Bullet_RotY —— 分别存储 子弹实体 实时的Rotation X、Y的数值<br />
+ToTarget_RotX、ToTarget_RotY —— 分别存储 子弹实体 <strong>基于面向追踪目标状态</strong> 的实时 Rotation X、Y 的数值<br />
+Math —— 对以上四个记分板数值的运算结果存储<br />
+<br />
+每部分算法分析：<br />
+Get_Data —— 将子弹的Rotation放大1000000倍，存入Bullet_RotX、Bullet_RotY记分板中<br />
+<br />
+Get_ToTarget_Data —— 以子弹面向目标时的Rotation放大1000000倍，存入ToTarget_RotX、ToTarget_RotY记分板中<br />
+再将子弹原先的朝向数据，通过Bullet_RotX、Bullet_RotY的值 缩小1000000倍 赋值回去<br />
+*注意，这里可以修改追踪目标的追踪位点——头部或脚部<br />
+<br />
+接下来的运算就不必多说，将ToTarget_Rot 数据减去 Bullet_Rot ，对应结果存入Math记分板中 ，对Math的值进行判定，执行对应的朝向tp旋转<br />
+*注：在这里可以同时调整旋转的程度 ，以及Math的范围判定调整(甚至可以..0 , 0..这么玩)。<br />
+<br />
+<br />
+当然，这个追踪系统只包含水平和竖直方向上的追踪，没有实现任意弧度的追踪，<br />
+但可在此基础上做 朝向分段判定拓展，实现不同偏移加速度。<br />
+<br />
+召唤共同讨论此模块的朋友们<br />
+<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=720449" target="_blank">@玄素</a>&nbsp;&nbsp;<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=1205958" target="_blank">@acordome</a>&nbsp;&nbsp;<br />
+<br />
+<br />
+那么，感谢阅读。<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+[groupid=1009]The Command's Power[/groupid]
+<ignore_js_op>
+<dl class="tattl">
+<dt>
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+</dt>
+<dd>
+<p class="attnm">
+
+<a href="forum.php?mod=attachment&amp;aid=MTIxNDU4NXw5OTRiZWVjOHwxNjEzOTYyMzYyfDI0MTk0ODZ8ODAxMzU1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1214585" target="_blank">rail_bullet.zip</a>
+
+<div class="tip tip_4" id="aid1214585_menu" style="display: none" disautofocus="true">
+<div class="tip_c">
+<p class="y">2018-6-26 17:29 上传</p>
+<p>点击文件名下载附件</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+</p>
+<p>1.85 KB, 下载次数: 89</p>
+<p>
+
+</p>
+
+
+</dd>
+</dl>
+</ignore_js_op>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-6-26 18:40<br />
+<i class="pstatus"> 本帖最后由 ruhuasiyu 于 2018-6-27 09:23 编辑 </i><br />
+<br />
+做什么朝向分段啊，锥形区域选择了解下……<br />
+<a href="thread.html?t=796669" target="_blank">http://www.mcbbs.net/thread-796669-1-1.html</a><br />
+<br />
+改用在子弹前方100处的100内实体加tag sth<br />
+<div class="blockcode"><div id="code_wgO"><ol><li>execute positioned ^ ^ ^100 run tag @e[type=!player,distance=..99.9999] add pseduo_target<br />
+<li>tag @e[tag=pseduo_target,distance=..20,sort=nearest,limit=1] add target</ol></div><em onclick="copycode($('code_wgO'));">复制代码</em></div><br />
+来选择目标，以避免判断rotation<br />
+<br />
+最后你可以这样，在前方1米放置a，然后a facing目标并向前0.0349米，将bullet设置为facing a<br />
+<div class="blockcode"><div id="code_fMj"><ol><li>summon aec ^ ^ ^1 {Tags:[&quot;a&quot;]}<br />
+<li>execute as @e[type=aec,tag=a,limit=1] at @s facing entity @e[tag=target,limit=1] run tp @s ^ ^ ^0.0349<br />
+<li>tp @s ~ ~ ~ facing @e[type=aec,tag=a,limit=1]</ol></div><em onclick="copycode($('code_fMj'));">复制代码</em></div><br />
+这样无论目标在何处，都能使弹道向其偏移2°左右<font style="font-size:14px"><br />
+</font><br />
+<font style="font-size:14px">说错了，这个偏移角度不是2°，而是约等于目标偏移度的正弦除以45，不过也是逐渐向目标偏移的……<br />
+</font><br />
+大概是这样，具体你再测试看看<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>BlackCB.&nbsp; &nbsp; <b>时间: </b>2018-6-26 22:51<br />
+跟不上<img src="static/image/smiley/tong/awkward.png" smilieid="1446" border="0" alt="" /><br />
+/summon Creeper ~ ~ ~ {Fuse:0s}<br />
+真·丢脸<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq8252811&nbsp; &nbsp; <b>时间: </b>2018-6-26 23:32<br />
+还在玩1.7.10呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雷鸣·翾鹗&nbsp; &nbsp; <b>时间: </b>2018-6-30 23:51<br />
+导弹军工厂后继有人了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yq123456&nbsp; &nbsp; <b>时间: </b>2018-7-8 15:24<br />
+好厉害 学习学习 水一波~~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>buhuichongfu&nbsp; &nbsp; <b>时间: </b>2018-7-8 17:25<br />
+我特别讨厌楼主这种大佬，搞得我觉得自己根本不好意思讲自己会玩mc。<img src="static/image/smiley/tong/anger.png" smilieid="1437" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq1597325628&nbsp; &nbsp; <b>时间: </b>2018-7-10 00:00<br />
+厉害厉害学习学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 14:39<br />
+6666666666666666666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 14:40<br />
+64464535353<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 14:40<br />
+大炮貌似……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 14:41<br />
+很6的样子6<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>粘兽&nbsp; &nbsp; <b>时间: </b>2018-7-12 03:10<br />
+苦力怕炸死了苦力怕<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SCAME233&nbsp; &nbsp; <b>时间: </b>2018-7-13 18:23<br />
+那怎么做枪械啊，一秒3发都行，求采纳。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SCAME233&nbsp; &nbsp; <b>时间: </b>2018-7-14 18:42<br />
+我的目标是成为18级大神。假如你每天签到拿4经验，18级300000/4=75000天， 如果从1岁开始签到，那100年=36500天，你差不多要 活200年保持每天签到（谁知道200年后还有没有签到 这玩意），如果你每天再水4经验，时间减半，但考虑 现实，你不可能再活100年，取50年吧，你就要每天水 16经验，可能你是个勤快的人，每天水32经验，那就 需要25年！！！再如果你是个大水怪，每天水64经验 ，那就只要12.5年！！！还如果你个心急的人，每天水 128经验，你只要6.25年！！！！假如你已经急不可耐 了，每天水256经验，那你碉堡了，只要3.125年！！！ 当然，你会觉得3年还是太远了，每天你闲的蛋疼，忙 忙碌碌的水512经验，碉堡了，你只需要1.5625年，只 比1年半多一点！！！什么！！你还不满意，那你觉得 你可能一天水1024经验吗，可能吗！！可能吗！！！据 说回复100字或者一百字以上可以得到11~30经验，那么，按照队形，点击复制吧！！！ ... ... ... ... ... . ... ... .. ... ... ... ... ... ...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>m050131&nbsp; &nbsp; <b>时间: </b>2018-7-14 20:34<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13051110&amp;ptid=801355" target="_blank"><font color="#999999">粘兽sama 发表于 2018-7-12 03:10</font></a></font><br />
+苦力怕炸死了苦力怕</blockquote></div><br />
+本是同根生，生煎打太极？？？<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hjcdmmwy&nbsp; &nbsp; <b>时间: </b>2018-7-15 21:33<br />
+好巧瞧瞧去爱蕲艾<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>轩少Amor&nbsp; &nbsp; <b>时间: </b>2018-7-16 17:38<br />
+膜拜大佬 大佬幸苦了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Sky_dream&nbsp; &nbsp; <b>时间: </b>2018-7-17 11:46<br />
+不明觉厉....玩得很欢快啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Jon·Snow&nbsp; &nbsp; <b>时间: </b>2018-7-18 02:00<br />
+这个感觉挺不错，只是为什么没打到也会有苦力怕影子炸飞的样子出来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>buhuichongfu&nbsp; &nbsp; <b>时间: </b>2018-7-18 08:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13078062&amp;ptid=801355" target="_blank"><font color="#999999">Jon·Snow 发表于 2018-7-18 02:00</font></a></font><br />
+这个感觉挺不错，只是为什么没打到也会有苦力怕影子炸飞的样子出来</blockquote></div><br />
+因为“炮弹”就是苦力怕……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏逆520&nbsp; &nbsp; <b>时间: </b>2018-7-22 11:49<br />
+看不懂2332<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1746080459&nbsp; &nbsp; <b>时间: </b>2018-7-27 15:23<br />
+我来坐个任务<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>jiehua666&nbsp; &nbsp; <b>时间: </b>2018-7-30 22:36<br />
+又学到东西了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qaz1-qaz1-&nbsp; &nbsp; <b>时间: </b>2018-8-2 13:51<br />
+现在不学好数学真的不好意思说自己会命令<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>KODOLY&nbsp; &nbsp; <b>时间: </b>2018-8-3 20:30<br />
+很棒的教程，感觉全tcp就我不是大佬了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>44964884&nbsp; &nbsp; <b>时间: </b>2018-8-6 15:29<br />
+看不懂都是大佬<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>26号猪肉&nbsp; &nbsp; <b>时间: </b>2018-8-10 05:22<br />
+我感觉玩了个假的mc 我现在感到莫名的恐慌<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xuan_heng&nbsp; &nbsp; <b>时间: </b>2018-8-11 14:27<br />
+来自，熊OP的来访，学习一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MR爱MC&nbsp; &nbsp; <b>时间: </b>2018-8-15 14:08<br />
+<i class="pstatus"> 本帖最后由 MR爱MC 于 2018-8-15 14:10 编辑 </i><br />
+<br />
+这个帅！我喜欢！！还有没有其他动感光波之类的！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MR爱MC&nbsp; &nbsp; <b>时间: </b>2018-8-15 14:09<br />
+可以用在战争服了吧？？导弹追踪！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>sky~飞鱼&nbsp; &nbsp; <b>时间: </b>2018-9-1 20:11<br />
+不错的作品，给楼主赞一个，尤其是弹道修正的部分<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2185982997&nbsp; &nbsp; <b>时间: </b>2018-9-14 11:17<br />
+学到了，嘿嘿嘿~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>QWQQWQTAT&nbsp; &nbsp; <b>时间: </b>2018-12-15 20:53<br />
+好炫的特效！学到了！收藏必须的
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

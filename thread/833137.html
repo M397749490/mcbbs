@@ -1,0 +1,275 @@
+<html>
+<head>
+<title>[PHP] Swoole WebSocket 基础应用教程 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[PHP] Swoole WebSocket 基础应用教程 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Akkariin&nbsp; &nbsp; <b>时间: </b>2018-12-7 08:57<br />
+<b>标题: </b>[PHP] Swoole WebSocket 基础应用教程<br /><i class="pstatus"> 本帖最后由 Akkariin 于 2018-12-7 08:55 编辑 </i><br />
+<br /><br />
+<br />
+<font size="4"><strong># 什么是 WebSocket</strong></font><br />
+WebSocket 协议是基于 TCP 的一种新的网络协议。它实现了浏览器与服务器全双工 (full-duplex) 通信 —— 允许服务器主动发送信息给客户端。<br />
+WebSocket 通信协议于 2011 年被 IETF 定为标准 RFC 6455，并被 RFC7936 所补充规范。<br />
+<br />
+<font size="4"><strong># 什么是 Swoole</strong></font><br />
+Swoole 是一个 PHP 扩展，扩展不是为了提升网站的性能，是为了提升网站的开发效率。最少的性能损耗，换取最大的开发效率。利用 Swoole 扩展，开发一个复杂的 Web 功能，可以在很短的时间内完成了。<br />
+<br />
+今天，我要给大家带来的就是 WebSocket 的基础应用教程。首先举个例子，传统我们想要保持网页上的内容实时刷新，有什么办法呢？那就是通过 AJAX 轮询，而这种方法，会发起大量短连接请求，这对于 PHP 来说，单用户没什么影响，但是如果遇到了多用户的情况，就很容易出现网站反应迟钝，或者打不开的情况。<br />
+<br />
+不知道各位有没有遇到过网站服务器被 CC 攻击的情况，当有黑客向你的服务器发起大量连接，你的服务器就会因为承受不了高并发的请求量而崩溃。<br />
+而如果 AJAX 短连接数量过多，请求次数过于频繁的时候，效果就和 CC 攻击差不多了，让普通用户攻击你的网站，自 己 坑 自 己。<br />
+<br />
+<br />
+那么有什么办法在不发起短连接的情况下还能实时刷新网页内容呢？答案就是 WebSocket。<br />
+其实 AJAX 严格意义上都不能算是实时刷新，因为轮询请求是存在延迟的，我们先简单了解下 AJAX 和 WebSocket 的工作原理。<br />
+<br />
+<font size="3"><strong>AJAX 工作原理</strong></font><br />
+<div class="quote"><blockquote>客户端：Hi 服务器，有没有新内容可以更新？<br />
+服务器：没有，请稍等一会再来。<br />
+过了一会……<br />
+客户端：Hi 服务器，有没有新内容可以更新？<br />
+服务器：没有，请稍等一会再来。<br />
+又过了一会……<br />
+客户端：Hi 服务器，有没有新内容可以更新？<br />
+服务器：好的，这是新的内容，balabala...</blockquote></div><br />
+<font size="3"><strong>WebSocket 工作原理</strong></font><br />
+<div class="quote"><blockquote>客户端：Hi 服务器，我是客户端 01，如果有新消息请告诉我。<br />
+服务器：好的，已经和你建立连接，稍后有新消息我会推送给你。<br />
+过了一会……<br />
+服务器：有新消息了，内容是 balabala...<br />
+客户端：已收到消息</blockquote></div><br />
+从这个简单的例子可以看出，WebSocket 只需要客户端和服务器建立一条长连接，就可以实时推送消息了，而不需要客户端频繁向服务器发起请求。<br />
+第一节省了时间，因为每次发起新连接都需要时间。<br />
+第二降低了处理每个连接的开销，少量连接可能还感觉不出来，但是连接量大了差异就很明显了。<br />
+<br />
+<br />
+<br />
+<font size="4"><strong># 环境依赖</strong></font><br />
+<ul><li>仅支持 Linux、FreeBSD、MacOS 三种操作系统<li>在 Windows 平台，可使用 CygWin 或 WSL(Windows Subsystem for Linux)<li>Linux 内核版本 2.3.32 以上<li>gcc4.4 以上版本或者 clang<li>4.x 版本起需要 gcc-4.8 或更高版本, 编译失败请先尝试升级 gcc<li>编译为 libswoole.so 作为 C/C++ 库时需要使用 cmake-2.4 或更高版本<br />
+</ul><br />
+建议使用 Ubuntu14、CentOS7 或更高版本的操作系统<br />
+<br />
+<font size="4"><strong># PHP版本依赖</strong></font><br />
+<ul><li>Swoole-1.x 需要 PHP-5.3.10 或更高版本<li>Swoole-2.x 需要 PHP-7.0.0 或更高版本<li>Swoole-4.x 需要 PHP-7.1.0 或更高版本<br />
+</ul><br />
+不依赖 PHP 的 stream、sockets、pcntl、posix、sysvmsg 等扩展。PHP 只需安装最基本的扩展即可<br />
+<br />
+<font size="4"><strong># ARM平台（树莓派Raspberry PI）</strong></font><br />
+<ul><li>请使用 1.7.10 或更高版本<li>使用 GCC 交叉编译<li>在编译 Swoole 时，需要手工修改 Makefile 去掉 -O2 编译参数<br />
+</ul><br />
+<strong><font size="4"># MIPS平台（OpenWrt路由器）</font></strong><br />
+<ul><li>请使用 swoole-1.7.21 或更高版本<li>使用 GCC 交叉编译<br />
+</ul><br />
+<font size="4"><strong># CygWin环境支持（Windows系统）</strong></font><br />
+swoole-1.7.7 增加了对 cygwin 环境的支持，在 Windows 环境下，可以直接使用 cygwin + php 来跑 swoole 程序。<br />
+<br />
+<ul><li>安装 cygwin，并安装 gcc、make、autoconf、php 4个包<li>下载 swoole 源码，在 cygwin-shell 中进行 phpize/configure/make/make install<li>修改 php.ini，加入 swoole.so<br />
+</ul><br />
+cygwin 模式下需要对 PHP 进行简化，去掉不使用的扩展，避免进程占用内存过大，导致 Fork 操作失败<br />
+<br />
+<font size="4"><strong># BashOnWindows</strong></font><br />
+Windows 10 系统增加了 Linux 子系统支持，BashOnWindows 环境下也可以使用 swoole。安装命令<br />
+<div class="blockcode"><div id="code_fm3"><ol><li>apt-get install php7.0 php7.0-curl php7.0-gd php7.0-gmp php7.0-json php7.0-mysql php7.0-opcache php7.0-readline php7.0-sqlite3 php7.0-tidy php7.0-xml&nbsp;&nbsp;php7.0-bcmath php7.0-bz2 php7.0-intl php7.0-mbstring&nbsp;&nbsp;php7.0-mcrypt php7.0-soap php7.0-xsl&nbsp;&nbsp;php7.0-zip<br />
+<li>pecl install swoole<br />
+<li>echo 'extension=swoole.so' &gt;&gt; /etc/php/7.0/mods-available/swoole.ini<br />
+<li>cd /etc/php/7.0/cli/conf.d/ &amp;&amp; ln -s ../../mods-available/swoole.ini 20-swoole.ini<br />
+<li>cd /etc/php/7.0/fpm/conf.d/ &amp;&amp; ln -s ../../mods-available/swoole.ini 20-swoole.ini</ol></div><em onclick="copycode($('code_fm3'));">复制代码</em></div><ul><li>BashOnWindows 环境下必须关闭 daemonize 选项<li>需要修改 config.h 关闭 HAVE_SIGNALFD<br />
+</ul><br />
+<font size="4"><strong># DockerOnWindows</strong></font><br />
+在 Windows 下开发可以使用 Hyper-V+Docker 来方便的开发 Swoole 应用，安装好 Docker 后再 Settings 里的 Shared Droves 选项里共享代码所在磁盘。然后使用如下命令来快速启动 Docker 容器。<br />
+<div class="blockcode"><div id="code_MyE"><ol><li>docker run --rm -t -i --name myapp -p 9501:9501 -v e:/path/to:/app:rw xutongle/php:7.1-fpm /bin/bash</ol></div><em onclick="copycode($('code_MyE'));">复制代码</em></div><ul><li>e:/path/to 为源码所在路径<li>/app 为容器内路径<li>在 bash 里执行 cd /app &amp;&amp; php server.php<br />
+</ul><br />
+<br />
+<br />
+<font size="4"><strong># 编译安装</strong></font><br />
+Swoole 扩展是按照 PHP 标准扩展构建的。使用 phpize 来生成编译检测脚本，./configure 来做编译配置检测，make 进行编译，make install 进行安装。<br />
+<br />
+<ul><li>请下载 releases 版本的 swoole，直接从 github 主干上拉取最新代码可能会编译不过<li>如无特殊需求, 请务必编译安装 swoole 的最新版本<li>如果当前用户不是 root，可能没有 PHP 安装目录的写权限，安装时需要 sudo 或者 su<li>如果是在 git 分支上直接 git pull 更新代码，重新编译前务必要执行 make clean<br />
+</ul><br />
+<font size="4"><strong># 安装准备</strong></font><br />
+安装前必须保证系统已经安装了下列软件<br />
+<br />
+<ul><li>php-7.0 或更高版本<li>gcc-4.8 或更高版本<li>make<li>autoconf<li>pcre (CentOS 系统可以执行命令：yum install pcre-devel)<br />
+</ul><br />
+<font size="4"><strong># 下载地址</strong></font><br />
+<ul type="1" class="litype_1"><li><a href="https://github.com/swoole/swoole-src/releases" target="_blank">https://github.com/swoole/swoole-src/releases</a><li><a href="http://pecl.php.net/package/swoole" target="_blank">http://pecl.php.net/package/swoole</a><li><a href="http://git.oschina.net/swoole/swoole" target="_blank">http://git.oschina.net/swoole/swoole</a><br />
+</ul><br />
+下载源代码包后，在终端进入源码目录，执行下面的命令进行编译和安装<br />
+<br />
+<font size="4"><strong># 新手编译示例</strong></font><br />
+<div class="blockcode"><div id="code_rg2"><ol><li>cd swoole<br />
+<li>sudo phpize (ubuntu 没有安装phpize可执行命令：sudo apt-get install php-dev来安装phpize)<br />
+<li>sudo ./configure<br />
+<li>sudo make <br />
+<li>sudo make install</ol></div><em onclick="copycode($('code_rg2'));">复制代码</em></div><br />
+<font size="4"><strong># 进阶完整编译示例</strong></font><br />
+初次接触swoole的开发者请先尝试上方的简单编译，如果有进一步的需要，可以根据具体的需求和版本，调整以下示例的编译参数<br />
+<br />
+<a href="https://wiki.swoole.com/wiki/page/437.html" target="_blank">编译参数参考</a><br />
+<br />
+以下脚本会下载并编译master分支的源码, 需保证你已安装所有依赖, 否则会遇到各种依赖错误<br />
+<div class="blockcode"><div id="code_HW9"><ol><li>mkdir -p ~/build &amp;&amp; \<br />
+<li>cd ~/build &amp;&amp; \<br />
+<li>rm -rf ./swoole-src &amp;&amp; \<br />
+<li>curl -o ./tmp/swoole.tar.gz https://github.com/swoole/swoole-src/archive/master.tar.gz -L &amp;&amp; \<br />
+<li>tar zxvf ./tmp/swoole.tar.gz &amp;&amp; \<br />
+<li>mv swoole-src* swoole-src &amp;&amp; \<br />
+<li>cd swoole-src &amp;&amp; \<br />
+<li>phpize &amp;&amp; \<br />
+<li>./configure \<br />
+<li>--enable-coroutine \<br />
+<li>--enable-openssl&nbsp;&nbsp;\<br />
+<li>--enable-http2&nbsp;&nbsp;\<br />
+<li>--enable-async-redis \<br />
+<li>--enable-sockets \<br />
+<li>--enable-mysqlnd &amp;&amp; \<br />
+<li>make clean &amp;&amp; make &amp;&amp; sudo make install</ol></div><em onclick="copycode($('code_HW9'));">复制代码</em></div><br />
+<font size="4"><strong># PECL</strong></font><br />
+Swoole项目已收录到PHP官方扩展库，除了手工下载编译外，还可以通过PHP官方提供的pecl命令，一键下载安装<br />
+<div class="blockcode"><div id="code_I96"><ol><li>pecl install swoole</ol></div><em onclick="copycode($('code_I96'));">复制代码</em></div><br />
+<font size="4"><strong># 配置php.ini</strong></font><br />
+编译安装成功后，修改php.ini加入<br />
+<div class="blockcode"><div id="code_Kw1"><ol><li>extension=swoole.so</ol></div><em onclick="copycode($('code_Kw1'));">复制代码</em></div>通过 php -m 或 phpinfo() 来查看是否成功加载了 swoole.so，如果没有可能是 php.ini 的路径不对，可以使用 php --ini 来定位到 php.ini 的绝对路径。<br />
+<br />
+<br />
+<br />
+<font size="4"><strong># WebSocket 服务端代码</strong></font><br />
+编写一个简单的 WebSocket 服务器。<br />
+<div class="blockcode"><div id="code_X4v"><ol><li>$server = new Swoole\WebSocket\Server(&quot;0.0.0.0&quot;, 9501);<br />
+<li><br />
+<li>$server-&gt;on('open', function (Swoole\WebSocket\Server $server, $request) {<br />
+<li>&nbsp; &nbsp; echo &quot;有新的客户端连接，识别 ID 为：{$request-&gt;fd}\n&quot;;<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;on('message', function (Swoole\WebSocket\Server $server, $frame) {<br />
+<li>&nbsp; &nbsp; echo &quot;客户端 {$frame-&gt;fd} 发送了：{$frame-&gt;data}\n&quot;;<br />
+<li>&nbsp; &nbsp; $server-&gt;push($frame-&gt;fd, &quot;你发送了：{$frame-&gt;data}\n&quot;);<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;on('close', function ($server, $fd) {<br />
+<li>&nbsp; &nbsp; echo &quot;客户端 {$fd} 已离线\n&quot;;<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;start();</ol></div><em onclick="copycode($('code_X4v'));">复制代码</em></div>这就是一个简单的 ECHO 服务器，你发送什么它就会返回什么。<br />
+<br />
+<font size="3"><strong>介绍</strong></font><br />
+$server 是 WebSocket 服务器实例的变量，这个服务器运行在 9501 端口，允许任何 IP 连接（0.0.0.0）<br />
+<br />
+介绍一下几个事件<br />
+<br />
+<ul><li>open 是当有新连接的时候执行的事件<li>message 是当客户端发送数据的时候执行的事件<li>close 是当客户端离线的时候执行的事件<br />
+</ul><br />
+$server-&gt;start() 是启动已创建的实例。<br />
+<br />
+<font size="3"><strong>简单聊天室程序</strong></font><br />
+下面我们来写一个简单的例子，一个网页在线聊天室。<br />
+<div class="blockcode"><div id="code_W4b"><ol><li>$server = new Swoole\WebSocket\Server(&quot;0.0.0.0&quot;, 9523);<br />
+<li>$server-&gt;on('open', function (Swoole\WebSocket\Server $server, $request) {<br />
+<li>&nbsp; &nbsp; foreach($server-&gt;connections as $key =&gt; $fd) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$server-&gt;push($fd, &quot;欢迎客户端 {$request-&gt;fd} 加入聊天！&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;on('message', function (Swoole\WebSocket\Server $server, $frame) {<br />
+<li>&nbsp; &nbsp; foreach($server-&gt;connections as $key =&gt; $fd) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$server-&gt;push($fd, &quot;客户端 {$frame-&gt;fd}：{$frame-&gt;data}&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;on('close', function ($server, $fd) {<br />
+<li>&nbsp; &nbsp; foreach($server-&gt;connections as $key =&gt; $id) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 即使客户端离线了，但是 connections 里还是有这个客户端的，需要判断一下<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if($fd !== $id) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$server-&gt;push($id, &quot;欢迎客户端 {$fd} 已退出聊天！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>});<br />
+<li><br />
+<li>$server-&gt;start();</ol></div><em onclick="copycode($('code_W4b'));">复制代码</em></div><br />
+<font size="3"><strong>介绍</strong></font><br />
+foreach($server-&gt;connections as $key =&gt; $fd)<br />
+这段代码的作用呢，是遍历当前所有客户端连接，作用就是为了给每个客户端都发送一条消息（通过 push 方法）<br />
+<br />
+<font size="3"><strong>客户端</strong></font><br />
+我们简单写一个网页对接一下服务端。<br />
+<div class="blockcode"><div id="code_p9i"><ol><li>&lt;span id=&quot;status&quot;&gt;输入消息&lt;/span&gt;<br />
+<li>&lt;input type=&quot;text&quot; id=&quot;data&quot;&gt;<br />
+<li>&lt;button onclick=&quot;ws.send(data.value)&quot;&gt;发送&lt;/button&gt;<br />
+<li>&lt;div id=&quot;msg&quot;&gt;&lt;/div&gt;<br />
+<li>&lt;script src=&quot;https://libs.baidu.com/jquery/2.1.4/jquery.min.js&quot;&gt;&lt;/script&gt;<br />
+<li>&lt;script type=&quot;text/javascript&quot;&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var ws;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ws = new WebSocket(&quot;ws://192.168.3.181:9523/&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ws.onopen = function(event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $(&quot;#status&quot;).html('已连接成功');<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ws.onmessage = function (event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; var msg = event.data + &quot;&lt;br&gt;&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $(&quot;#msg&quot;).html(msg + $(&quot;#msg&quot;).html());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ws.onclose = function(event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $(&quot;#status&quot;).html(&quot;已经与服务器断开连接，状态：&quot; + this.readyState);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ws.onerror = function(event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $(&quot;#status&quot;).html(&quot;WebSocket 连接失败！&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+<li>&lt;/script&gt;</ol></div><em onclick="copycode($('code_p9i'));">复制代码</em></div><br />
+效果如下<br />
+<br />
+<img id="aimg_MlqLR" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="322" height="185" src="https://i.natfrp.org/1f2270ea4e2008b1c9d0d125f5ac9a1e.png" border="0" alt="" /><br />
+<br />
+<br />
+<br />
+<font size="4"><strong># 关于 SSL 问题</strong></font><br />
+请注意，如果你的网站是 https 的，而 WebSocket 是普通的 ws 协议，那么会导致无法连接，这是浏览器的安全设定。因为 ws 协议是非加密的，你需要使用 wss 协议（即 WebSocket + SSL）。<br />
+以下是 Nginx 反向代理 WebSocket 增加 SSL 的相关配置。<br />
+<div class="blockcode"><div id="code_tHe"><ol><li>server {<br />
+<li>&nbsp; &nbsp; # 监听端口 9524<br />
+<li>&nbsp; &nbsp; listen 9524 ssl;<br />
+<li>&nbsp; &nbsp; # SSL 证书的储存位置<br />
+<li>&nbsp; &nbsp; ssl_certificate /path/to/ssl.crt;<br />
+<li>&nbsp; &nbsp; ssl_certificate_key /path/to/ssl.key;<br />
+<li>&nbsp; &nbsp; ssl_protocols TLSv1 TLSv1.1 TLSv1.2;<br />
+<li>&nbsp; &nbsp; ssl_ciphers EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;<br />
+<li>&nbsp; &nbsp; ssl_prefer_server_ciphers on;<br />
+<li>&nbsp; &nbsp; ssl_session_timeout 10m;<br />
+<li>&nbsp; &nbsp; ssl_session_cache builtin:1000 shared:SSL:10m;<br />
+<li>&nbsp; &nbsp; ssl_buffer_size 1400;<br />
+<li>&nbsp; &nbsp; ssl_stapling on;<br />
+<li>&nbsp; &nbsp; ssl_stapling_verify on;<br />
+<li>&nbsp; &nbsp; # 绑定的域名<br />
+<li>&nbsp; &nbsp; server_name example.com;<br />
+<li>&nbsp; &nbsp; include /usr/local/nginx/conf/rewrite/none.conf;<br />
+<li><br />
+<li>&nbsp; &nbsp; location / {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;# 反向代理后的后端地址及端口<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_pass&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;http://127.0.0.1:9523;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_redirect&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;off;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_set_header&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Host $host; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_set_header&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;X-Real-IP $remote_addr; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_set_header&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;X-Forwarded-For $proxy_add_x_forwarded_for;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_http_version&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 1.1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_set_header Upgrade&nbsp; &nbsp; $http_upgrade;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;proxy_set_header Connection &quot;upgrade&quot;;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_tHe'));">复制代码</em></div><br />
+<font size="4"><strong># 相关 Demo</strong></font><br />
+我自己写的论坛程序评论功能已经改成了实时刷新，同时增加了在线人数统计的功能，这一切都是 WebSocket 的功劳。<br />
+<a href="https://www.zerobbs.net/" target="_blank">https://www.zerobbs.net/</a><br />
+<br />
+感谢阅读，如果这篇文章对你有帮助，欢迎评分。<br />
+<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

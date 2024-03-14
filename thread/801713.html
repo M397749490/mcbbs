@@ -1,0 +1,426 @@
+<html>
+<head>
+<title>地图种子的逆向研究(2)——结构与群系分布 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>地图种子的逆向研究(2)——结构与群系分布 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-28 21:15<br />
+<b>标题: </b>地图种子的逆向研究(2)——结构与群系分布<br /><i class="pstatus"> 本帖最后由 Vinogradov 于 2018-8-8 23:30 编辑 </i><br />
+<br />
+<font face="微软雅黑"><font size="6"><font color="#00ff00"><font style="background-color:white">更新（2018年8月8日）</font></font></font></font><br />
+<font face="微软雅黑"><font size="3"><font face="微软雅黑"><font size="3">使用该方法，作者已经成功找出了USTC-Minecraft 9周目（原版1.13）的地图种子。真实性可向该周目玩家及腐竹求证。</font></font></font><br />
+<font size="3"><font face="微软雅黑"><font size="3"><br />
+</font></font></font><br />
+<font size="6"><font color="#2e8b57">原帖：</font></font><br />
+<font size="3">在</font><font size="3"><a href="thread.html?t=795150" target="_blank">上一篇</a></font><font size="3">中，我们已经说明了通过基岩分布应该是无法逆向得到世界的种子的，原因在于标准分布的存在以及非标准分布对群系的依赖性。</font><br />
+<font size="3">在本文中，我们通过结构的分布与群系的分布成功逆向了一个存档的种子。这种方法具有普适性。注：该攻击方法并非作者，也就是@Vinogradov，即丢人素学姐首次发现。</font><br />
+<font size="3"><font color="#ff0000"><strong><i><u>由于本文内容疑似涉及作弊，我们将不会给出任何代码，并在阐明原理的前提下尽可能地忽略技术细节。</u></i></strong></font></font></font><font face="微软雅黑"><font size="3"><font color="#ff0000"><strong><i><u>另外，由于写这个贴子的时间和实际完成的时间相差了几个月，所以可能某些地方有细小的错误，不过应该不会影响整体的阅读和技术分析。<br />
+</u></i></strong></font></font></font><br />
+<font face="微软雅黑"><font size="5">约定：</font><br />
+</font><ul><li><font face="微软雅黑"><font size="3">在本文中我们仅考虑了村庄的分布，事实上有一些其他结构的分布也是可以考虑的。</font></font><li><font face="微软雅黑"><font size="3">本系列文章中的Minecraft指的都是Minecraft Java Edition, 1.12.2。</font></font><li><font face="微软雅黑"><font size="3">本系列文章中引用的代码都来自 forge-1.12.2-14.23.2.2611-mdk。</font></font><li><font face="微软雅黑"><font size="3">当我们说”区块(x,z)“时，我们指的是chunk coordinate为(x,z)的区块。<br />
+</font></font><li><font face="微软雅黑"><font size="3">我们将村庄中心所在的区块（也就是村里那口井所在的区块）称之为<strong><i>村庄区块</i></strong>。</font></font><br />
+</ul><font face="微软雅黑"><font size="5"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="5">猴子都知道的常识1：2^64的搜索空间对一般民用计算设备太大了。</font></font><br />
+<font size="5"><font face="微软雅黑">猴子都知道的常识2：群系生成非常复杂。</font></font><br />
+<font face="微软雅黑"><br />
+<br />
+<font size="5">分析：</font></font><ul type="1" class="litype_1"><li><font face="微软雅黑"><font size="3">让我们先看Village的生成判定：以下代码源自\net\minecraft\world\gen\structure\MapGenVillage.java</font></font><div class="blockcode"><div id="code_h8z"><ol><li>protected boolean canSpawnStructureAtCoords(int chunkX, int chunkZ)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = chunkX;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int j = chunkZ;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (chunkX &lt; 0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chunkX -= this.distance - 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (chunkZ &lt; 0)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chunkZ -= this.distance - 1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int k = chunkX / this.distance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int l = chunkZ / this.distance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Random random = this.world.setRandomSeed(k, l, 10387312);//LINE_1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;k = k * this.distance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;l = l * this.distance;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;k = k + random.nextInt(this.distance - 8);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;l = l + random.nextInt(this.distance - 8);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (i == k &amp;&amp; j == l)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;boolean flag = this.world.getBiomeProvider().areBiomesViable(i * 16 + 8, j * 16 + 8, 0, VILLAGE_SPAWN_BIOMES);//LINE_2<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (flag)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_h8z'));">复制代码</em></div><font face="微软雅黑"><font size="3">其中LINE_1处的this.world.setRandomSeed是一个与世界种子和当前区块位置相关的函数。如果将LINE_2注释掉，那么村庄生成就与群系无关，我们将这样修改过后会生成村庄的区块称之为<i>拟村庄区块。</i>则我们有显然的结论：</font></font><div class="quote"><blockquote><font face="微软雅黑"><font size="3">村庄区块必然是拟村庄区块，但反之不对。</font></font></blockquote></div><br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><li><font face="微软雅黑"><font size="3">为什么我们要考虑拟村庄区块呢？这是因为拟村庄区块的判定直接取决于种子和区块位置（虽然群系分布也依赖于种子，但是我们这里的意思就是拟村庄区块不受群系影响），且</font><strong><i><u><font size="4"><font color="#ff0000">它依赖的随机数生成器</font></font></u></i></strong><i><u><strong><font size="4"><font color="#ff0000">Java.util.random类不够安全</font></font></strong></u></i><font size="3">（为什么不直接考虑村庄区块？那是因为生成群系时MC部分使用了自写的随机数生成器）。</font></font><li><font face="微软雅黑"><font size="3">通过对java.util.random的代码分析可知，</font><strong><i><u><font size="4"><font color="#ff0000">给定种子s后，它生成的随机数列只与s的低48bit有关，虽然s在64bit的整数范围内取值</font></font></u></i></strong><font size="3">（这里忽略技术细节）。结合上面摘录的代码，我们易知：</font></font><div class="quote"><blockquote><font face="微软雅黑"><font size="3">如果a≡b (mod 2^48)，那么世界种子a和b所对应的拟村庄区块完全相同。</font></font></blockquote></div><br />
+<font face="微软雅黑"><font size="3">这个结论说明了两个问题：一，仅通过村庄位置是无法完全确定世界种子的；二、我们可以将首次爆破的搜索空间减少到2^48。三、上文中我们提到群系生成使用了MC自写的随机数生存器，它使用了世界种子的全部64bit，使得村庄区块相对于拟村庄区块所需搜索空间暴涨了2^16倍，也就是说直接通过村庄区块精确匹配的话，我们需要搜索整个int64范围，更不用说复杂的群系生成方**使单个搜索分支变慢多少了。</font></font><li><font face="微软雅黑"><font size="3">具体地说，我们首先通过跑图获得若干村庄区块（从而是拟村庄区块）的区块坐标(x_1,z_1),...,(x_n,...z_n) （这个n取多少读者自行决定，太多就会拖慢搜索速度，太少则会使通过的种子太多）。然后在0~2^48-1范围内搜索在(x_1,z_1),...,(x_n,...z_n) 这些位置是拟村庄区块的种子，得到若干备选项s_1,s_2,...,s_k（可能不止一个）。然后获得世界内某些位置的群系（当然，这种群系越稀少越好），再对每个n，计算以s_n+2^48*r（ 1&lt;=r&lt;=2^16）为种子的地图内这些位置的群系是否与给定的群系吻合。通过这样两轮筛选，我们就能获得世界的种子了。</font></font><br />
+</ul><font face="微软雅黑"><font size="5"><br />
+</font></font><br />
+<br />
+<font face="微软雅黑"><font size="5">实现与测试（概率）</font></font><br />
+<ul><li><font face="微软雅黑"><font size="3">第一部分爆破拟村庄区块的代码可以直接参考MC代码改写C++代码，第二部分群系判定比较复杂，可以参考某些已有的代码。</font></font><li><font face="微软雅黑"><font size="3">在我们的测试中，第一部分使用CUDA技术（自行编写），在GT920M显卡上（满负载），跑完整个2^48范围大约需要41小时（把家里唯一一台电脑的显卡搞坏的话大概会被打死，所以作者并没有真的跑完41小时，而是把任务分成了1024组，通过前几十组的用时估算出了总用时）。第二部分我们没有进行完全的测试（虽然代码已经写好且经过验证是可行的），相信应该非常快。</font></font><br />
+</ul><font face="微软雅黑"><br />
+</font><br />
+<br />
+<font face="微软雅黑"><font size="5">预防：</font></font><br />
+<font face="微软雅黑"><font size="3">几乎不可预防，除非把MC使用的伪随机数生成器给换掉或者改变村庄算法。</font></font><br />
+<br />
+<font face="微软雅黑"><font size="3"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="5">参考：</font></font><br />
+<ul type="1" class="litype_1"><li><font face="微软雅黑"><font size="3"><a href="https://www.minecraftforum.net/forums/support/server-support/server-administration/2106483-world-seeds-can-be-reverse-engineered" target="_blank">https://www.minecraftforum.net/forums/support/server-support/server-administration/2106483-world-seeds-can-be-reverse-engineered</a> （已失效，我们在此发现该攻击方法）</font></font><li><font face="微软雅黑"><font size="3"><a href="https://www.minecraftforum.net/forums/support/server-support/server-administration/2133175-server-ops-anyone-can-discover-your-world-seeds" target="_blank">https://www.minecraftforum.net/forums/support/server-support/server-administration/2133175-server-ops-anyone-can-discover-your-world-seeds</a> （已失效，我们在此发现该攻击方法）</font></font><li><font face="微软雅黑"><font size="3"><a href="https://www.minecraftforum.net/forums/minecraft-java-edition/seeds/2229720-can-two-different-seeds-produce-identical-worlds" target="_blank">https://www.minecraftforum.net/forums/minecraft-java-edition/seeds/2229720-can-two-different-seeds-produce-identical-worlds</a> （这个帖子解释了基本原理）</font></font><br />
+</ul><font face="微软雅黑"><br />
+</font><br />
+<br />
+<font face="微软雅黑"><font size="5">感谢：</font></font><br />
+<ul><li><font face="微软雅黑"><font size="3"><a href="https://www.minecraftforum.net/members/TheMasterCaver" target="_blank">TheMasterCaver</a>，在帖子中解释了原理，并在MinecraftForum的私信中耐心地回复了我的疑惑。</font></font><li><font face="微软雅黑"><font size="3"><a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=1480882" target="_blank">@ustc_zzzz</a> ，我又忘了为啥要感谢他了，，，谢了再说。<br />
+</font></font><li><font face="微软雅黑"><font size="3">meow，给了我一些类型转换方面的知识。</font></font><li><font face="微软雅黑"><font size="3">我的GT920M，，，你辛苦了，，，</font></font><br />
+</ul><font face="微软雅黑"><br />
+</font><br />
+<br />
+<font face="微软雅黑"><font size="1"><br />
+</font></font><br />
+<font face="微软雅黑"><font size="1">注：通过分析目前我能看到的代码，该攻击方法很有可能在1.13中仍然有效。</font></font><br />
+====================<br />
+使用矿石分布代替群系分布进行第二轮验证在理论上是可以的，但是我没看到能现成给我用的C++版的代码（群系的有人写了），而且目测如果写的话不会比群系简单。<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-6-28 21:53<br />
+你的群系是怎么获取呢？手动输入吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:02<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999551&amp;ptid=801713" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-6-28 21:53</font></a></font><br />
+你的群系是怎么获取呢？手动输入吗？</blockquote></div><br />
+待求种子的那个地图的群系当然是手动输入，然后第一轮筛下来以后那些要继续检查的种子，可以用某工具获得指定位置的群系<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999568&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-6-28 22:02</font></a></font><br />
+待求种子的那个地图的群系当然是手动输入，然后第一轮筛下来以后那些要继续检查的种子，可以用某工具获得 ...</blockquote></div><br />
+如果能计算例如某位置是否为矿石的话，而待求种子的地图的某位置有矿石的话应该会更加精准一点……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>风扇滑翔翼&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:25<br />
+<i class="pstatus"> 本帖最后由 风扇滑翔翼 于 2018-6-28 22:29 编辑 </i><br />
+<br />
+用钻石坐标这种稀有方块坐标能不能更方便地反推出种子 #run<br />
+或许你可以租一个一天的服务器把这个任务算完（大多数的服务器租用都有个几天的试用期）<br />
+顺便说一下 ustc_zzzz这位大佬也是低级就开始肝这些东西<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>彩狗dalao&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:29<br />
+为什么不能给全点呢<br />
+我比较喜欢研究种子的那一方面<br />
+但论坛迟迟没有相关的文献及解释<br />
+为什么非得列入作弊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:31<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999623&amp;ptid=801713" target="_blank"><font color="#999999">风扇滑翔翼 发表于 2018-6-28 22:25</font></a></font><br />
+用钻石坐标这种稀有方块坐标能不能更方便地反推出种子 #run<br />
+或许你可以租一个一天的服务器把这个任务算完（ ...</blockquote></div><br />
+稀有不代表方便逆向<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999578&amp;ptid=801713" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-6-28 22:07</font></a></font><br />
+如果能计算例如某位置是否为矿石的话，而待求种子的地图的某位置有矿石的话应该会更加精准一点…… ...</blockquote></div><br />
+就像我帖子里说的，地图的很多特征，关于种子都具有唯一性，但问题在于这种唯一性同时也代表了搜索空间的巨大（2^64bit）。爆破这个不太实际和划算，所以问题的关键在于如何适当地把搜索空间变小。在我这里就是引入了所谓的拟村庄区块，适当放宽匹配精度，使得第一轮搜索空间变成2^48。<br />
+<br />
+总之，暴力穷举谁都想得出来，但是要真的在可接受的时间内算出来不是那么随意的。<br />
+<br />
+我没仔细看过矿石的代码，不过我估计应该不比直接拿群系简单，而直接拿群系也已经是远远超过可接受范围了。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-28 22:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999623&amp;ptid=801713" target="_blank"><font color="#999999">风扇滑翔翼 发表于 2018-6-28 22:25</font></a></font><br />
+用钻石坐标这种稀有方块坐标能不能更方便地反推出种子 #run<br />
+或许你可以租一个一天的服务器把这个任务算完（ ...</blockquote></div><br />
+如果专业显卡的话一个小时都不用应该就能算完。<br />
+<br />
+另外关于矿石可不可行的问题，我在给ruhuasiyu的回复里说得比较详细<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-6-28 23:13<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999674&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-6-28 22:44</font></a></font><br />
+就像我帖子里说的，地图的很多特征，关于种子都具有唯一性，但问题在于这种唯一性同时也代表了搜索空间的 ...</blockquote></div><br />
+我说的是你验证种子那一步，不是暴力破解那步……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-29 05:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999750&amp;ptid=801713" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-6-28 23:13</font></a></font><br />
+我说的是你验证种子那一步，不是暴力破解那步……</blockquote></div><br />
+没看过矿石的代码不清楚。第二步我用群系的原因是已经有人把群系生成的代码改写成C++并封装好了（虽然写得很烂），我要做的就是调用他的代码，然后改写一点点，比较方便。矿石的话这人没做，我估计应该是基于群系的，会很麻烦，所以想法很好，但实现起来有点麻烦大概。回头我再翻翻代码。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-6-29 05:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999637&amp;ptid=801713" target="_blank"><font color="#999999">彩狗dalao 发表于 2018-6-28 22:29</font></a></font><br />
+为什么不能给全点呢<br />
+我比较喜欢研究种子的那一方面<br />
+但论坛迟迟没有相关的文献及解释</blockquote></div><br />
+有技术，能看懂我在说什么的人，应该已经有足够的信息和思路去写出程序了。<br />
+在这里我给出代码和更多技术细节只能满足伸手党。<br />
+更况且很多服务器的种子是不公开的，如果用这种方法获得了服务器的种子从而获得服务器资源，在某种程度上就是利用BUG作弊。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>风扇滑翔翼&nbsp; &nbsp; <b>时间: </b>2018-6-29 23:04<br />
+<i class="pstatus"> 本帖最后由 风扇滑翔翼 于 2018-6-29 23:05 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999964&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-6-29 05:44</font></a></font><br />
+有技术，能看懂我在说什么的人，应该已经有足够的信息和思路去写出程序了。<br />
+在这里我给出代码和更多技术 ...</blockquote></div><br />
+
+<br />
+有这个雅兴跑完这个任务 在按坐标去挖矿 还不如拿起稿子挖挖矿<br />
+不知用末地门逆推会不会更方便<br />
+hide代码是个好东西 未满7级也可以找版主申请<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>77882243344&nbsp; &nbsp; <b>时间: </b>2018-7-8 16:15<br />
+也就是能通过方块位置推算出地图种子。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-7-8 16:41<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13036217&amp;ptid=801713" target="_blank"><font color="#999999">77882243344 发表于 2018-7-8 16:15</font></a></font><br />
+也就是能通过方块位置推算出地图种子。</blockquote></div><br />
+严格地说是通过结构+群系。虽然最终还是要用方块，但本质上不太一样<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>QAQda&nbsp; &nbsp; <b>时间: </b>2018-7-9 17:22<br />
+&nbsp; &nbsp;&nbsp;&nbsp;MCBBS有你更精彩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 12:59<br />
+技术贴，66666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 13:00<br />
+mc由你更精彩！！！！！！！！！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SteveJobshjc&nbsp; &nbsp; <b>时间: </b>2018-7-10 13:01<br />
+最想知道的是endcity<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huangjc666&nbsp; &nbsp; <b>时间: </b>2018-7-12 06:41<br />
+让我能在服务器里找史莱姆区块 谢谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liyilong2004&nbsp; &nbsp; <b>时间: </b>2018-7-13 12:17<br />
+挺用心的 感谢楼主<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SCAME233&nbsp; &nbsp; <b>时间: </b>2018-7-14 18:41<br />
+我的目标是成为18级大神。假如你每天签到拿4经验，18级300000/4=75000天， 如果从1岁开始签到，那100年=36500天，你差不多要 活200年保持每天签到（谁知道200年后还有没有签到 这玩意），如果你每天再水4经验，时间减半，但考虑 现实，你不可能再活100年，取50年吧，你就要每天水 16经验，可能你是个勤快的人，每天水32经验，那就 需要25年！！！再如果你是个大水怪，每天水64经验 ，那就只要12.5年！！！还如果你个心急的人，每天水 128经验，你只要6.25年！！！！假如你已经急不可耐 了，每天水256经验，那你碉堡了，只要3.125年！！！ 当然，你会觉得3年还是太远了，每天你闲的蛋疼，忙 忙碌碌的水512经验，碉堡了，你只需要1.5625年，只 比1年半多一点！！！什么！！你还不满意，那你觉得 你可能一天水1024经验吗，可能吗！！可能吗！！！据 说回复100字或者一百字以上可以得到11~30经验，那么，按照队形，点击复制吧！！！ ... ... ... ... ... . ... ... .. ... ... ... ... ... ...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玲LNX&nbsp; &nbsp; <b>时间: </b>2018-7-15 22:47<br />
+有一些没看懂嗷<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-7-16 13:54<br />
+<div class="quote"><blockquote><font color="#999999">玲LNX 发表于 2018-7-15 22:47</font><br />
+<font color="#999999">**** 作者被禁止或删除 内容自动屏蔽 ****</font></blockquote></div><br />
+哪里没看懂？我确实有些细节忽略掉了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>woshidalao&nbsp; &nbsp; <b>时间: </b>2018-7-18 16:09<br />
+这个有点东西啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>13665374636&nbsp; &nbsp; <b>时间: </b>2018-7-18 23:34<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1502064645&nbsp; &nbsp; <b>时间: </b>2018-7-20 16:26<br />
+水一下水一下水一下水一下水一下水一下水一下水一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1502064645&nbsp; &nbsp; <b>时间: </b>2018-7-20 16:41<br />
+日常水日常水日常水日常水日常水<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>haze_lutoxe&nbsp; &nbsp; <b>时间: </b>2018-7-20 18:18<br />
+好啊真好啊啊啊<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1049937606&nbsp; &nbsp; <b>时间: </b>2018-7-22 09:48<br />
+好深奥 听不懂..<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>daBOSSer&nbsp; &nbsp; <b>时间: </b>2018-7-23 13:08<br />
+真·看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-7-23 15:04<br />
+<i class="pstatus"> 本帖最后由 Vinogradov 于 2018-7-23 15:05 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13102638&amp;ptid=801713" target="_blank"><font color="#999999">daBOSSer 发表于 2018-7-23 13:08</font></a></font><br />
+真·看不懂</blockquote></div><br />
+最关键的就是计算村庄位置时（不考虑群系影响）理论上本来随机数生成器应该使用种子的全部64bit的，但因为java的random类的设计问题只是用了其中的48bit。这样在暴力穷举村庄位置（单个循环分支较快）的时候能有效缩小搜索空间，得到一批候选的种子，再使用群系（单个循环分支较慢）来二次筛选从而确定真正的种子。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>此方&nbsp; &nbsp; <b>时间: </b>2018-7-28 20:40<br />
+虽然看不懂但是觉得好厉害%……<img src="static/image/smiley/rabbit/51.gif" smilieid="701" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>太极蓝&nbsp; &nbsp; <b>时间: </b>2018-7-29 01:15<br />
+看不懂。。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC信仰&nbsp; &nbsp; <b>时间: </b>2018-7-29 07:51<br />
+44444444444444444444<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>226qwq_&nbsp; &nbsp; <b>时间: </b>2018-7-31 00:24<br />
+不明觉历（原谅我看不懂）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MCxiaokai233&nbsp; &nbsp; <b>时间: </b>2018-7-31 10:49<br />
+mcbbs有你更精彩~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>huai1132875844&nbsp; &nbsp; <b>时间: </b>2018-7-31 14:14<br />
+然后我现在1.13依旧输入1.12.2时的种子 发现地形变化挺大的 但是有很多特征还保留。。比如出生点不远处的 农田种到高山上的村庄<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Minecraft408&nbsp; &nbsp; <b>时间: </b>2018-7-31 17:55<br />
+这个帖子对我挺有用的说<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xuan_heng&nbsp; &nbsp; <b>时间: </b>2018-8-1 23:59<br />
+神乎其技，不服不行！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yyhbklm&nbsp; &nbsp; <b>时间: </b>2018-8-2 17:00<br />
+被抄了，b站有一样的，日期8-1<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pps系列&nbsp; &nbsp; <b>时间: </b>2018-8-2 19:06<br />
+厲害啊！這個好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-2 20:08<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13157490&amp;ptid=801713" target="_blank"><font color="#999999">yyhbklm 发表于 2018-8-2 17:00</font></a></font><br />
+被抄了，b站有一样的，日期8-1</blockquote></div><br />
+能给个链接吗？谢谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2651084156&nbsp; &nbsp; <b>时间: </b>2018-8-2 21:05<br />
+看啦半天还是不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yyhbklm&nbsp; &nbsp; <b>时间: </b>2018-8-2 22:29<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13158561&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-8-2 20:08</font></a></font><br />
+能给个链接吗？谢谢</blockquote></div><br />
+<a href="https://www.bilibili.com/read/cv848544" target="_blank">https://www.bilibili.com/read/cv848544</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>gre125874&nbsp; &nbsp; <b>时间: </b>2018-8-4 13:49<br />
+挺好的，不错<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>rys158&nbsp; &nbsp; <b>时间: </b>2018-8-4 13:54<br />
+谢谢楼主的分享很支持！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>321304810&nbsp; &nbsp; <b>时间: </b>2018-8-4 21:23<br />
+非常棒 支持一下<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丿轩灬恒&nbsp; &nbsp; <b>时间: </b>2018-8-5 00:25<br />
+通过地图研究种子，然后用种子生成新地图，去用来作弊？？好麻烦啊，估计熊孩子都没这个心吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>44964884&nbsp; &nbsp; <b>时间: </b>2018-8-6 15:29<br />
+看不懂都是大佬<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>zhuangxiao2004&nbsp; &nbsp; <b>时间: </b>2018-8-7 19:27<br />
+6666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>种拔&nbsp; &nbsp; <b>时间: </b>2018-8-7 20:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13002703&amp;ptid=801713" target="_blank"><font color="#999999">风扇滑翔翼 发表于 2018-6-29 23:04</font></a></font><br />
+有这个雅兴跑完这个任务 在按坐标去挖矿 还不如拿起稿子挖挖矿<br />
+不知用末地门逆推会不会更方便<br />
+hide代码是 ...</blockquote></div><br />
+看不懂。不过说真的，我还不如用truckbase那个网站或locate指令来找想要的地形，更快更准<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>风扇滑翔翼&nbsp; &nbsp; <b>时间: </b>2018-8-7 20:56<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13185778&amp;ptid=801713" target="_blank"><font color="#999999">弦心距 发表于 2018-8-7 20:52</font></a></font><br />
+看不懂。不过说真的，我还不如用truckbase那个网站或locate指令来找想要的地形，更快更准 ...</blockquote></div><br />
+这个是在服务器情况下 逆推出服务器的种子 然后用truckbase正推出整个服务器的地形 找到自己需要的东西 而locate 只能在单机使用<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>种拔&nbsp; &nbsp; <b>时间: </b>2018-8-7 20:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13185796&amp;ptid=801713" target="_blank"><font color="#999999">风扇滑翔翼 发表于 2018-8-7 20:56</font></a></font><br />
+这个是在服务器情况下 逆推出服务器的种子 然后用truckbase正推出整个服务器的地形 找到自己需要的东西&nbsp;&nbsp;...</blockquote></div><br />
+到也是。希望LZ最后能弄个程序出来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wdcod&nbsp; &nbsp; <b>时间: </b>2018-8-7 23:22<br />
+可不可以通过服务器的部分地图推出来种子<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-8 23:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13185811&amp;ptid=801713" target="_blank"><font color="#999999">弦心距 发表于 2018-8-7 20:59</font></a></font><br />
+到也是。希望LZ最后能弄个程序出来</blockquote></div><br />
+程序我有但是这个涉嫌作弊了，不公布。<br />
+话说回来就算我公布了估计论坛里也没几个人有耐心装Linux再配置CUDA环境吧（手动滑稽<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-8 23:44<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13186402&amp;ptid=801713" target="_blank"><font color="#999999">wdcod 发表于 2018-8-7 23:22</font></a></font><br />
+可不可以通过服务器的部分地图推出来种子</blockquote></div><br />
+可以，见帖子更新。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>microwaver&nbsp; &nbsp; <b>时间: </b>2018-8-13 13:41<br />
+Java自带的随机数生成器有bug还行...<br />
+通过48位缩小搜索空间很棒诶<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>spy1130&nbsp; &nbsp; <b>时间: </b>2018-8-13 15:57<br />
+666666666666666666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小松松松子&nbsp; &nbsp; <b>时间: </b>2018-8-13 21:37<br />
+一脸懵逼的进来，一脸懵逼的出去<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>creeprs&nbsp; &nbsp; <b>时间: </b>2018-8-14 22:45<br />
+看不懂。。。。。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>creeprs&nbsp; &nbsp; <b>时间: </b>2018-8-14 22:47<br />
+加油加油加油加油加油加油<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>creeprs&nbsp; &nbsp; <b>时间: </b>2018-8-14 22:58<br />
+呵呵呵呵呵呵呵呵呵呵<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>creeprs&nbsp; &nbsp; <b>时间: </b>2018-8-14 22:58<br />
+哈哈哈哈哈哈哈哈哈哈<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>creeprs&nbsp; &nbsp; <b>时间: </b>2018-8-15 14:39<br />
+6666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awdrgyjil1214&nbsp; &nbsp; <b>时间: </b>2018-8-16 14:56<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awdrgyjil1214&nbsp; &nbsp; <b>时间: </b>2018-8-16 14:57<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awdrgyjil1214&nbsp; &nbsp; <b>时间: </b>2018-8-16 15:02<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>awdrgyjil1214&nbsp; &nbsp; <b>时间: </b>2018-8-16 15:03<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>夏逆大大&nbsp; &nbsp; <b>时间: </b>2018-8-18 13:04<br />
+感觉好牛逼<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>afjl&nbsp; &nbsp; <b>时间: </b>2018-8-18 17:09<br />
+直接用方块应该是错误的，用矿石也不行<br />
+“当结构生成时，一些结构会蔓延生成到临近的已生成区块里。所以，在已生成的世界边缘的树可能会在你到达之前被湖取代。 理论上这也会可能使两个使用相同的种子、相同的minecraft版本的世界看起来不同，这取决于玩家的行进路线的不同。因为区块的生成顺序不同可能决定了两种冲突的结构之一覆盖另一个，或者被另一个覆盖。”<br />
+<a href="https://minecraft-zh.gamepedia.com/" target="_blank">https://minecraft-zh.gamepedia.com/</a>结构<br />
+相同种子可能对应不同地图（只有细微差别）<br />
+关键结构应该不受太大影响，所以用村庄可以<br />
+<br />
+但空岛，海岛之类的，这方法就没多大用了<br />
+只能用史莱姆区块推出种子<br />
+至少要验证64个区块<br />
+而且只能用来找更多的史莱姆区块<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-19 13:55<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13230268&amp;ptid=801713" target="_blank"><font color="#999999">afjl 发表于 2018-8-18 17:09</font></a></font><br />
+直接用方块应该是错误的，用矿石也不行<br />
+“当结构生成时，一些结构会蔓延生成到临近的已生成区块里。所以， ...</blockquote></div><br />
+啊你太仔细了！谢谢！我其实一直没怎么仔细考虑过矿石，不过只要村庄等结构不受区块生成持续影响就问题不大<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1756746217&nbsp; &nbsp; <b>时间: </b>2018-8-19 21:44<br />
+貌似看不懂额<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1756746217&nbsp; &nbsp; <b>时间: </b>2018-8-19 22:48<br />
+可惜我在服务器2333333<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>洫无飘渺丶&nbsp; &nbsp; <b>时间: </b>2018-8-21 10:42<br />
+mcbbs有你更精彩<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>925749360&nbsp; &nbsp; <b>时间: </b>2018-8-21 17:11<br />
+看来我连猴子都不如。。。。。XD<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>世界老骨灰&nbsp; &nbsp; <b>时间: </b>2018-8-21 17:13<br />
+谢谢大佬教程<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>世界老骨灰&nbsp; &nbsp; <b>时间: </b>2018-8-21 17:16<br />
+哦哦，明白了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>世界老骨灰&nbsp; &nbsp; <b>时间: </b>2018-8-21 17:17<br />
+了解了，可以的大佬。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>萌新飘过&nbsp; &nbsp; <b>时间: </b>2018-8-22 12:11<br />
+噢天哪，表示看不懂？有什么实际应用吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1412049700&nbsp; &nbsp; <b>时间: </b>2018-8-22 19:01<br />
+6666666666666666666666666666666666666666666<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>cyk1790897855&nbsp; &nbsp; <b>时间: </b>2018-8-22 22:29<br />
+好深奥啊，希望我大学学了计算机能搞懂这篇文章，这样也许能帮助我未来建服务器<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>末影人2338&nbsp; &nbsp; <b>时间: </b>2018-8-23 01:57<br />
+作者，我们都不会拆程序叫我们这么改啊，不然你做一个小插件呗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>末影人2338&nbsp; &nbsp; <b>时间: </b>2018-8-23 01:57<br />
+我也是醉了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>末影人2338&nbsp; &nbsp; <b>时间: </b>2018-8-23 01:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999964&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-6-29 05:44</font></a></font><br />
+有技术，能看懂我在说什么的人，应该已经有足够的信息和思路去写出程序了。<br />
+在这里我给出代码和更多技术 ...</blockquote></div><br />
+这....都可以写程序还需要你说呢，人家不会自己拆了他的源代码嘛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>末影人2338&nbsp; &nbsp; <b>时间: </b>2018-8-23 02:00<br />
+无语了，表示作者有时间教c基础嘛<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-23 08:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13249418&amp;ptid=801713" target="_blank"><font color="#999999">末影人2338 发表于 2018-8-23 01:57</font></a></font><br />
+作者，我们都不会拆程序叫我们这么改啊，不然你做一个小插件呗</blockquote></div><br />
+我没让你们改啊。我就是解释原理，剩下要干嘛你们自己决定咯<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GCVillager&nbsp; &nbsp; <b>时间: </b>2018-8-23 09:37<br />
+我的C++白学了。。。（虽然这是Java）<br />
+而且为什么你这么闲。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Robot_V1&nbsp; &nbsp; <b>时间: </b>2018-8-23 12:14<br />
+我觉得可以用史莱姆区块进行推算。应该会更省事。就是寻找史莱姆区块需要在y&lt;30大量挖区块<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>元路&nbsp; &nbsp; <b>时间: </b>2018-8-24 19:46<br />
+我有一个想法，真的需要反推种子吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>元路&nbsp; &nbsp; <b>时间: </b>2018-8-24 19:48<br />
+有点类似于KMP算法，在int范围内遍历，只生成一个区块，和已有区块进行比较，如果不相同，直接跳过，如果相同，接着生成其他区块，如果和所有已知区块相同，那么就存下来<br />
+这样不是更加便捷且思路清晰吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2018-8-24 20:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13257151&amp;ptid=801713" target="_blank"><font color="#999999">lilanxiao 发表于 2018-8-24 19:48</font></a></font><br />
+有点类似于KMP算法，在int范围内遍历，只生成一个区块，和已有区块进行比较，如果不相同，直接跳过，如果相 ...</blockquote></div><br />
+首先这篇东西讲的就是怎么搞到种子。<br />
+<br />
+另外我没觉得你说的这个方法有什么优越性？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>元路&nbsp; &nbsp; <b>时间: </b>2018-8-26 09:11<br />
+说实话，我比较好奇你是怎么把地图信息输入进去的，手动吗？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>萌影阿&nbsp; &nbsp; <b>时间: </b>2018-8-27 09:54<br />
+非常棒 支持一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>rabbit_A&nbsp; &nbsp; <b>时间: </b>2018-8-27 21:15<br />
+还行，虽然看的懵懵懂懂。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>afjl&nbsp; &nbsp; <b>时间: </b>2018-10-5 18:01<br />
+生物群系那步是瓶颈，不仅需要较多时间，而且代码很复杂<br />
+我用C++试着写，光敲类名、类变量和函数就10KB了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>afjl&nbsp; &nbsp; <b>时间: </b>2018-10-20 20:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12999962&amp;ptid=801713" target="_blank"><font color="#999999">Vinogradov 发表于 2018-6-29 05:35</font></a></font><br />
+没看过矿石的代码不清楚。第二步我用群系的原因是已经有人把群系生成的代码改写成C++并封装好了（虽然写 ...</blockquote></div><br />
+我找了3个月了还是没找到你说的生物群系的C++代码<br />
+然后直接从java改写太复杂（就是懒）<br />
+另外实际应用时性能可能没有预计的那么好，即使加上优化<br />
+我试了30个村庄时仍然得到了4个种子的低48位（未进行第三步）<br />
+一般这就很难做到了<br />
+（这贴现在已经冷了？）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lqc33&nbsp; &nbsp; <b>时间: </b>2018-11-15 10:03<br />
+我从生成的角度来理解下怎么防御<br />
+最简单的办法就是先生成群系再生成村庄和基岩就可以大大提高破解所需要的时间，是这样吗？<br />
+那大神能不能自己覆盖写一个村庄生成器，也不用太复杂，只要村庄独立用另一个种子就行了。<br />
+另外java的话能不能使用一些系统提供的真随机数生成器，这样就能更好的防御了。<br />
+<br />
+现在最怕的是什么，就是有人写一个类似于小地图插件，玩家自动跑图收集相关信息。<br />
+然后输出工程文件给一个外面写好了的程序跑，那样的话感觉大部分服务器要爆炸。。。<br />
+<br />
+所以还是要建议所有的服务器都装上ClimateControl然后修改一下村庄的配置。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>元路&nbsp; &nbsp; <b>时间: </b>2019-1-30 15:18<br />
+如何把Java中的Random写在C++里运行的？？？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>丢人素学姐&nbsp; &nbsp; <b>时间: </b>2019-1-30 20:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13789866&amp;ptid=801713" target="_blank"><font color="#999999">lilanxiao 发表于 2019-1-30 15:18</font></a></font><br />
+如何把Java中的Random写在C++里运行的？？？</blockquote></div><br />
+对着jdk源代码翻译成C++，然后在不影响效果的情况下进行适度简化
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

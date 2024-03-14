@@ -1,0 +1,506 @@
+<html>
+<head>
+<title>1.12.2 Bukkit 插件如何实现“第一次用坏铁镐就送物品”与“农作物加速生长” - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>1.12.2 Bukkit 插件如何实现“第一次用坏铁镐就送物品”与“农作物加速生长” <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-25 19:19<br />
+<b>标题: </b>1.12.2 Bukkit 插件如何实现“第一次用坏铁镐就送物品”与“农作物加速生长”<br />①查API看到应该是PlayerItemBreakEvent的getBrokenItem()，可是接下来该如何判断它是铁镐？<br />
+②而且是每个玩家第一次用坏才赠送，该怎么实现<br />
+③农作物加速生长的话 原版可以通过 增加每tick的RandomTick来实现（原版是每游戏刻在每区块产生3随机刻），但是这样会加速其它事件。我只想加快农作物生长（甚至只是部分种类的作物生长），该如何实现？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>落星雨&nbsp; &nbsp; <b>时间: </b>2020-6-25 19:52<br />
+我比较菜ww，记得可以通过获取玩家统计信息得到，<br />
+int getStatistic(Statistic statistic, Material material)<br />
+统计信息的enum在 <a href="https://bukkit.windit.net/javadoc/org/bukkit/Statistic.html" target="_blank">https://bukkit.windit.net/javadoc/org/bukkit/Statistic.html</a><br />
+例如用坏物品的统计信息应该是 BREAK_ITEM, 那么获得玩家铁镐的破坏次数用例应为：<br />
+int count = getStatistic(org.bukkit.Statistic.BREAK_ITEM, Material.IRON_PICKAXE);<br />
+这样的话，count就应该是玩家用坏铁镐的次数啦。<br />
+<br />
+加速农作物生长的话，我记得有帖子是问这个的，dalao回答了，之前看到过=.=<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-25 22:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18689933&amp;ptid=1067519" target="_blank"><font color="#999999">落星雨 发表于 2020-6-25 19:52</font></a></font><br />
+我比较菜ww，记得可以通过获取玩家统计信息得到，<br />
+int getStatistic(Statistic statistic, Material materi ...</blockquote></div><br />
+这个该怎么保证“玩家第一次用坏才赠送”<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-25 23:22<br />
+监听物品损坏事件 然后获取二楼那个count&nbsp;&nbsp;如果count是0或者应该是1就是第一次破坏<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>落星雨&nbsp; &nbsp; <b>时间: </b>2020-6-25 23:41<br />
+<i class="pstatus"> 本帖最后由 落星雨 于 2020-6-25 23:51 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18692241&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-25 22:30</font></a></font><br />
+这个该怎么保证“玩家第一次用坏才赠送”</blockquote></div><br />
+public static boolean checkFirstBroken(Player pl){<br />
+&nbsp;&nbsp;int count = pl.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);<br />
+&nbsp;&nbsp;return (count == 0);<br />
+}<br />
+把这个方法粘贴到你的类中<br />
+然后需要的时候直接<br />
+if( <i>checkFirstBroken(player)</i> ){ <font color="Gray">/* 是第一次用坏 */</font> }<br />
+即可ww<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 02:16<br />
+<i class="pstatus"> 本帖最后由 aa0307bb 于 2020-6-26 02:19 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18693224&amp;ptid=1067519" target="_blank"><font color="#999999">落星雨 发表于 2020-6-25 23:41</font></a></font><br />
+public static boolean checkFirstBroken(Player pl){<br />
+&nbsp;&nbsp;int count = pl.getStatistic(org.bukkit.Statist ...</blockquote></div><br />
+噢，原理就是需要用的时候通过checkFirstBroken(player)函数 把玩家数据传进函数 再检测玩家的统计信息！<br />
+<br />
+所以，最后就是<br />
+玩家用坏镐子时会触发一次PlayerItemBreakEvent<br />
+我只需要在PlayerItemBreakEvent的监听器里用这个checkFirstBroken()函数就行了（吧？<br />
+<br />
+有几个问题：<br />
+①第一次损坏 count==0！？<br />
+<strike>不会又是因为程序员喜欢从0开始数数吧？</strike><br />
+②统计信息应该不会因为服务器重启而清空吧？③最开始你的帖子说“别的dalao有解答农作物加速”，但我找不到orz<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>落星雨&nbsp; &nbsp; <b>时间: </b>2020-6-26 02:54<br />
+<i class="pstatus"> 本帖最后由 落星雨 于 2020-6-26 02:58 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18694163&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 02:16</font></a></font><br />
+噢，原理就是需要用的时候通过checkFirstBroken(player)函数 把玩家数据传进函数 再检测玩家的统计信息！<br />
+ ...</blockquote></div><br />
+啊哈哈，我的垃圾水平还称不上大佬orz<br />
+1. 第一次损坏意味着玩家之前没有损坏过稿子，count 的含义是玩家在调用<strong>前损坏</strong>稿子的次数，所以要 count == 0。<br />
+2. 不会，但应该会因为地图重置而清空。<br />
+3. <a href="thread.html?t=1063245" target="_blank">https://www.mcbbs.net/thread-1063245-1-3.html</a> #2<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 03:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18694244&amp;ptid=1067519" target="_blank"><font color="#999999">落星雨 发表于 2020-6-26 02:54</font></a></font><br />
+啊哈哈，我的垃圾水平还称不上大佬orz<br />
+1. 第一次损坏意味着玩家之前没有损坏过稿子，count 的含义是玩家在 ...</blockquote></div><div class="quote"><blockquote>应该会因为地图重置而清空</blockquote></div><br />
+啊，所以插件读取的玩家统计信息其实来自于地图文件？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>落星雨&nbsp; &nbsp; <b>时间: </b>2020-6-26 03:02<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18694258&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 03:00</font></a></font><br />
+啊，所以插件读取的玩家统计信息其实来自于地图文件？</blockquote></div><br />
+是的，相当于单人游戏里的那个统计信息，换地图就成新的了嘛orz<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 13:08<br />
+<i class="pstatus"> 本帖最后由 aa0307bb 于 2020-6-26 13:32 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18693224&amp;ptid=1067519" target="_blank"><font color="#999999">落星雨 发表于 2020-6-25 23:41</font></a></font><br />
+public static boolean checkFirstBroken(Player pl){<br />
+&nbsp;&nbsp;int count = pl.getStatistic(org.bukkit.Statist ...</blockquote></div><div class="blockcode"><div id="code_A3D"><ol><li>public class PlayerItemBreakListener implements Listener{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;void onBreakPickaxe(PlayerItemBreakEvent e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Player player = e.getPlayer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(checkFirstBroken(player)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.sendMessage(&quot;你镐爆了&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static boolean checkFirstBroken(Player player){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int count = player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.sendMessage(&quot;你铁镐用坏次数：&quot;+count);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return (count == 0);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>}</ol></div><em onclick="copycode($('code_A3D'));">复制代码</em></div><br />
+追问亿下：<br />
+上面的代码发现一些小问题<br />
+①<br />
+<div class="blockcode"><div id="code_b5a"><ol><li> player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);</ol></div><em onclick="copycode($('code_b5a'));">复制代码</em></div><br />
+并不是玩家在调用【前】损坏稿子的次数，<br />
+比如 如果我是第一次用坏铁镐，那么会显示&quot;你铁镐用坏次数：1&quot;（而不是0）<br />
+（版本问题？我的调用姿势不对？）<br />
+②<br />
+如果玩家用坏了第一次铁镐，而第二第三第四次用坏的是其它镐，仍然能触发if(checkFirstBroken(player)) {}里面的事件<br />
+<br />
+（二次编辑：）<br />
+嗯，似乎找到了解决的方法↓↓↓<br />
+<div class="blockcode"><div id="code_b2t"><ol><li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;void onBreakPickaxe(PlayerItemBreakEvent e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Player player = e.getPlayer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; boolean isIronPickaxe = e.getBrokenItem().getType() == org.bukkit.Material.IRON_PICKAXE;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //isIronPickaxe记录 当前事件损坏的是否为铁镐<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.sendMessage(&quot;&quot;+isIronPickaxe);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(checkFirstBroken(player)&amp;&amp;isIronPickaxe) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//如果损坏第一次且损坏的是铁镐，则...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.sendMessage(&quot;你镐爆了&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_b2t'));">复制代码</em></div><br />
+但是我不是很懂<div class="quote"><blockquote>e.getBrokenItem().getType() == org.bukkit.Material.IRON_PICKAXE;</blockquote></div>这样判断是否有什么隐患<br />
+因为”==“两侧的不是基本数据类型，而是MATERIAL类的对象<br />
+印象中 用”==“对对象进行判断 好像只是判断指针地址是否相同，而不是判断它俩是不是同一个类型<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-26 13:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18699519&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 13:08</font></a></font><br />
+追问亿下：<br />
+上面的代码发现一些小问题<br />
+①</blockquote></div><div class="quote"><blockquote>因为”==“两侧的不是基本数据类型，而是MATERIAL类的对象<br />
+印象中 用”==“对对象进行判断 好像只是判断指针地址是否相同，而不是判断它俩是不是同一个类型</blockquote></div><br />
+
+<br />
+Material使用 == 完全没有问题<br />
+你自己去学习一下 Java 枚举 Enum 就知道了<br />
+这是java基础问题<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-26 13:46<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18699519&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 13:08</font></a></font><br />
+追问亿下：<br />
+上面的代码发现一些小问题<br />
+①</blockquote></div><br />
+ItemBreak事件发生之后没有被cancel<br />
+那就意味着铁镐已经爆掉了<br />
+修改方法很简单<br />
+<br />
+加一行<br />
+count-- ;<br />
+player.sendMessage(&quot;你铁镐用坏次数：&quot;+count);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return (count == 0);<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>落星雨&nbsp; &nbsp; <b>时间: </b>2020-6-26 15:18<br />
+<i class="pstatus"> 本帖最后由 落星雨 于 2020-6-26 15:31 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18699519&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 13:08</font></a></font><br />
+追问亿下：<br />
+上面的代码发现一些小问题<br />
+①</blockquote></div><br />
+1.<br />
+啊是我没写好<br />
+你是在onBreakPickaxe里调用的这个方法，那么就意味着<strong>在onBreakPickaxe()之前</strong>，铁镐就已经爆掉了一次，统计信息随即从0变1，在这之后再调用getStatistic()，那么此时获取到的就是1了。按照#11大佬的方法，那就可以先让 count 自减1，然后再判断。<br />
+count--;<br />
+<br />
+2.<br />
+可以自己往后加，<br />
+int count = player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);<br />
+count <strong>+=</strong> player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.<strong>DIAMOND</strong>_PICKAXE);<br />
+count <strong>+=</strong> player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.<strong>WOODEN</strong>_PICKAXE);<br />
+这个的意思是<br />
+count = 铁镐用坏次数+钻石镐用坏次数+木镐用坏次数<br />
+如果想要判断玩家是否什么镐子都没用坏过，最后检查是否 count == 0 即可。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 18:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18693224&amp;ptid=1067519" target="_blank"><font color="#999999">落星雨 发表于 2020-6-25 23:41</font></a></font><br />
+public static boolean checkFirstBroken(Player pl){<br />
+&nbsp;&nbsp;int count = pl.getStatistic(org.bukkit.Statist ...</blockquote></div><br />
+在1.10Bukkit是能行的，我换成carserver就不行了OTZ<br />
+测试之后发现是因为<br />
+<div class="quote"><blockquote>player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.STONE_PICKAXE);</blockquote></div><br />
+返回的结果总是0<br />
+（而且游戏界面内，ESC-&gt;统计次数 界面里面，就算镐子用坏了，“消耗次数”那一栏也不会增加）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-26 18:56<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18703971&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 18:03</font></a></font><br />
+在1.10Bukkit是能行的，我换成carserver就不行了OTZ<br />
+测试之后发现是因为</blockquote></div><br />
+1.10的catserver嘛？<br />
+catserver不是专供1.12的嘛<br />
+<br />
+同时catserver兼容性存疑 <br />
+有些bukkit api 上的东西确实无法正常使用<br />
+所以有部分插件是不支持catserver的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 19:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18704750&amp;ptid=1067519" target="_blank"><font color="#999999">南柯郡守 发表于 2020-6-26 18:56</font></a></font><br />
+1.10的catserver嘛？<br />
+catserver不是专供1.12的嘛</blockquote></div><br />
+啊我没说清楚……是“1.10Bukkit是能行的，我换成1.12.2carserver就不行了”<br />
+<br />
+bukkit api有没有出问题我不清楚<br />
+关键是原版的一些功能好像也有点问题<br />
+（也就是我上面说的“游戏界面内，ESC-&gt;统计次数 界面里面，就算镐子用坏了，“消耗次数”那一栏也不会增加”）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-26 19:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18705381&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 19:37</font></a></font><br />
+啊我没说清楚……是“1.10Bukkit是能行的，我换成1.12.2carserver就不行了”<br />
+<br />
+bukkit api有没有出问题我 ...</blockquote></div><br />
+你可以尝试用下别的服务端看看不是是catserver的特性<br />
+<br />
+如果所有服务端都一样的话<br />
+建议自己建立一个记录<br />
+例 建一个data.yml用来存放玩家用坏铁镐的次数<br />
+<div class="blockcode"><div id="code_lS1"><ol><li><br />
+<li>int times = config.getInt(player.getName+&quot;.axebreak&quot;);<br />
+<li></ol></div><em onclick="copycode($('code_lS1'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 21:13<br />
+<i class="pstatus"> 本帖最后由 aa0307bb 于 2020-6-26 21:15 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18705426&amp;ptid=1067519" target="_blank"><font color="#999999">南柯郡守 发表于 2020-6-26 19:40</font></a></font><br />
+你可以尝试用下别的服务端看看不是是catserver的特性<br />
+<br />
+如果所有服务端都一样的话</blockquote></div><br />
+有没有哪个文章讲怎样操作配置文件的……我找了半天都找不到:(<br />
+（话说站内有没有比较成体系的教程呀……现在动不动都得出来问人才会orz&nbsp;&nbsp;本版置顶推荐的很多要么弃坑 要么打不开 要么太旧了 要么没有想要的东西，害）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-26 21:30<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18707015&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 21:13</font></a></font><br />
+有没有哪个文章讲怎样操作配置文件的……我找了半天都找不到:(<br />
+（话说站内有没有比较成体系的教程呀……现 ...</blockquote></div><br />
+<a href="https://papermc.io/javadocs/paper/1.12/overview-summary.html" target="_blank">https://papermc.io/javadocs/paper/1.12/overview-summary.html</a><br />
+<br />
+推荐查看api文档<br />
+<br />
+操作配置文件比较基础所以没啥教材有<br />
+<br />
+简单说一下初始化配置文件吧<br />
+<div class="blockcode"><div id="code_Acs"><ol><li><br />
+<li>File filedata = new File(plugin.getDataFolder(),&quot;data.yml&quot;);<br />
+<li>FileConfiguration cfg = YamlConfiguration.loadConfiguration(filedata);<br />
+<li>//上面是把插件配置文件夹下的data.yml文件作为配置文件读取到插件中<br />
+<li>cfg.getString(&quot;keyname&quot;);<br />
+<li>cfg.getInt(player.getname+&quot;.break&quot;);<br />
+<li>//上面两个是从cfg里面读取配置项<br />
+<li>cfg.set(&quot;keyname&quot;,value);<br />
+<li>//上面是向配置文件输出内容 即保存数据<br />
+<li>cfg.save(filedata);<br />
+<li>//上面这个是保存到data.yml文件中去<br />
+<li>//当你cfg.set的时候 只是将数据临时储存在插件的变量中了<br />
+<li>//并没有实时保存在文件里 所以需要save一下来保存到文件里<br />
+<li></ol></div><em onclick="copycode($('code_Acs'));">复制代码</em></div><br />
+现在基本都不爱写教程了<br />
+<br />
+一是有一堆教程 二是吃力不讨好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-26 23:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18707306&amp;ptid=1067519" target="_blank"><font color="#999999">南柯郡守 发表于 2020-6-26 21:30</font></a></font><br />
+https://papermc.io/javadocs/paper/1.12/overview-summary.html<br />
+<br />
+推荐查看api文档</blockquote></div><br />
+感谢！（金粒和人气用光了明天再补<br />
+那个第一行<br />
+<div class="quote"><blockquote>plugin.getDataFolder()</blockquote></div><br />
+的plugin是怎么来的<br />
+<br />
+（然后在插件主类的onEnable()里面不需要写plugin.就可以直接用了又是什么情况orz）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-26 23:04<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18708568&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-26 23:01</font></a></font><br />
+感谢！（金粒和人气用光了明天再补<br />
+那个第一行</blockquote></div><br />
+这个属于java基础知识部分 建议一会巩固一下<br />
+<br />
+<div class="blockcode"><div id="code_JFu"><ol><li>public static YourPlugin plugin;<br />
+<li>@override<br />
+<li>public void onEnable(){<br />
+<li>&nbsp; &nbsp; plugin = this;<br />
+<li>}</ol></div><em onclick="copycode($('code_JFu'));">复制代码</em></div><br />
+
+<br />
+这里之后 这个plugin就代表你的这个插件实例 可以直接引用这个类下面的public的方法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18708596&amp;ptid=1067519" target="_blank"><font color="#999999">南柯郡守 发表于 2020-6-26 23:04</font></a></font><br />
+这个属于java基础知识部分 建议一会巩固一下</blockquote></div><br />
+好的<br />
+<br />
+不过，我的代码主体写在监听器里<br />
+public class PlayerItemBreakListener implements Listener{<br />
+&nbsp; &nbsp; &nbsp; &nbsp; <br />
+&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+&nbsp; &nbsp; &nbsp; &nbsp; void onBreakPickaxe(PlayerItemBreakEvent e) {<br />
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Player player = e.getPlayer();<br />
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ……<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+}<br />
+<br />
+监听器里面怎样获取它所在的插件主类的plugin对象<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蕾米洛伊&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:09<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709339&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-27 00:06</font></a></font><br />
+好的<br />
+<br />
+不过，我的代码主体写在监听器里</blockquote></div><br />
+据我所知。。按 21# 大佬的方法在监听器里也可以用吧<br />
+先 public static <font color="Green">YourPlugin</font> plugin = <i>this</i>;<br />
+然后监听器里调用 <font color="Green">YourPlugin</font>.<font color="DarkOrange"><i>plugin</i></font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709378&amp;ptid=1067519" target="_blank"><font color="#999999">蕾米洛伊 发表于 2020-6-27 00:09</font></a></font><br />
+据我所知。。按 21# 大佬的方法在监听器里也可以用吧<br />
+先 public static YourPlugin plugin = this;<br />
+然后 ...</blockquote></div><br />
+类变量，好主意，膜OTZ<br />
+<div class="quote"><blockquote>按 21# 大佬的方法在监听器里也可以用吧</blockquote></div><br />
+在我这用不了OTZ<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蕾米洛伊&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709483&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-27 00:22</font></a></font><br />
+类变量，好主意，膜OTZ<br />
+<br />
+在我这用不了OTZ</blockquote></div><br />
+那么就试试在Listener里写一个<br />
+<br />
+private static Plugin pl;<br />
+public PlayerItemBreakListener(Plugin pl){<br />
+&nbsp; &nbsp; Plugin plugin = pl;<br />
+}<br />
+在主类注册Listener的时候，记得传参 new Listener(this)。然后在其他方法里调用 plugin？<br />
+啊也有可能是错了，好久没写忘了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:51<br />
+<div class="quote"><blockquote><font color="#999999">aa0307bb 发表于 2020-6-27 00:06</font><br />
+<font color="#999999">好的<br />
+<br />
+不过，我的代码主体写在监听器里<br />
+</font></blockquote></div><br />
+尝试<br />
+<div class="blockcode"><div id="code_amI"><ol><li><br />
+<li>public class YourListener implement Listener{<br />
+<li>&nbsp; &nbsp; YourPlugin instance=YourPlugin.plugin;<br />
+<li>&nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; public void yourMethod(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//do something with instance<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;instance.econ.depositPlayer(player,money);<br />
+<li><br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_amI'));">复制代码</em></div><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-27 00:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709496&amp;ptid=1067519" target="_blank"><font color="#999999">蕾米洛伊 发表于 2020-6-27 00:25</font></a></font><br />
+那么就试试在Listener里写一个<br />
+<br />
+private static Plugin pl;</blockquote></div><br />
+啊你提醒我了，监听器的传参问题我也是一知半解的OTZ<br />
+<div class="blockcode"><div id="code_TQu"><ol><li><br />
+<li>//【代码1】<br />
+<li>public class PlayerItemBreakListener implements Listener{&nbsp; &nbsp; &nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; void onBreakPickaxe(PlayerItemBreakEvent e) {<br />
+<li></ol></div><em onclick="copycode($('code_TQu'));">复制代码</em></div><br />
+与<br />
+<div class="blockcode"><div id="code_YzN"><ol><li><br />
+<li>//【代码2】<br />
+<li>public class PlayerItemBreakListener implements Listener{<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; void onBreakPickaxe(PlayerItemBreakEvent e,Plugin plugin) {<br />
+<li></ol></div><em onclick="copycode($('code_YzN'));">复制代码</em></div><br />
+
+<br />
+那个@EventHandler能标记onBreakPickaxe()是事件处理函数是什么个原理，<br />
+它是怎么知道我的onBreakPickaxe()需要什么参数并且总是(?)能传给我需要的参数的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-27 01:15<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709635&amp;ptid=1067519" target="_blank"><font color="#999999">南柯郡守 发表于 2020-6-27 00:51</font></a></font><br />
+尝试</blockquote></div><br />
+好的，已经成了 :)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蕾米洛伊&nbsp; &nbsp; <b>时间: </b>2020-6-27 01:37<br />
+<i class="pstatus"> 本帖最后由 蕾米洛伊 于 2020-6-27 01:48 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709739&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-27 01:15</font></a></font><br />
+好的，已经成了 :)</blockquote></div><br />
+我比较菜，可能会有错误，路过的大佬烦请指出 =w=<br />
+这是 Java 注解，主要是为了让编译器检查你写的对不对的，通常来说对代码没有影响。<br />
+但是在 EventListener就不一样了，具体需要看看 org.bukkit.event.EventHandler 是怎么写的。<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<pre><code>@Target({ElementType.METHOD})<br />
+@Retention(RetentionPolicy.RUNTIME)<br />
+public @interface EventHandler {<br />
+&nbsp; &nbsp; EventPriority priority() default EventPriority.NORMAL;<br />
+<br />
+&nbsp; &nbsp; boolean ignoreCancelled() default false;<br />
+}</code></pre></td></table></div></div><br />
+这就是咱们所使用的 @EventHandler(priority = NORMAL) 的来源<br />
+首先看最上面的两个小玩意<br />
+<br />
+<strong>@Target({ElementType.METHOD})</strong><br />
+这个意思是告诉编译器，我只能和<strong>不包含构造方法的方法放一块！</strong>其它类型一律给我报错嗷 (只有<strong>方法</strong>允许使用注解)<br />
+<strong>@Retention(RetentionPolicy.RUNTIME)</strong><br />
+刚刚说到注解一般情况下是为了编译检查用的，不会保存到编译的文件中。但是在 bukkit，牵扯到事件优先级的问题，所以这个注解不能被忽略，否则的话bukkit就读不了优先级了。<br />
+所以，这个小玩意的意思是告诉编译器，<strong>虽然我看起来小，你得把我编译进去，实际代码里也要用到我，所以你得让JVM大哥访问到我</strong> (编译并让JVM读取此注解)。<br />
+<br />
+下面的 @interface 意思就是说这是个注解。<br />
+<i>(使用 @interface 定义注解时，意味着它实现了 java.lang.annotation.Annotation 接口，即该注解就是一个Annotation。)</i><br />
+<br />
+从上面的例子应该可以理解，<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2017888" target="_blank">@EventHandler</a> 和 bukkit 怎么知道Event类型，是没有直接联系的。我的理解是这个 @EventHandler 主要是为了你定义事件优先级和 ignoreCancelled 的，因为注解中的变量可以被 method.getDeclaredAnnotations() 读取。<br />
+<br />
+刚看了一眼百度上关于注解的教程，我。。一个个写的都那么高端。。不能对新手友好点嘛。。。<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-27 09:36<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709678&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-27 00:59</font></a></font><br />
+啊你提醒我了，监听器的传参问题我也是一知半解的OTZ<br />
+<br />
+与</blockquote></div><br />
+我建议构造函数传参<br />
+看SimplePluginManager<br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#7f0055"><strong>public</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>void</strong></font><font color="#000000"> </font><font color="#000000">callEvent</font><font color="#000000">(</font><font color="#808080">@NotNull</font><font color="#000000"> </font><font color="#000000">Event</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">isAsynchronous</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">Thread</font><font color="#000000">.</font><font color="#000000">holdsLock</font><font color="#000000">(</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">)</font><font color="#000000">)</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#7f0055"><strong>throw</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>new</strong></font><font color="#000000"> </font><font color="#000000">IllegalStateException</font><font color="#000000">(</font><font color="#000000">String</font><font color="#000000">.</font><font color="#000000">valueOf</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">getEventName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#2900ff">&quot; cannot be triggered asynchronously from inside synchronized code.&quot;</font><font color="#000000">)</font><font color="#000000">;</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">server</font><font color="#000000">.</font><font color="#000000">isPrimaryThread</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#7f0055"><strong>throw</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>new</strong></font><font color="#000000"> </font><font color="#000000">IllegalStateException</font><font color="#000000">(</font><font color="#000000">String</font><font color="#000000">.</font><font color="#000000">valueOf</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">getEventName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#2900ff">&quot; cannot be triggered asynchronously from primary server thread.&quot;</font><font color="#000000">)</font><font color="#000000">;</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">fireEvent</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">}</font><font color="#000000"> </font><font color="#7f0055"><strong>else</strong></font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">!</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">server</font><font color="#000000">.</font><font color="#000000">isPrimaryThread</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#7f0055"><strong>throw</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>new</strong></font><font color="#000000"> </font><font color="#000000">IllegalStateException</font><font color="#000000">(</font><font color="#000000">String</font><font color="#000000">.</font><font color="#000000">valueOf</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">getEventName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#2900ff">&quot; cannot be triggered asynchronously from another thread.&quot;</font><font color="#000000">)</font><font color="#000000">;</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>synchronized</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">fireEvent</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">}</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">}</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000"><br />
+</font><font color="#000000"><br />
+</font><br />
+<font color="#000000">&nbsp;&nbsp;</font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#7f0055"><strong>private</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>void</strong></font><font color="#000000"> </font><font color="#000000">fireEvent</font><font color="#000000">(</font><font color="#808080">@NotNull</font><font color="#000000"> </font><font color="#000000">Event</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">HandlerList</font><font color="#000000"> </font><font color="#000000">handlers</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">getHandlers</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">RegisteredListener</font><font color="#000000">[</font><font color="#000000"> </font><font color="#000000">listeners</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">handlers</font><font color="#000000">.</font><font color="#000000">getRegisteredListeners</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>byte</strong></font><font color="#000000"> </font><font color="#000000">b</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>int</strong></font><font color="#000000"> </font><font color="#000000">i</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">RegisteredListener</font><font color="#000000">[</font><font color="#000000"> </font><font color="#000000">arrayOfRegisteredListener1</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>for</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">i</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">arrayOfRegisteredListener1</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">listeners</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">length</font><font color="#000000">,</font><font color="#000000"> </font><font color="#000000">b</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">0</font><font color="#000000">;</font><font color="#000000"> </font><font color="#000000">b</font><font color="#000000"> </font><font color="#000000">&lt;</font><font color="#000000"> </font><font color="#000000">i</font><font color="#000000">;</font><font color="#000000"> </font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">RegisteredListener</font><font color="#000000"> </font><font color="#000000">registration</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">arrayOfRegisteredListener1</font><font color="#000000">[</font><font color="#000000">b</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">registration</font><font color="#000000">.</font><font color="#000000">getPlugin</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">isEnabled</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#7f0055"><strong>try</strong></font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#000000">registration</font><font color="#000000">.</font><font color="#000000">callEvent</font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000"> </font><font color="#7f0055"><strong>catch</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">AuthorNagException</font><font color="#000000"> </font><font color="#000000">ex</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#000000">Plugin</font><font color="#000000"> </font><font color="#000000">plugin</font><font color="#000000"> </font><font color="#000000">=</font><font color="#000000"> </font><font color="#000000">registration</font><font color="#000000">.</font><font color="#000000">getPlugin</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">plugin</font><font color="#000000">.</font><font color="#000000">isNaggable</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">plugin</font><font color="#000000">.</font><font color="#000000">setNaggable</font><font color="#000000">(</font><font color="#7f0055"><strong>false</strong></font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">server</font><font color="#000000">.</font><font color="#000000">getLogger</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">log</font><font color="#000000">(</font><font color="#000000">Level</font><font color="#000000">.</font><font color="#000000">SEVERE</font><font color="#000000">,</font><font color="#000000"> </font><font color="#000000">String</font><font color="#000000">.</font><font color="#000000">format</font><font color="#000000">(</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#2900ff">&quot;Nag author(s): '%s' of '%s' about the following: %s&quot;</font><font color="#000000">,</font><font color="#000000"> </font><font color="#7f0055"><strong>new</strong></font><font color="#000000"> </font><font color="#000000">Object</font><font color="#000000">[</font><font color="#000000"> </font><font color="#000000">{</font><font color="#000000"> </font><font color="#000000">plugin</font><font color="#000000">.</font><font color="#000000">getDescription</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">getAuthors</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">,</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">plugin</font><font color="#000000">.</font><font color="#000000">getDescription</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">getFullName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">,</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">ex</font><font color="#000000">.</font><font color="#000000">getMessage</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">}</font><font color="#000000">)</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#000000">}</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000"> </font><font color="#7f0055"><strong>catch</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">Throwable</font><font color="#000000"> </font><font color="#000000">ex</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">server</font><font color="#000000">.</font><font color="#000000">getLogger</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">log</font><font color="#000000">(</font><font color="#000000">Level</font><font color="#000000">.</font><font color="#000000">SEVERE</font><font color="#000000">,</font><font color="#000000"> </font><font color="#2900ff">&quot;Could not pass event &quot;</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">.</font><font color="#000000">getEventName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#2900ff">&quot; to &quot;</font><font color="#000000"> </font><font color="#000000">+</font><font color="#000000"> </font><font color="#000000">registration</font><font color="#000000">.</font><font color="#000000">getPlugin</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">getDescription</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">getFullName</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">,</font><font color="#000000"> </font><font color="#000000">ex</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000">&nbsp;&nbsp;</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">b</font><font color="#000000">++</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#000000">}</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000">&nbsp;&nbsp;</font><br />
+<font color="#000000"><br />
+</font><br />
+<font color="#000000">再来RegisteredListener类</font><br />
+<br />
+<font color="#000000">&nbsp;&nbsp;</font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#7f0055"><strong>public</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>void</strong></font><font color="#000000"> </font><font color="#000000">callEvent</font><font color="#000000">(</font><font color="#808080">@NotNull</font><font color="#000000"> </font><font color="#000000">Event</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000"> </font><font color="#7f0055"><strong>throws</strong></font><font color="#000000"> </font><font color="#000000">EventException</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>if</strong></font><font color="#000000"> </font><font color="#000000">(</font><font color="#000000">event</font><font color="#000000"> </font><font color="#7f0055"><strong>instanceof</strong></font><font color="#000000"> </font><font color="#000000">Cancellable</font><font color="#000000"> </font><font color="#000000">&amp;&amp;</font><font color="#000000"> </font><font color="#000000">(</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#000000">(</font><font color="#000000">Cancellable</font><font color="#000000">)</font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000">.</font><font color="#000000">isCancelled</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000"> </font><font color="#000000">&amp;&amp;</font><font color="#000000"> </font><font color="#000000">isIgnoringCancelled</font><font color="#000000">(</font><font color="#000000">)</font><font color="#000000">)</font><br />
+<font color="#000000">&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#7f0055"><strong>return</strong></font><font color="#000000">;</font><font color="#000000"> </font><br />
+<font color="#000000">&nbsp; &nbsp; </font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">executor</font><font color="#000000">.</font><font color="#000000">execute</font><font color="#000000">(</font><font color="#7f0055"><strong>this</strong></font><font color="#000000">.</font><font color="#000000">listener</font><font color="#000000">,</font><font color="#000000"> </font><font color="#000000">event</font><font color="#000000">)</font><font color="#000000">;</font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#000000">}</font><font color="#000000"><br />
+</font><font color="#000000">看看接口</font><br />
+<font color="#7f0055"><strong>public</strong></font><font color="#000000"> </font><font color="#7f0055"><strong>interface</strong></font><font color="#000000"> </font><font color="#000000">EventExecutor</font><font color="#000000"> </font><font color="#000000">{</font><br />
+<font color="#000000">&nbsp;&nbsp;</font><font color="#7f0055"><strong>void</strong></font><font color="#000000"> </font><font color="#000000">execute</font><font color="#000000">(</font><font color="#808080">@NotNull</font><font color="#000000"> </font><font color="#000000">Listener</font><font color="#000000"> </font><font color="#000000">paramListener</font><font color="#000000">,</font><font color="#000000"> </font><font color="#808080">@NotNull</font><font color="#000000"> </font><font color="#000000">Event</font><font color="#000000"> </font><font color="#000000">paramEvent</font><font color="#000000">)</font><font color="#000000"> </font><font color="#7f0055"><strong>throws</strong></font><font color="#000000"> </font><font color="#000000">EventException</font><font color="#000000">;</font><br />
+<font color="#000000">}</font><br />
+<font color="#000000"><br />
+</font><font color="#000000">你觉得可能传入插件主类这个参数吗。。。第二个方式不可能用来事件监听的</font><font color="#000000">你只能在构造函数传参主类实例</font><font color="#000000"><br />
+</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-27 09:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18709785&amp;ptid=1067519" target="_blank"><font color="#999999">蕾米洛伊 发表于 2020-6-27 01:37</font></a></font><br />
+我比较菜，可能会有错误，路过的大佬烦请指出 =w=<br />
+这是 Java 注解，主要是为了让编译器检查你写的对不对的 ...</blockquote></div><br />
+
+<br />
+从上面的例子应该可以理解，<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=2017888" target="_blank">@EventHandler</a> 和 bukkit 怎么知道Event类型，是没有直接联系的。<br />
+<br />
+要靠Handler<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>aa0307bb&nbsp; &nbsp; <b>时间: </b>2020-6-27 16:22<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18711697&amp;ptid=1067519" target="_blank"><font color="#999999">William_Shi 发表于 2020-6-27 09:36</font></a></font><br />
+我建议构造函数传参<br />
+看SimplePluginManager<br />
+&nbsp;&nbsp;public void callEvent(@NotNull Event event) {</blockquote></div><br />
+有很多线程、同步异步、锁等待有关的东西，不太熟，眼花了<br />
+就比如说这里没出现过个各种监听器的名称PlayerJoinListener、PlayerItemBreakListener<br />
+更没有它们被@EventHandler标记的函数名的名称（比如onBreakPickaxe()）<br />
+<br />
+那么它是怎样知道@EventHandler标记的函数名并且往onBreakPickaxe()传参数的<br />
+而且是不是无论是什么事件，传的参数都只是形如PlayerJoinEvent、PlayerItemBreakEvent等类的对象<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-6-27 16:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18717413&amp;ptid=1067519" target="_blank"><font color="#999999">aa0307bb 发表于 2020-6-27 16:22</font></a></font><br />
+有很多线程、同步异步、锁等待有关的东西，不太熟，眼花了<br />
+就比如说这里没出现过个各种监听器的名称Playe ...</blockquote></div><br />
+1.大部分事件为同步事件<br />
+2.监听可以通过反射进行调用<br />
+检测到对应的注解的方法才会在你注册监听的时候加进去，其他的不会加进去的<br />
+调用一个方法并不一定需要名称<br />
+3.传参只能Class&lt;? extends Event&gt; 没其他的参数<br />
+4.详见<a href="thread.html?t=1068558" target="_blank">https://www.mcbbs.net/thread-1068558-1-1.html</a>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

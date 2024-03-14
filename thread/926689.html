@@ -1,0 +1,973 @@
+<html>
+<head>
+<title>[bukkit讨论] 浅析：BukkitScheduler - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[bukkit讨论] 浅析：BukkitScheduler <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-11-17 01:54<br />
+<b>标题: </b>[bukkit讨论] 浅析：BukkitScheduler<br /><i class="pstatus"> 本帖最后由 1609089074 于 2019-11-17 15:50 编辑 </i><br />
+<br />
+最近了解到有种叫“线程池”的东西，愁着不知道怎么实际运用，于是艹了一下 obc 的 BukkitScheduler 学习一下，<br />
+因为我也比较菜，希望能跟大家交流学习，以下是我个人的理解，如有不对劲的地方非常欢迎指正<hr class="l" /><br />
+一开始我是从 BukkitRunnable 的 runTaskTimerAsynchronously 方法入手，追踪到了 CraftScheduler 的同名方法：<br />
+（其实 [ruby=提交同步任务]runTaskTimer[/ruby] 和 [ruby=提交异步任务]runTaskTimerAsynchronously[/ruby] 的差别在于方法内 new 的 task 是 CraftTask 还是 CraftAsyncTask ）<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_x87"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public BukkitTask runTaskTimerAsynchronously(Plugin plugin, Runnable runnable, long delay, long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; validate(plugin, runnable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (delay &lt; 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;delay = 0L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (period == 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = 1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } else if (period &lt; -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = -1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return handle(new CraftAsyncTask(runners, plugin, runnable, nextId(), period), delay);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_x87'));">复制代码</em></div></td></table></div></div><br />
+当从这里（CraftScheduler实例内）提交 BukkitRunnable 任务，此方法将 delay 和 period 规范好后，<br />
+生成 task 实例并交给私有方法 handle 处理：<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_tcz"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private CraftTask handle(CraftTask task, long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; task.setNextRun(this.currentTick + delay);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; addTask(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return task;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_tcz'));">复制代码</em></div></td></table></div></div><br />
+在方法 handle 内，先[ruby=CraftTask#setNextRun(long)]将 task 定时运行[/ruby]，该定时运行的tick时刻为[ruby=CraftScheduler#currentTick]当前tick[/ruby] + [ruby=方法参数delay]延时tick[/ruby]（此处的 [ruby=CraftScheduler#currentTick]当前tick字段[/ruby] 由方法 mainThreadHeartbeat 进行更新，方法内容先不做展开，下面会再详细讲），<br />
+定时设置好后再[ruby=CraftScheduler#addTask(CraftTask)]将 task 加入&quot;提交队列”[/ruby]，<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_wIo"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private void addTask(CraftTask task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; AtomicReference&lt;CraftTask&gt; tail = this.tail; // 原子性实例AtomicReference，保证变量在多线程中的准确性（个人理解）<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftTask tailTask = (CraftTask) tail.get();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; /* http://jszx-jxpt.cuit.edu.cn/JavaAPI/java/util/concurrent/atomic/AtomicReference.html#compareAndSet(V,%20V)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* public final boolean compareAndSet(V expect, V update) - java.util.concurrent.atomic.AtomicReference<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 如果当前值 == 预期值，则以原子方式将该值设置为给定的更新值。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 参数：expect - 预期值; update - 新值;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 返回：如果成功，则返回 true。返回 false 指示实际值与预期值不相等。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (!tail.compareAndSet(tailTask, task)) { // 不断尝试以原子性设置队尾 task 变量<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tailTask = (CraftTask) tail.get();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; tailTask.setNext(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_wIo'));">复制代码</em></div></td></table></div></div><br />
+对于所谓“提交队列”，这里得提到在 CraftTask 内的实例字段 [ruby=CraftTask#next]volatile @Nullable CraftTask next[/ruby] ，其代指紧跟在该 task 后的 task，可以理解为其以这样的方式代替了一个 ArrayList。所以所谓“加入提交队列”实际上只是将“提交队尾”的 task 实例的字段 next 引用为新的 task ，这其中并没有涉及到任何集合。<br />
+到这里，提交任务的流程就走完了。<br />
+<br />
+<hr class="l" /><br />
+接下来讲一下调度器的主体运行方法 mainThreadHeartbeat ，<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_o83"><ol><li>&nbsp; &nbsp; public void mainThreadHeartbeat(final int currentTick) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.currentTick = currentTick; // 更新 tick<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final List&lt;CraftTask&gt; temp = this.temp; // 任务缓存列表，空列表<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.parsePending(); // 解析提交的 task<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (this.isReady(currentTick)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final CraftTask task = this.pending.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getPeriod() &lt; -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(task.getTaskId(), task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.parsePending();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.timings.startTiming(); // org.pigotmc.CustomTimingsHandler.startTiming(); 没搞懂啥用处<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.run();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.timings.stopTiming(); // org.pigotmc.CustomTimingsHandler.stopTiming(); 没搞懂啥用处<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (Throwable throwable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.getOwner().getLogger().log(Level.WARNING, String.format(&quot;Task #%s for %s generated an exception&quot;, task.getTaskId(), task.getOwner().getDescription().getFullName()), throwable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.parsePending();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugTail = this.debugTail.setNext(new CraftAsyncDebugger(currentTick + CraftScheduler.RECENT_TICKS, task.getOwner(), task.getTaskClass())); // CraftAsyncDebugger 没搞懂这个具体怎么用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.executor.execute(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final long period = task.getPeriod();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (period &gt; 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task.setNextRun(currentTick + period);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;temp.add(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(task.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.pending.addAll((Collection&lt;?&gt;)temp);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;temp.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugHead = this.debugHead.getNextHead(currentTick);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_o83'));">复制代码</em></div></td></table></div></div><br />
+该方法由服务器主线程每tick进行调用（位于nms包MinecraftServer类内的方法，每个服务端版本的混淆名可能都不一样），传入的方法参数 currentTick 即为当前服务器已运行的第几 tick 数。在方法内，先将 [ruby=CraftScheduler#currentTask]this.currentTask[/ruby] 更新，载入缓存列表（一般情况下为空列表），然后开始解析提交的 task ，此处调用了私有方法 parsePending，<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_Ssd"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private void parsePending() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftTask head = this.head;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftTask task = head.getNext();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftTask lastTask = head;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (; task != null; task = (lastTask = task).getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getTaskId() == -1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task.run();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else if (task.getPeriod() &gt;= -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;pending.add(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;runners.put(Integer.valueOf(task.getTaskId()), task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (task = head; task != lastTask; task = head) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;head = task.getNext();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.setNext(null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.head = lastTask;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Ssd'));">复制代码</em></div></td></table></div></div><br />
+在方法 parsePending 内，先获取[ruby=CraftScheduler#head]“提交队首”的 task[/ruby] 为局部字段 head（该 head 最开始是调度器实例化时就生成的无实际run()内容的 CraftTask 实例，也是最初的[ruby=CraftScheduler#tail]“队尾”变量[/ruby]），接下来通过 [ruby=CraftTask#next]head.getNext()[/ruby] 遍历提交任务（如果[ruby=getNext()==null]没有新的任务了[/ruby]就啥也不做），如果任务的[ruby=task.getPeriod()&gt;=-1]周期参数有效[/ruby]，任务加入[ruby=CraftScheduler#pending]挂起队列[/ruby]，并放入[ruby=CraftScheduler#runners]任务表（ConcurrentHashMap&lt;Integer, CraftTask&gt;）中，然后清空“提交队列”（将原本是“提交队列”中的 task 的 next 字段设为 null），最后将原本位于“提交队尾”的 task 设为“提交队首”。<br />
+<br />
+解析好“提交队列”后（分配好挂起队列和任务表后），mainThreadHeartbeat 将开始从队首迭代挂起队列的任务，而循环迭代的条件是 [ruby=CraftScheduler#isReady(long)]isReady(long currentTick)[/ruby] ，其内容就是判断：挂起队列不为空并且在队首的 task 的[ruby=CraftTask#getNextRun()]定时运行的时刻点[/ruby]到了。<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_i52"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private boolean isReady(int currentTick) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return (!this.pending.isEmpty()) &amp;&amp; (((CraftTask) this.pending.peek()).getNextRun() &lt;= this.currentTick);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_i52'));">复制代码</em></div></td></table></div></div><br />
+如果队首 task 运行时刻到了，mainThreadHeartbeat 将其取出（同时从队列中将其移除，意即 get 并 remove），&nbsp; &nbsp; 若任务周期无效（period值小于 -1）<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;如果是同步任务 -&gt; 从[ruby=CraftScheduler#runners]任务表[/ruby]移除此任务<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;调用 parsePending 重新解析“提交队列” // 这里没搞懂再次调用的原因<br />
+&nbsp; &nbsp; 否则正常进行<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;如果是同步任务：<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try块<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; task.timings.startTiming(); // org.pigotmc.CustomTimingsHandler.startTiming(); 没搞懂啥用处<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 直接执行 task.run();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; task.timings.stopTiming(); // org.pigotmc.CustomTimingsHandler.stopTiming(); 没搞懂啥用处<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;catch到异常<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 打印至log<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;调用 parsePending 重新解析“提交队列” // 这里也是没搞懂再次调用的原因<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;否则异步执行：<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;设置[ruby=CraftAsyncDebugger]异步debug类[/ruby]的 next // 不清楚这玩意具体啥用<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;[ruby=CraftScheduler#executor]使用线程池[/ruby]直接 execute(task)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;/* 此线程池字段在调度器初始化时赋值：<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; * private final Executor executor = Executors .newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat(&quot;Craft Scheduler Thread - %1$d&quot;).build());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;执行任务完成后准备根据周期进行定时下次执行<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;如果任务有周期计划（period值大于 0）<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;[ruby=CraftTask#setNextRun(long)]定时任务下次执行时刻[/ruby]，时刻值为 currentTick + period<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;将任务加入缓存列表<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;否则如果是同步任务 -&gt; 从[ruby=CraftScheduler#runners]任务表[/ruby]移除此任务<br />
+任务迭代完后，将缓存列表的所有任务放回挂起队列<br />
+清空缓存列表<br />
+最后调用 this.debugHead = debugHead.getNextHead(currentTick); // 但还是不清楚这玩意具体啥用<br />
+<br />
+到这里，执行任务的流程就走完了。<br />
+<hr class="l" /><br />
+<strong>总结：</strong><font size="1"><font color="#000000"><font style="background-color:black">给自己做的笔记...</font></font></font>&nbsp; &nbsp;<br />
+1.&nbsp;&nbsp;CraftTask自身有单链表结构<font size="1">（感谢三楼大佬提示这个专业名词）</font>，装载刚提交上来还没有挂起的任务。<br />
+2.&nbsp;&nbsp;在[ruby=mainThreadHeartbeat]调度器核心方法中[/ruby]运行同步方法是直接调用任务 task.run() ，而运行异步任务也仅是在任务要运行时才调用调度器中唯一的[ruby=Executer]线程池[/ruby]进行 execute(task)；<br />
+2.a.&nbsp;&nbsp;调度器中处理任务队列（同异步的任务都在一个队列中）的[ruby=mainThreadHeartbeat]核心方法[/ruby]由服务器主线程调用，因此，无论任务是同步还是异步都由主线程先过手，所以一旦主线程堵塞（或主线程处理出现缓慢）也会影响到异步任务不能及时处理。换个说法来讲，异步线程池的工作仅仅是调用任务 task.run() 而已，这个工作是由主线程叫它做的，它并不会自己去队列里取任务出来处理，所以如果主线程迟缓，还没处理的异步任务一样会被搁置在队列中。<br />
+2.b.&nbsp;&nbsp;实质上，只有 主线程 和 异步线程池 这两个线程在跑任务，而且后者也有可能因为前者出现堵塞、迟缓而导致闲置。这两个线程加起来的吞吐量算是不高的，如果提交的任务量太多很可能会影响运行<font size="1">（用专业名词来讲或许是叫做 tps 过低吧？）</font>。在不涉及bukkit操作的时候根据情况自己再适当开线程池或许能更好的提供吞吐量。<br />
+<br />
+<font size="1"><font color="#000"><font style="background-color:black">（或许我未写完（记性不太好），待补... ）</font></font></font><br />
+<br />
+<hr class="l" /><br />
+<font color="#2f4f4f"><font style="background-color:black">以下是从 v1_11_R1 反艹出来的 CraftScheduler 代码，仅供学习参考：</font></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_dYC"><ol><li>package org.bukkit.craftbukkit.v1_11_R1.scheduler;<br />
+<li><br />
+<li>import java.util.concurrent.atomic.*;<br />
+<li>import com.google.common.util.concurrent.*;<br />
+<li>import java.util.concurrent.*;<br />
+<li>import org.apache.commons.lang.*;<br />
+<li>import java.util.*;<br />
+<li>import java.util.logging.*;<br />
+<li>import org.bukkit.plugin.*;<br />
+<li>import org.bukkit.scheduler.*;<br />
+<li><br />
+<li>public class CraftScheduler implements BukkitScheduler<br />
+<li>{<br />
+<li>&nbsp; &nbsp; private final AtomicInteger ids;<br />
+<li>&nbsp; &nbsp; private volatile CraftTask head;<br />
+<li>&nbsp; &nbsp; private final AtomicReference&lt;CraftTask&gt; tail;<br />
+<li>&nbsp; &nbsp; private final PriorityQueue&lt;CraftTask&gt; pending;<br />
+<li>&nbsp; &nbsp; private final List&lt;CraftTask&gt; temp;<br />
+<li>&nbsp; &nbsp; private final ConcurrentHashMap&lt;Integer, CraftTask&gt; runners;<br />
+<li>&nbsp; &nbsp; private volatile int currentTick;<br />
+<li>&nbsp; &nbsp; private final Executor executor;<br />
+<li>&nbsp; &nbsp; private CraftAsyncDebugger debugHead;<br />
+<li>&nbsp; &nbsp; private CraftAsyncDebugger debugTail;<br />
+<li>&nbsp; &nbsp; private static final int RECENT_TICKS;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;RECENT_TICKS = 30;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public CraftScheduler() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.ids = new AtomicInteger(1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.head = new CraftTask();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.tail = new AtomicReference&lt;CraftTask&gt;(this.head);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.pending = new PriorityQueue&lt;CraftTask&gt;(10, new Comparator&lt;CraftTask&gt;() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public int compare(final CraftTask o1, final CraftTask o2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final int value = (int)(o1.getNextRun() - o2.getNextRun());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return (value != 0) ? value : (o1.getTaskId() - o2.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.temp = new ArrayList&lt;CraftTask&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners = new ConcurrentHashMap&lt;Integer, CraftTask&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.currentTick = -1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.executor = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat(&quot;Craft Scheduler Thread - %1$d&quot;).build());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugHead = new CraftAsyncDebugger(-1, (Plugin)null, (Class)null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;StringBuilder debugTo(final StringBuilder string) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return string;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugTail = this.debugHead;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncDelayedTask(final Plugin plugin, final Runnable task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleSyncDelayedTask(plugin, task, 0L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTask(final Plugin plugin, final Runnable runnable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskLater(plugin, runnable, 0L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleAsyncDelayedTask(final Plugin plugin, final Runnable task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleAsyncDelayedTask(plugin, task, 0L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskAsynchronously(final Plugin plugin, final Runnable runnable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskLaterAsynchronously(plugin, runnable, 0L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncDelayedTask(final Plugin plugin, final Runnable task, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleSyncRepeatingTask(plugin, task, delay, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskLater(final Plugin plugin, final Runnable runnable, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimer(plugin, runnable, delay, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleAsyncDelayedTask(final Plugin plugin, final Runnable task, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleAsyncRepeatingTask(plugin, task, delay, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskLaterAsynchronously(final Plugin plugin, final Runnable runnable, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimerAsynchronously(plugin, runnable, delay, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncRepeatingTask(final Plugin plugin, final Runnable runnable, final long delay, final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimer(plugin, runnable, delay, period).getTaskId();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskTimer(final Plugin plugin, final Runnable runnable, long delay, long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;validate(plugin, runnable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (delay &lt; 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;delay = 0L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (period == 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = 1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else if (period &lt; -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = -1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.handle(new CraftTask(plugin, runnable, this.nextId(), period), delay);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleAsyncRepeatingTask(final Plugin plugin, final Runnable runnable, final long delay, final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimerAsynchronously(plugin, runnable, delay, period).getTaskId();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskTimerAsynchronously(final Plugin plugin, final Runnable runnable, long delay, long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;validate(plugin, runnable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (delay &lt; 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;delay = 0L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (period == 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = 1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else if (period &lt; -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;period = -1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.handle(new CraftAsyncTask(this.runners, plugin, runnable, this.nextId(), period), delay);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public &lt;T&gt; Future&lt;T&gt; callSyncMethod(final Plugin plugin, final Callable&lt;T&gt; task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;validate(plugin, task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftFuture&lt;T&gt; future = new CraftFuture&lt;T&gt;(task, plugin, this.nextId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.handle(future, 0L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return future;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void cancelTask(final int taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (taskId &lt;= 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask task = this.runners.get(taskId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (task != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task = new CraftTask(new Runnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!this.check(CraftScheduler.this.temp)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.check(CraftScheduler.this.pending);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;private boolean check(final Iterable&lt;CraftTask&gt; collection) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final Iterator&lt;CraftTask&gt; tasks = collection.iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (tasks.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = tasks.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (task.getTaskId() == taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tasks.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftScheduler.this.runners.remove(taskId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.handle(task, 0L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (CraftTask taskPending = this.head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (taskPending == task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (taskPending.getTaskId() == taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; taskPending.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void cancelTasks(final Plugin plugin) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Validate.notNull(plugin, &quot;Cannot cancel tasks of null plugin&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = new CraftTask(new Runnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.check(CraftScheduler.this.pending);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.check(CraftScheduler.this.temp);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;void check(final Iterable&lt;CraftTask&gt; collection) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final Iterator&lt;CraftTask&gt; tasks = collection.iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (tasks.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = tasks.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (task.getOwner().equals(plugin)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tasks.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CraftScheduler.this.runners.remove(task.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.handle(task, 0L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (CraftTask taskPending = this.head.getNext(); taskPending != null; taskPending = taskPending.getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (taskPending == task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (taskPending.getTaskId() != -1 &amp;&amp; taskPending.getOwner().equals(plugin)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; taskPending.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (final CraftTask runner : this.runners.values()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (runner.getOwner().equals(plugin)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; runner.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void cancelAllTasks() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = new CraftTask(new Runnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final Iterator&lt;CraftTask&gt; it = CraftScheduler.this.runners.values().iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (it.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = it.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;it.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftScheduler.this.pending.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; CraftScheduler.this.temp.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.handle(task, 0L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (CraftTask taskPending = this.head.getNext(); taskPending != null &amp;&amp; taskPending != task; taskPending = taskPending.getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;taskPending.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (final CraftTask runner : this.runners.values()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;runner.cancel0();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean isCurrentlyRunning(final int taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftTask task = this.runners.get(taskId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (task == null || task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final CraftAsyncTask asyncTask = (CraftAsyncTask)task;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;synchronized (asyncTask.getWorkers()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// monitorexit(asyncTask.getWorkers())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return asyncTask.getWorkers().isEmpty();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean isQueued(final int taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (taskId &lt;= 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (CraftTask task = this.head.getNext(); task != null; task = task.getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getTaskId() == taskId) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return task.getPeriod() &gt;= -1L;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask task = this.runners.get(taskId);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return task != null &amp;&amp; task.getPeriod() &gt;= -1L;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public List&lt;BukkitWorker&gt; getActiveWorkers() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final ArrayList&lt;BukkitWorker&gt; workers = new ArrayList&lt;BukkitWorker&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (final CraftTask taskObj : this.runners.values()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (taskObj.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final CraftAsyncTask task = (CraftAsyncTask)taskObj;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;synchronized (task.getWorkers()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; workers.addAll(task.getWorkers());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// monitorexit(task.getWorkers())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return workers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public List&lt;BukkitTask&gt; getPendingTasks() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final ArrayList&lt;CraftTask&gt; truePending = new ArrayList&lt;CraftTask&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (CraftTask task = this.head.getNext(); task != null; task = task.getNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getTaskId() != -1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; truePending.add(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final ArrayList&lt;BukkitTask&gt; pending = new ArrayList&lt;BukkitTask&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (final CraftTask task2 : this.runners.values()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task2.getPeriod() &gt;= -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pending.add(task2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (final CraftTask task2 : truePending) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task2.getPeriod() &gt;= -1L &amp;&amp; !pending.contains(task2)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; pending.add(task2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return pending;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public void mainThreadHeartbeat(final int currentTick) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.currentTick = currentTick;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final List&lt;CraftTask&gt; temp = this.temp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.parsePending();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (this.isReady(currentTick)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final CraftTask task = this.pending.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getPeriod() &lt; -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(task.getTaskId(), task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.parsePending();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.timings.startTiming();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.run();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.timings.stopTiming();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (Throwable throwable) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.getOwner().getLogger().log(Level.WARNING, String.format(&quot;Task #%s for %s generated an exception&quot;, task.getTaskId(), task.getOwner().getDescription().getFullName()), throwable);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.parsePending();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugTail = this.debugTail.setNext(new CraftAsyncDebugger(currentTick + CraftScheduler.RECENT_TICKS, task.getOwner(), task.getTaskClass()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.executor.execute(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final long period = task.getPeriod();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (period &gt; 0L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task.setNextRun(currentTick + period);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;temp.add(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!task.isSync()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(task.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.pending.addAll((Collection&lt;?&gt;)temp);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;temp.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugHead = this.debugHead.getNextHead(currentTick);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private void addTask(final CraftTask task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;AtomicReference&lt;CraftTask&gt; tail;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask tailTask;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (tail = this.tail, tailTask = tail.get(); !tail.compareAndSet(tailTask, task); tailTask = tail.get()) {}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;tailTask.setNext(task);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private CraftTask handle(final CraftTask task, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;task.setNextRun(this.currentTick + delay);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.addTask(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return task;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private static void validate(final Plugin plugin, final Object task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Validate.notNull(plugin, &quot;Plugin cannot be null&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Validate.notNull(task, &quot;Task cannot be null&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!plugin.isEnabled()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalPluginAccessException(&quot;Plugin attempted to register task while disabled&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private int nextId() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.ids.incrementAndGet();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private void parsePending() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask head = this.head;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask task = head.getNext();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftTask lastTask = head;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (task != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (task.getTaskId() == -1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; task.run();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else if (task.getPeriod() &gt;= -1L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.pending.add(task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.runners.put(task.getTaskId(), task);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task = (lastTask = task).getNext();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (task = head; task != lastTask; task = head) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;head = task.getNext();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;task.setNext(null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.head = lastTask;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; private boolean isReady(final int currentTick) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return !this.pending.isEmpty() &amp;&amp; this.pending.peek().getNextRun() &lt;= currentTick;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public String toString() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final int debugTick = this.currentTick;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final StringBuilder string = new StringBuilder(&quot;Recent tasks from &quot;).append(debugTick - CraftScheduler.RECENT_TICKS).append('-').append(debugTick).append('{');<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.debugHead.debugTo(string);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return string.append('}').toString();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncDelayedTask(final Plugin plugin, final BukkitRunnable task, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleSyncDelayedTask(plugin, (Runnable)task, delay);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncDelayedTask(final Plugin plugin, final BukkitRunnable task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleSyncDelayedTask(plugin, (Runnable)task);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public int scheduleSyncRepeatingTask(final Plugin plugin, final BukkitRunnable task, final long delay, final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.scheduleSyncRepeatingTask(plugin, (Runnable)task, delay, period);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTask(final Plugin plugin, final BukkitRunnable task) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTask(plugin, (Runnable)task);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskAsynchronously(final Plugin plugin, final BukkitRunnable task) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskAsynchronously(plugin, (Runnable)task);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskLater(final Plugin plugin, final BukkitRunnable task, final long delay) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskLater(plugin, (Runnable)task, delay);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskLaterAsynchronously(final Plugin plugin, final BukkitRunnable task, final long delay) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskLaterAsynchronously(plugin, (Runnable)task, delay);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskTimer(final Plugin plugin, final BukkitRunnable task, final long delay, final long period) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimer(plugin, (Runnable)task, delay, period);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Deprecated<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public BukkitTask runTaskTimerAsynchronously(final Plugin plugin, final BukkitRunnable task, final long delay, final long period) throws IllegalArgumentException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.runTaskTimerAsynchronously(plugin, (Runnable)task, delay, period);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_dYC'));">复制代码</em></div></td></table></div></div><br />
+<font color="#2f4f4f"><font style="background-color:black">以下是从 v1_11_R1 反艹出来的 CraftTask 与 CraftAsyncTask 代码，仅供学习参考：</font></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><div class="blockcode"><div id="code_VC2"><ol><li>package org.bukkit.craftbukkit.v1_11_R1.scheduler;<br />
+<li><br />
+<li>import org.bukkit.scheduler.*;<br />
+<li>import org.bukkit.plugin.*;<br />
+<li>import org.spigotmc.*;<br />
+<li>import org.bukkit.craftbukkit.v1_11_R1.*;<br />
+<li>import org.bukkit.*;<br />
+<li><br />
+<li>public class CraftTask implements BukkitTask, Runnable<br />
+<li>{<br />
+<li>&nbsp; &nbsp; private volatile CraftTask next;<br />
+<li>&nbsp; &nbsp; private volatile long period;<br />
+<li>&nbsp; &nbsp; private long nextRun;<br />
+<li>&nbsp; &nbsp; private final Runnable task;<br />
+<li>&nbsp; &nbsp; private final Plugin plugin;<br />
+<li>&nbsp; &nbsp; private final int id;<br />
+<li>&nbsp; &nbsp; final CustomTimingsHandler timings;<br />
+<li>&nbsp; &nbsp; public String timingName;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(null, null, -1, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask(final Runnable task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(null, task, -1, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask(final String timingName) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(timingName, null, null, -1, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask(final String timingName, final Runnable task) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(timingName, null, task, -1, -1L);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask(final String timingName, final Plugin plugin, final Runnable task, final int id, final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.next = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.timingName = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.plugin = plugin;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.task = task;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.id = id;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.period = period;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.timingName = ((timingName == null &amp;&amp; task == null) ? &quot;Unknown&quot; : timingName);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.timings = (this.isSync() ? SpigotTimings.getPluginTaskTimings(this, period) : null);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask(final Plugin plugin, final Runnable task, final int id, final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this(null, plugin, task, id, period);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public final int getTaskId() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.id;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public final Plugin getOwner() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.plugin;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean isSync() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.task.run();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; long getPeriod() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.period;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; void setPeriod(final long period) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.period = period;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; long getNextRun() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.nextRun;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; void setNextRun(final long nextRun) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.nextRun = nextRun;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftTask getNext() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.next;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; void setNext(final CraftTask next) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.next = next;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; Class&lt;? extends Runnable&gt; getTaskClass() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.task.getClass();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void cancel() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Bukkit.getScheduler().cancelTask(this.id);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; boolean cancel0() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.setPeriod(-2L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public String getTaskName() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (this.timingName != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return this.timingName;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.task.getClass().getName();<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_VC2'));">复制代码</em></div><div class="blockcode"><div id="code_Z56"><ol><li>package org.bukkit.craftbukkit.v1_11_R1.scheduler;<br />
+<li><br />
+<li>import org.bukkit.scheduler.*;<br />
+<li>import org.bukkit.plugin.*;<br />
+<li>import java.util.logging.*;<br />
+<li>import java.util.*;<br />
+<li><br />
+<li>class CraftAsyncTask extends CraftTask<br />
+<li>{<br />
+<li>&nbsp; &nbsp; private final LinkedList&lt;BukkitWorker&gt; workers;<br />
+<li>&nbsp; &nbsp; private final Map&lt;Integer, CraftTask&gt; runners;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; CraftAsyncTask(final Map&lt;Integer, CraftTask&gt; runners, final Plugin plugin, final Runnable task, final int id, final long delay) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(plugin, task, id, delay);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.workers = new LinkedList&lt;BukkitWorker&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners = runners;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public boolean isSync() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Thread thread = Thread.currentThread();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;synchronized (this.workers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (this.getPeriod() == -2L) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.workers.add(new BukkitWorker() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public Thread getThread() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return thread;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public int getTaskId() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return CraftAsyncTask.this.getTaskId();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public Plugin getOwner() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return CraftAsyncTask.this.getOwner();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Throwable thrown = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;super.run();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;catch (Throwable t) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;thrown = t;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.getOwner().getLogger().log(Level.WARNING, String.format(&quot;Plugin %s generated an exception while executing task %s&quot;, this.getOwner().getDescription().getFullName(), this.getTaskId()), thrown);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;synchronized (this.workers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Iterator&lt;BukkitWorker&gt; workers = this.workers.iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean removed = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (workers.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (workers.next().getThread() == thread) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; workers.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; removed = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!removed) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(String.format(&quot;Unable to remove worker %s on task %s for %s&quot;, thread.getName(), this.getTaskId(), this.getOwner().getDescription().getFullName()), thrown);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; finally {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;finally {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;synchronized (this.workers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final Iterator&lt;BukkitWorker&gt; workers = this.workers.iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;boolean removed = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (workers.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (workers.next().getThread() == thread) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; workers.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; removed = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!removed) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalStateException(String.format(&quot;Unable to remove worker %s on task %s for %s&quot;, thread.getName(), this.getTaskId(), this.getOwner().getDescription().getFullName()), thrown);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; finally {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;synchronized (this.workers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final Iterator&lt;BukkitWorker&gt; workers = this.workers.iterator();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; boolean removed = false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (workers.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (workers.next().getThread() == thread) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;workers.remove();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;removed = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!removed) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new IllegalStateException(String.format(&quot;Unable to remove worker %s on task %s for %s&quot;, thread.getName(), this.getTaskId(), this.getOwner().getDescription().getFullName()), thrown);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;finally {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (this.getPeriod() &lt; 0L &amp;&amp; this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; LinkedList&lt;BukkitWorker&gt; getWorkers() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.workers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; boolean cancel0() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;synchronized (this.workers) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;this.setPeriod(-2L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (this.workers.isEmpty()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.runners.remove(this.getTaskId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// monitorexit(this.workers)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_Z56'));">复制代码</em></div></td></table></div></div><br />
+<a href="https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/" target="_blank">其实spigot官网上有开源..</a><font size="1">（感谢二楼大佬的提示）</font><br />
+<font size="1"><br />
+</font><br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GiNYAi&nbsp; &nbsp; <b>时间: </b>2019-11-17 04:05<br />
+<a href="https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/" target="_blank">https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-11-17 10:13<br />
+在？链表结构了解一下？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-11-17 11:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15842936&amp;ptid=926689" target="_blank"><font color="#999999">a1294790523 发表于 2019-11-17 10:13</font></a></font><br />
+在？链表结构了解一下？</blockquote></div><br />
+嗷谢谢dalao！涨知识了，原来这种叫做链表啊结果啊，<br />
+当时反艹后看了半天才搞清楚这种结构关系，当时就在想，如果是直接有个List应该会更明了吧...<br />
+<br />
+用这样的结构，比起直接用ArrayList，有哪些优势呢？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1609089074&nbsp; &nbsp; <b>时间: </b>2019-11-17 11:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15842385&amp;ptid=926689" target="_blank"><font color="#999999">GiNYAi 发表于 2019-11-17 04:05</font></a></font><br />
+https://hub.spigotmc.org/stash/projects/SPIGOT/repos/craftbukkit/</blockquote></div><br />
+哎呀没想到，原来有开源的呀！<img src="static/image/smiley/rabbit/41.gif" smilieid="691" border="0" alt="" /><br />
+谢谢dalao提示！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1294790523&nbsp; &nbsp; <b>时间: </b>2019-11-17 11:11<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15843203&amp;ptid=926689" target="_blank"><font color="#999999">1609089074 发表于 2019-11-17 11:01</font></a></font><br />
+嗷谢谢dalao！涨知识了，原来这种叫做链表啊结果啊，<br />
+当时反艹后看了半天才搞清楚这种结构关系，当时就在 ...</blockquote></div><br />
+很抱歉数据结构忘光了233 你去搜索一下应该就知道了<br />
+没记错的话插入和删除会更快，对于任务这种场景是最重要的了<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

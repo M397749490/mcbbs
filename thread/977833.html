@@ -1,0 +1,101 @@
+<html>
+<head>
+<title>关于多个生物共用血量 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于多个生物共用血量 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>黑茶RGO&nbsp; &nbsp; <b>时间: </b>2020-3-6 00:15<br />
+<b>标题: </b>关于多个生物共用血量<br /><i class="pstatus"> 本帖最后由 黑茶RGO 于 2020-3-6 00:16 编辑 </i><br />
+<br />
+<strong><font color="#ff0000">版本：1.15.2或1.16快照</font></strong><br />
+假设现在有A，B，C三个生物，A和B在场地内跟玩家打，C以NoAI状态在场地外不参与战斗，且玩家无法直接攻击C<br />
+当A或B受伤时，系统将会计算出A或B的当前血量与最大血量（假设是1024）的差值x，然后将C的血量减去x（要精准到小数点），再把受伤的A或B血量加满<br />
+但是当A和B在0.5秒内同时受伤（尤其是针对剑的横扫和弩的穿透）（如果受到的伤害不一样，比如A被剑（未附魔横扫之刃）正面击中受到大量伤害，而B被剑横扫到而受到轻微伤害），则只将A和B当中受到较高伤害的生物受到的伤害作为x使C的血量减去x，而不是把A和B受到的伤害总量作为x扣给C<br />
+<br />
+在1.15+如何用指令做到上述需求，尤其是如何比较两个实体受到的伤害然后选出<strong>受伤较高</strong>的那个<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-6 00:15<br />
+<i class="pstatus"> 本帖最后由 隐退 于 2020-3-6 07:40 编辑 </i><br />
+<br />
+# 新建记分版<br />
+scoreboard objectives add value dummy<br />
+# 获取最大血量×100<br />
+execute store result score #maxa value run data get entity @e[tag=a,limit=1] Attributes[{Name:&quot;generic.maxHealth&quot;}].Base 100<br />
+execute store result score #maxb value run data get entity @e[tag=b,limit=1] Attributes[{Name:&quot;generic.maxHealth&quot;}].Base 100<br />
+# 获取当前血量×100<br />
+execute store result score #a value run data get entity @e[tag=a,limit=1] Health 100<br />
+execute store result score #b value run data get entity @e[tag=b,limit=1] Health 100<br />
+# 计算差值<br />
+scoreboard players operation #maxb value -= #a value<br />
+scoreboard players operation #maxb value -= #a value<br />
+# 比较大小<br />
+execute if score #maxa value &gt;= #maxb value run function 给A加血<br />
+execute if score #maxa value &lt; #maxb value run function 给B加血<br />
+# 给A加血<br />
+## 先扣C的血<br />
+execute store result score #c value run data get entity @e[tag=c,limit=1] Health 100<br />
+scoreboard players operation #c value -= #maxa value<br />
+execute store result entity @e[tag=c,limit=1] Health double 0.01 run scoreboard players get #c value<br />
+## 给A加血<br />
+scoreboard players operation #a value += #maxa value<br />
+execute store result entity @e[tag=a,limit=1] Health double 0.01 run scoreboard players get #a value<br />
+# 有一个 BUG，就是当 A 受的伤害大于 C 的剩余血量的话，还要加一个判断，我咕了。<br />
+# 剩下的我也咕了。<br />
+# 要求在 0.5 秒内的话可能要加一个计时器。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>黑茶RGO&nbsp; &nbsp; <b>时间: </b>2020-3-6 08:04<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16752552&amp;ptid=977833" target="_blank"><font color="#999999">隐退 发表于 2020-3-6 07:01</font></a></font><br />
+# 新建记分版<br />
+scoreboard objectives add value dummy<br />
+# 获取最大血量×100</blockquote></div><br />
+如果把扣C的血量改为扣C的伤害吸收值AbsorptionAmount，你说的那个bug能否得到解决<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-6 08:08<br />
+<i class="pstatus"> 本帖最后由 隐退 于 2020-3-6 08:12 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16752948&amp;ptid=977833" target="_blank"><font color="#999999">黑茶RGO 发表于 2020-3-6 08:04</font></a></font><br />
+如果把扣C的血量改为扣C的伤害吸收值AbsorptionAmount，你说的那个bug能否得到解决 ...</blockquote></div><br />
+我说的那个 BUG 的意思是假如：<br />
+A 有 10 滴血，C 有 5 滴血<br />
+A 受到 7 点伤害后，<br />
+A 的血量变为 10 滴血，C 的血量变为 -2 滴血。<br />
+其实只要加一个判断就可以的修复的。<hr class="l" />如果 A 受的伤害小于 C 的剩余血量的话还是上面那几条命令。<br />
+如果 A 受的伤害大于 C 的剩余血量的话，A 的血量=A 的血量+C 的血量，然后杀死 C。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Jokey_钥匙&nbsp; &nbsp; <b>时间: </b>2020-3-6 08:45<br />
+<i class="pstatus"> 本帖最后由 Jokey_钥匙 于 2020-3-6 08:46 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16753015&amp;ptid=977833" target="_blank"><font color="#999999">隐退 发表于 2020-3-6 08:08</font></a></font><br />
+我说的那个 BUG 的意思是假如：<br />
+A 有 10 滴血，C 有 5 滴血<br />
+A 受到 7 点伤害后，</blockquote></div><br />
+（开坑速度这么快？！）<br />
+感觉不需要这么复杂啊<br />
+都用AbsorptionAmount了那么AbsorptionAmount修改后肯定是固定的<br />
+伤害的读取就不麻烦了<br />
+读取伤害后 取最大值反而简单 不要用假名 直接把分数拍自己身上 假设ab两个实体都用标签x<br />
+scoreboard players operation #max value &gt; @e[tag=x] value<br />
+最后血量减去不说了<br />
+半秒无敌用计时器计时 半秒过去后才可以再执行这一串函数<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-6 10:47<br />
+所以，你还有什么问题吗？<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>黑茶RGO&nbsp; &nbsp; <b>时间: </b>2020-3-6 11:49<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16756437&amp;ptid=977833" target="_blank"><font color="#999999">隐退 发表于 2020-3-6 10:47</font></a></font><br />
+所以，你还有什么问题吗？</blockquote></div><br />
+你的办法我试了，只能解决“a或b受伤就扣c的血”，并不能解决“a和b同时受伤时c只扣受伤较高的那个的血量”，ab同时受伤时c会扣掉它们受伤值的总和<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>(=°ω°)丿&nbsp; &nbsp; <b>时间: </b>2020-3-6 12:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16757803&amp;ptid=977833" target="_blank"><font color="#999999">黑茶RGO 发表于 2020-3-6 11:49</font></a></font><br />
+你的办法我试了，只能解决“a或b受伤就扣c的血”，并不能解决“a和b同时受伤时c只扣受伤较高的那个的血量 ...</blockquote></div><br />
+你加计时器了吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>黑茶RGO&nbsp; &nbsp; <b>时间: </b>2020-3-6 12:56<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16758244&amp;ptid=977833" target="_blank"><font color="#999999">隐退 发表于 2020-3-6 12:14</font></a></font><br />
+你加计时器了吗？</blockquote></div><br />
+加了之后ab同时受伤就不扣c的血了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,195 @@
+<html>
+<head>
+<title>PVPIN教程RL--如何调用NMS实现附魔台上的随机附魔 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>PVPIN教程RL--如何调用NMS实现附魔台上的随机附魔 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-7-4 15:22<br />
+<b>标题: </b>PVPIN教程RL--如何调用NMS实现附魔台上的随机附魔<br /><i class="pstatus"> 本帖最后由 William_Shi 于 2020-7-4 15:22 编辑 </i><br />
+<br />
+本教程系PVPIN教程复刻系列<br />
+索引见<a href="thread.html?t=1034477" target="_blank">https://www.mcbbs.net/thread-1034477-1-1.html</a><br />
+本教程不做排版，如果你觉得不舒服，可以选择退出本页面<br />
+本教程所有代码全部在coding开源，详见索引<br />
+本教程可能存在一定吞代码问题，总体上以开源地址的代码为准<br />
+<br />
+本教程不仅仅会教你怎么调用这些方法<br />
+还会教你怎么硬看Notch名（就是直接反编译Spigot等SDK看到的那些 命名为a、b的方法和 var0 var1 的参数）<br />
+<br />
+之所以想写这个奇奇怪怪的东西<br />
+是因为之前我在@深拥v 的服务器群里看群友聊天<br />
+然后听他们说附魔居然一次消耗30级经验<br />
+而技术说这是“混淆附魔”插件的问题<br />
+我一开始想的是直接发window包去欺骗玩家<br />
+后来想到你发包也无法修改玩家客户端暴力破解出来的随机种子<br />
+于是就有了这个教程<br />
+<br />
+我们的目标是根据NMS的源码去实现随机附魔<br />
+众所周知附魔的概率是复杂的<br />
+不仅有权重，还有神奇的限制（比如说附魔台附魔钻石剑，最大的等级为4）<br />
+那么自己去写附魔概率的计算就过于费力<br />
+所以就有必要去看一看NMS的实现了<br />
+<br />
+我们的突破口是什么呢？当然是使用jd-gui直接在SpigotSDK内搜索关键字 enchant<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FYqGblkU6j94VRmC" target="_blank"><img id="aimg_bm62W" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/04/YqGblkU6j94VRmC.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+那么我们看到了类ContainerEnchantTable<br />
+接下来该怎么做呢？记不记得事件监听循环？<br />
+我们都看过javadoc，在这里<br />
+<a href="https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html" target="_blank">https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html</a><br />
+那么按下Ctrl+F搜索enchantitemevent<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2Fvp4UN7tYBHr8Esy" target="_blank"><img id="aimg_apw8X" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/04/vp4UN7tYBHr8Esy.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+得到我们需要的<br />
+EnchantItemEvent event = new EnchantItemEvent((Player)paramEntityHuman.getBukkitEntity(), (InventoryView)getBukkitView(), this.containerAccess.getLocation().getBlock(), (ItemStack)item, this.costs[paramInt1], enchants, paramInt1);<br />
+<br />
+直接看构造器<br />
+<a href="https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html" target="_blank">https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html#EnchantItemEvent-org.bukkit.entity.Player-org.bukkit.inventory.InventoryView-org.bukkit.block.Block-org.bukkit.inventory.ItemStack-int-java.util.Map-int-</a><br />
+那么什么是最后一个参数 int i 呢？<br />
+看Bukkit源码<br />
+<div class="blockcode"><div id="code_std"><ol><li><br />
+<li>&nbsp;&nbsp;private final int button;<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;public EnchantItemEvent(@NotNull Player enchanter, @NotNull InventoryView view, @NotNull Block table, @NotNull ItemStack item, int level, @NotNull Map&lt;Enchantment, Integer&gt; enchants, int i) {<br />
+<li>&nbsp; &nbsp; super(view);<br />
+<li>&nbsp; &nbsp; this.enchanter = enchanter;<br />
+<li>&nbsp; &nbsp; this.table = table;<br />
+<li>&nbsp; &nbsp; this.item = item;<br />
+<li>&nbsp; &nbsp; this.level = level;<br />
+<li>&nbsp; &nbsp; this.enchants = new HashMap&lt;&gt;(enchants);<br />
+<li>&nbsp; &nbsp; this.cancelled = false;<br />
+<li>&nbsp; &nbsp; this.button = i;<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;public int whichButton() {<br />
+<li>&nbsp; &nbsp; return this.button;<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;<br />
+<li>&nbsp;&nbsp;</ol></div><em onclick="copycode($('code_std'));">复制代码</em></div><br />
+
+<br />
+看doc的解释<a href="https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html" target="_blank">https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html#whichButton--</a><br />
+<br />
+public int whichButton()<br />
+获取玩家点击的附魔的按钮。<br />
+原文: Which button was pressed to initiate the enchanting.<br />
+返回:按钮的序号 (0, 1, 2).<br />
+<br />
+也就是说NMS传参的paramInt1，就是点击的附魔的按钮<br />
+（附魔台界面右侧三个按钮）<br />
+<br />
+关键的附魔代码如下<br />
+<div class="blockcode"><div id="code_l83"><ol><li><br />
+<li><br />
+<li>&nbsp; &nbsp; ItemStack itemstack1 = this.enchantSlots.getItem(1);<br />
+<li><br />
+<li>//xxx<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ItemStack itemstack2 = paramItemStack1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;List&lt;WeightedRandomEnchant&gt; list = a(paramItemStack1, paramInt1, this.costs[paramInt1]);<br />
+<li>//xxx<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Map&lt;Enchantment, Integer&gt; enchants = new HashMap&lt;&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (WeightedRandomEnchant obj : list) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;WeightedRandomEnchant instance = obj;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;enchants.put(Enchantment.getByKey(CraftNamespacedKey.fromMinecraft(IRegistry.ENCHANTMENT.getKey(instance.enchantment))), Integer.valueOf(instance.level));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+<li></ol></div><em onclick="copycode($('code_l83'));">复制代码</em></div><br />
+那么逻辑就是调用了一个a方法，产生了一个列表，然后遍历列表进行附魔添加<br />
+<br />
+<div class="blockcode"><div id="code_MV9"><ol><li><br />
+<li>&nbsp;&nbsp;private List&lt;WeightedRandomEnchant&gt; a(ItemStack itemstack, int i, int j) {<br />
+<li>&nbsp; &nbsp; this.h.setSeed((this.i.get() + i));<br />
+<li>&nbsp; &nbsp; List&lt;WeightedRandomEnchant&gt; list = EnchantmentManager.b(this.h, itemstack, j, false);<br />
+<li>&nbsp; &nbsp; if (itemstack.getItem() == Items.BOOK &amp;&amp; list.size() &gt; 1)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;list.remove(this.h.nextInt(list.size())); <br />
+<li>&nbsp; &nbsp; return list;<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_MV9'));">复制代码</em></div><br />
+
+<br />
+又出现了一些东西，EnchantmentManager<br />
+此时我们直接翻mcp<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fi.loli.net%2F2020%2F07%2F04%2FGvFPMbmlaZUX832.png" target="_blank"><img id="aimg_b9SyB" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/04/GvFPMbmlaZUX832.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+看来就是这个参数形式了<br />
+<br />
+此时，注意到上面有一个看起来更不错的方法<br />
+<div class="blockcode"><div id="code_BP1"><ol><li><br />
+<li>&nbsp;&nbsp;public static ItemStack a(Random var0, ItemStack var1, int var2, boolean var3) {<br />
+<li>&nbsp; &nbsp; List&lt;WeightedRandomEnchant&gt; var4 = b(var0, var1, var2, var3);<br />
+<li>&nbsp; &nbsp; boolean var5 = (var1.getItem() == Items.BOOK);<br />
+<li>&nbsp; &nbsp; if (var5)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;var1 = new ItemStack(Items.ENCHANTED_BOOK); <br />
+<li>&nbsp; &nbsp; for (WeightedRandomEnchant var7 : var4) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (var5) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ItemEnchantedBook.a(var1, var7);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;var1.addEnchantment(var7.enchantment, var7.level);<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; return var1;<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp;&nbsp;</ol></div><em onclick="copycode($('code_BP1'));">复制代码</em></div><br />
+没错，静态方法！<br />
+只需要搞清楚到底传啥参就可以搞定了！（实际上我研究花的时间远比这多<br />
+我们看看参数的形式，类比b方法，参数如下<br />
+&nbsp; &nbsp; List&lt;WeightedRandomEnchant&gt; list = EnchantmentManager.b(this.h, itemstack, j, false);<br />
+看调用b方法的时候，参数是<br />
+&nbsp;&nbsp;private List&lt;WeightedRandomEnchant&gt; a(ItemStack itemstack, int i, int j) <br />
+具体传参在<br />
+&nbsp; &nbsp; List&lt;WeightedRandomEnchant&gt; list = a(paramItemStack1, paramInt1, this.costs[paramInt1]);<br />
+好的，我们现在知道传入什么参数了<br />
+就是要传costs数组的东西作为int，boolean传false<br />
+回到最初<br />
+<br />
+EnchantItemEvent event = new EnchantItemEvent((Player)paramEntityHuman.getBukkitEntity(), (InventoryView)getBukkitView(), this.containerAccess.getLocation().getBlock(), (ItemStack)item, this.costs[paramInt1], enchants, paramInt1);<br />
+<br />
+那么根据事件构造器可知， this.costs[paramInt1] 就是 int level<br />
+让我们看看<a href="https://bukkit.windit.net/javadoc/org/bukkit/event/enchantment/EnchantItemEvent.html" target="_blank">https://bukkit.windit.net/javado ... l#getExpLevelCost--</a><br />
+也就是说，这个int level 就是10、20、30<br />
+<br />
+要想调用a方法，我们需要的是<br />
+&nbsp;&nbsp;public static ItemStack a(Random var0, ItemStack var1, int var2, boolean var3) <br />
+<br />
+其中这个Random直接new就可以了，随机本身没必要再强行去获取玩家种子什么的生成了<br />
+<br />
+因为 ContainerEnchantTable中<br />
+<br />
+&nbsp;&nbsp;private final Random h;<br />
+&nbsp;&nbsp;<br />
+55行<br />
+<br />
+&nbsp; &nbsp; this.h = new Random();<br />
+<br />
+所以这里的Random直接new 就可以了<br />
+<br />
+ItemStack 是被附魔的物品堆<br />
+<br />
+var2 是附魔等级（10、20、30）<br />
+<br />
+boolean 传入 false 以与NMS附魔台的代码相一致<br />
+<br />
+最终测试代码如下（仅为测试使用）<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2F2jX8cnoRTuAzgkE" target="_blank"><img id="aimg_PeOU2" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/04/2jX8cnoRTuAzgkE.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FuTJrCh5Q4Oo7lNG" target="_blank"><img id="aimg_uclb4" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/07/04/uTJrCh5Q4Oo7lNG.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+可以看到成功了，完美的随机附魔<br />
+使用时你可以根据需要调整其等级，不必拘泥于30<br />
+比如说你可以在EnchantItem事件里取getExpCost<br />
+或者你可以随便自己编一个附魔等级<br />
+当然了，太高的等级也没什么意义，毕竟30级其实已经非常高了<br />
+<br />
+后记：<br />
+其实有一堆旁枝末节的东西<br />
+我甚至最初往LootInfo的方面在想<br />
+大家还是按照我最后总结出来的主线走吧<br />
+至于为什么突然看到一个a方法更好<br />
+因为ContainerEnchantTable那些方法全都与玩家对象相关的<br />
+那个静态方法只需要一个随机就足够了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

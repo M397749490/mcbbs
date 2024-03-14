@@ -1,0 +1,397 @@
+<html>
+<head>
+<title>[已解决]如何实现流畅的实体跟随玩家 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[已解决]如何实现流畅的实体跟随玩家 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-7 00:43<br />
+<b>标题: </b>[已解决]如何实现流畅的实体跟随玩家<br /><i class="pstatus"> 本帖最后由 南柯郡守 于 2020-8-24 11:42 编辑 </i><br />
+<br />
+害 又是我 问题很多的我<br />
+<br />
+通过查看API可以找到一个setLeashHolder(Entity)<br />
+然而这个方法是直接生成一根栓绳然后持有者是后面的Entity<br />
+<br />
+所以如果要自己写跟随AI的话<br />
+<br />
+有没有什么比较高效的实现方法<br />
+<br />
+<a href="thread.html?t=921817" target="_blank">https://www.mcbbs.net/thread-921817-1-1.html</a>&nbsp;&nbsp;<br />
+<br />
+这个贴子的实现方法是玩家走过的生成一片看不见的EffectCloud <br />
+然后把实体传送到最近的一个EffectCloud<br />
+<br />
+这是一种实现方法 但是问题在于效率及实用性<br />
+<br />
+如果是两个玩家交叉走过 那么后面的实体是不是会被带跑偏呢<br />
+<br />
+不知道各位有什么见解<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-7 01:54<br />
+NMS下有一个PathfinderGoalFollowEntity，那个应该是你需要的<br />
+<br />
+比如NMS下的EntityParrot<br />
+<br />
+<div class="blockcode"><div id="code_e3n"><ol><li>&nbsp;&nbsp;protected void initPathfinder() {<br />
+<li>&nbsp; &nbsp; this.goalSit = new PathfinderGoalSit(this);<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(0, new PathfinderGoalPanic(this, 1.25D));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(0, new PathfinderGoalFloat(this));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(1, new PathfinderGoalLookAtPlayer(this, (Class)EntityHuman.class, 8.0F));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(2, this.goalSit);<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(2, new PathfinderGoalFollowOwner(this, 1.0D, 5.0F, 1.0F, true));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(2, new PathfinderGoalRandomFly(this, 1.0D));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(3, new PathfinderGoalPerch(this));<br />
+<li>&nbsp; &nbsp; this.goalSelector.a(3, new PathfinderGoalFollowEntity(this, 1.0D, 3.0F, 7.0F));<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_e3n'));">复制代码</em></div><br />
+
+<br />
+goalSelector.a就是添加AI，第一个数字代表优先级，越低的值优先级越高，第二个就是具体的task<br />
+<br />
+具体做法，新建PathfinderGoalFollowEntity对象，用NMS修改<br />
+<div class="blockcode"><div id="code_o7m"><ol><li>private EntityInsentient c;</ol></div><em onclick="copycode($('code_o7m'));">复制代码</em></div><br />
+将这部分指向Player<br />
+之后goalSelector.a添加此task<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-7 01:57<br />
+建议调用NMS的时候对照forge的代码一块看比较清楚，forge的都反混淆了<br />
+<br />
+比如<br />
+这是NMS<br />
+<div class="blockcode"><div id="code_fGG"><ol><li>public class PathfinderGoalFollowEntity extends PathfinderGoal {<br />
+<li>&nbsp;&nbsp;private final EntityInsentient a;<br />
+<li>&nbsp;&nbsp;private final Predicate&lt;EntityInsentient&gt; b;<br />
+<li>&nbsp;&nbsp;private EntityInsentient c;<br />
+<li>&nbsp;&nbsp;private final double d;<br />
+<li>&nbsp;&nbsp;private final NavigationAbstract e;<br />
+<li>&nbsp;&nbsp;private int f;<br />
+<li>&nbsp;&nbsp;private final float g;<br />
+<li>&nbsp;&nbsp;private float h;<br />
+<li>&nbsp;&nbsp;private final float i;</ol></div><em onclick="copycode($('code_fGG'));">复制代码</em></div><br />
+
+<br />
+这是forge<br />
+<div class="blockcode"><div id="code_tqE"><ol><li>public class FollowMobGoal extends Goal {<br />
+<li>&nbsp; &nbsp;private final MobEntity entity;<br />
+<li>&nbsp; &nbsp;private final Predicate&lt;MobEntity&gt; followPredicate;<br />
+<li>&nbsp; &nbsp;private MobEntity followingEntity;<br />
+<li>&nbsp; &nbsp;private final double speedModifier;<br />
+<li>&nbsp; &nbsp;private final PathNavigator navigation;<br />
+<li>&nbsp; &nbsp;private int timeToRecalcPath;<br />
+<li>&nbsp; &nbsp;private final float stopDistance;<br />
+<li>&nbsp; &nbsp;private float oldWaterCost;<br />
+<li>&nbsp; &nbsp;private final float areaSize;<br />
+<li></ol></div><em onclick="copycode($('code_tqE'));">复制代码</em></div><br />
+
+<br />
+所以EntityInsentient c对应MobEntity followingEntity<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-7 17:10<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18078294&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-7 01:57</font></a></font><br />
+建议调用NMS的时候对照forge的代码一块看比较清楚，forge的都反混淆了<br />
+<br />
+比如</blockquote></div><br />
+但是我在添加task的时候报错<br />
+<div class="quote"><blockquote>Caused by: java.lang.NoSuchMethodError: net.minecraft.entity.ai.EntityAITasks.addTask(ILnet/minecraft/entity/ai/EntityAIBase;)V</blockquote></div><br />
+
+<div class="blockcode"><div id="code_juu"><ol><li>EntityCreature cre = (EntityCreature)(Object)((CraftHorse)cow).getHandle();<br />
+<li>DartFllow fllow = new DartFllow((World)(Object)((CraftWorld)cow.getWorld()).getHandle());<br />
+<li>fllow.tasks.addTask(3, new EntityAIFollow(cre, 1.0D, 3.0F, 7.0F));</ol></div><em onclick="copycode($('code_juu'));">复制代码</em></div><br />
+
+<div class="blockcode"><div id="code_d92"><ol><li>import net.minecraft.entity.ai.EntityAITasks;<br />
+<li>import net.minecraft.world.World;<br />
+<li><br />
+<li>public class DartFllow {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public EntityAITasks tasks;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; public DartFllow(World worldIn) {<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; tasks= new EntityAITasks(null);<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_d92'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+以上是部分代码<br />
+<br />
+用的1.12.2<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-7 22:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18090753&amp;ptid=1039885" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-7 17:10</font></a></font><br />
+但是我在添加task的时候报错</blockquote></div><br />
+net.minecraft.entity.ai.EntityAITasks<br />
+这是forge的反混淆名<br />
+<br />
+记住你写的是bukkit插件，要用bukkit的nms名<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-8 13:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18096591&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-7 22:05</font></a></font><br />
+net.minecraft.entity.ai.EntityAITasks<br />
+这是forge的反混淆名</blockquote></div><br />
+害 折腾了一天还没没做出来<br />
+<br />
+就连让实体移动到指定坐标都不行<br />
+<br />
+有没有实例代码给我<p><del>看</del></p>抄一份<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-8 14:19<br />
+<i class="pstatus"> 本帖最后由 疾风暗影 于 2020-5-8 14:23 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18106116&amp;ptid=1039885" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-8 13:01</font></a></font><br />
+害 折腾了一天还没没做出来<br />
+<br />
+就连让实体移动到指定坐标都不行</blockquote></div><br />
+下面是我写的1.15的例子，GPL3预警<br />
+注意nms每个mc版本都会变，其他版本请自行反混淆<br />
+<br />
+<div class="blockcode"><div id="code_x34"><ol><li>&nbsp; &nbsp; public static void spawnParrot(Player p) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Entity e = p.getWorld().spawnEntity(p.getLocation(), EntityType.PARROT);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_15_R1.EntityParrot parrot = ((CraftParrot) e).getHandle();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;PathfinderGoalSelector pgs = parrot.goalSelector;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Class clazz = PathfinderGoalSelector.class;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Field field = clazz.getDeclaredField(&quot;d&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;field.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Set&lt;PathfinderGoalWrapped&gt; set = (Set&lt;PathfinderGoalWrapped&gt;) field.get(pgs);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;set.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch(IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException ex) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;parrot.goalSelector.a(0, new PathfinderGoalMoveTowardsPlayer(parrot, 5, ((CraftPlayer)p).getHandle(), 10));<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public static class PathfinderGoalMoveTowardsPlayer extends PathfinderGoal {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final EntityCreature a;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private EntityLiving b;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double c;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double d;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double e;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final double f;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final float g;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public PathfinderGoalMoveTowardsPlayer(EntityCreature var0, double var1, EntityLiving var2, float var3) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.a = var0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.f = var1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.g = var3;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.b = var2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; a(EnumSet.of(PathfinderGoal.Type.MOVE));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean a() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.b == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.b.h(this.a) &gt; (this.g * this.g))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vec3D var0 = this.b.getPositionVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (var0 == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.c = var0.x;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.d = var0.y;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.e = var0.z;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean b() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return (!this.a.getNavigation().m() &amp;&amp; this.b.isAlive() &amp;&amp; this.b.h(this.a) &lt; (this.g * this.g));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void d() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void c() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.a.getNavigation().a(this.c, this.d, this.e, this.f);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_x34'));">复制代码</em></div><br />
+
+<br />
+这是创建跟踪鹦鹉的，其他生物你自己照着反混淆表改<br />
+后面我再详细写个帖子讲讲生物AI的nms<br />
+<br />
+抄时注意开源协议<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-8 15:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18107458&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-8 14:19</font></a></font><br />
+下面是我写的1.15的例子，GPL3预警<br />
+注意nms每个mc版本都会变，其他版本请自行反混淆</blockquote></div><div class="blockcode"><div id="code_h3G"><ol><li>EntityCow coew = ((CraftCow)cow).getHandle();<br />
+<li>coew.goalSelector.a(0, new PathfinderGoalMoveTowardsTarget(coew, 1, 10));<br />
+<li>coew.setGoalTarget((EntityLiving)((CraftPlayer)sender).getHandle());</ol></div><em onclick="copycode($('code_h3G'));">复制代码</em></div><br />
+
+<br />
+请教一下为什么这样做行不通呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-8 23:23<br />
+<i class="pstatus"> 本帖最后由 疾风暗影 于 2020-5-8 23:25 编辑 </i><br />
+<div class="quote"><blockquote><font color="#999999">南柯郡守 发表于 2020-5-8 15:06</font><br />
+<font color="#999999">请教一下为什么这样做行不通呢</font></blockquote></div><br />
+
+<br />
+请先反混淆搞清每个类的作用<br />
+<br />
+<br />
+PathfinderGoalMoveTowardsTarget是攻击目标的ai<br />
+然而牛的targetgoal一直在改变<br />
+<br />
+其次你没有把牛的ai清空，其他同优先级的ai也能清掉牛的targetgoal<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-9 00:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18117686&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-8 23:23</font></a></font><br />
+请先反混淆搞清每个类的作用</blockquote></div><div class="blockcode"><div id="code_ry4"><ol><li>PathfinderGoalSelector pfd = coew.goalSelector;//.a(0, new PathfinderGoalMoveTowardsTarget(coew, 1, 10));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Class&lt;PathfinderGoalSelector&gt; clazz = PathfinderGoalSelector.class;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Field field = clazz.getDeclaredField(&quot;b&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;field.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Set&lt;PathfinderGoal&gt; set = (Set&lt;PathfinderGoal&gt;) field.get(pfd);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;set.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch(IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException ex) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coew.goalSelector.a(0, new PathfinderGoalFollowEntity(coew,0.1d,1f,15f));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dedde=(EntityLiving)((CraftPlayer)sender).getHandle();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Bukkit.getScheduler().runTaskTimerAsynchronously(this, new Runnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; coew.setGoalTarget(dedde);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}, 2, 2);</ol></div><em onclick="copycode($('code_ry4'));">复制代码</em></div><br />
+
+<br />
+为啥我用这个方法清空牛的AI成功了 但是后面加了FollowEntity还给了target <br />
+但这牛还是个傻子呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-9 00:33<br />
+<i class="pstatus"> 本帖最后由 疾风暗影 于 2020-5-9 00:41 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118337&amp;ptid=1039885" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-9 00:26</font></a></font><br />
+为啥我用这个方法清空牛的AI成功了 但是后面加了FollowEntity还给了target <br />
+但这牛还是个傻子呢 ...</blockquote></div><br />
+我上面说了PathfinderGoalMoveTowardsTarget是攻击型生物的ai<br />
+对于攻击生物，mc会每一tick调用PathfinderGoalMoveTowardsTarget#a获取位置<br />
+被动型生物的targetgoal无效，设了也没用<br />
+<br />
+此外你这里用runTaskTimerAsynchronously不怕把主线程崩掉吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-9 00:45<br />
+我7楼的例子里有一个PathfinderGoalMoveTowardsPlayer类，你可以参考它的写法<br />
+这个类不需要要求ai承载方的targetgoal，而是构造的时候指定实体<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-9 01:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118450&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-9 00:45</font></a></font><br />
+我7楼的例子里有一个PathfinderGoalMoveTowardsPlayer类，你可以参考它的写法<br />
+这个类不需要要求ai承载方的t ...</blockquote></div><br />
+我这里把AI换成了PathfinderGoalFollowEntity<br />
+但是PathfinderGoalFollowEntity好像也会一直重置target<br />
+<br />
+我就想着直接清空AI然后利用寻路系统直接指定坐标<br />
+我尝试<div class="blockcode"><div id="code_yy7"><ol><li>coew.getNavigation().a(0d, 70d, 10d, 0.1d);</ol></div><em onclick="copycode($('code_yy7'));">复制代码</em></div><br />
+但是也不管用<br />
+我去翻了下源码 <br />
+<div class="blockcode"><div id="code_cU1"><ol><li>&nbsp;&nbsp;public boolean a(double paramDouble1, double paramDouble2, double paramDouble3, double paramDouble4)<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp; return a(a(paramDouble1, paramDouble2, paramDouble3), paramDouble4);<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_cU1'));">复制代码</em></div><br />
+对应<br />
+<div class="blockcode"><div id="code_z9y"><ol><li>&nbsp;&nbsp;public boolean tryMoveToXYZ(double x, double y, double z, double speedIn)<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp; return setPath(getPathToXYZ(x, y, z), speedIn);<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_z9y'));">复制代码</em></div><br />
+
+<br />
+一直返回false&nbsp;&nbsp;也不知道是为什么 想请教一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-9 01:12<br />
+<i class="pstatus"> 本帖最后由 疾风暗影 于 2020-5-9 01:14 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118566&amp;ptid=1039885" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-9 01:07</font></a></font><br />
+我这里把AI换成了PathfinderGoalFollowEntity<br />
+但是PathfinderGoalFollowEntity好像也会一直重置target</blockquote></div><br />
+1. PathfinderGoalFollowEntity只用于鹦鹉尾随攻击性生物<br />
+2. PathfinderGoalFollowEntity的跟随目标是构造函数传入的EntityInsentient，EntityPlayer没有实现EntityInsentient<br />
+<br />
+3. 你没有展示你如何构造PathfinderGoalFollowEntity的，如果你构造PathfinderGoalFollowEntity的时候把动物本身当第一个参数传入的话，也就是动物自己指向自己，shouldMove会一直返回false导致实体不动<br />
+<br />
+<font size="5">4. 我上面给了一个<strong>PathfinderGoalMoveTowardsPlayer</strong>的例子，想实现ai跟随那个是最好的方法，不要试图想简单调用nms自带的Pathfinder</font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-9 01:20<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118610&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-9 01:12</font></a></font><br />
+1. PathfinderGoalFollowEntity只用于鹦鹉尾随攻击性生物<br />
+2. PathfinderGoalFollowEntity的跟随目标是构造 ...</blockquote></div><br />
+那我明白了 就是最早先说的教程里的shouldExecute等等方法extends pathfinder 然后只需要判断是否继续执行 其他的交给bukkit是吧<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>天辉胡萝卜&nbsp; &nbsp; <b>时间: </b>2020-5-9 01:28<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118647&amp;ptid=1039885" target="_blank"><font color="#999999">南柯郡守 发表于 2020-5-9 01:20</font></a></font><br />
+那我明白了 就是最早先说的教程里的shouldExecute等等方法extends pathfinder 然后只需要判断是否继续执 ...</blockquote></div><br />
+并不是。。。移动的坐标也需要在pathfinder里面指定，不只是判断shouldMove<br />
+<br />
+直接在外面调用navigation无效因为同一tick的后续动作会覆盖掉你预设的<br />
+<br />
+下面的例子，EntityLiving var2是构造期间传入的，也就是你要追踪的目标，可以是玩家或者其他实体<br />
+public boolean a() 判断是否需要进行移动及设定移动坐标，关键语句是<br />
+<div class="blockcode"><div id="code_gkt"><ol><li>Vec3D var0 = this.b.getPositionVector(); //获取位置<br />
+<li>this.c = var0.x;<br />
+<li>this.d = var0.y;<br />
+<li>this.e = var0.z; //设定移动目的地</ol></div><em onclick="copycode($('code_gkt'));">复制代码</em></div><br />
+public boolean b()是判断是否需要移动<br />
+public void d()是重置ai，留空<br />
+public void c()是实际进行移动<br />
+<br />
+最后是具体实现<br />
+<br />
+<div class="blockcode"><div id="code_qe9"><ol><li>&nbsp; &nbsp; public static class PathfinderGoalMoveTowardsPlayer extends PathfinderGoal {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final EntityCreature a;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private EntityLiving b;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double c;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double d;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private double e;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final double f;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private final float g;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public PathfinderGoalMoveTowardsPlayer(EntityCreature var0, double var1, EntityLiving var2, float var3) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.a = var0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.f = var1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.g = var3;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.b = var2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; a(EnumSet.of(PathfinderGoal.Type.MOVE));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean a() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.b == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (this.b.h(this.a) &gt; (this.g * this.g))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Vec3D var0 = this.b.getPositionVector();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (var0 == null)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.c = var0.x;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.d = var0.y;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.e = var0.z;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public boolean b() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return (!this.a.getNavigation().m() &amp;&amp; this.b.isAlive() &amp;&amp; this.b.h(this.a) &lt; (this.g * this.g));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void d() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void c() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; this.a.getNavigation().a(this.c, this.d, this.e, this.f);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li></ol></div><em onclick="copycode($('code_qe9'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-5-9 01:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18118677&amp;ptid=1039885" target="_blank"><font color="#999999">疾风暗影 发表于 2020-5-9 01:28</font></a></font><br />
+并不是。。。移动的坐标也需要在pathfinder里面指定，不只是判断shouldMove<br />
+<br />
+直接在外面调用navigation无 ...</blockquote></div><br />
+感谢大佬！我总算是听明白了<br />
+<br />
+我去研究研究<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC_longxi&nbsp; &nbsp; <b>时间: </b>2020-5-9 17:25<br />
+我都看不懂代码难受<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xwjqq&nbsp; &nbsp; <b>时间: </b>2020-5-9 18:01<br />
+有没有小白教程，看不懂<img src="static/image/smiley/rabbit/35.gif" smilieid="685" border="0" alt="" />
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

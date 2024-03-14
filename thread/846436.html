@@ -1,0 +1,146 @@
+<html>
+<head>
+<title>[NPC]浅析NPC脚本·上 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[NPC]浅析NPC脚本·上 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Hueihuea&nbsp; &nbsp; <b>时间: </b>2019-2-19 22:55<br />
+<b>标题: </b>[NPC]浅析NPC脚本·上<br /><i class="pstatus"> 本帖最后由 Hueihuea 于 2020-3-31 15:10 编辑 </i><br />
+<br />
+图床炸了<br />
+推荐图片版<br />
+嘛 讲的也不是很好 感兴趣可以参考下<br />
+
+<ignore_js_op>
+
+<img id="aimg_1529387" aid="1529387" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/202003/31/151009q0us0unsxllbnpq8.jpg" file="https://attachment.mcbbs.net/forum/202003/31/151009q0us0unsxllbnpq8.jpg" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1529387" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1529387_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>file_1585638611000.jpg</strong> <em class="xg1">(278.13 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTUyOTM4N3xjODEzYmI0OHwxNjEzOTc3MjE1fDI0MTk0ODZ8ODQ2NDM2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2020-3-31 15:10 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<font size="3"><strong>声明:</strong><br />
+<strong>1.如果本帖出示的源代码对noppes造成利益损失,愿意承担相关责任并删帖。</strong><br />
+<strong>2.本帖仅为学术交流,并非有意损害任何人的利益。</strong><br />
+<strong>3.我也不知道这个还能不能发mod教程版 毕竟还是讲NPC脚本的 应该没问题。</strong><br />
+<strong>注:本帖以1.7.10为准,1.12.2思维上类似,本帖内容根据本人理解，不能保证全部准确。</strong><br />
+<br />
+首先,这不是教怎么写NPC脚本的,这是分析NPC脚本的原理，和如何用代码去修改NPC的脚本的。<br />
+</font>本帖主要三点:<br />
+①<u>NPC脚本是如何运行的？</u><br />
+②<u>NPC脚本储存在哪里？</u><br />
+③<u>如何读写NPC脚本？<br />
+</u>我们先说说NPC是怎么运行的。<br />
+NPC运行原理非常简单。<br />
+大概是这样:<br />
+<img id="aimg_GDgCl" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://upload.cc/i1/2019/02/20/u8enlx.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+嘛,我们就不管MC事件发生的过程和他的处理内容了,我们知道,MC会在发生对应事件时把对应事件方法调用并传入参数就行了。<br />
+好,我们举个例子,互动（也就是你右键NPC）事件。<br />
+我们看看他的事件方法。<br />
+<div class="blockcode"><div id="code_emz"><ol><li>public boolean interact(final EntityPlayer player) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //.......................<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (this.script.callScript(EnumScriptType.INTERACT, &quot;player&quot;, player) || this.isAttacking() || this.isKilled() || this.faction.isAggressiveToPlayer(player)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //.......................<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return true;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_emz'));">复制代码</em></div>好,我们关键看<br />
+<div class="blockcode"><div id="code_kox"><ol><li>this.script.callScript(EnumScriptType.INTERACT, &quot;player&quot;, player)</ol></div><em onclick="copycode($('code_kox'));">复制代码</em></div>这一代码,<br />
+好,我们现在要知道两个问题<br />
+<strong>1.script是什么?<br />
+2.callScript是怎样的方法?<br />
+<strike>3.你应该不会问我this是什么吧</strike></strong><br />
+好,我们一一解答。<br />
+我们先看script这个属性是如何声明的。<br />
+<div class="blockcode"><div id="code_c5H"><ol><li>public DataScript script;</ol></div><em onclick="copycode($('code_c5H'));">复制代码</em></div>好,我们现在知道,他的数据类型是DataScript。<br />
+好,到此为止,我们不继续了解script属性,而是了解DataScript。<br />
+我们这次,主要看DataScript的callScript方法。<br />
+<div class="blockcode"><div id="code_Rh6"><ol><li>&nbsp;&nbsp;public boolean callScript(EnumScriptType type, Object... obs)<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//.......................<br />
+<li>&nbsp; &nbsp; ScriptContainer script = (ScriptContainer)this.scripts.get(Integer.valueOf(type.ordinal()));//获取对应事件脚本容器<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//.......................<br />
+<li>&nbsp; &nbsp; script.setEngine(this.scriptLanguage);//为脚本容器设置环境<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//.......................<br />
+<li>&nbsp; &nbsp; for (int i = 0; i + 1 &lt; obs.length; i += 2)<br />
+<li>&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Object ob = obs[(i + 1)];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if ((ob instanceof Entity)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ob = ScriptController.Instance.getScriptForEntity((Entity)ob);//若参数为实体则转为脚本实体类型<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;script.engine.put(obs[i].toString(), ob);//为环境写入参数<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return callScript(script);//转交至callScript处理并返回其返回值<br />
+<li>&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; private boolean callScript(ScriptContainer script)<br />
+<li>&nbsp;&nbsp;{<br />
+<li>&nbsp; &nbsp; ScriptEngine engine = script.engine;//获取容器的环境<br />
+<li>&nbsp; &nbsp; engine.put(&quot;npc&quot;, this.dummyNpc);//写入参数npc<br />
+<li>&nbsp; &nbsp; engine.put(&quot;world&quot;, this.dummyWorld);//写入参数world<br />
+<li>&nbsp; &nbsp; ScriptEvent result = (ScriptEvent)engine.get(&quot;event&quot;);//获取事件<br />
+<li>&nbsp; &nbsp; if (result == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;engine.put(&quot;event&quot;, result = new ScriptEvent());//若没有事件则写入新事件<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; engine.put(&quot;EntityType&quot;, entities);//写入参数EntityType<br />
+<li>&nbsp; &nbsp; engine.put(&quot;RoleType&quot;, roles);//写入参数RoleType<br />
+<li>&nbsp; &nbsp; engine.put(&quot;JobType&quot;, jobs);//写入参数JobType<br />
+<li>&nbsp; &nbsp; script.run(engine);//运行脚本<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//.......................<br />
+<li>&nbsp; &nbsp; return result.isCancelled();//返回结果<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Rh6'));">复制代码</em></div>好,我们现在来说,callScript是一个怎样的方法。<br />
+听仔细了！<br />
+callScript是一个获取对应事件的脚本容器,且给予容器环境,并为其环境写入事件参数与默认参数,最后在环境中执行脚本的一个方法！<br />
+没听清？再来一遍！<br />
+<font size="3"><strong>callScript是一个获取对应事件的脚本容器,且给予容器环境,并为其环境写入事件参数与默认参数,最后在环境中执行脚本的一个方法！</strong></font><br />
+<font size="2">好,我们总结一下:<br />
+</font><strong>script是什么?</strong><br />
+<strong>-script是NPC的属性,他指向他的DataScript对象。</strong><br />
+<strong>callScript是怎样的方法?</strong><br />
+<strong>-</strong><font size="2"><strong>callScript是一个获取对应事件的脚本容器,且给予容器环境,并为其环境写入事件参数与默认参数,最后在环境中执行脚本的一个方法！</strong><br />
+问题总结完了,我们最后再来解释下名词。<br />
+</font><i>DataScript:这是存储脚本容器与脚本基础信息的地方<br />
+ScriptContainer:这是储存这脚本源代码和Engine的地方<br />
+Engine:脚本的运行环境或者叫做虚拟机？脚本就是在Engine上运行的。</i><br />
+<font size="2">嘛,讲的不是很好,但是代码列出来了,应该可以理解吧。<br />
+</font><br />
+图片版:<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><img id="aimg_uCncg" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://upload.cc/i1/2019/02/20/Bv9Fds.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></td></table></div></div><script type="text/javascript" reload="1">
+aimgcount[13913869] = ['1529387'];
+attachimggroup(13913869);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>思望文宣&nbsp; &nbsp; <b>时间: </b>2019-2-19 22:58<br />
+前排围观qwq<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>思望文宣&nbsp; &nbsp; <b>时间: </b>2019-2-19 22:59<br />
+大佬很强，但看不懂，慢慢学吧<img src="static/image/smiley/tong/cry.png" smilieid="1453" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>princess01&nbsp; &nbsp; <b>时间: </b>2019-2-20 01:05<br />
+我也是，学习ing<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a1016746326&nbsp; &nbsp; <b>时间: </b>2019-2-22 09:43<br />
+至今还是只能浅浅的运用npc脚本...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1370698539&nbsp; &nbsp; <b>时间: </b>2019-8-23 18:35<br />
+tql,灰佬nb！
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

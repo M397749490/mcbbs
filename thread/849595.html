@@ -1,0 +1,73 @@
+<html>
+<head>
+<title>[已解决][FORGE]论如何打开原版的GUI - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[已解决][FORGE]论如何打开原版的GUI <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>脏鬼鬼&nbsp; &nbsp; <b>时间: </b>2019-3-9 11:27<br />
+<b>标题: </b>[已解决][FORGE]论如何打开原版的GUI<br /><i class="pstatus"> 本帖最后由 MessyGhost 于 2019-3-10 13:55 编辑 </i><br />
+<br />
+做了一个类似工作台的方块，在重载Block.onBlockActivated时尝试打开工作台的GUI，但是如果用Minecraft.displayGuiScreen的话，数据似乎不会传输到服务器，导致无法对GUI进行操作。Player.openGUI和displayGUI的话，似乎是打开自己做的GUI的（顺带问一句，IInteractionObject和Container时什么关系）？试过新实例化一个InventoryCrafting，好像可以让这个GUI闪烁1tick（估计是判断我操作的方块不是工作台，自动关闭了）。如果让我的方块类继承自BlockWorkbench，则右键该方块时鼠标出现很短时间(但是UI没出来)。教程好像都只有打开自己做的GUI的例子，有什么办法可以打开一个可以用的工作台GUI呢（难道只能自己实现了吗？）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-3-9 12:00<br />
+<i class="pstatus"> 本帖最后由 u.s.knowledge 于 2019-3-9 12:03 编辑 </i><br />
+<br />
+<strike>我怀疑楼主认真读完了《提问的智慧》。这非常好。</strike><br />
+<br />
+<font size="3">其实没那么复杂。<br />
+<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Minecraft.displayGuiScreen</font> 的确不会同步数据到服务器，这也是为什么 Forge 会给 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">EntityPlayer</font> patch 进去一个 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">openGui</font> 的方法的原因——实现 GUI 中数据的同步其实并不是件容易事，而且这样的需求会有很多 Mod 遇到，不如让 Forge 帮忙把问题解决了吧。相似地，如果你的 GUI 的确不需要服务器上有对应的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Container</font>，大可以用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">displayGuiScreen</font>。</font><br />
+<br />
+<font size="3">回到原本的问题上：复用原版工作台 GUI。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif">openGui</font> 是对的，但 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">InventoryCrafting</font> 不是 GUI，它只代表一个抽象的物品栏。我们需要的是一个在逻辑服务器上的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Container</font> 和一个逻辑客户端上的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">GuiContainer</font>。具体来说，是 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">ContainerWorkbench</font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">GuiCrafting</font>。这样一来，我们只需要一个 FML 的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">IGuiHandler</font> 的实现即可：</font><br />
+<br />
+<div class="blockcode"><div id="code_rMI"><ol><li>@Override<br />
+<li>public Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {<br />
+<li>&nbsp; &nbsp; if (...) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new ContainerWorkbench(...);<br />
+<li>&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li>@Override<br />
+<li>public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {<br />
+<li>&nbsp; &nbsp; if (...) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return new GuiCrafting(...);<br />
+<li>&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_rMI'));">复制代码</em></div><br />
+<font size="3"><font face="Monaco,Consolas,'Lucida Console','Courier New',serif">IInteractionObject</font> 是原版底层中用来在打开 GUI 时获得对应的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">Container</font> 的一层抽象。Mod 开发中不需要管这个——FML 已经帮我们搞定这些问题了，用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">EntityPlayer.openGui</font> 即可。</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>脏鬼鬼&nbsp; &nbsp; <b>时间: </b>2019-3-9 12:03<br />
+<i class="pstatus"> 本帖最后由 MessyGhost 于 2019-3-9 13:02 编辑 </i><br />
+<br />
+displayGui(new BlockWorkbench.InterfaceCraftingTable(worldIn, pos))能闪烁一下GUI<br />
+实例化InventoryCrafting无效<img src="static/image/smiley/rabbit/03.gif" smilieid="653" border="0" alt="" /><br />
+（为什么我的补充会在回答下面<img src="static/image/smiley/rabbit/28.gif" smilieid="678" border="0" alt="" />）<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>脏鬼鬼&nbsp; &nbsp; <b>时间: </b>2019-3-9 13:01<br />
+<i class="pstatus"> 本帖最后由 MessyGhost 于 2019-3-9 13:06 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14006310&amp;ptid=849595" target="_blank"><font color="#999999">u.s.knowledge 发表于 2019-3-9 12:00</font></a></font><br />
+<strike>我怀疑楼主认真读完了《提问的智慧》。这非常好。</strike><br />
+<br />
+其实没那么复杂。</blockquote></div><br />
+先感谢（回来看的时候已经解决了233）（&amp;为什么我回来补充的时候没看到回答orz）<br />
+不过大佬您这里还有一个问题（GUI只会闪烁一下）<br />
+需要重写ContainerWorkbench.canInteractWith这个方法（Minecraft的实现会对目标方块进行判断）<img src="static/image/smiley/rabbit/55.gif" smilieid="705" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2019-3-9 13:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14006846&amp;ptid=849595" target="_blank"><font color="#999999">MessyGhost 发表于 2019-3-9 13:01</font></a></font><br />
+先感谢（回来看的时候已经解决了233）（&amp;为什么我回来补充的时候没看到回答orz）<br />
+不过大佬您这里还有一个 ...</blockquote></div><br />
+不好意思忘记了。的确需要覆写那个方法。<br />
+<br />
+<strike>实际上是这样的，Container 这个类本来是个抽象类，canInteractWith 这个方法正好也是这个类中唯一的抽象方法，按常理来说是一定要覆写的，然而…… 之前笔者写过的 Container 实现都是靠 IDE 自动补全这个方法的，然后也一直都是让它直接返回 true，所以刚才就直接忘掉了…… </strike>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

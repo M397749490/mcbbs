@@ -1,0 +1,144 @@
+<html>
+<head>
+<title>强行构造实例 —— MethodHandle 的别样使用示例 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>强行构造实例 —— MethodHandle 的别样使用示例 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-1-23 18:14<br />
+<b>标题: </b>强行构造实例 —— MethodHandle 的别样使用示例<br />我在这里提供一种强制构造实例的方法. 通过MethodHandle<br />
+<br />
+首先，我们先看看Object的构造器有什么东西<br />
+<img id="aimg_Gg6Yh" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/9.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+很简单，看不出什么，但是当我们把Debug模式打开后，就不一样了<img id="aimg_bUw2Z" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/1.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+DirectMethodHandle.allocateInstance. 好, 让我们看看他做了什么<br />
+<img id="aimg_ertYw" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/2.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+UNSAFE.allocateInstance(dmh.instanceClass);<br />
+<br />
+这句就是MH构建对象实例的方法, 然后我们看看unreflect出来的MethodHandle是什么东东<br />
+<img id="aimg_pwt7b" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/3.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+就是Constructor, 也就代表我们只需要修改instanceClass这个字段就可以修改实例化的目标类<br />
+<img id="aimg_L8cJJ" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/8.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<img id="aimg_lct0P" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/7.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+好，这就是我们目前实例化说需要做的，但是如果每次都要写这么长/运行这么多的话明显不划算，所以我们在将其封装一下<br />
+<img id="aimg_iDB5S" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/0.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+有了这些，我们就可以做一些有趣的事情，比如<br />
+<img id="aimg_KPt8E" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/5.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+但是，有些地方要注意，用这个方法构造出来的对象的字段都是没有值的<br />
+<img id="aimg_ErrRQ" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/4.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+好, 下面是这个实例的一部分用途:<br />
+1. 忽略某些类的内置检查/逻辑, 比如 JarConnection<br />
+2. 发包内容 (笑<br />
+<img id="aimg_M43UX" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://github.com/Karlatemp/PubFiles/blob/master/ForceAllocate/6.png?raw=true" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+<br />
+<div class="blockcode"><div id="code_z97"><ol><li>/*<br />
+<li> * Copyright (c) 2018-2020 Karlatemp. All rights reserved.<br />
+<li> * Reserved.FileName: MHAlloc.java@author: karlatemp@vip.qq.com: 2020/1/23 下午4:45@version: 2.0<br />
+<li> */<br />
+<li><br />
+<li>package cn.mcres.karlatemp.mxlib.tester.mh;<br />
+<li><br />
+<li>import java.lang.invoke.MethodHandle;<br />
+<li>import java.lang.invoke.MethodHandles;<br />
+<li>import java.lang.reflect.Constructor;<br />
+<li>import java.lang.reflect.Field;<br />
+<li>import java.util.HashMap;<br />
+<li>import java.util.Map;<br />
+<li>import java.util.function.Function;<br />
+<li><br />
+<li>public class MHAlloc {<br />
+<li>&nbsp; &nbsp; public MHAlloc() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new IllegalArgumentException(&quot;DENY&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private static final Function&lt;Class&lt;?&gt;, Object&gt; allocateInstanceFunction;<br />
+<li><br />
+<li>&nbsp; &nbsp; static {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;MethodHandles.Lookup lk = MethodHandles.lookup();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final Constructor&lt;Object&gt; object_const = Object.class.getConstructor();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Field instanceClass = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (Field f : Class.forName(&quot;java.lang.invoke.DirectMethodHandle$Constructor&quot;).getDeclaredFields()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (f.getType() == Class.class) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;instanceClass = f;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;break;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;assert instanceClass != null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;instanceClass.setAccessible(true);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Field instanceClass0 = instanceClass;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;allocateInstanceFunction = clazz -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final MethodHandle constructor = lk.unreflectConstructor(object_const);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;instanceClass0.set(constructor, clazz);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return constructor.invoke();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (Error | RuntimeException re) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw re;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (Throwable thr) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;throw new RuntimeException(thr);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;};<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (Throwable any) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new ExceptionInInitializerError(any);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; interface AbstractConfiguration {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;void init(Map&lt;String, Object&gt; data);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;void store(Map&lt;String, Object&gt; output);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; class BaseConfiguration implements AbstractConfiguration {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private String name;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void init(Map&lt;String, Object&gt; data) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;name = String.valueOf(data.get(&quot;name&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void store(Map&lt;String, Object&gt; output) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;output.put(&quot;name&quot;, name);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String toString() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;BaseConfiguration{&quot; +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;name='&quot; + name + '\'' +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;'}';<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static void main(String[] args) throws Throwable {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Map&lt;String, Object&gt; data = new HashMap&lt;&gt;();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;data.put(&quot;name&quot;, &quot;MyName&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;AbstractConfiguration conf = (AbstractConfiguration) allocateInstanceFunction.apply(BaseConfiguration.class);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;conf.init(data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(conf);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_z97'));">复制代码</em></div><br />
+
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>海螺螺&nbsp; &nbsp; <b>时间: </b>2020-1-23 18:30<br />
+你直接unsafe.allocateInstance不就好了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-1-23 20:22<br />
+<div class="quote"><blockquote><font color="#999999">海螺螺 发表于 2020-1-23 18:30</font><br />
+<font color="#999999">你直接unsafe.allocateInstance不就好了</font></blockquote></div><br />
+对呀，但是java8和java13的不通哈哈，java9以上还得把模块访问限制艹了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

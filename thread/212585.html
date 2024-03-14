@@ -1,0 +1,264 @@
+<html>
+<head>
+<title>[php/c++] 获取服务器状态 请自行取用 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[php/c++] 获取服务器状态 请自行取用 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Brick&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:23<br />
+<b>标题: </b>[php/c++] 获取服务器状态 请自行取用<br /><br />
+php （function 版）<br />
+<br />
+<div class="blockcode"><div id="code_Laa"><ol><li>function QueryMinecraft( $IP, $Port = 25595, $Timeout = 2 )<br />
+<li>{<br />
+<li><br />
+<li>$Socket = Socket_Create( AF_INET, SOCK_STREAM, SOL_TCP );<br />
+<li><br />
+<li>Socket_Set_Option( $Socket, SOL_SOCKET, SO_SNDTIMEO, array( 'sec' =&gt; (int)$Timeout, 'usec' =&gt; 0 ) );<br />
+<li>Socket_Set_Option( $Socket, SOL_SOCKET, SO_RCVTIMEO, array( 'sec' =&gt; (int)$Timeout, 'usec' =&gt; 0 ) );<br />
+<li><br />
+<li>if( $Socket === FALSE || @Socket_Connect( $Socket, $IP, (int)$Port ) === FALSE )<br />
+<li>{<br />
+<li>return FALSE;<br />
+<li>}<br />
+<li><br />
+<li>Socket_Send( $Socket, &quot;\xFE\x01&quot;, 2, 0 );<br />
+<li>$Len = Socket_Recv( $Socket, $Data, 512, 0 );<br />
+<li>Socket_Close( $Socket );<br />
+<li><br />
+<li>if( $Len &lt; 4 || $Data[ 0 ] !== &quot;\xFF&quot; )<br />
+<li>{<br />
+<li>return FALSE;<br />
+<li>}<br />
+<li><br />
+<li>$Data = SubStr( $Data, 3 );<br />
+<li>$Data = iconv( 'UTF-16BE', 'UTF-8', $Data );<br />
+<li><br />
+<li>if( $Data[ 1 ] === &quot;\xA7&quot; &amp;&amp; $Data[ 2 ] === &quot;\x31&quot; )<br />
+<li>{<br />
+<li>$Data = Explode( &quot;\x00&quot;, $Data );<br />
+<li>return Array(<br />
+<li>'HostName'&nbsp; &nbsp;=&gt; $Data[ 3 ],<br />
+<li>'Players'&nbsp; &nbsp; =&gt; IntVal( $Data[ 4 ] ),<br />
+<li>'MaxPlayers' =&gt; IntVal( $Data[ 5 ] ),<br />
+<li>'Protocol'&nbsp; &nbsp;=&gt; IntVal( $Data[ 1 ] ),<br />
+<li>'Version'&nbsp; &nbsp; =&gt; $Data[ 2 ],<br />
+<li>);<br />
+<li>}<br />
+<li><br />
+<li>$Data = Explode( &quot;\xA7&quot;, $Data );<br />
+<li>return Array(<br />
+<li>'HostName'&nbsp; &nbsp;=&gt; SubStr( $Data[ 0 ], 0, -1 ),<br />
+<li>'Players'&nbsp; &nbsp; =&gt; isset( $Data[ 1 ] ) ? IntVal( $Data[ 1 ] ) : 0,<br />
+<li>'MaxPlayers' =&gt; isset( $Data[ 2 ] ) ? IntVal( $Data[ 2 ] ) : 0,<br />
+<li>'Protocol'&nbsp; &nbsp;=&gt; 0,<br />
+<li>'Version'&nbsp; &nbsp; =&gt; '1.3',<br />
+<li>);<br />
+<li>}</ol></div><em onclick="copycode($('code_Laa'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+
+<br />
+
+<br />
+php 另外一个版本 （class版）<br />
+<br />
+<div class="blockcode"><div id="code_L2h"><ol><li>&lt;?php<br />
+<li>/**<br />
+<li>* Minecraft server status class<br />
+<li>* Query minecraft server<br />
+<li>* @author Patrick K. - http://www.silexboard.org/ - https://github.com/NoxNebula<br />
+<li>* @license GNU Public Licence - Version 3<br />
+<li>* @copyright &amp;#169; 2011-2013 Patrick K.<br />
+<li>*/<br />
+<li>class MinecraftServerStatus {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// Get the server status<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;const STATUS = 0x00;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// Make the challenge (handshake)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;const HANDSHAKE = 0x09;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// &quot;Magic bytes&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;const B1 = 0xFE;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;const B2 = 0xFD;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private $Socket;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// Expected server info (Minecraft 1.3.2)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// more keys may added while running the code<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private $Info = [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostname' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'gametype' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'game_id' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'version' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'plugins' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'map' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'numplayers' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'maxplayers' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostport' =&gt; '',<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostip' =&gt; ''<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;];<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* Query a minecraft server and parse the status<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param string $Host<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param int $Port optional<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param int $Timeout optional<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public function __construct($Host, $Port = 25565, $Timeout = 1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/* Connect to the host and creat a socket */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;Socket = @stream_socket_client('udp://'.$Host.':'.(int)$Port, $ErrNo, $ErrStr, $Timeout);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if($ErrNo || $this-&gt;Socket === false) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$this-&gt;Info['online'] = false; return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//throw new Exception('Failed to connect', 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; stream_set_timeout($this-&gt;Socket, $Timeout);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/* Make handshake and request server status */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Data = $this-&gt;Send(self::STATUS, pack('N', $this-&gt;Send(self::HANDSHAKE)).pack('c*', 0x00, 0x00, 0x00, 0x00));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //set_time_limit($met);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Try fallback if query is not enabled on the server<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(!$Data){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(!class_exists('MinecraftServerStatusSimple') &amp;&amp; file_exists('MinecraftServerStatusSimple.class.php'))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;require_once('MinecraftServerStatusSimple.class.php');<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(class_exists('MinecraftServerStatusSimple')) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$Fallback = new MinecraftServerStatusSimple($Host, $Port, $Timeout);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;Info = [<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostname' =&gt; $Fallback-&gt;Get('motd'),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'numplayers' =&gt; $Fallback-&gt;Get('numplayers'),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'maxplayers' =&gt; $Fallback-&gt;Get('maxplayers'),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostport' =&gt; (int)$Port,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'hostip' =&gt; $Host,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 'online' =&gt; $Fallback-&gt;Get('online')<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;]; fclose($this-&gt;Socket); return;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/* Prepare the data for parsing */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Split the data string on the player position<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Data = explode(&quot;\00\00\01player_\00\00&quot;, $Data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Save the players<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Players = '';<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if($Data[1])<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$Players = substr($Data[1], 0, -2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Split the server infos (status)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Data = explode(&quot;\x00&quot;, $Data[0]);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/* Parse server info */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for($i = 0; $i &lt; sizeof($Data); $i += 2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Check if the server info is expected, if yes save the value<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(array_key_exists($Data[$i], $this-&gt;Info) &amp;&amp; array_key_exists($i+1, $Data))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;Info[$Data[$i]] = $Data[$i+1];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Parse plugins and try to determine the server software<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if($this-&gt;Info['plugins']) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$Data = explode(&quot;: &quot;, $this-&gt;Info['plugins']);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$this-&gt;Info['software'] = $Data[0];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(isset($Data[1]))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;$this-&gt;Info['plugins'] = explode('; ', $Data[1]);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;unset($this-&gt;Info['plugins']);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// It seems to be a vanilla server<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$this-&gt;Info['software'] = 'Vanilla';<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;unset($this-&gt;Info['plugins']);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Parse players<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if($Players)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$this-&gt;Info['players'] = explode(&quot;\00&quot;, $Players);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Cast types<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;Info['numplayers'] = (int)$this-&gt;Info['numplayers'];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;Info['maxplayers'] = (int)$this-&gt;Info['maxplayers'];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;Info['hostport'] = (int)$this-&gt;Info['hostport'];<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $this-&gt;Info['online'] = true;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/* Close the connection */<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; fclose($this-&gt;Socket);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* Return the value of an key or the whole server info<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param string $Key optional<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return mixed<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public function Get($Key = '') {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return $Key ? (array_key_exists($Key, $this-&gt;Info) ? $this-&gt;Info[$Key] : false) : $this-&gt;Info;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/**<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* Send a command to the server and get the answer<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param byte $Command<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @param byte $Addition optional<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;* @return string<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private function Send($Command, $Addition = '') {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // pack the command into a binary string<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Command = pack('c*', self::B1, self::B2, $Command, 0x01, 0x02, 0x03, 0x04).$Addition;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // send the binary string to the server<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if(strlen($Command) !== @fwrite($this-&gt;Socket, $Command, strlen($Command)))<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new Exception('Failed to write on socket', 2);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // listen what the server has to say now<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; $Data = fread($this-&gt;Socket, 2048);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if($Data === false)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new Exception('Failed to read from socket', 3);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // remove the first 5 unnecessary bytes (0x00, 0x01, 0x02, 0x03, 0x04) Status type and own ID token<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return substr($Data, 5);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_L2h'));">复制代码</em></div><br />
+
+<br />
+Java的大家一定都有了。。。。没有的直接反编译现成的吧<br />
+易语言。。无视了<br />
+<br />
+<br />
+c++正在写。。。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1277832129&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:34<br />
+楼主好厉害的样子 挺你<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>好奇_先森&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:34<br />
+虽然不知道楼主在干什么但好像很厉害的样子<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Brick&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:42<br />
+<div class="quote"><blockquote><font size="2"><font color="#999999">好奇_先森 发表于 2014-1-1 17:34</font> <a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=4077339&amp;ptid=212585" target="_blank"><img id="aimg_k1R1b" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/common/back.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a></font><br />
+虽然不知道楼主在干什么但好像很厉害的样子</blockquote></div><br />
+四个字：不明觉厉<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lfr86513137&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:43<br />
+这是什么…………<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>tc1236231&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:46<br />
+<div class="quote"><blockquote><font size="2"><font color="#999999">Brick 发表于 2014-1-1 17:42</font> <a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=4077449&amp;ptid=212585" target="_blank"><img id="aimg_RG9G9" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/common/back.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a></font><br />
+四个字：不明觉厉</blockquote></div><br />
+呵呵这不是之前逃跑的技术员么<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fourhorsemen91&nbsp; &nbsp; <b>时间: </b>2014-1-1 17:52<br />
+mark , 小白表示想问这个具体是干啥用的？<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Csgbshgf&nbsp; &nbsp; <b>时间: </b>2014-1-1 19:05<br />
+<i class="pstatus"> 本帖最后由 Csgbshgf 于 2015-8-23 21:15 编辑 </i><br />
+<br />
+这些是LZ原创么？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ylmars&nbsp; &nbsp; <b>时间: </b>2014-7-19 21:17<br />
+socket？见过PHP的，github上有我给用到Python上了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ylmars&nbsp; &nbsp; <b>时间: </b>2014-7-19 21:25<br />
+MOTD没有？<br />
+虽然没搞明白MOTD用的编码是什么，中文没法看<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ab8568571&nbsp; &nbsp; <b>时间: </b>2014-7-20 00:48<br />
+反正都是贴代码,JAVA就顺手也贴出来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>hlrlqy&nbsp; &nbsp; <b>时间: </b>2014-7-26 21:27<br />
+原理么么哒
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

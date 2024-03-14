@@ -1,0 +1,168 @@
+<html>
+<head>
+<title>[翻译][UD]在使用NMS的同时支持多个版本 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[翻译][UD]在使用NMS的同时支持多个版本 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>byxiaobai&nbsp; &nbsp; <b>时间: </b>2017-5-26 23:08<br />
+<b>标题: </b>[翻译][UD]在使用NMS的同时支持多个版本<br /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">之前我发现，很多人制作插件时需要使用一些当前版本的特性，比如发送一个title或一个ActionBar信息。很多人认为想实现这些功能就只能使用NMS(net.minecraft.server)。但由于每个版本的NMS都会有一些改动，所以有些插件的版本兼容性比较差。当版本更新时，它们往往会无法继续正常使用</font></font></div><hr class="l" /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">一段时间后，我发现的最好方式是使用反射兼容我需要兼容的所有版本。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">虽然我认为这是一件好事（因为我的插件现在能够向后兼容），但DarkSeraphim告诉我，在一个插件中如果使用了反射，那么应该写一个接口，并在兼容不同版本的功能类中分别实现不同的代码。<br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">如果使用接口的话，我可以将NMS代码放到一个单独的类中，并只加载和使用特定版本的NMS类。这就避免了使用反射！<br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">因为这个教程不可能让你避免有时候使用反射的需要，你可能会遇到类似于发送Title或使用ActionBar这样的需求</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">在这个示例插件中我们会在玩家进入服务器时发送一个ActionBar信息。同时，这个插件也会支持1.8的所有子版本。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">那么让我们开始吧:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">首先，我们需要创建一个包来放置接口和NMS类。</font></font></div><div align="center"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><font style="background-color:white"><img id="aimg_x0XF9" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://upload-images.jianshu.io/upload_images/6195638-4fe2779dab80ebbf?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+</font></font></font></div><br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">首先，让我们创建一个叫做Actionbar的接口类。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">这个接口类有一个抽象方法，我们的NMS类可以实现这个方法并通过这个方法发送actionbar信息。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">任何一个实现了我们的Actionbar接口的类都必须实现这个抽象类。</font></font></div><hr class="l" /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">那么让我们创建我们的抽象类吧。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">代码:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font></font></div><div class="blockcode"><div id="code_r6v"><ol><li><br />
+<li>package me.clip.actionbarplugin.actionbar;<br />
+<li><br />
+<li>import org.bukkit.entity.Player;<br />
+<li><br />
+<li>public interface Actionbar {<br />
+<li><br />
+<li>public void sendActionbar(Player p, String message);<br />
+<li>}</ol></div><em onclick="copycode($('code_r6v'));">复制代码</em></div><br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"></td></table></div></div>这个类里面只有一行代码。很简单，对吧？</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">接下来，实现这个接口的类将会以自己的&quot;版本特性&quot;来实现这个抽象方法。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">如果你使用这个教程中介绍的方法(也就是创建一个接口类，然后分开实现这个接口)来实现一些功能的话，请务必记住，你需要在每个NMS类中实现这个抽象类中的所有方法。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">现在我们拥有我们自己的接口了，让我们创建实现它的类，并用NMS向玩家发送actionbar信息吧！</font></font></div><hr class="l" /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">下面是用来支持1.8.1版本的类的代码，这个类实现了我们的Actionbar接口。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font></font></div><div class="blockcode"><div id="code_NIo"><ol><li>package me.clip.actionbarplugin.actionbar;<br />
+<li><br />
+<li>import net.minecraft.server.v1_8_R1.ChatSerializer;<br />
+<li>import net.minecraft.server.v1_8_R1.IChatBaseComponent;<br />
+<li>import net.minecraft.server.v1_8_R1.PacketPlayOutChat;<br />
+<li>import org.bukkit.craftbukkit.v1_8_R1.entity.CraftPlayer;<br />
+<li><br />
+<li>import org.bukkit.entity.Player;<br />
+<li><br />
+<li>public class Actionbar_1_8_R1 implements Actionbar {<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void sendActionbar(Player p, String message) {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IChatBaseComponent icbc = ChatSerializer.a(&quot;{&quot;text&quot;: &quot;&quot; + message + &quot;&quot;}&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;PacketPlayOutChat bar = new PacketPlayOutChat(icbc, (byte) 2);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;((CraftPlayer) p).getHandle().playerConnection.sendPacket(bar);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_NIo'));">复制代码</em></div></td></table></div></div><br />
+<br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">下面是用来支持1.8.3版本的类的代码:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font></font></div><div class="blockcode"><div id="code_reC"><ol><li>package me.clip.actionbarplugin.actionbar;<br />
+<li><br />
+<li>import net.minecraft.server.v1_8_R2.IChatBaseComponent;<br />
+<li>import net.minecraft.server.v1_8_R2.PacketPlayOutChat;<br />
+<li>import net.minecraft.server.v1_8_R2.IChatBaseComponent.ChatSerializer;<br />
+<li>import org.bukkit.craftbukkit.v1_8_R2.entity.CraftPlayer;<br />
+<li><br />
+<li>import org.bukkit.entity.Player;<br />
+<li><br />
+<li>public class Actionbar_1_8_R2 implements Actionbar {<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void sendActionbar(Player p, String message) {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;IChatBaseComponent icbc = ChatSerializer.a(&quot;{&quot;text&quot;: &quot;&quot; + message + &quot;&quot;}&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;PacketPlayOutChat bar = new PacketPlayOutChat(icbc, (byte) 2);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;((CraftPlayer) p).getHandle().playerConnection.sendPacket(bar);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_reC'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"></td></table></div></div><br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">现在，我们拥有分别用不同版本发送ActionBar信息的代码了！</font></font></div><hr class="l" /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">接下来，我们需要做的就只剩下创建我们的主类，然后在插件加载时检测版本并调用合适的方法了。<br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">主类代码:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font></font></div><div class="blockcode"><div id="code_aPX"><ol><li>package me.clip.actionbarplugin;<br />
+<li><br />
+<li>import me.clip.actionbarplugin.actionbar.Actionbar;<br />
+<li>import me.clip.actionbarplugin.actionbar.Actionbar_1_8_R1;<br />
+<li>import me.clip.actionbarplugin.actionbar.Actionbar_1_8_R2;<br />
+<li><br />
+<li>import org.bukkit.Bukkit;<br />
+<li>import org.bukkit.event.EventHandler;<br />
+<li>import org.bukkit.event.Listener;<br />
+<li>import org.bukkit.event.player.PlayerJoinEvent;<br />
+<li>import org.bukkit.plugin.java.JavaPlugin;<br />
+<li><br />
+<li>public class ActionbarPlugin extends JavaPlugin implements Listener {<br />
+<li><br />
+<li>&nbsp; &nbsp; // our interface reference! Any class that implements Actionbar can be assigned to this reference!<br />
+<li>&nbsp; &nbsp; // when we need to send an actionbar, all we need to do is call actionbar.sendActionbar(player, message);<br />
+<li>&nbsp; &nbsp; // since the proper NMS class was assigned onEnable, we are now backwards compatible!<br />
+<li>&nbsp; &nbsp; private Actionbar actionbar;<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void onEnable() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (setupActionbar()) {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Bukkit.getPluginManager().registerEvents(this, this);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;getLogger().info(&quot;Actionbar setup was successful!&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;getLogger().info(&quot;The plugin setup process is complete!&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} else {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;getLogger().severe(&quot;Failed to setup Actionbar!&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;getLogger().severe(&quot;Your server version is not compatible with this plugin!&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Bukkit.getPluginManager().disablePlugin(this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; // this method will setup our actionbar class and return true if the server is running a<br />
+<li>&nbsp; &nbsp; // version compatible with our NMS classes.<br />
+<li>&nbsp; &nbsp; // If the server is not compatible, it will return false!<br />
+<li>&nbsp; &nbsp; private boolean setupActionbar() {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String version;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;version = Bukkit.getServer().getClass().getPackage().getName().replace(&quot;.&quot;,&nbsp;&nbsp;&quot;,&quot;).split(&quot;,&quot;)[3];<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (ArrayIndexOutOfBoundsException whatVersionAreYouUsingException) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return false;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getLogger().info(&quot;Your server is running version &quot; + version);<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (version.equals(&quot;v1_8_R1&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//server is running 1.8-1.8.1 so we need to use the 1.8 R1 NMS class<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;actionbar = new Actionbar_1_8_R1();<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} else if (version.equals(&quot;v1_8_R2&quot;)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//server is running 1.8.3 so we need to use the 1.8 R2 NMS class<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;actionbar = new Actionbar_1_8_R2();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// This will return true if the server version was compatible with one of our NMS classes<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// because if it is, our actionbar would not be null<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return actionbar != null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; public void onJoin(PlayerJoinEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;actionbar.sendActionbar(event.getPlayer(), &quot;Welcome to the server!&quot;);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_aPX'));">复制代码</em></div><br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"></td></table></div></div><br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">在这个教程中的示例中，我们在主类中就完成了所有操作。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">但是，如果你要制作一个大型插件的话，可能会有很多类(比如你的监听器类等)。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">这时候，你需要在你的主类中创建一个用来获取Actionbar的方法，并让你的其他类可以使用它。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">这个方法是很简单的，如果你一直在认真看这个教程的话，想必就已经知道如何做了。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">代码:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font></font></div><div class="blockcode"><div id="code_uxN"><ol><li>public Actionbar getActionbar() {<br />
+<li>&nbsp; &nbsp; return actionbar;<br />
+<li>}</ol></div><em onclick="copycode($('code_uxN'));">复制代码</em></div><br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"></td></table></div></div><br />
+</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">现在，你的所有类都能用这个方法发送actionbar信息了！</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">你可以选择很多支持多版本的方法，在这里我使用的方法是得到Bukkit的Server类，然后获取它的包名。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">当然，你也可以用Bukkit.getBukkitVersion()方法来查看你的NMS类需要支持的版本。</font></font></div><hr class="l" /><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">看到这里，你应该明白了一件事：这个让NMS代码向后兼容的方法是非常简单的。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">另外，注意：如果你要实例化你的一个NMS类时，没有支持合适版本的类的话，你的插件将会抛出一个 ClassNotFoundException 异常。因此，建议先确定好服务器版本再去实例化NMS类。</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">在此此后，当spigot更新了一个新的NMS包名时，我们只需要创建一个新的NMS类并让它实现Actionbar接口，最后在插件加载时检测就可以了！</font></font></div><div align="center"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><font style="background-color:white"><img id="aimg_gSGD1" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="700" height="368" src="http://upload-images.jianshu.io/upload_images/6195638-544c95471e258957?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" onmouseover="img_onmouseoverfunc(this)" onclick="zoom(this)" style="cursor:pointer" border="0" alt="" /><br />
+<br />
+</font></font></font></div><br />
+<div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">作者最后的话:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>Thanks for reading. I am not really the greatest developer and I am always learning new things every day just like you!</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">I hope this tutorial helps someone get an understanding on how you can use an interface to do different things such as use NMS on different server versions without using reflecton!</td></table></div></div></font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,">我自己的一些废话:</font></font></div><div align="left"><font style="color:rgb(47, 47, 47)"><font face="-apple-system,"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>由于这是我第一个翻译作品，所以可能有很多问题。。如果你发现了什么问题的话，希望能私信告诉我或在本帖留言，我会尽快改正的QAQ</td></table></div></div></font></font></div><br />
+[groupid=1181]Unknown Domain[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RE_OVO&nbsp; &nbsp; <b>时间: </b>2017-6-17 19:25<br />
+很不错，支持一个<img src="static/image/smiley/mc_mob_food_plants/notch_square.gif" smilieid="840" border="0" alt="" /><br />
+但是反射毕竟有他的好处<br />
+<strong>如果</strong>NMS没有改动协议，那么我不需要去更新代码,我觉得应该是反射与接口实现类并用，当服务端NMS版本不在已经实现类之中，再尝试使用反射。<br />
+xD
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

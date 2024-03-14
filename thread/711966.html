@@ -1,0 +1,209 @@
+<html>
+<head>
+<title>[未知之域]简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[未知之域]简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>耗子&nbsp; &nbsp; <b>时间: </b>2017-7-27 19:09<br />
+<b>标题: </b>[未知之域]简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信<br /><i class="pstatus"> 本帖最后由 耗子 于 2018-8-3 11:13 编辑 </i><br />
+<br />
+<div align="center"><strong><font size="4">简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信</font></strong></div><br />
+在实际开发过程中，我们常常需要用到网络通信。用到网络通信的地方有很多，例如按下按键释放技能，同步玩家属性，监听图形界面按钮按下，让客户端播放特效等等。那么怎么样进行网络通信呢？<br />
+<br />
+<font size="4"><strong>简单网络通信包装类 SimpleNetworkWrapper</strong></font><br />
+<br />
+为了方便的进行网络通信，Forge提供一个简单的网络通信包装类——SimpleNetworkWrapper。这个类位于net.minecraftforge.fml.common.network.simpleimpl包下。<br />
+<br />
+那么，怎么使用这个类呢？首先我们需要获取一个SimpleNetworkWrapper对象。<br />
+<br />
+<div class="blockcode"><div id="code_r44"><ol><li>NetworkRegistry.INSTANCE.newSimpleChannel(channel);</ol></div><em onclick="copycode($('code_r44'));">复制代码</em></div><br />
+在此解释一下channel(频道)参数，该参数是一个字符串(String)，表示网络通信频道名，只有在相同的频道，数据才能互相传输。<br />
+<br />
+以上代码可以获取到一个SimpleNetworkWrapper对象，然后我们将这个对象储存至一个静态字段中以便在模组的任何地方调用，比如这样：<br />
+<br />
+<div class="blockcode"><div id="code_TuD"><ol><li>@Mod(modid = ChinaCraft.MODID, name = ChinaCraft.NAME, version = ChinaCraft.VERSION)<br />
+<li>public final class ChinaCraft {<br />
+<li>&nbsp; &nbsp; public static final String MODID = &quot;chinacraft&quot;;<br />
+<li>&nbsp; &nbsp; public static final String NAME = &quot;ChinaCraft 2&quot;;<br />
+<li>&nbsp; &nbsp; public static final String VERSION = &quot;0.0.1&quot;;<br />
+<li><br />
+<li>&nbsp; &nbsp; private static SimpleNetworkWrapper network;<br />
+<li><br />
+<li>&nbsp; &nbsp; @EventHandler<br />
+<li>&nbsp; &nbsp; public void init(FMLInitializationEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;network = NetworkRegistry.INSTANCE.newSimpleChannel(MODID);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static SimpleNetworkWrapper getNetwork() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return network;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_TuD'));">复制代码</em></div><br />
+这样，我们就可以使用ChinaCraft.getNetwork()方法在模组的任何地方调用SimpleNetworkWrapper对象了。<br />
+<br />
+<font size="4"><strong>消息类和消息处理类</strong></font><br />
+<br />
+接下来，我们开始编写我们的消息类和消息处理类。消息类需要实现IMessage接口，该类必须要有一个无参构造方法，并且需要实现fromBytes和toBytes方法。<br />
+<div class="blockcode"><div id="code_Q7N"><ol><li><br />
+<li>public class RedPacketMessage implements IMessage {<br />
+<li><br />
+<li>&nbsp; &nbsp; public RedPacketMessage() {} //必须要有一个无参构造方法<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void fromBytes(ByteBuf buf) {} //将字节流转换为信息<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void toBytes(ByteBuf buf) {} //将信息转换为字节流<br />
+<li>}</ol></div><em onclick="copycode($('code_Q7N'));">复制代码</em></div><br />
+可以看到，fromBytes和toBytes方法都有一个ByteBuf类型的参数，ByteBuf类中提供了很多read和write方法，那么我们该如何使用呢？举个例子：<br />
+<br />
+<div class="blockcode"><div id="code_Qgz"><ol><li>public class RedPacketMessage implements IMessage {<br />
+<li><br />
+<li>&nbsp; &nbsp; private String sender;<br />
+<li><br />
+<li>&nbsp; &nbsp; public RedPacketMessage() {}<br />
+<li><br />
+<li>&nbsp; &nbsp; public RedPacketMessage(String sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.sender = sender;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void fromBytes(ByteBuf buf) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;char chars[] = new char[buf.readInt()]; //读取字符串长度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(int i=0;i&lt;chars.length;i++) //读取字符<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chars = buf.readChar();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender = String.valueOf(chars); //创建字符串对象<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void toBytes(ByteBuf buf) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;buf.writeInt(sender.length()); //写入字符串长度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(char c:sender.toCharArray()) //写入字符串<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;buf.writeChar(c); <br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_Qgz'));">复制代码</em></div><br />
+提示：可以看到ByteBuf类有些不方便使用，所以可以使用MC实现的PacketBuffer类和Forge提供的ByteBufUtils类。<br />
+接下来，我们需要为这个消息编写一个处理类，来处理收到的消息，消息处理类需要实现IMessageHandler接口，并且需要实现onMessage方法。此外，该接口还是一个泛型接口，拥有两个泛型形参REQ extends IMessage和REPLY extends IMessage，其中REQ表示收到的消息类，REPLY表示回复的消息类。<br />
+<br />
+<div class="blockcode"><div id="code_vgH"><ol><li>public class RedPacketMessageHandler implements IMessageHandler&lt;RedPacketMessage, IMessage&gt; {<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public IMessage onMessage(RedPacketMessage message, MessageContext ctx) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return null; //当你不需要回复消息时，可以将REPLY填写为IMessage，并且返回null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_vgH'));">复制代码</em></div><br />
+接下来，我们需要将消息类和消息处理类注册到SimpleNetworkWrapper对象中。<br />
+<br />
+<div class="blockcode"><div id="code_tVL"><ol><li>network.registerMessage(handler,message,id,side);</ol></div><em onclick="copycode($('code_tVL'));">复制代码</em></div><br />
+解释一下registerMessage方法的四个参数，第一个参数handler需要一个IMessageHandler对象，第二个参数message则是对应的消息类的类对象，第三个参数id表示该消息的id，范围为0~255，且不得重复，第四个参数side表示收到消息的对象，Side.SERVER表示消息由客户端发送，服务器接收，Side.CLIENT表示消息由服务端发送，客户端接收。<br />
+<br />
+<font size="4"><strong>发送消息</strong></font><br />
+<br />
+那么，注册好了以后我们怎么发送消息呢？SimpleNetworkWrapper类实现了五个发送方法，分别有不同的作用。<br />
+<div class="blockcode"><div id="code_nnF"><ol><li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 发送消息给所有玩家（服务端调用该方法）<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void sendToAll(IMessage message)<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 发送消息到指定玩家（服务端调用该方法）<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void sendTo(IMessage message, EntityPlayerMP player)<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 发送消息到指定范围内的所有玩家（服务端调用该方法）<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void sendToAllAround(IMessage message, NetworkRegistry.TargetPoint point)<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 发送消息到指定世界内的所有玩家（服务端调用该方法）<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void sendToDimension(IMessage message, int dimensionId)<br />
+<li><br />
+<li>&nbsp; &nbsp; /**<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;* 发送消息到服务器（客户端调用该方法）<br />
+<li>&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; public void sendToServer(IMessage message)</ol></div><em onclick="copycode($('code_nnF'));">复制代码</em></div><br />
+例如：<br />
+<br />
+<div class="blockcode"><div id="code_Uws"><ol><li>ChinaCraft.getNetwork().sendToServer(new RedPacketMessage());</ol></div><em onclick="copycode($('code_Uws'));">复制代码</em></div><br />
+<font size="4"><strong>ByteBufUtils优化的字符串处理</strong></font><br />
+<br />
+<div class="blockcode"><div id="code_CPw"><ol><li>public class RedPacketMessage implements IMessage {<br />
+<li><br />
+<li>&nbsp; &nbsp; private String sender;<br />
+<li><br />
+<li>&nbsp; &nbsp; public RedPacketMessage() {}<br />
+<li><br />
+<li>&nbsp; &nbsp; public RedPacketMessage(String sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.sender = sender;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void fromBytes(ByteBuf buf) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender = ByteBufUtils.readUTF8String(buf);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void toBytes(ByteBuf buf) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ByteBufUtils.writeUTF8String(buf,sender);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_CPw'));">复制代码</em></div><br />
+本篇教程到这就结束了，感谢您的阅读。<br />
+本教程来自<a href="thread.html?t=705995" target="_blank">ChinaCraft2代码详解——大型模组开发笔记</a>&nbsp; &nbsp; <a href="https://github.com/UnknownStudio/ChinaCraft2CodeExplanation/wiki/%E7%AE%80%E5%8D%95%E7%BD%91%E7%BB%9C%E9%80%9A%E4%BF%A1%E5%8C%85%E8%A3%85%E7%B1%BB-SimpleNetworkWrapper" target="_blank">Github</a><br />
+<br />
+<div align="left"><strong>欢迎各位支持作者，以编写和翻译更多优秀教程。</strong></div><div align="left">[afd]mouse[/afd]</div></div></div><br />
+<br />
+[groupid=1181]Unknown Domain[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2017-7-28 12:58<br />
+<div class="blockcode"><div id="code_Qau"><ol><li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void fromBytes(ByteBuf buf) {} //将字节码转换为信息<br />
+<li><br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void toBytes(ByteBuf buf) {} //将信息转换为字节码</ol></div><em onclick="copycode($('code_Qau'));">复制代码</em></div><br />
+
+<br />
+字节码？字节流？是不是有一点歧义？<br />
+（第一眼看到字节码时，我还以为我看到的是bytecode... 仔细一看发觉不对。）<br />
+<br />
+Anyhow, nice work<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>耗子&nbsp; &nbsp; <b>时间: </b>2017-7-28 13:19<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12101690&amp;ptid=711966" target="_blank"><font color="#999999">u.s.knowledge 发表于 2017-7-28 12:58</font></a></font><br />
+字节码？字节流？是不是有一点歧义？<br />
+（第一眼看到字节码时，我还以为我看到的是bytecode... 仔细一看发 ...</blockquote></div><br />
+确实在这里揣摩了一段时间，不知道用啥好，感谢您的建议<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>godone&nbsp; &nbsp; <b>时间: </b>2018-12-7 10:58<br />
+mark 刚好看到<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Lovely_Penguin&nbsp; &nbsp; <b>时间: </b>2018-12-8 20:36<br />
+膜拜大佬<br />
+太棒了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lrsoft&nbsp; &nbsp; <b>时间: </b>2018-12-19 21:57<br />
+registerMessage里前两个参数handler和message是类不是对象吧<br />
+<img id="aimg_En1J3" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://upload.cc/i1/2018/12/19/jFq3CO.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>耗子&nbsp; &nbsp; <b>时间: </b>2018-12-19 22:52<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13630523&amp;ptid=711966" target="_blank"><font color="#999999">lrsoft 发表于 2018-12-19 21:57</font></a></font><br />
+registerMessage里前两个参数handler和message是类不是对象吧</blockquote></div><br />
+registerMessage方法有两个，声明不同罢了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>155746899&nbsp; &nbsp; <b>时间: </b>2019-2-13 13:39<br />
+很棒的帖子<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Clemens_Mine&nbsp; &nbsp; <b>时间: </b>2019-2-13 18:51<br />
+感谢楼主分享资源！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>minecraft65536&nbsp; &nbsp; <b>时间: </b>2019-3-7 22:26<br />
+我来补充两点：<br />
+①要注意读取包字节流时和写入包字节流时要注意不同数据的读取次序要一样<br />
+②NBT标签可以直接传送：<br />
+<div class="blockcode"><div id="code_ISU"><ol><li>//写入NBT到字节流<br />
+<li>ByteBufUtils.writeTag(buf, nbt);<br />
+<li>//从字节流读取NBT<br />
+<li>NBTTagCompound nbt = ByteBufUtils.readTag(buf);</ol></div><em onclick="copycode($('code_ISU'));">复制代码</em></div>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,83 @@
+<html>
+<head>
+<title>由修复某大佬插件报错而发现的cauldron兼容性技巧 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>由修复某大佬插件报错而发现的cauldron兼容性技巧 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>l89669&nbsp; &nbsp; <b>时间: </b>2017-3-28 16:50<br />
+<b>标题: </b>由修复某大佬插件报错而发现的cauldron兼容性技巧<br /><i class="pstatus"> 本帖最后由 l89669 于 2017-6-20 23:32 编辑 </i><br />
+<br />
+老司机们似乎有一个常识，就是写cauldron插件不能使用nms包，否则会报错<br />
+但是我发现我现在用的插件大量使用了nms包（主要是处理nbt），却运行良好<br />
+然后反编译了一下不能用的插件，发现所有报错都是在<strong><u>反射</u></strong>的语句上报的。<br />
+一脸懵逼，遂去查看cauldron源码，发现了mappings这么一个文件夹<br />
+经过大概学习，发现cauldron的核心工作方式是这样的<br />
+和Sponge思路类似，cauldron的核心其实是在forge的api和部分minecraft源码的基础上重新实现了一个org.bukkit和org.craftbukkit包<br />
+在服务器运行中，其实<strong>根本不存在</strong>nms包，所以用反射来查找nms包里的东西无疑会找不到类/方法/变量并报错<br />
+但是cauldron本身又带了一个黑科技，即动态映射nms包<br />
+它里面的插件加载器在加载插件的时候，可以用黑科技（大概是ASM）把插件中静态引用的nms的类映射为forge中的net.minecraft包中的类<br />
+具体映射表可以在服务器核心jar文件中的mappings文件夹中找到<br />
+所以如果插件要使用反射来实现跨版本支持，又想保持对cauldron服务器的兼容性的话，其实只要判断一下是否是mod服，然后选择以下两种任意一种方法处理即可<br />
+判断mod服可以用Class.forName(&quot;cpw.mods.fml.common.Mod&quot;);<br />
+将反射代码处理成兼容Cauldron的代码的处理方式有两种，比如原来写<br />
+Class clazzChunk = Class.forName(&quot;net.minecraft.server._version_.Chunk&quot;);这一句，如下<br />
+方法一：（使用mappings/cb2numpkg.srg里面的混淆名）<br />
+Class clazzChunk = Class.forName(&quot;net.minecraft.world.chunk.Chunk&quot;);<br />
+方法二：（不使用反射，直接使用引用）<br />
+Class clazzChunk = net.minecrft.server._version_.Chunk.class;<br />
+这两种方法写出的代码都可以在Cauldron服务端中正常运行<br />
+如果想只写一遍代码又想用插入版本号拼接类名的方法做到全版本兼容，的确是没办法兼容Cauldron的<br />
+<br />
+<br />
+<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ----来自默默修复了MOD服上NeverLag检测背包编辑器功能的某萌新<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>言灵乀Poison&nbsp; &nbsp; <b>时间: </b>2017-4-2 08:59<br />
+<i class="pstatus"> 本帖最后由 言灵乀Poison 于 2017-4-2 09:01 编辑 </i><br />
+<br />
+如果是这样的话那么直接反射混淆后的类/方法/字段名应该也可以？这样的话可以直接读取mappings文件夹里的对照表，然后匹配到要反射的东西的混淆名<br />
+<br />
+<br />
+话说我总觉得forge应该有什么工具类可以直接获取混淆名(就是你提到的nms映射，感觉应该可以外部调用<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>l89669&nbsp; &nbsp; <b>时间: </b>2017-4-4 09:05<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11669156&amp;ptid=683230" target="_blank"><font color="#999999">言灵乀Poison 发表于 2017-4-2 08:59</font></a></font><br />
+如果是这样的话那么直接反射混淆后的类/方法/字段名应该也可以？这样的话可以直接读取mappings文件夹里的对 ...</blockquote></div><br />
+获取混淆名的没有，只在forge gradle 和mcp里有obfuscate和deobf两种操作，直接反射混淆后的cl/md/fd也是可行的，详情可以看AttributesEditor开源代码仓库里我最新的PR<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>魔族宝&nbsp; &nbsp; <b>时间: </b>2017-5-22 18:07<br />
+所以实际操作起来是怎样的？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>l89669&nbsp; &nbsp; <b>时间: </b>2017-5-22 21:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11806800&amp;ptid=683230" target="_blank"><font color="#999999">魔族宝 发表于 2017-5-22 18:07</font></a></font><br />
+所以实际操作起来是怎样的？</blockquote></div><br />
+Class clazz = Class.forName(&quot;net.minecraft.server.v1_7_R4.NBTTagCompound&quot;); //这句反射在Cauldron报错<br />
+<br />
+Class clazz = net.minecraft.server.v1_7_R4.NBTTagCompound.class; //这句在CB及Cauldron正常运行（不使用反射，运行时动态混淆）<br />
+<br />
+Class clazz = Class.forName(&quot;net.minecraft.nbt.NBTTagCompound&quot;); //这句在Cauldron正常运行（反射Forge运行时混淆名）<br />
+<br />
+混淆名在服务器jar里mappings文件夹中<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>魔族宝&nbsp; &nbsp; <b>时间: </b>2017-5-23 13:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=11807426&amp;ptid=683230" target="_blank"><font color="#999999">l89669 发表于 2017-5-22 21:25</font></a></font><br />
+Class clazz = Class.forName(&quot;net.minecraft.server.v1_7_R4.NBTTagCompound&quot;); //这句反射在Cauldron报 ...</blockquote></div><br />
+<img src="static/image/smiley/rabbit/41.gif" smilieid="691" border="0" alt="" /><br />
+<br />
+原来说的是这个。。。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>弱鸡绿毛怪&nbsp; &nbsp; <b>时间: </b>2019-8-29 11:53<br />
+？！<br />
+挖坟感谢
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

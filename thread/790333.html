@@ -1,0 +1,327 @@
+<html>
+<head>
+<title>[C++&amp;Java]MC反作弊开发日记-第一章-纯Java编写Mod校验[PCD] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[C++&amp;Java]MC反作弊开发日记-第一章-纯Java编写Mod校验[PCD] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>萝娜娜&nbsp; &nbsp; <b>时间: </b>2018-7-29 04:44<br />
+<b>标题: </b>[C++&amp;Java]MC反作弊开发日记-第一章-纯Java编写Mod校验[PCD]<br /><i class="pstatus"> 本帖最后由 lona 于 2018-7-31 02:04 编辑 </i><br />
+<br />
+<div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="black"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="dimgray"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="white"><tr><td><div align="center"><font size="5">【MC反作弊开发日记-第一章-纯Java编写Mod校验】</font></div></td></tr></table></div></td></tr></table></div></td></tr></table></div><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="black"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="dimgray"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="white"><tr><td><div align="center"><font size="4"><strong>第一节-需求分析</strong></font></div><div align="center"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></div><div align="center"><div align="center"><font size="4">在本节我们将要分析如何设计一个使用BukkitAPI以及ForgeAPI的Mod校验应用。</font></div></div><div align="center"><div align="left"><font size="3"><strong>一.通信模型</strong></font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 我们采用C-S模型即client-server（客户端-服务器模型）。</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 在这个模型中需要注意5点。</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1.请求由客户端发起</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2.客户端任何信息都不可信任</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;3.服务器需要能同时响应多个请求</font></div></div><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;4.设计服务器时安全性排在第一位</font><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;5.通信过程需要加密（解决第二点客户端不可信）<br />
+</font></div></div><div align="center"><div align="left"><font size="3"><strong>二.客户端设计</strong></font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 1.分析</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1).文件校验</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).需要校验的文件存在多个</font></div></div><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).需要校验的文件可能存在因为某些问题而读取失败<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).读取文件时可能被hook（例如hook住ReadFile函数）<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(4).读取到的数据在内存中可能被篡改<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;①.客户端被修改<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;②.直接在文件读取完成后修改内存区域（基本没人用这种办法吧）<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(5).采用何种Hash算法<br />
+</font><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2).数据传给服务器</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).传输可能加密</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).传输可能中断</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).传输可能被拦截</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 2.实现</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1).文件校验</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).对目录进行遍历</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).读取失败时停止校验并且发送读取失败消息给服务器</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).现阶段无法防止Hook</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(4).现阶段无法防止修改</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(5).javaAPI(SE)自带的API中已经有SHA MD5 CRC等实现</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2).数据传输</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).加密过程以服务器为主导</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).中断即失败，此时需要退出在线游戏或者客户端</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).现阶段无法判断拦截</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).使用MC通信协议的plugin channel进行数据传输（单个包不大于64千字节）</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(4).使用PCD_ANTICHEAT_MOD作为plugin channel的name</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;3).Forge Mod</font></div></div><div align="center"><div align="left"><font size="3"><strong>三.服务器设计</strong></font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 1.分析</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1).接收客户端数据</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).同时可能存在多个客户端连接</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).客户端数据可能有假</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).客户端客户端可能利用协议进行攻击</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2).对数据进行处理</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).校验失败</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).校验成功</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp; 2.实现</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1).数据传输</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).bukkit服务端已经为我们很好的管理了这个情况，所以不需要处理</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).通信加密来防止伪造的客户端</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(3).限制客户端连接次数和流量</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2).数据处理</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(1).将玩家踢出并记录相关信息</font></div></div><div align="center"><div align="left"><font size="3">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;(2).记录相关信息</font></div><div align="left"></td></table></div></div></div></div></td></tr></table></div></td></tr></table></div></td></tr></table></div><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="black"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="dimgray"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="white"><tr><td><div align="center"><font size="4">第二节-源代码</font></div><div align="center"><font size="2"><font color="#0000ff"><strong>可以说是非常精简的一个反作弊，全部只有286行代码</strong></font></font></div><div align="center"><div align="left"><font size="2">一.git</font></div></div><div align="center"><div align="left"><font size="2">&nbsp; &nbsp; 1.请使用git下载最新源码,<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fgitee.com%2Flona%2FPCDTAC%2Ftree%2Fchapter_1%2F" target="_blank"><img id="aimg_wQR6A" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="87" height="20" src="https://gitee.com/lona/PCDTAC/badge/star.svg" border="0" alt="" /></a></font></div><div align="left">二.服务端源码</div><div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></div><blockquote><font color="#cc7832">package </font>lona.java.minecraft.bukkit.pcdtac<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteArrayDataInput<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteArrayDataOutput<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteStreams<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.apache.commons.io.FileUtils<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.entity.Player<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.event.<font color="#bbb529">EventHandler</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.event.Listener<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.event.player.PlayerJoinEvent<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.event.player.PlayerQuitEvent<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.bukkit.plugin.java.JavaPlugin<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import </font>java.io.File<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.io.IOException<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.*<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.concurrent.ConcurrentHashMap<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">public class </font>PCDTAC <font color="#cc7832">extends </font>JavaPlugin <font color="#cc7832">implements </font>Listener {<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public static final </font>String <font color="#9876aa"><i>PLUGIN_CHANNEL_NAME </i></font>= <font color="#6a8759">&quot;PCDTAC&quot;</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; private </font>Map&lt;String<font color="#cc7832">, </font>Integer&gt; <font color="#9876aa">uncheckPlayerMap</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; private </font>List&lt;String&gt; <font color="#9876aa">acceptableFileList</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; private byte</font>[] <font color="#9876aa">requestHashPacketData</font><font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp; public enum </font>PacketType {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa"><i>RequestClientModFileHash</i></font>(<font color="#6897bb">0</font>)<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa"><i>ReplyClientModFileHash</i></font>(<font color="#6897bb">1</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#ffc66d">PacketType</font>(<font color="#cc7832">int </font>packet_id) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">this</font>.<font color="#9876aa">packet_id </font>= (<font color="#cc7832">byte</font>) packet_id<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">private byte </font><font color="#9876aa">packet_id</font><font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public byte </font><font color="#ffc66d">getPacket_id</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">return </font><font color="#9876aa">packet_id</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">public static byte </font><font color="#ffc66d">getLastPacketID</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">return </font><font color="#9876aa"><i>ReplyClientModFileHash</i></font>.<font color="#9876aa">packet_id</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public enum </font>KickReason {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa"><i>BadPacket</i></font>(<font color="#6a8759">&quot;通信错误&quot;</font>)<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa"><i>UnacceptableMod</i></font>(<font color="#6a8759">&quot;存在不允许安装的Mod&quot;</font>)<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa"><i>Timeout</i></font>(<font color="#6a8759">&quot;超时&quot;</font>)<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa"><i>Unknow</i></font>(<font color="#6a8759">&quot;出现未知错误&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#ffc66d">KickReason</font>(String reason) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">this</font>.<font color="#9876aa">reason </font>= reason<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">private </font>String <font color="#9876aa">reason</font><font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public </font>String <font color="#ffc66d">getReason</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">return </font><font color="#9876aa">reason</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font><font color="#ffc66d">PCDTAC</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa">uncheckPlayerMap </font>= <font color="#cc7832">new </font>ConcurrentHashMap&lt;&gt;()<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>ByteArrayDataOutput dataOutput = ByteStreams.<i>newDataOutput</i>()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>dataOutput.writeByte(PacketType.<font color="#9876aa"><i>RequestClientModFileHash</i></font>.getPacket_id())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa">requestHashPacketData </font>= dataOutput.toByteArray()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">onEnable</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">try </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#9876aa">acceptableFileList </font>= FileUtils.<i>readLines</i>(<font color="#cc7832">new </font>File(<font color="#6a8759">&quot;.&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;plugins&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;PCDTAC&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;fileList.txt&quot;</font>)<font color="#cc7832">, </font><font color="#6a8759">&quot;UTF-8&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>} <font color="#cc7832">catch </font>(IOException e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#9876aa">acceptableFileList </font>= <font color="#cc7832">new </font>ArrayList&lt;&gt;()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>getLogger().info(<font color="#6a8759">&quot;读取fileList.txt失败&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getServer().getPluginManager().registerEvents(<font color="#cc7832">this, this</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>getServer().getMessenger().registerOutgoingPluginChannel(<font color="#cc7832">this, </font><font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>getServer().getMessenger().registerIncomingPluginChannel(<font color="#cc7832">this, </font><font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font><font color="#cc7832">, </font>(String channel_name<font color="#cc7832">, </font>Player player<font color="#cc7832">, byte</font>[] payload) -&gt; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ByteArrayDataInput dataInput = ByteStreams.<i>newDataInput</i>(payload)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">//读取包ID<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#cc7832">final byte </font>packet_id = dataInput.readByte()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#808080">//检查包ID是否正常<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font><font color="#cc7832">if </font>(packet_id &gt; PacketType.<i>getLastPacketID</i>()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;kickPlayer(player<font color="#cc7832">, </font>KickReason.<font color="#9876aa"><i>BadPacket</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>} <font color="#cc7832">else </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#808080">//分包<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#cc7832">if </font>(packet_id == PacketType.<font color="#9876aa"><i>ReplyClientModFileHash</i></font>.getPacket_id()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">final short </font>numOfFile = dataInput.readShort()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; hashList = <font color="#cc7832">new </font>ArrayList&lt;&gt;()<font color="#cc7832">;</font><font color="#808080">//Map.Entry&lt;fileName,hashValue&gt;<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#cc7832">for </font>(<font color="#cc7832">short </font>i = <font color="#6897bb">0</font><font color="#cc7832">; </font>i &lt; numOfFile<font color="#cc7832">; </font>i++) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; hashList.add(<font color="#cc7832">new </font>AbstractMap.SimpleEntry&lt;&gt;(dataInput.readUTF()<font color="#cc7832">, </font>dataInput.readUTF()))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">if </font>(isFileListAcceptable(hashList)) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#9876aa">uncheckPlayerMap</font>.remove(player.getName())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>} <font color="#cc7832">else </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; kickPlayer(player<font color="#cc7832">, </font>KickReason.<font color="#9876aa"><i>UnacceptableMod</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} <font color="#cc7832">else</font><font color="#808080">//不可解析的包<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;kickPlayer(player<font color="#cc7832">, </font>KickReason.<font color="#9876aa"><i>BadPacket</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} <font color="#cc7832">catch </font>(Exception e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; kickPlayer(player<font color="#cc7832">, </font>KickReason.<font color="#9876aa"><i>Unknow</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;})<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>getServer().getScheduler().runTaskTimer(<font color="#cc7832">this, </font>() -&gt; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">final </font>Set&lt;String&gt; players = <font color="#9876aa">uncheckPlayerMap</font>.keySet()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for </font>(String playerName : players) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#cc7832">int </font>timeout = <font color="#9876aa">uncheckPlayerMap</font>.get(playerName)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if </font>(timeout &gt; <font color="#6897bb">0</font>) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa">uncheckPlayerMap</font>.put(playerName<font color="#cc7832">, </font>timeout - <font color="#6897bb">1</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>} <font color="#cc7832">else </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;kickPlayer(playerName<font color="#cc7832">, </font>KickReason.<font color="#9876aa"><i>Timeout</i></font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<font color="#cc7832">, </font><font color="#6897bb">20</font><font color="#cc7832">, </font><font color="#6897bb">20</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>getLogger().info(<font color="#6a8759">&quot;反作弊插件载入成功&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@Override<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">onDisable</font>() {<br />
+<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@EventHandler<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">onPlayerJoin</font>(PlayerJoinEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">final </font>String playerName = event.getPlayer().getName()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>getServer().getScheduler().runTaskLater(<font color="#cc7832">this, </font>() -&gt; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">final </font>Player player = getServer().getPlayer(<font color="#b389c5">playerName</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>player.sendPluginMessage(<font color="#cc7832">this, </font><font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font><font color="#cc7832">, </font><font color="#9876aa">requestHashPacketData</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#9876aa">uncheckPlayerMap</font>.put(<font color="#b389c5">playerName</font><font color="#cc7832">, </font><font color="#6897bb">5</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<font color="#cc7832">, </font><font color="#6897bb">20 </font>* <font color="#6897bb">1</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@EventHandler<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">onPlayerExit</font>(PlayerQuitEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#9876aa">uncheckPlayerMap</font>.remove(event.getPlayer().getName())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">private void </font><font color="#ffc66d">kickPlayer</font>(Player player<font color="#cc7832">, </font>KickReason reason) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;player.kickPlayer(reason.getReason())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#9876aa">uncheckPlayerMap</font>.remove(player.getName())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">private void </font><font color="#ffc66d">kickPlayer</font>(String playerName<font color="#cc7832">, </font>KickReason reason) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;kickPlayer(getServer().getPlayer(playerName)<font color="#cc7832">, </font>reason)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public boolean </font><font color="#ffc66d">isFileListAcceptable</font>(List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; hashList) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">for </font>(Map.Entry&lt;String<font color="#cc7832">, </font>String&gt; pair : hashList) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">if </font>(!isFileAcceptable(pair.getKey()<font color="#cc7832">, </font>pair.getValue())) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#cc7832">return false;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">return true;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public boolean </font><font color="#ffc66d">isFileAcceptable</font>(String fileName<font color="#cc7832">, </font>String hashValue) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">return </font><font color="#9876aa">acceptableFileList</font>.contains(hashValue)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+}<br />
+</blockquote><br />
+<div align="left"></td></table></div></div></div><br />
+<div align="left">三.客户端代码</div><div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></div><blockquote><font color="#cc7832">package </font>lona.java.minecraft.forge.pcdtac<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteArrayDataInput<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteArrayDataOutput<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>com.google.common.io.ByteStreams<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>io.netty.buffer.ByteBuf<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>io.netty.buffer.Unpooled<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraft.network.PacketBuffer<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.common.MinecraftForge<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.FMLCommonHandler<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.<font color="#bbb529">Mod</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.<font color="#bbb529">Mod</font>.<font color="#bbb529">EventHandler</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.event.FMLInitializationEvent<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.event.FMLPreInitializationEvent<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.eventhandler.EventPriority<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.eventhandler.<font color="#bbb529">SubscribeEvent</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.network.FMLEventChannel<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.network.FMLNetworkEvent<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.network.NetworkRegistry<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.common.network.internal.FMLProxyPacket<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.relauncher.Side<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>net.minecraftforge.fml.relauncher.<font color="#bbb529">SideOnly</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>org.apache.commons.io.FileUtils<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import </font>java.io.File<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.io.IOException<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.lang.reflect.Field<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.security.MessageDigest<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.security.NoSuchAlgorithmException<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.AbstractMap<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.ArrayList<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.List<font color="#cc7832">;<br />
+</font><font color="#cc7832">import </font>java.util.Map<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import static </font>lona.java.minecraft.bukkit.pcdtac.PCDTAC.<font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font><font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">import </font>lona.java.minecraft.bukkit.pcdtac.PCDTAC.PacketType<font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#bbb529">@Mod</font>(<font color="#d0d0ff">modid </font>= PCDTAC.<font color="#9876aa"><i>MODID</i></font><font color="#cc7832">, </font><font color="#d0d0ff">name </font>= PCDTAC.<font color="#9876aa"><i>NAME</i></font><font color="#cc7832">, </font><font color="#d0d0ff">version </font>= PCDTAC.<font color="#9876aa"><i>VERSION</i></font><font color="#cc7832">, </font><font color="#d0d0ff">acceptedMinecraftVersions </font>= <font color="#6a8759">&quot;[1.8,1.12.2]&quot;</font>)<br />
+<font color="#cc7832">public class </font>PCDTAC {<br />
+&nbsp; &nbsp; <font color="#cc7832">public static final </font>String <font color="#9876aa"><i>MODID </i></font>= <font color="#6a8759">&quot;pcdtac&quot;</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public static final </font>String <font color="#9876aa"><i>NAME </i></font>= <font color="#6a8759">&quot;PCDTAC&quot;</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; public static final </font>String <font color="#9876aa"><i>VERSION </i></font>= <font color="#6a8759">&quot;1.0.0&quot;</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; private </font>FMLEventChannel <font color="#9876aa">channel</font><font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; private static final </font>String <font color="#9876aa"><i>modsDirPath </i></font>= System.<i>getProperty</i>(<font color="#6a8759">&quot;user.dir&quot;</font>) + File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;mods&quot;</font><font color="#cc7832">;<br />
+</font><font color="#cc7832"><br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font><font color="#bbb529">@EventHandler<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">preInit</font>(FMLPreInitializationEvent event) {<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@EventHandler<br />
+</font><font color="#bbb529">&nbsp; &nbsp; </font><font color="#cc7832">public void </font><font color="#ffc66d">init</font>(FMLInitializationEvent event) <font color="#cc7832">throws </font>IOException<font color="#cc7832">, </font>NoSuchAlgorithmException {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; modFileHashList = getModFileHashList()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>File file = <font color="#cc7832">new </font>File(<font color="#6a8759">&quot;.&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;mods&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;PCDTAC&quot; </font>+ File.<font color="#9876aa"><i>separator </i></font>+ <font color="#6a8759">&quot;fileList.txt&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if </font>(!file.getParentFile().exists()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;file.getParentFile().mkdirs()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">for </font>(Map.Entry&lt;String<font color="#cc7832">, </font>String&gt; fileHash : modFileHashList) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;FileUtils.<i>write</i>(file<font color="#cc7832">, </font>fileHash.getValue() + <font color="#6a8759">'</font><font color="#cc7832">\n</font><font color="#6a8759">'</font><font color="#cc7832">, </font><font color="#6a8759">&quot;UTF-8&quot;</font><font color="#cc7832">, true</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;FMLCommonHandler.<i>instance</i>().bus().register(<font color="#cc7832">this</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>MinecraftForge.<font color="#9876aa"><i>EVENT_BUS</i></font>.register(<font color="#cc7832">this</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>(<font color="#9876aa">channel </font>= NetworkRegistry.<font color="#9876aa"><i>INSTANCE</i></font>.newEventDrivenChannel(<font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font>)).register(<font color="#cc7832">this</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#bbb529">@SubscribeEvent</font>(<font color="#d0d0ff">priority </font>= EventPriority.<font color="#9876aa"><i>LOWEST</i></font>)<br />
+&nbsp; &nbsp; <font color="#bbb529">@SideOnly</font>(Side.<font color="#9876aa"><i>CLIENT</i></font>)<br />
+&nbsp; &nbsp; <font color="#cc7832">public void </font><font color="#ffc66d">onServerCustomPacket</font>(FMLNetworkEvent.ClientCustomPacketEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">try </font>{<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#cc7832">final </font>Field packetField = event.getClass().getSuperclass().getDeclaredField(<font color="#6a8759">&quot;packet&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final </font>FMLNetworkEvent.CustomPacketEvent customPacketEvent = event<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>packetField.setAccessible(<font color="#cc7832">true</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final </font>FMLProxyPacket packet = (FMLProxyPacket) packetField.get(customPacketEvent)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>ByteBuf buffer = packet.payload()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;byte</font>[] data = <font color="#cc7832">new byte</font>[buffer.readableBytes()]<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>buffer.readBytes(data)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>ByteArrayDataInput dataInput = ByteStreams.<i>newDataInput</i>(data)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;byte </font>packet_id = dataInput.readByte()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if </font>(packet_id == PacketType.<font color="#9876aa"><i>RequestClientModFileHash</i></font>.getPacket_id()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ByteArrayDataOutput dataOutput = ByteStreams.<i>newDataOutput</i>()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; modFileHashList = getModFileHashList()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>dataOutput.writeByte(PacketType.<font color="#9876aa"><i>ReplyClientModFileHash</i></font>.getPacket_id())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>dataOutput.writeShort(modFileHashList.size())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for </font>(Map.Entry&lt;String<font color="#cc7832">, </font>String&gt; pair : modFileHashList) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dataOutput.writeUTF(pair.getKey())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>dataOutput.writeUTF(pair.getValue())<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; </font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#9876aa">channel</font>.sendToServer(<font color="#cc7832">new </font>FMLProxyPacket(<font color="#cc7832">new </font>PacketBuffer(Unpooled.<i>wrappedBuffer</i>(dataOutput.toByteArray()))<font color="#cc7832">, </font><font color="#9876aa"><i>PLUGIN_CHANNEL_NAME</i></font>))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} <font color="#cc7832">catch </font>(NoSuchFieldException | IllegalAccessException | IOException | NoSuchAlgorithmException e) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font>String <font color="#ffc66d">getFileHash</font>(File file) <font color="#cc7832">throws </font>IOException<font color="#cc7832">, </font>NoSuchAlgorithmException {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">byte</font>[] fileData = FileUtils.<i>readFileToByteArray</i>(file)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>MessageDigest messageDigest = MessageDigest.<i>getInstance</i>(<font color="#6a8759">&quot;MD5&quot;</font>)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>messageDigest.update(fileData)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;byte</font>[] hashBytes = messageDigest.digest()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>StringBuilder hash = <font color="#cc7832">new </font>StringBuilder()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for </font>(<font color="#cc7832">byte </font>b : hashBytes) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;hash.append(String.<i>format</i>(<font color="#6a8759">&quot;%02X&quot;</font><font color="#cc7832">, </font>b))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">return </font>hash.toString()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">public </font>List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; <font color="#ffc66d">getModFileHashList</font>() <font color="#cc7832">throws </font>IOException<font color="#cc7832">, </font>NoSuchAlgorithmException {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;File[] files = <font color="#cc7832">new </font>File(<font color="#9876aa"><i>modsDirPath</i></font>).listFiles((File file) -&gt; file.getName().toLowerCase().endsWith(<font color="#6a8759">&quot;jar&quot;</font>) || file.getName().toLowerCase().endsWith(<font color="#6a8759">&quot;zip&quot;</font>))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>List&lt;Map.Entry&lt;String<font color="#cc7832">, </font>String&gt;&gt; modFileHashList = <font color="#cc7832">new </font>ArrayList&lt;&gt;()<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;assert </font>files != <font color="#cc7832">null;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for </font>(File file : files) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String hash = getFileHash(file)<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>modFileHashList.add(<font color="#cc7832">new </font>AbstractMap.SimpleEntry&lt;&gt;(file.getPath()<font color="#cc7832">, </font>hash))<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">return </font>modFileHashList<font color="#cc7832">;<br />
+</font><font color="#cc7832">&nbsp; &nbsp; </font>}<br />
+<br />
+}<br />
+</blockquote><br />
+<br />
+<div align="left"></td></table></div></div></div></div></td></tr></table></div></td></tr></table></div></td></tr></table></div>[groupid=1330]PluginsCDTribe[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>117779284&nbsp; &nbsp; <b>时间: </b>2018-7-29 06:05<br />
+<img src="static/image/smiley/rabbit/38.gif" smilieid="688" border="0" alt="" /><br />
+<br />
+给我个成品就可以了··<img src="static/image/smiley/rabbit/08.gif" smilieid="658" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>berry64&nbsp; &nbsp; <b>时间: </b>2018-7-29 10:36<br />
+我一直在想有没有可能动态编译混淆反作弊mod<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>萝娜娜&nbsp; &nbsp; <b>时间: </b>2018-7-29 16:08<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13133409&amp;ptid=790333" target="_blank"><font color="#999999">berry64 发表于 2018-7-29 10:36</font></a></font><br />
+我一直在想有没有可能动态编译混淆反作弊mod</blockquote></div><br />
+没意义，纯java写的反作弊mod实际上并没有什么卵用
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

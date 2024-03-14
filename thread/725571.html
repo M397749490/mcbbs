@@ -1,0 +1,277 @@
+<html>
+<head>
+<title>[Tutor][PCD]Forge与Bukkit|Sponge之间的通信|数据传输——Messenger类 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[Tutor][PCD]Forge与Bukkit|Sponge之间的通信|数据传输——Messenger类 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>海螺螺&nbsp; &nbsp; <b>时间: </b>2017-8-28 20:26<br />
+<b>标题: </b>[Tutor][PCD]Forge与Bukkit|Sponge之间的通信|数据传输——Messenger类<br /><i class="pstatus"> 本帖最后由 754503921 于 2019-6-14 17:31 编辑 </i><br />
+<br />
+<div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="Black"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="silver"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="white"><tr><td><div align="center"><font size="5"><strong>Forge | LiteLoader 与 Bukkit / Sponge 之间的通信</strong></font><br />
+<font size="4"><strong>—— PluginMessengeChannel 与 FMLNetworkEvent</strong></font></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="silver"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td>在实际开发中，如果你有一些天才的设想，比如借助 Forge 让你的插件服务器变得更加有特色，但是苦于无法进行数据传输的话，那么现在你就可以学习如何让 Bukkit / Sponge 和 Forge 之间传输信息了。<br />
+此教程适用于 1.7.10-1.12 （已测试） <a href="http://www.mcbbs.net/thread-873219-1-1.html" target="_blank"><font color="#ff0000"><strong>1.13 可以看这里</strong></font></a>，1.7.10就把包名改成 cpw 那个就行，Bukkit的插件全版本通用。<br />
+<font size="4"><strong><hr class="l" />概述<br />
+</strong></font>Bukkit / Sponge 与 Forge 通信的原理为：<br />
+服务端发送 PluginMessage 到 Forge 客户端，客户端使用 FMLNetworkEvent.ClientCustomPacketEvent 接受处理信息。<br />
+Forge 使用 FMLEventChannel 将 FMLNetworkPacket 发送至 Bukkit，Bukkit 服务器使用 PluginMessageListener 接受处理消息，Sponge 使用注册的频道添加的监听器 RawDataListener 处理消息。<br />
+教程使用的包名为 com.ilummc.msgtutor，主类为 MessageMain。<font size="4"><strong><br />
+<hr class="l" />Bukkit 接收消息部分</strong></font><br />
+不知道你在查阅 Bukkit 的 Javadocs 时有没有注意到这样一个包 org.bukkit.plugin.messaging，这就是用于通信的包。<br />
+首先你需要一个实现了 PluginMessageListener 的类，本教程我们将其命名为 MessageListener：<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">package com.ilummc.msgtutor;<br />
+<br />
+import org.bukkit.entity.Player;<br />
+import org.bukkit.plugin.messaging.PluginMessageListener;<br />
+<br />
+public class MessageListener implements PluginMessageListener {<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void <font color="#ff8c00">onPluginMessageReceived</font>(String <font color="#9932cc">channel</font>, Player <font color="#9932cc">player</font>, byte[] <font color="#9932cc">data</font>) {<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+}</font></td></tr></table>自动补全的方法 <font color="#ff8c00">onPluginMessageReceived</font> 为接收到消息时调用的方法，<font color="#9932cc">channel</font> 为通道名称，<font color="#9932cc">data</font> 为具体的数据内容。<br />
+<font color="#ff0000"><strong>(2018/7/25 补充) 自 1.13 后，bukkit 对 channel 的名称做出了限制，需要使用 namespace:name 的格式，比如 fmltutor:fmltutor</strong></font><br />
+接着，你需要注册消息输入和输出的通道，通过 Messenger 类的 <font color="#ff8c00">registerIncomingPluginChannel</font> 和 <font color="#ff8c00">registerOutgoingPluginChannel</font> 方法完成，代码如下：<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">package com.ilummc.msgtutor;<br />
+<br />
+import org.bukkit.Bukkit;<br />
+import org.bukkit.plugin.java.JavaPlugin;<br />
+<br />
+public class MessageMain extends JavaPlugin {<br />
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void <font color="#ff8c00">onEnable</font>() {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">// 注册消息接受通道</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Bukkit.getMessenger().registerIncomingPluginChannel(<font color="#9932cc">this</font>, &quot;msgtutor&quot;, new MessageListener());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">// 注册消息发送通道</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Bukkit.getMessenger().registerOutgoingPluginChannel(<font color="#9932cc">this</font>, &quot;msgtutor&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+}</font></td></tr></table><font color="#ff8c00">registerIncomingPluginChannel</font> 注册了接受消息的通道，和使用的 PluginMessageListener 实例，<font color="#ff8c00">registerOutgoingPluginChannel</font> 则注册了发送消息使用的通道。<br />
+到此你完成了Bukkit 接收消息的部分。<br />
+<font size="4"><strong><hr class="l" />Forge 客户端接收消息部分</strong></font><br />
+我们需要先注册一个通道，使用 NetworkRegistry 类的 <font color="#ff8c00">newEventDrivenChannel</font> 方法：<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">package com.ilummc.msgtutor;<br />
+<br />
+import net.minecraftforge.common.MinecraftForge;<br />
+import net.minecraftforge.fml.common.FMLCommonHandler;<br />
+import net.minecraftforge.fml.common.FMLLog;<br />
+import net.minecraftforge.fml.common.Mod;<br />
+import net.minecraftforge.fml.common.Mod.EventHandler;<br />
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;<br />
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;<br />
+import net.minecraftforge.fml.common.network.FMLEventChannel;<br />
+import net.minecraftforge.fml.common.network.FMLNetworkEvent;<br />
+import net.minecraftforge.fml.common.network.NetworkRegistry;<br />
+<br />
+@SuppressWarnings(&quot;all&quot;)<br />
+@Mod(modid=&quot;msgtutor&quot;, version=&quot;tutor&quot;, name=&quot;MessageTutor&quot;)<br />
+public class MessageMain {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static FMLEventChannel <font color="#9932cc">channel</font>;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void <font color="#ff8c00">preload</font>(FMLPreInitializationEvent <font color="#9932cc">evt</font>) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">// 注册事件</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; MinecraftForge.EVENT_BUS.register(<font color="#9932cc">this</font>);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; FMLCommonHandler.instance().<strike>bus</strike>().register(<font color="#9932cc">this</font>);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">// 注册通道</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#9932cc">channel</font> = NetworkRegistry.INSTANCE.newEventDrivenChannel(&quot;msgtutor&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#9932cc">channel</font>.register(<font color="#9932cc">this</font>);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+}</font></td></tr></table>接着，我们添加一个监听器，监听 FMLNetworkEvent.ClientCustomPacketEvent 事件：<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@SubscribeEvent<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void <font color="#ff8c00">onClientPacket</font>(FMLNetworkEvent.ClientCustomPacketEvent <font color="#9932cc">evt</font>) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; FMLLog.getLogger().info(new String(<font color="#9932cc">evt</font>.getPacket().payload().array()));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</font></td></tr></table>此事件的 <font color="#ff8c00">getPacket</font> 方法可以获得一个 FMLProxyPacket 实例数据包，这个实例的方法 <font color="#ff8c00">payload</font> 可以获得数据包携带的内容 ByteBuf，而 ByteBuf 实例的方法 <font color="#ff8c00">array</font> 则可以得到 byte[] 类型的数据。<br />
+<strong><font color="#ff0000">(2018/7/8 补充) 在 forge 的 1.12.2 以后的版本，该事件的 ByteBuf 变成了一个 netty 魔性优化的实例，导致性能的上升以及 array() 方法的失效，你需要手动 new 一个数组然后用 readBytes 来读数据。</font></strong><br />
+到此，你就可以接收来自服务器的消息了。<br />
+<font size="4"><strong><hr class="l" />Sponge 接收消息部分</strong></font><br />
+Sponge.<font color="#ff8c00">getChannelRegistrar</font>() 方法返回 message channel 的注册器，然后通过其 <font color="#ff8c00">createRawChannel</font> 方法注册一个新的 channel。<br />
+通过 <font color="#ff8c00">addListener</font> 添加新的监听器。<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">package com.ilummc.msgtutor;<br />
+<font color="#808080">// 省略导入</font><br />
+@Plugin(id = &quot;msgtutor&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = &quot;MessageTutor&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;version = &quot;1.0-SNAPSHOT&quot;,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;authors = {&quot;IzzelAliz&quot;})<br />
+public class ServerGui {<br />
+<br />
+&nbsp; &nbsp; private static ChannelBinding.RawDataChannel channel;<br />
+<br />
+&nbsp; &nbsp; @Listener<br />
+&nbsp; &nbsp; public void onServerStart(GameStartedServerEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#808080">// 注册频道</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;channel = Sponge.<font color="#ff8c00">getChannelRegistrar</font>().<font color="#ff8c00">createRawChannel</font>(this, &quot;msgtutor&quot;);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#808080">// 添加监听器<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// PlatformType 指定监听来自哪里的信息，我们监听的是客户端，所以使用 CLIENT</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;channel.addListener(Platform.Type.CLIENT, (<font color="#9932cc">data</font>, <font color="#9932cc">connection</font>, <font color="#9932cc">side</font>) -&gt; {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#808080">// 将连接类型转换为 PlayerConnection</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (connection instanceof PlayerConnection) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; PlayerConnection conn = (PlayerConnection) connection;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#808080">// 示例给玩家发送消息</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; conn.getPlayer().sendMessage(Text.of(new String(data.array())));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;});<br />
+&nbsp; &nbsp; }<br />
+}</font></td></tr></table><font size="4"><strong><hr class="l" />发送消息<br />
+</strong></font>Bukkit 发送消息给客户端的方法为<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">Bukkit.getPlayer(&quot;Izzel_Aliz&quot;).sendPluginMessage(Plugin <font color="#9932cc">plugin</font>, String <font color="#9932cc">channel</font>, byte[] <font color="#9932cc">data</font>);</font></td></tr></table>Forge 发送消息给服务器的方法为<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">byte[] <font color="#9932cc">array</font> = ...; <font color="#808080">// 你要发送的消息的 byte 数组</font><br />
+ByteBuf <font color="#9932cc">buf</font> = Unpooled.wrappedBuffer(<font color="#9932cc">array</font>);<br />
+FMLProxyPacket <font color="#9932cc">packet</font> = new FMLProxyPacket(new PacketBuffer(<font color="#9932cc">buf</font>), &quot;msgtutor&quot;); <font color="#808080">// 数据包</font><br />
+<font color="#9932cc">channel</font>&nbsp;&nbsp;<font color="#808080">// FMLEventChannel 实例</font><br />
+&nbsp; &nbsp; .sendToServer(<font color="#9932cc">packet</font>);</font></td></tr></table>Sponge 发送消息给客户端的方法为<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">ChannelBinding.RawDataChannel channel = ... ; <font color="#808080">// 你注册的 channel 实例</font><br />
+Player player = .... ; <font color="#808080">// 目标玩家</font><br />
+channel.sendTo(player, channelBuf -&gt; channelBuf.writeByteArray(&quot;发送的消息&quot;).getBytes());<br />
+<font color="#808080">// ChannelBuf 有大量方法，可以写入读取不同种类的数据，使用与 ByteBuf 类似</font></font></td></tr></table>你可以发送任何东西，只要能将其作为 byte 数组发送。byte 数组的长度限制为 32766 字节。<br />
+<strong><hr class="l" /><font size="4">LiteLoader 接受/发送</font><br />
+</strong>请移步 @ustc_zzzz 大佬的帖子的章节 <strong>与服务端插件交互</strong> <a href="thread.html?t=659755" target="_blank">http://www.mcbbs.net/thread-659755-1-1.html</a><font size="4"><strong><hr class="l" />关于线程安全</strong></font><br />
+以上接收时的事件全部是在网络线程被触发，所以对于线程不安全的Minecraft来说，线程安全问题需要额外注意。<br />
+由于本人对 Forge 的操作并不是很熟练，所以只能以 Bukkit 作为例子，如果你接收到的信息只是一条字符串，并且你只是想将其发送给玩家（<font color="#ff8c00">Player#sendMessage</font>），那么你可以随意在网络线程中使用，因为这个方法是线程安全的；但是，如果你需要进行踢出（<font color="#ff8c00">Player#kickPlayer</font>），那么你必须在主线程（Server Thread）进行这个操作，否则可能得到一个报错、崩溃或者意想不到的结果（尽管 Bukkit 会阻止 Async Kick 的行为并发出警告）。<br />
+那么，我们可以用以下的方法将数据转交给主线程处理：<br />
+<ul><li>使用 Bukkit 或者 Sponge 的调度器<br />
+</ul><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>Bukkit#getScheduler 返回一个 Bukkit 的调度器，Sponge#getScheduler 返回一个 Sponge 的调度器。<br />
+实例如下：<br />
+Bukkit 错误的做法：<br />
+<div class="blockcode"><div id="code_IA0"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onPluginMessageReceived(String channel, Player player, byte[] data) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; player.kickPlayer(&quot;你因为给服务器发 plugin message 被踢了&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &lt;font color=&quot;#808080&quot;&gt;// 报错&lt;/font&gt;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_IA0'));">复制代码</em></div>Bukkit 的正确做法，将涉及服务器的操作使用调度器交给主线程完成：<br />
+<div class="blockcode"><div id="code_zmD"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onPluginMessageReceived(String channel, Player player, byte[] data) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Bukkit.getScheduler().runTask(插件实例, () -&gt; player.kickPlayer(&quot;被服务器用调度器踢出&quot;));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_zmD'));">复制代码</em></div>Sponge 的调度器操作类似。</td></table></div></div><br />
+<ul><li>利用管道IO<br />
+</ul><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>管道IO，PipedInputStream 和 PipedOutputStream 用于线程间的通信，主要思想为：<br />
+连接管道（PipedOutputStream#connect(PipedInputStream <font color="#9932cc">in</font>)）-&gt; 线程W写入流（即网络线程） -&gt; 线程R读取流（即Server Thread）<br />
+示例用法见帖尾链接<br />
+管道流可以用于线程间的通信，使用 byte[] 传输。<br />
+PipedInputStream 的 <font color="#ff8c00">read</font> 方法，如果没有读取到管道流中的数据，将会<font color="#ff0000">阻塞线程</font>，请务必注意！<br />
+还需要注意的是，Minecraft 使用的网络线程可能有多条，需要额外注意。默认的 Netty IO 线程有 4 条。</td></table></div></div><font size="4"><strong><hr class="l" />ByteBuf 的简单使用</strong></font><br />
+ByteBuf 类被提供于 io.netty 包中，使用可以通过 Maven 导入<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">&lt;dependency&gt;<br />
+&nbsp; &nbsp; &lt;groupId&gt;io.netty&lt;/groupId&gt;<br />
+&nbsp; &nbsp; &lt;artifactId&gt;netty-buffer&lt;/artifactId&gt;<br />
+&nbsp; &nbsp; &lt;version&gt;4.1.20.Final&lt;/version&gt;<br />
+&lt;/dependency&gt;</font></td></tr></table>使用 Gradle 导入<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">compile group: 'io.netty', name: 'netty-buffer', version: '4.1.20.Final'</font></td></tr></table>ByteBuf 可以说是 java.nio.ByteBuffer 类的加强，主要有以下优点：<br />
+<ul><li>读写指针分离，不用调用 flip() 方法来切换读写状态<li>写入时可以自动增加容量<li>提供了 Unpooled 和 Pooled 两种用于不同的场景<br />
+</ul><br />
+创建一个 ByteBuf 的方法很多，比如<br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">Unpooled.buffer() <font color="#808080">// 创建一个普通的 ByteBuf</font><br />
+Unpooled.wrappedBuffer(byte[]) <font color="#808080">// 从已有 byte 数组创建</font><br />
+Pooled.buffer() <font color="#808080">// 创建一个高并发优化的 ByteBuf</font></font></td></tr></table>Unpooled 和 Pooled 类重载的方法还有很多，详情可以查阅 Javadocs<br />
+另及：Minecraft 还叫不上高并发，Pooled 的高并发优化对于 Minecraft 大概没啥用<br />
+<br />
+<strong>写入/读取</strong><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="#eeeeee"><tr><td><font face="Courier New">ByteBuf buf = ... ;<br />
+buf.writeInt(int); <font color="#808080">// 写入 int 型数据</font><br />
+buf.writeBytes(byte[], int, int); <font color="#808080">// 写入 byte 数组，后两个参数分别是 offset 和 length</font><br />
+buf.readLong(); <font color="#808080">// 返回一个 long 型数据</font><br />
+buf.toString(int, int, Charset); <font color="#808080">// 将 ByteBuf 内部的 byte[] 转换为 String 型数据，前两个参数分别是 offset 和 length</font></font></td></tr></table>重载的方法还有很多，基本什么数据都能往里写，这里介绍一些实用的示例。<br />
+<br />
+ByteBuf 里的两个读写指针，分别可以通过 readerIndex 和 writerIndex 方法获得<br />
+ByteBuf 内部维护了一个 byte 数组，其中 ByteBuf 的 capacity 为数组长度，可以通过 getCapacity 方法获得<br />
+0 &lt;= readerIndex &lt;= writerIndex &lt;= capacity<br />
+<ul><li>0 到 readerIndex 之间的数组区域称为 discardable bytes，discardReadBytes 方法可以将数组从 readerIndex 之后的部分移动到 0，从而增大可用区。<li>readerIndex 到 writerIndex 之间的数组区域称为 readable bytes，这一部分可以进行读取，每次读取之后，readerIndex 都会相应增加（增加数据长度，如 readLong 就会增加 Long.BYTES）。<li>writerIndex 到 capacity 之间的数组区域称为 writable bytes，这一部分可以写入，每次写入之后，writerIndex 都会相应增加（如 writeShort 就会增加 Short.BYTES）。如果写入的长度大于 capacity - writerIndex，则自动扩容。<br />
+</ul><br />
+<font size="4"><strong><hr class="l" />后记 &amp; 常用链接 &amp; 补充阅读</strong></font><br />
+Forge的通信 <a href="thread.html?t=711966" target="_blank">http://www.mcbbs.net/thread-711966-1-1.html</a><br />
+Spigot Javadocs <a href="https://hub.spigotmc.org/javadocs/spigot/" target="_blank">https://hub.spigotmc.org/javadocs/spigot/</a><br />
+Sponge Javadocs <a href="https://jd.spongepowered.org/5.1.0/?overview-summary.html" target="_blank">https://jd.spongepowered.org/5.1.0/?overview-summary.html</a><br />
+Forge 1.7.10的Javadocs <a href="http://jd.ddmcloud.com/forge/1.7.10/" target="_blank">http://jd.ddmcloud.com/forge/1.7.10/</a><br />
+Netty Javadocs <a href="http://netty.io/4.1/api/index.html" target="_blank">http://netty.io/4.1/api/index.html</a><br />
+ByteBuf <a href="http://blog.csdn.net/z69183787/article/details/52980426" target="_blank">http://blog.csdn.net/z69183787/article/details/52980426</a><br />
+<a href="http://www.2cto.com/kf/201604/500997.html" target="_blank">http://www.2cto.com/kf/201604/500997.html</a><br />
+线程通信 <a href="http://www.cnblogs.com/hapjin/p/5492619.html" target="_blank">http://www.cnblogs.com/hapjin/p/5492619.html</a><br />
+你可以用你的天才般的设想，让插件服务器玩起来像 Mod 一样，一切都是有可能的<br />
+我是一名 Bukkit 插件开发者，碰巧会一丁点的 Forge 开发，甚至刚学了一点 Sponge 开发。<br />
+使用 Forge 1.8.9 作为示范。</td></tr></table></div></td></tr></table></div></td></tr></table></div><br />
+<br />
+[groupid=1330]PluginsCDTribe[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wt6654499&nbsp; &nbsp; <b>时间: </b>2017-9-6 10:47<br />
+支持技术！！！！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>653224281&nbsp; &nbsp; <b>时间: </b>2017-9-7 11:14<br />
+支持一下 学习一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Spedin&nbsp; &nbsp; <b>时间: </b>2017-9-7 20:06<br />
+哇,这样子的话以后的插件和mod是不是可以联合在一起去实现一些功能了!<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>寂&nbsp; &nbsp; <b>时间: </b>2017-9-8 12:01<br />
+支持下大佬！感谢分享。。。终于有一篇系统地讲述Forge和Bukkit通过Plm进行通讯的教程了！<br />
+<strike>为什么不早点写出来呢？？回忆起我当初请教了N个大佬才勉强整会，当时要是有这个教程就好了</strike><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>海螺螺&nbsp; &nbsp; <b>时间: </b>2017-9-8 12:48<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12343628&amp;ptid=725571" target="_blank"><font color="#999999">1582952890 发表于 2017-9-8 12:01</font></a></font><br />
+支持下大佬！感谢分享。。。终于有一篇系统地讲述Forge和Bukkit通过Plm进行通讯的教程了！<br />
+<strike>为什么不早点 ...</blockquote></div><br />
+早点。。<br />
+我也想写，但是感觉没啥人想要呢<br />
+<strike>其实是之前没想过来编程版写教程，而且论坛有一个验证机器码的插件来着，可以用那个学习的</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>li709854423&nbsp; &nbsp; <b>时间: </b>2017-10-10 10:37<br />
+问题是，在spigot的服务端里。能往独立的MOD里发消息吗？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2017-10-10 10:51<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12425481&amp;ptid=725571" target="_blank"><font color="#999999">li709854423 发表于 2017-10-10 10:37</font></a></font><br />
+问题是，在spigot的服务端里。能往独立的MOD里发消息吗？</blockquote></div><br />
+Spigot 服务器插件 -&gt; Forge 客户端的 Mod 是可以的。<br />
+Forge 客户端的 Mod -&gt; Spigot 服务器插件也是可以的。<br />
+甚至 Spigot 服务器插件 &lt;-&gt; LiteLoader 客户端 Mod也是可以的。（理论上是这样。我没有试过。）<br />
+<br />
+<strike>但是如果你是说 Spigot 服务器插件 -&gt; Forge 服务器的 Mod.. 等等你是怎么把 MinecraftForge 装到 Spigot 服务器端上的</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>li709854423&nbsp; &nbsp; <b>时间: </b>2017-10-10 11:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12425493&amp;ptid=725571" target="_blank"><font color="#999999">u.s.knowledge 发表于 2017-10-10 10:51</font></a></font><br />
+Spigot 服务器插件 -&gt; Forge 客户端的 Mod 是可以的。<br />
+Forge 客户端的 Mod -&gt; Spigot 服务器插件也是可以 ...</blockquote></div><br />
+我的意思就是独立MOD。。独立MOD的意思就是不存在服务端。。。<br />
+也就说你应该是解决了我的一个误区。。我一直以为spigot服务端是无法往客户端MOD发消息的。。现在看来大有可为了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>3TUSK&nbsp; &nbsp; <b>时间: </b>2017-10-10 11:47<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12425507&amp;ptid=725571" target="_blank"><font color="#999999">li709854423 发表于 2017-10-10 11:07</font></a></font><br />
+我的意思就是独立MOD。。独立MOD的意思就是不存在服务端。。。<br />
+也就说你应该是解决了我的一个误区。。我 ...</blockquote></div><br />
+我从未听说过有这样使用“独立Mod”这个词的。<br />
+独立Mod这个词通常指不需要任何前置（不含library mod）的Mod，比如像IC2、暮色这样的就可以用独立Mod这个词来描述，但是IC2高级机器这个Mod需要IC2作为前置，就不能称之为独立Mod了。<br />
+<br />
+<div class="quote"><blockquote>我一直以为spigot服务端是无法往客户端MOD发消息的。。</blockquote></div><br />
+
+<br />
+这篇文章讲述的就是 Bukkit 服务器插件与 MinecraftForge 客户端 Mod 之间如何通信。<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fhub.spigotmc.org%2Fjavadocs%2Fspigot%2F" target="_blank">Spigot 仍然是 Bukkit<br />
+ 的超集</a>。难道 Spigot 摆脱了Bukkit API？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>li709854423&nbsp; &nbsp; <b>时间: </b>2017-10-10 18:37<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12425537&amp;ptid=725571" target="_blank"><font color="#999999">u.s.knowledge 发表于 2017-10-10 11:47</font></a></font><br />
+我从未听说过有这样使用“独立Mod”这个词的。<br />
+独立Mod这个词通常指不需要任何前置（不含library mod）的 ...</blockquote></div><br />
+事实上我之前一直用的在KC端进行插件控制MOD发包。当时我以为是因为KC端才允许这样..也没去spigot试过<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" />仔细想想在通道一致地址一致的情况下。。肯定是可以互相收包发包的<img src="static/image/smiley/rabbit/52.gif" smilieid="702" border="0" alt="" /><br />
+至于独立MOD。。个人理解or误解的问题就没必要讨论了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RINNDA&nbsp; &nbsp; <b>时间: </b>2018-2-4 20:57<br />
+&nbsp; &nbsp; &nbsp; &nbsp; 神乎其技，不服不行！ 这个教程很易懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ynglife&nbsp; &nbsp; <b>时间: </b>2018-7-10 05:13<br />
+非常感谢，刚好脱离了1.7.10的bukkit，正愁该怎么翻Sponge的文档就看到了这个。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wysljjzzh&nbsp; &nbsp; <b>时间: </b>2019-6-24 10:42<br />
+楼主的帖子很实用，收藏了~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GiNYAi&nbsp; &nbsp; <b>时间: </b>2020-2-4 00:12<br />
+Forge的SimpleNetworkWrapper(SimpleImpl) 实际上也是走的PluginMessageChannel<br />
+<br />
+格式是 <br />
+1位byte的 `id`<br />
+其他你写到ByteBuf里的东西<br />
+<br />
+也就是<br />
+只要格式正确 Forge的接受和发送部分可以使用 SimpleImpl来处理 <br />
+或者说Bukkit插件也可以处理ForgeMod用SimpleImpl发送过来的数据<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>德芙DakFu&nbsp; &nbsp; <b>时间: </b>2020-8-13 20:04<br />
+技术贴啊支持支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>slmjun002&nbsp; &nbsp; <b>时间: </b>2020-10-25 17:28<br />
+大佬nb，我啥玩意都不会<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>龙吟y&nbsp; &nbsp; <b>时间: </b>2020-11-8 19:50<br />
+楼主 1.7.10的FMLNetworkEvent.ClientCustomPacketEvent事件下没有getpacket方法吗
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

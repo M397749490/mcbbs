@@ -1,0 +1,186 @@
+<html>
+<head>
+<title>来个不一样的～教你自定义事件 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>来个不一样的～教你自定义事件 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>桃渊林&nbsp; &nbsp; <b>时间: </b>2015-12-18 21:29<br />
+<b>标题: </b>来个不一样的～教你自定义事件<br /><i class="pstatus"> 本帖最后由 hcrgm1 于 2018-8-10 12:10 编辑 </i><br />
+<br />
+现在编程版的插件开发教程早已“落地生根，枝繁叶茂”，相信大家都能够学会开发插件的一些步骤，这次我就来个不同的，扩展一下大家的知识。<br />
+学过如何开发插件的童鞋们也都知道事件api的使用，这会我就发个高级货——自定义事件。<br />
+BukkitAPI提供的event包已经包含了我们可能用到的绝大多数事件，但是，可能遇到没有想要的事件的情况，或者想扩展一个事件供某些插件使用（比如这个玩家用某装备插件的一个命令修理了一个装备，这个装备插件就能传唤一个事件，供其它插件响应这个事件）。下面开始正文吧<br />
+我们就先新建一个类，用来描述这个自定义事件，确定好名字后就新建，然后使这个类继承org.bukkit.event.Event类（如果有多个事件是统一种类，那你也可新建一个抽象类继承Event类，表示这个种类的事件，写上需要用到的变量和方法，然后子事件类继承这个类就可以了，也可以提高代码重用性）<br />
+然后，写上<strong>必须</strong>写的一段代码（再次强调这个不能丢！！），如下代码块所示：<br />
+<div class="blockcode"><div id="code_aOO"><ol><li>private static final HandlerList handlers = new HandlerList();<br />
+<li>@Override<br />
+<li>public HandlerList getHandlers() {<br />
+<li>&nbsp; &nbsp; return handlers;<br />
+<li>}<br />
+<li>public static HandlerList getHandlerList() {<br />
+<li>&nbsp; &nbsp; return handlers;<br />
+<li>}</ol></div><em onclick="copycode($('code_aOO'));">复制代码</em></div><br />
+HandlerList干什么用的？就是用来存储事件的，还有如果要注销事件也要用到HandlerList，具体就自己探讨吧<br />
+然后这个事件的雏形基本就出来了，这时已经定义好了一个事件，不过还没有任何用处。接下来只需写好可能会用到的方法，比如获取这个事件涉及的玩家啊(比如getPlayer())，这个事件发生在哪个事件啊(比如getWorld())，等等，这些我形象地称这些方法为getter，当然setter有时是必不可少的，千万不要忘记。<br />
+然后就大功告成，成功写好了自定义事件。我写的如下，友友们可以参考下：<br />
+<div class="blockcode"><div id="code_Apz"><ol><li>import org.bukkit.event.Event;<br />
+<li>import org.bukkit.event.HandlerList;<br />
+<li><br />
+<li>public class MyEvent extends Event {<br />
+<li>&nbsp; &nbsp; private static final HandlerList handlers = new HandlerList();<br />
+<li>&nbsp; &nbsp; private Player player;<br />
+<li><br />
+<li>&nbsp; &nbsp; /* 这是类的构造器，按事件要实现的功能来取舍 */<br />
+<li>&nbsp; &nbsp; public MyEvent(final Player player) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.player = player;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /* 获取这个事件涉及的玩家 */<br />
+<li>&nbsp; &nbsp; public Player getPlayer() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return player;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void setMoney(double money) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 这个调用胡扯的哈，不要直接复制，怎么实现还得您自己码哈，而且这个方法也不是必要的，要看什么场合用<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;player.setMoney(money, true);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /* 这就是我在强调的要加上的两个方法 */<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public HandlerList getHandlers() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return handlers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static HandlerList getHandlerList() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return handlers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Apz'));">复制代码</em></div><br />
+写好了，然而并没有结束，因为这个事件总得被传唤嘛！没有传唤就永远都不会响应，接下来教你如何传唤（调用）事件<br />
+org.bukkit.plugin.PluginManager类下有一个callEvent方法，其唯一的参数为Event event，你只需要创建你的Event的实例传入这个参数就可以了<br />
+怎么获取PluginManager对象呢？Bukkit.getServer().getPluginManager()这个方**返回PluginManager对象，然后就很简单了<br />
+语句大概就是这样：<br />
+<div class="blockcode"><div id="code_gCw"><ol><li>MyEvent event = new MyEvent(player);<br />
+<li>Bukkit.getServer().getPluginManager().callEvent(event);</ol></div><em onclick="copycode($('code_gCw'));">复制代码</em></div><br />
+注意：你必须时刻牢记传唤你的事件，否则将不起作用！！！！注意：该方法使线程安全的，也就是说你可以放心地在异步线程/任务中调用此方法.<br />
+有些人就可能在这里问：“事件的取消呢！！”，别急，其实很简单，只要让你的事件实现Cancellable类，定义一个表示事件取消的布尔值然后写上下面的两个方法即可。<br />
+<div class="blockcode"><div id="code_Qwd"><ol><li>public boolean isCancelled() {<br />
+<li>&nbsp; &nbsp; return cancelled;<br />
+<li>}<br />
+<li>public void setCancelled(boolean cancel) {<br />
+<li>&nbsp; &nbsp; this.cancelled = cancel;<br />
+<li>}</ol></div><em onclick="copycode($('code_Qwd'));">复制代码</em></div><br />
+而且，这两个方法不写IDE也会提醒你“Cancellable 接口的方法 xxx 未实现”<br />
+另外，我建议你在处理之前检测这个事件有没有被取消，没取消就执行相应动作，比如以下代码：<br />
+<div class="blockcode"><div id="code_bY7"><ol><li>if(!event.isCancelled()) {<br />
+<li>&nbsp; &nbsp; // do sth......<br />
+<li>} else {<br />
+<li>&nbsp; &nbsp; // do sth......<br />
+<li>}</ol></div><em onclick="copycode($('code_bY7'));">复制代码</em></div><br />
+嗯。。写完了，接下来就跟普通事件一样去监听啦～<br />
+<div class="blockcode"><div id="code_M2G"><ol><li>public class MyListener implements Listener {<br />
+<li>&nbsp; &nbsp; @EventHandler//(priority=EventPriority.等级，LOWEST最先执行但对事件产生地影响等级最低，MONITIR最后执行但对事件产生地影响等级最高，如果保持默认等级就不需要注释后的内容)<br />
+<li>&nbsp; &nbsp; public voud onxxx(MyEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 自己写啦<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_M2G'));">复制代码</em></div><br />
+上一个空白事件模板，大家可以偷偷懒<br />
+<div class="blockcode"><div id="code_QX7"><ol><li>import org.bukkit.event.Event;<br />
+<li>import org.bukkit.event.HandlerList;<br />
+<li><br />
+<li>/* 一个简简单单的自定义事件模板，能够取消（如果您不希望你的事件能被取消，请不要实现Cancellable接口以及删去与此相关的一切代码） */<br />
+<li>public class EmptyEvent extends Event implements Cancellable {<br />
+<li>&nbsp; &nbsp; private static final HandlerList handlers = new HandlerList();<br />
+<li>&nbsp; &nbsp; private String mes;<br />
+<li>&nbsp; &nbsp; private boolean cancelled; // 如果您希望你的事件能被取消这行不要删<br />
+<li><br />
+<li>&nbsp; &nbsp; public EmptyEvent(String mes) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.mes = mes;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public String getMessage() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return mes;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void setMessage(String mes) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.mes = mes;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /* 这两个方法绝对不能少 */<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public HandlerList getHandlers() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return handlers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public static HandlerList getHandlerList() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return handlers;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; /* 如果您希望你的事件能被取消以下两个方法不要删去 */<br />
+<li>&nbsp; &nbsp; public boolean isCancelled() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return cancelled;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void setCancelled(boolean cancel) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.cancelled = cancel;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>}</ol></div><em onclick="copycode($('code_QX7'));">复制代码</em></div><br />
+顺便给点人气金粒嘛＠(￣-￣)＠<br />
+<br />
+[groupid=324]上古之石美工工作组[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>可可可可可乐&nbsp; &nbsp; <b>时间: </b>2015-12-19 01:46<br />
+感谢，刚刚还在问人怎么自定义<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MC_Miter&nbsp; &nbsp; <b>时间: </b>2015-12-23 21:11<br />
+感谢教程<br />
+但是看不懂诶！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>4one_R&nbsp; &nbsp; <b>时间: </b>2015-12-24 07:16<br />
+一直用PluginManager注册listener，现在发现原来callEvent在这里…学习了！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Syro&nbsp; &nbsp; <b>时间: </b>2016-1-17 00:37<br />
+请问语言？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>EndOfStreamly&nbsp; &nbsp; <b>时间: </b>2016-1-18 08:16<br />
+_(:зゝ∠)_蛮不错的,支持一下！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>t9044&nbsp; &nbsp; <b>时间: </b>2016-1-18 22:49<br />
+非常不错的教程贴~<br />
+编程开发帖就需要更多你这样的进阶的、非基础性教学的教学帖<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>yanggexuyang&nbsp; &nbsp; <b>时间: </b>2016-8-12 12:20<br />
+感谢教程！终于明白我自定义事件不行的原因是没有getHandlerList了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2571612311&nbsp; &nbsp; <b>时间: </b>2017-3-4 20:50<br />
+楼楼，有一个问题想请教一下<br />
+举个例子onPlayerJoin这个是在玩家加入的时候触发<br />
+但自定义事件我比如说要让两个玩家在一起时监听器触发<br />
+又该怎么做呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w_cn&nbsp; &nbsp; <b>时间: </b>2017-5-28 12:16<br />
+MyEvent event = new MyEvent(player);<br />
+Bukkit.getServer().getPluginManager().callEvent(event);<br />
+这两句代码 一般放在哪里？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TRLLolita&nbsp; &nbsp; <b>时间: </b>2017-5-28 12:17<br />
+支持楼主一下！<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>w_cn&nbsp; &nbsp; <b>时间: </b>2017-5-29 16:58<br />
+自定义事件的触发 一般都是放在 Bukkit自带的事件里面吗？<br />
+感觉没有好的例子 想不出来。。。<br />
+大佬们教导小弟一下<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>404565377&nbsp; &nbsp; <b>时间: </b>2018-11-19 16:35<br />
+<div class="quote"><blockquote>&nbsp; &nbsp; public voud onxxx(MyEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 自己写啦<br />
+&nbsp; &nbsp; }</blockquote></div><br />
+voud可还行(各种刁钻)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>猿汐&nbsp; &nbsp; <b>时间: </b>2019-3-10 13:02<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>MT_meng&nbsp; &nbsp; <b>时间: </b>2019-3-11 21:41<br />
+看不懂。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaodong150&nbsp; &nbsp; <b>时间: </b>2019-3-12 05:16<br />
+建议大佬多加点注解，小白略有看不懂
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

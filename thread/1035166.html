@@ -1,0 +1,80 @@
+<html>
+<head>
+<title>关于插件序列化map的一个坑，以及序列化Location等类的疑惑 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于插件序列化map的一个坑，以及序列化Location等类的疑惑 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>堕落男&nbsp; &nbsp; <b>时间: </b>2020-5-1 18:17<br />
+<b>标题: </b>关于插件序列化map的一个坑，以及序列化Location等类的疑惑<br />最近刚开始学习插件开发，在尝试建一个简单的领地插件。在领地中有领地数据的功能。然而现实骨感，满屏的红字。<br />
+<br />
+<font size="3"><strong>Map序列化接口无效</strong></font><br />
+储存领地数据的是一个实现了bukkit序列化接口的类，继承于<strong><font color="#ff0000">map</font></strong>，实现的序列化接口方法如下<br />
+<div class="blockcode"><div id="code_WAB"><ol><li>public Map&lt;String, Object&gt; serialize() {<br />
+<li>&nbsp; &nbsp; put(&quot;==&quot;, getClass().getName());<br />
+<li>&nbsp; &nbsp; return this;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_WAB'));">复制代码</em></div>这是一个很正常的序列化操作。然而实际序列化出来的结果却是这样子的<br />
+<div class="blockcode"><div id="code_s3j"><ol><li>'2':<br />
+<li>&nbsp;&nbsp;==: cn.japlayguan.mcplugin.area.v0_2.Area<br />
+<li>&lt;b style=&quot;background-color: yellow;&quot;&gt;&nbsp;&nbsp;data: <br />
+<li>&nbsp; &nbsp; test: test&lt;/b&gt;<br />
+<li>&nbsp;&nbsp;point1:<br />
+<li>&nbsp; &nbsp; ==: org.bukkit.Location<br />
+<li>&nbsp; &nbsp; world: world<br />
+<li>&nbsp; &nbsp; x: -71.0<br />
+<li>&nbsp; &nbsp; y: 62.0<br />
+<li>&nbsp; &nbsp; z: -37.0<br />
+<li>&nbsp; &nbsp; pitch: 0.0<br />
+<li>&nbsp; &nbsp; yaw: 0.0<br />
+<li>&nbsp;&nbsp;point2:<br />
+<li>&nbsp; &nbsp; ==: org.bukkit.Location</ol></div><em onclick="copycode($('code_s3j'));">复制代码</em></div>是的，序列化时的put并没有生效。<br />
+<br />
+<br />
+<br />
+<font size="3"><strong>尝试寻找官方类（如Location）的序列化方法</strong></font><br />
+在序列化添加绑定class无效的时候，我首先就想到了官方序列化流程是不是有什么规则<br />
+说明：这里我并没有找到官方类的一些序列划流程，只是我在看Location实现序列化接口的时候并没有添加“==”这个键，而实际出来的确是自动加上了，<strong><font color="#ff0000">因此想问问大佬们关于序列化时类的绑定是否有其他方法？</font></strong>&nbsp;&nbsp;比如，此处的location到底是再哪、以怎么样的方式绑定的。<br />
+注：下方代码是Location类实现的序列化接口<br />
+<br />
+<div class="blockcode"><div id="code_I08"><ol><li>public Map&lt;String, Object&gt; serialize() {<br />
+<li>&nbsp;&nbsp;Map&lt;String, Object&gt; data = new HashMap&lt;String, Object&gt;();<br />
+<li>&nbsp;&nbsp;data.put(&quot;world&quot;, this.world.getName());<br />
+<li><br />
+<li>&nbsp;&nbsp;data.put(&quot;x&quot;, this.x);<br />
+<li>&nbsp;&nbsp;data.put(&quot;y&quot;, this.y);<br />
+<li>&nbsp;&nbsp;data.put(&quot;z&quot;, this.z);<br />
+<li><br />
+<li>&nbsp;&nbsp;data.put(&quot;yaw&quot;, this.yaw);<br />
+<li>&nbsp;&nbsp;data.put(&quot;pitch&quot;, this.pitch);<br />
+<li><br />
+<li>&nbsp;&nbsp;return data;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_I08'));">复制代码</em></div><br />
+
+<br />
+
+<br />
+
+<br />
+<font size="3"><strong>关于Map序列化接口put无效的最终结果</strong></font><br />
+因为我菜，找官方序列化的流程走一半之后我就理不过来了，于是只能动手在原来的领地数据类中的序列化方法多做几次尝试。<br />
+当我尝试直接 return null时，时，其结果和上面的结果一模一样。<br />
+<div class="blockcode"><div id="code_IfJ"><ol><li>public Map&lt;String, Object&gt; serialize() {<br />
+<li>&nbsp;&nbsp;return null;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_IfJ'));">复制代码</em></div><br />
+是的，<strong><font color="#ff0000">总结：当需要序列化的类是Map的子类时，会直接取Map的键值对数据！</font></strong><br />
+也就是说，当你的类继承于map时，接口ConfigurationSerializable的实现方法不会有任何效果，你只能在外面put一个“==”进行绑定class。<br />
+<strong>但是，你仍然需要实现这个接口，因为你需要反序列化。</strong><br />
+<br />
+<br />
+这个坑跳了两三个小时，苦恼。希望大家不要踩了= =<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,174 @@
+<html>
+<head>
+<title>【技术向】Python控制BungeeCord以及Spigot服务器 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>【技术向】Python控制BungeeCord以及Spigot服务器 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fred913&nbsp; &nbsp; <b>时间: </b>2020-7-3 14:58<br />
+<b>标题: </b>【技术向】Python控制BungeeCord以及Spigot服务器<br /><i class="pstatus"> 本帖最后由 fred913 于 2020-7-3 15:02 编辑 </i><br />
+<br />
+正闲着，给q3（Bilibili为@特别中二的q3君 ）服务器重写了一下官网和服务器控制系统，Python控制BungeeCord与Spigot服务器的核心代码我放在下面，为subprocess制作，服务器jar、配置需自己准备、修改，但是Python提供运行环境托管以及远程运行命令。（下方代码块里的空格被吞了qwq）<br />
+<div class="blockcode"><div id="code_EG3"><ol><li># coding: utf-8<br />
+<li>import subprocess as subp<br />
+<li>import io<br />
+<li><br />
+<li><br />
+<li>class MinecraftServer:<br />
+<li>&nbsp; &nbsp; def __init__(self, jar, java=&quot;java&quot;):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.jar_path = jar<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.java = java or &quot;java&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.process = None<br />
+<li><br />
+<li>&nbsp; &nbsp; def start(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.process = subp.Popen(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;[self.java, &quot;-jar&quot;, self.jar_path],<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;stdin=subp.PIPE,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;stdout=subp.PIPE,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;stderr=subp.PIPE,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;)<br />
+<li><br />
+<li>&nbsp; &nbsp; @property<br />
+<li>&nbsp; &nbsp; def stdout(self) -&gt; io.TextIOWrapper:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if not self.process:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;服务器未启动，请启动服务器后执行命令！&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.process.stdout<br />
+<li><br />
+<li>&nbsp; &nbsp; @property<br />
+<li>&nbsp; &nbsp; def stderr(self) -&gt; io.TextIOWrapper:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if not self.process:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;服务器未启动，请启动服务器后执行命令！&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.process.stderr<br />
+<li><br />
+<li>&nbsp; &nbsp; @property<br />
+<li>&nbsp; &nbsp; def stdin(self) -&gt; io.TextIOWrapper:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if not self.process:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;服务器未启动，请启动服务器后执行命令！&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return self.process.stdin<br />
+<li><br />
+<li>&nbsp; &nbsp; def exec_command(self, command, get_output=False):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if not self.process:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return &quot;服务器未启动，请启动服务器后执行命令！&quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.stdin.write(command)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.stdin.write(&quot;\n&quot;)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.stdin.flush()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if get_output:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return self.stdout.read()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return None<br />
+<li><br />
+<li><br />
+<li>class Spigot(MinecraftServer):<br />
+<li>&nbsp; &nbsp; def __init__(self, jar, java=&quot;java&quot;):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(self, MinecraftServer).__init__(jar, java)<br />
+<li><br />
+<li><br />
+<li>class BungeeCord(MinecraftServer):<br />
+<li>&nbsp; &nbsp; def __init__(self, jar, java=&quot;java&quot;, servers=None):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super(self, MinecraftServer).__init__(jar, java)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.servers = servers or []<br />
+<li><br />
+<li>&nbsp; &nbsp; def start(self):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for server in self.servers:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;server.start()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return super(self, MinecraftServer).start()<br />
+<li><br />
+<li>&nbsp; &nbsp; def add_server(self, server: MinecraftServer):<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;self.servers.append(server)<br />
+<li></ol></div><em onclick="copycode($('code_EG3'));">复制代码</em></div><br />
+同时，对脚本进行二次开发也很简单，只需创建一个继承MinecraftServer的类即可。<br />
+代码进行语法高亮如下：<br />
+<font color="#d4d4d4"><font style="background-color:rgb(30, 30, 30)"><font face="Menlo, Monaco, &amp;quot"><font style="font-size:12px"><font color="#6a9955"># coding: utf-8</font><br />
+<font color="#c586c0">import</font> subprocess <font color="#c586c0">as</font> subp<br />
+<font color="#c586c0">import</font> io<br />
+<br />
+<br />
+<font color="#569cd6">class</font> <font color="#4ec9b0">MinecraftServer</font>:<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">__init__</font>(<font color="#9cdcfe">self</font>, <font color="#9cdcfe">jar</font>, <font color="#9cdcfe">java</font>=<font color="#ce9178">&quot;java&quot;</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.jar_path = jar<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.java = java <font color="#569cd6">or</font> <font color="#ce9178">&quot;java&quot;</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.process = <font color="#569cd6">None</font><br />
+<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">start</font>(<font color="#9cdcfe">self</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.process = subp.Popen(<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;[<font color="#569cd6">self</font>.java, <font color="#ce9178">&quot;-jar&quot;</font>, <font color="#569cd6">self</font>.jar_path],<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#9cdcfe">stdin</font>=subp.PIPE,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#9cdcfe">stdout</font>=subp.PIPE,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#9cdcfe">stderr</font>=subp.PIPE,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;)<br />
+<br />
+&nbsp; &nbsp; <font color="#dcdcaa">@</font><font color="#4ec9b0">property</font><br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">stdout</font>(<font color="#9cdcfe">self</font>) -&gt; io.TextIOWrapper:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">if</font> <font color="#569cd6">not</font> <font color="#569cd6">self</font>.process:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#ce9178">&quot;服务器未启动，请启动服务器后执行命令！&quot;</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">return</font> <font color="#569cd6">self</font>.process.stdout<br />
+<br />
+&nbsp; &nbsp; <font color="#dcdcaa">@</font><font color="#4ec9b0">property</font><br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">stderr</font>(<font color="#9cdcfe">self</font>) -&gt; io.TextIOWrapper:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">if</font> <font color="#569cd6">not</font> <font color="#569cd6">self</font>.process:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#ce9178">&quot;服务器未启动，请启动服务器后执行命令！&quot;</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">return</font> <font color="#569cd6">self</font>.process.stderr<br />
+<br />
+&nbsp; &nbsp; <font color="#dcdcaa">@</font><font color="#4ec9b0">property</font><br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">stdin</font>(<font color="#9cdcfe">self</font>) -&gt; io.TextIOWrapper:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">if</font> <font color="#569cd6">not</font> <font color="#569cd6">self</font>.process:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#ce9178">&quot;服务器未启动，请启动服务器后执行命令！&quot;</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">return</font> <font color="#569cd6">self</font>.process.stdin<br />
+<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">exec_command</font>(<font color="#9cdcfe">self</font>, <font color="#9cdcfe">command</font>, <font color="#9cdcfe">get_output</font>=<font color="#569cd6">False</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">if</font> <font color="#569cd6">not</font> <font color="#569cd6">self</font>.process:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#ce9178">&quot;服务器未启动，请启动服务器后执行命令！&quot;</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.stdin.write(command)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.stdin.write(<font color="#ce9178">&quot;</font><font color="#d7ba7d">\n</font><font color="#ce9178">&quot;</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.stdin.flush()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">if</font> get_output:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#569cd6">self</font>.stdout.read()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">else</font>:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#c586c0">return</font> <font color="#569cd6">None</font><br />
+<br />
+<br />
+<font color="#569cd6">class</font> <font color="#4ec9b0">Spigot</font>(<font color="#4ec9b0">MinecraftServer</font>):<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">__init__</font>(<font color="#9cdcfe">self</font>, <font color="#9cdcfe">jar</font>, <font color="#9cdcfe">java</font>=<font color="#ce9178">&quot;java&quot;</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#4ec9b0">super</font>(<font color="#569cd6">self</font>, MinecraftServer).<font color="#dcdcaa">__init__</font>(jar, java)<br />
+<br />
+<br />
+<font color="#569cd6">class</font> <font color="#4ec9b0">BungeeCord</font>(<font color="#4ec9b0">MinecraftServer</font>):<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">__init__</font>(<font color="#9cdcfe">self</font>, <font color="#9cdcfe">jar</font>, <font color="#9cdcfe">java</font>=<font color="#ce9178">&quot;java&quot;</font>, <font color="#9cdcfe">servers</font>=<font color="#569cd6">None</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#4ec9b0">super</font>(<font color="#569cd6">self</font>, MinecraftServer).<font color="#dcdcaa">__init__</font>(jar, java)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.servers = servers <font color="#569cd6">or</font> []<br />
+<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">start</font>(<font color="#9cdcfe">self</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">for</font> server <font color="#569cd6">in</font> <font color="#569cd6">self</font>.servers:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;server.start()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#c586c0">return</font> <font color="#4ec9b0">super</font>(<font color="#569cd6">self</font>, MinecraftServer).start()<br />
+<br />
+&nbsp; &nbsp; <font color="#569cd6">def</font> <font color="#dcdcaa">add_server</font>(<font color="#9cdcfe">self</font>, <font color="#9cdcfe">server</font>: MinecraftServer):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#569cd6">self</font>.servers.append(server)<br />
+<br />
+</font></font></font></font><br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>WYL0zhu&nbsp; &nbsp; <b>时间: </b>2020-7-3 14:59<br />
+你那代码根本没法用。<br />
+为什么不发到游戏技巧版。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fred913&nbsp; &nbsp; <b>时间: </b>2020-7-3 14:59<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18777837&amp;ptid=1071484" target="_blank"><font color="#999999">WYL0zhu 发表于 2020-7-3 14:59</font></a></font><br />
+你那代码根本没法用。<br />
+为什么不发到游戏技巧版。</blockquote></div><br />
+我测试过的，python3，应该可以的啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>WYL0zhu&nbsp; &nbsp; <b>时间: </b>2020-7-3 15:01<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=18777841&amp;ptid=1071484" target="_blank"><font color="#999999">fred913 发表于 2020-7-3 14:59</font></a></font><br />
+我测试过的，python3，应该可以的啊</blockquote></div><br />
+刚才你那代码是乱码，现在好了。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

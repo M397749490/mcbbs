@@ -1,0 +1,131 @@
+<html>
+<head>
+<title>命令/命令方块移动箱内物品 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>命令/命令方块移动箱内物品 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pdj686&nbsp; &nbsp; <b>时间: </b>2019-6-23 22:27<br />
+<b>标题: </b>命令/命令方块移动箱内物品<br />（版本1.14+）<br />
+用命令检测一个箱子/木桶内特定位置的物品，然后视情况放到另一个箱子的空位中<br />
+<br />
+举个例子，在坐标 ~ ~ ~处存在一个木桶，在木桶的Slot:8b有一张名字叫StoneSword的纸（纸的名字不重要），Slot:9b位置存在若干输入物品。<br />
+现在希望实现如下功能：<br />
+<br />
+若Slot:9b位置上的物品是石剑（不管它是什么附魔/耐久），<br />
+则检测坐标~ ~ ~-1位置是否是有至少一个空位的箱子<br />
+（比如使用<br />
+execute store result score @s isempty run data get block ~ ~ ~-1 Items<br />
+execute unless block ~ ~ ~-1 minecraft:chest run scoreboard players set @s isempty 27<br />
+这样的指令）<br />
+同样检测~ ~ ~1位置。<br />
+<br />
+如果任一输出箱子没有空位，则不进行放置操作；<br />
+如果是石剑，则将其放入~ ~ ~-1位置的箱子的空位中；<br />
+否则，将其放入~ ~ ~1位置的箱子的空位中。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2019-6-23 22:27<br />
+<div class="blockcode"><div id="code_ZDq"><ol><li># 添加记分板<br />
+<li>scoreboard objectives add value dummy</ol></div><em onclick="copycode($('code_ZDq'));">复制代码</em></div><div class="blockcode"><div id="code_Ooq"><ol><li># 如果 Slot:8b 是指定的纸且 Slot:9b 放有物品，执行 test:check 函数<br />
+<li>execute if block ~ ~ ~ barrel{Items:[{Slot:8b,id:&quot;minecraft:paper&quot;,tag:{display:{Name:'{&quot;text&quot;:&quot;StoneSword&quot;}'}}},{Slot:9b}]} run function test:checkfull</ol></div><em onclick="copycode($('code_Ooq'));">复制代码</em></div><div class="blockcode"><div id="code_R7n"><ol><li># test:checkfull 函数，检查两个箱子是否满<br />
+<li>scoreboard players set #temp1 value 27<br />
+<li>execute if block ~ ~ ~-1 chest store result score #temp1 value run data get block ~ ~ ~-1 Items<br />
+<li>scoreboard players set #temp2 value 27<br />
+<li>execute if block ~ ~ ~1 chest store result score #temp2 value run data get block ~ ~ ~1 Items<br />
+<li>execute if score #temp1 value matches ..26 if score #temp2 value matches ..26 run function test:type</ol></div><em onclick="copycode($('code_R7n'));">复制代码</em></div><div class="blockcode"><div id="code_yhn"><ol><li># test:type 函数，将物品信息复制到实体中，然后视情形选择放入的箱子位置<br />
+<li>summon item ~ ~ ~ {Item:{id:&quot;minecraft:stone&quot;,Count:1b,tag:{store:{Slot:0b}}},Tags:[&quot;temp_item&quot;]}<br />
+<li>data modify entity @e[type=item,distance=..1,tag=temp_item,limit=1,sort=nearest] Item.tag.store.id set from block ~ ~ ~ Items[{Slot:9b}].id<br />
+<li>data modify entity @e[type=item,distance=..1,tag=temp_item,limit=1,sort=nearest] Item.tag.store.Count set from block ~ ~ ~ Items[{Slot:9b}].Count<br />
+<li>data modify entity @e[type=item,distance=..1,tag=temp_item,limit=1,sort=nearest] Item.tag.store.tag set from block ~ ~ ~ Items[{Slot:9b}].tag<br />
+<li>execute if block ~ ~ ~ barrel{Items:[{Slot:9b,id:&quot;minecraft:stone_sword&quot;}]} positioned ~ ~ ~-1 run function test:put<br />
+<li>execute unless block ~ ~ ~ barrel{Items:[{Slot:9b,id:&quot;minecraft:stone_sword&quot;}]} positioned ~ ~ ~1 run function test:put<br />
+<li>kill @e[type=item,distance=..1,tag=temp_item,limit=1,sort=nearest]<br />
+<li>data remove block ~ ~ ~ Items[{Slot:9b}]</ol></div><em onclick="copycode($('code_yhn'));">复制代码</em></div><br />
+
+<br />
+
+<div class="blockcode"><div id="code_DYI"><ol><li># test:put 函数，穷举空槽位，确定槽位，然后复制信息进去<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:0b}]} run scoreboard players set #emptyslot value 0<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:1b}]} run scoreboard players set #emptyslot value 1<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:2b}]} run scoreboard players set #emptyslot value 2<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:3b}]} run scoreboard players set #emptyslot value 3<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:4b}]} run scoreboard players set #emptyslot value 4<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:5b}]} run scoreboard players set #emptyslot value 5<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:6b}]} run scoreboard players set #emptyslot value 6<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:7b}]} run scoreboard players set #emptyslot value 7<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:8b}]} run scoreboard players set #emptyslot value 8<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:9b}]} run scoreboard players set #emptyslot value 9<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:10b}]} run scoreboard players set #emptyslot value 10<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:11b}]} run scoreboard players set #emptyslot value 11<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:12b}]} run scoreboard players set #emptyslot value 12<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:13b}]} run scoreboard players set #emptyslot value 13<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:14b}]} run scoreboard players set #emptyslot value 14<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:15b}]} run scoreboard players set #emptyslot value 15<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:16b}]} run scoreboard players set #emptyslot value 16<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:17b}]} run scoreboard players set #emptyslot value 17<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:18b}]} run scoreboard players set #emptyslot value 18<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:19b}]} run scoreboard players set #emptyslot value 19<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:20b}]} run scoreboard players set #emptyslot value 20<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:21b}]} run scoreboard players set #emptyslot value 21<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:22b}]} run scoreboard players set #emptyslot value 22<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:23b}]} run scoreboard players set #emptyslot value 23<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:24b}]} run scoreboard players set #emptyslot value 24<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:25b}]} run scoreboard players set #emptyslot value 25<br />
+<li>execute unless block ~ ~ ~ chest{Items:[{Slot:26b}]} run scoreboard players set #emptyslot value 26<br />
+<li>execute store result entity @e[type=item,distance=..2,tag=temp_item,limit=1,sort=nearest] Item.tag.store.tag.Slot byte 1 run scoreboard players get #emptyslot value<br />
+<li>data modify block ~ ~ ~ Items append from entity @e[type=item,distance=..2,tag=temp_item,limit=1,sort=nearest] Item.tag.store</ol></div><em onclick="copycode($('code_DYI'));">复制代码</em></div><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SPGoding&nbsp; &nbsp; <b>时间: </b>2019-6-23 22:35<br />
+<i class="pstatus"> 本帖最后由 SPGoding 于 2019-6-23 22:47 编辑 </i><br />
+<div class="blockcode"><div id="code_D0U"><ol><li># 如果 Slot:8b 是指定的纸且 Slot:9b 放有物品，执行 spgoding:foo 函数<br />
+<li>execute if block ~ ~ ~ minecraft:barrel{Items:[{Slot:8b,id:&quot;minecraft:paper&quot;,tag:{display:{Name:'{&quot;text&quot;:&quot;StoneSword&quot;}'}}},{Slot:9b}]} run function spgoding:foo</ol></div><em onclick="copycode($('code_D0U'));">复制代码</em></div><br />
+
+<br />
+spgoding:foo 函数内容如下<br />
+<div class="blockcode"><div id="code_kzP"><ol><li># spgoding:foo<br />
+<li># 获取 ~ ~ ~-1 的占用格数 $occupied-1 tmp<br />
+<li>execute if block ~ ~ ~-1 minecraft:chest store result score $occupied-1 tmp run data get block ~ ~ ~-1 Items<br />
+<li>execute unless block ~ ~ ~-1 minecraft:chest run scoreboard players set $occupied-1 tmp 27<br />
+<li><br />
+<li># 获取 ~ ~ ~1 的占用格数 $occupied1 tmp<br />
+<li>execute if block ~ ~ ~1 minecraft:chest store result score $occupied1 tmp run data get block ~ ~ ~-1 Items<br />
+<li>execute unless block ~ ~ ~1 minecraft:chest run scoreboard players set $occupied1 tmp 27<br />
+<li><br />
+<li># 当均有剩余格数，即占用格数小于等于 26 时<br />
+<li># 执行函数 spgoding:bar<br />
+<li>execute if score $occupied1 tmp matches ..26 if score $occupied-1 tmp matches ..26 run function spgoding:bar</ol></div><em onclick="copycode($('code_kzP'));">复制代码</em></div><br />
+
+<br />
+spgoding:bar 函数内容如下<br />
+<div class="blockcode"><div id="code_dJ7"><ol><li># spgoding:bar<br />
+<li># 如果是石剑，放到 ~ ~ ~-1<br />
+<li>execute if block ~ ~ ~ minecraft:barrel{Items:[{Slot:9b,id:&quot;minecraft:stone_sword&quot;}]} run data modify block ~ ~ ~-1 Items append from block ~ ~ ~ Items[{Slot:9b}]<br />
+<li># 否则，放到 ~ ~ ~1<br />
+<li>execute unless block ~ ~ ~ minecraft:barrel{Items:[{Slot:9b,id:&quot;minecraft:stone_sword&quot;}]} run data modify block ~ ~ ~1 Items append from block ~ ~ ~ Items[{Slot:9b}]</ol></div><em onclick="copycode($('code_dJ7'));">复制代码</em></div><br />
+
+<br />
+<hr class="l" /><br />
+本回答以 WTFPL 协议发布。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2019-6-23 22:47<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14704643&amp;ptid=876543" target="_blank"><font color="#999999">SPGoding 发表于 2019-6-23 22:35</font></a></font><br />
+spgoding:foo 函数内容如下</blockquote></div><br />
+如果箱子已经有slot9b你这样会导致原有物品消失的……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pdj686&nbsp; &nbsp; <b>时间: </b>2019-6-25 10:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=14704711&amp;ptid=876543" target="_blank"><font color="#999999">ruhuasiyu 发表于 2019-6-23 22:47</font></a></font><br />
+如果箱子已经有slot9b你这样会导致原有物品消失的……</blockquote></div><br />
+所以他后面那个算是fix了吗？<br />
+以及你的回答里为啥要一个一个格子枚举。。没有直接追加在原输出箱子后面的方法吗？<br />
+（以及对于你的回答，万一进来的是一个可堆叠物品，且原输出箱里本来就有这个可堆叠物品，那不就不堆叠了么）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>朱星宇&nbsp; &nbsp; <b>时间: </b>2019-6-25 19:28<br />
+#在这里快速回复#有2个指令可以做到： ①/replaceitem ②/blockdata 推荐replaceitem，适于将物品放入已有物品的箱子，blockdata会将箱子里的其他物品清空且较为复杂 /replaceitem block x y z 槽位 物品ID 数量 附加值 NBT 箱子的槽位为： slot.container.数字 从箱子左上角开始为0，向右1格为1，右上角为8，下一行第一格为9（从左到右，从上到下） 若指定槽位已有其他物品，会将该物品替换掉 指令举例：将箱子第二行中间格换为锋利1钻石剑 /replaceitem block x y z slot.container.13 diamond_sword 1 0 {ench:[{id:16,lvl:1}]} 注：实用时必须将xyz替换为对应坐标 /replaceitem是1.8的新增指令，1.7的话可以通过setblock，直接放置一个有东西的箱子 /setblock x y z chest 附加值 {Items:[{id,Damage,Count,tag,Slot}]} 箱子的附加值决定了箱子的朝向 id为物品ID，必填 Damage为物品附加值（可不填，默认为0 Count为物品数量（可不填，但默认为0 tag为物品的NBT标签，可不填 Slot为物品在箱子内的槽位，必填 若有多个物品，直接继续叠加就行了 /setblock x y z chest 附加值 {Items:[{id,Damage,Count,tag,Slot},{id,Damage,Count,tag,Slot},{id,Damage,Count,tag,Slot}]} 可能代码写错了不过是一个意思&nbsp;&nbsp;
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

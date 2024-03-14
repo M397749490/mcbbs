@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>圆锥选择范围 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>圆锥选择范围 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-5-25 14:58<br />
+<b>标题: </b>圆锥选择范围<br /><i class="pstatus"> 本帖最后由 pca006132 于 2018-6-9 15:42 编辑 </i><br />
+<br />
+<font size="6"><strong>圆锥选择范围</strong></font><br />
+<br />
+<font size="3">秋一做的地图里需要选择从玩家眼前出发，锥体的范围内的玩家。方法有计算ry、</font><a href="thread.html?t=796669" target="_blank">任意多面体选择范围</a><font size="3">等等，而我今天要讲解的方法就是基于向量的，按理来说应该是十分准的。</font><br />
+<br />
+<font size="5"><strong>福利</strong></font><br />
+<br />
+<font size="3"> <img id="aimg_gaUDu" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/05/25/5b07a1e5a628b.jpg" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><font size="3"><br />
+</font><br />
+<font size="3">感谢秋一提供此图<br />
+</font><br />
+<font size="5"><strong>原理</strong></font><br />
+<br />
+<font size="3">原理就是，把使用技能玩家的<strong>朝向</strong>这向量进行<strong>单位化</strong>（长度不必为1m，只要确保单位在整个系统都是一样即可），为了方便之后处理我们会用一个<strong>实体marker</strong>把它进行标记。<br />
+然后，对每个从使用技能玩家到范围内敌对玩家的向量进行单位化，计算与上一步的向量的距离，小于某个固定数值就是在那圆锥的范围之内。<br />
+大家看着图推就行了...我也想不到怎么可以解释得更清楚，如果有大佬解释的话记得告诉我，我放上来...</font><br />
+<br />
+<font size="3">不过实际上我们并不会计算距离，也不是真的使用向量，我们会用朝向、执行坐标、选择器等来做到以上的处理。</font><br />
+<br />
+<font size="5"><strong>命令</strong></font><br />
+<br />
+<font size="3">以下是PCC的命令，希望可以给大家一个大致的理解：</font><br />
+<br />
+<div class="blockcode"><div id="code_Ajo"><ol><li>//圆锥选择函数<br />
+<li>def cone:<br />
+<li>&nbsp; &nbsp; //tag=skill就是使用技能的玩家，我们生成单位化朝向的marker。（以该玩家当作原点）<br />
+<li>&nbsp; &nbsp; //行末的 \ 符号代表下一行也属于这条命令<br />
+<li>&nbsp; &nbsp; execute as @e[tag=skill] at @s positioned ^ ^ ^3.8 run \<br />
+<li>&nbsp; &nbsp; summon area_effect_cloud ~ ~ ~ {Duration:2147483647,CustomName:&quot;&quot;target&quot;&quot;}<br />
+<li><br />
+<li>&nbsp; &nbsp; //移除所有inCone tag，inCone tag代表目标实体在圆锥范围之内<br />
+<li>&nbsp; &nbsp; tag @e remove inCone<br />
+<li><br />
+<li>&nbsp; &nbsp; //run: 代表下面缩进部分需要放进别的命令函数并且被调用<br />
+<li>&nbsp; &nbsp; //以下部分使用了两层的命令函数，因为execute内的选择器不会受<br />
+<li>&nbsp; &nbsp; //前方execute子命令修改的执行坐标影响，需要放进别的命令函数里才会受到影响<br />
+<li>&nbsp; &nbsp; execute at @e[tag=skill] run:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//让范围内（15格）的所有敌对实体“看向”使用技能的玩家，对这向量进行单位化<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//positioned ~ ~1.3 ~ 的用途将会在下文解释<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;execute as @e[distance=..15,tag=!skill,name=!target] \<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at @s positioned ~ ~1.3 ~ facing entity @e[tag=skill,limit=1] eyes positioned as @e[tag=skill] positioned ^ ^ ^-3.8 run:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//如果1格范围内有那marker的话，就加上tag。<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;execute if entity @e[name=target,distance=..1] run tag @s add inCone<br />
+<li>&nbsp; &nbsp; //清除marker<br />
+<li>&nbsp; &nbsp; kill @e[name=target]</ol></div><em onclick="copycode($('code_Ajo'));">复制代码</em></div><br />
+<font size="3">3.8和1这两个不是 magic number，是算出来的。距离（执行坐标与 marker） r=sin(x/2)*2]*n，1 ≈ sin(15°/2)*2*3.8。n 只是单位化之后的长度，我选 3.8 因为 sin(15°/2)<i>2</i>3.8 挺接近1... 我喜欢</font><br />
+<br />
+<font size="3">我上面用的等腰三角形算的距离，喜欢的话你们可以用cosine rule... 虽然没啥分别。</font><br />
+<br />
+<hr class="l" /><br />
+<font size="3">以下是实际上的命令，加入了闪闪发光的特技来方便各位观看... 不过为了方便，我会在一个代码块内写完3个命令函数的内容，读者需要使用的话请自行分开不同命令函数。</font><br />
+<br />
+<div class="blockcode"><div id="code_x80"><ol><li># minecraft:a<br />
+<li>execute as @e[tag=skill] at @s positioned ^ ^ ^3.8 run summon area_effect_cloud ~ ~ ~ {Duration:2147483647,CustomName:&quot;&quot;target&quot;&quot;}<br />
+<li>tag @e remove foo<br />
+<li>execute at @e[tag=skill] run function b<br />
+<li>kill @e[name=target]<br />
+<li>effect give @e[tag=foo] minecraft:glowing 1 0 true<br />
+<li>effect clear @e[tag=!foo] minecraft:glowing<br />
+<li><br />
+<li># minecraft:b<br />
+<li>execute as @e[distance=..15,tag=!skill,name=!target] at @s positioned ~ ~1.3 ~ facing entity @e[tag=skill,limit=1] eyes positioned as @e[tag=skill] positioned ^ ^ ^-3.8 run function c<br />
+<li><br />
+<li># minecraft:c<br />
+<li>execute if entity @e[name=target,distance=..1] run tag @s add foo</ol></div><em onclick="copycode($('code_x80'));">复制代码</em></div><br />
+<font size="5"><strong>理想 VS 现实</strong></font><br />
+<br />
+<font size="3">这玩意理论上很正确，没啥不对的，但这里面确实有个问题。问题就是，我们把实体当作了一点来处理。</font><br />
+<br />
+<font size="3">当实体与玩家的距离比较近的时候，脚下到目标玩家眼睛的向量就和头到目标玩家眼睛的向量出现很大差别了，这点相信就不用画图了。这差别甚至会超过我们选择的范围，造成看向某些地方选择不到指定实体。这有几个方法处理：</font><br />
+<br />
+<font size="3"><ul type="1" class="litype_1"><li>换个方法。<li>用多几个点。<li>不管。<br />
+</ul></font><br />
+<font size="3">我那么懒，自然是选择不管的。不过我也给秋一一个选择，就是他要胸还是腿，他选择了胸，所以就有 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif">positioned ~ ~1.3 ~</font> 这条子命令了：从脚下到胸口大概是 1.3米。</font><br />
+<br />
+<font size="3">好了我回去摸鱼了，大家有缘再见。</font><br />
+<br />
+<div class="quote"><blockquote><font size="3">使用 <a href="https://mm2bc.ustc-zzzz.net/" target="_blank">MM2BC</a> 生成</font></blockquote></div><br />
+[groupid=546]Command Block Logic[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-5-25 15:03<br />
+<i class="pstatus"> 本帖最后由 ruhuasiyu 于 2018-5-25 15:04 编辑 </i><br />
+<br />
+弄到一个函数就好了吧……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-5-25 15:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12918441&amp;ptid=796317" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-5-25 15:03</font></a></font><br />
+弄到一个函数就好了吧……</blockquote></div><br />
+里面说了的<br />
+以下部分使用了两层的命令函数，因为execute内的选择器不会受前方execute子命令修改的执行坐标影响，需要放进别的命令函数里才会受到影响<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ruhuasiyu&nbsp; &nbsp; <b>时间: </b>2018-5-25 16:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12918444&amp;ptid=796317" target="_blank"><font color="#999999">pca006132 发表于 2018-5-25 15:07</font></a></font><br />
+里面说了的<br />
+以下部分使用了两层的命令函数，因为execute内的选择器不会受前方execute子命令修改的执行坐 ...</blockquote></div><br />
+会吗？我觉得不需要吧？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>pca006132&nbsp; &nbsp; <b>时间: </b>2018-5-25 17:02<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12918574&amp;ptid=796317" target="_blank"><font color="#999999">ruhuasiyu 发表于 2018-5-25 16:54</font></a></font><br />
+会吗？我觉得不需要吧？</blockquote></div><br />
+<a href="thread.html?t=770198" target="_blank">http://www.mcbbs.net/thread-770198-1-1.html</a>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

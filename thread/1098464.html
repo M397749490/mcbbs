@@ -1,0 +1,422 @@
+<html>
+<head>
+<title>关于修改主线程类加载器 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>关于修改主线程类加载器 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 18:50<br />
+<b>标题: </b>关于修改主线程类加载器<br />众所周知，Bukkit插件所使用的类加载器，是PluginClassLoader<br />
+这个类加载器，没有双亲委派，有利也有弊<br />
+以往我都采用一种办法测试JS代码<br />
+<br />
+<br />
+&nbsp; &nbsp; ScriptEngineManager m;<br />
+&nbsp; &nbsp; ScriptEngine e;<br />
+&nbsp; &nbsp; m = new ScriptEngineManager(Thread.currentThread().getContextClassLoader());<br />
+&nbsp; &nbsp; e = m.getEngineByName(&quot;js&quot;);<br />
+<br />
+<br />
+为什么要给Nashorn指定类加载器呢？因为写脚本只要涉及到Java.type，取到另外Java插件的一些什么类<br />
+在不指定类加载器的情况下都会报错<br />
+Caused by: java.lang.ClassNotFoundException: xxxxxxx<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.net.URLClassLoader.findClass(Unknown Source) ~[?:1.8.0_241]<br />
+<br />
+<br />
+但是刚才，我即使是按照上述写法，仍然报了ClassNotFoundException<br />
+于是我干了一件这样的事<br />
+<br />
+Thread.currentThread().setContextClassLoader(getClassLoader());<br />
+<br />
+<br />
+当我再次运行new ScriptEngineManager(Thread.currentThread().getContextClassLoader())<br />
+并且尝试Java.type 访问另外Java插件的类的时候成功了<br />
+<br />
+然而，我以往测试的时候，似乎发现如果采用PluginClassLoader<br />
+存在一个getEngineFactories为空的问题，而直接采用AppClassLoader则没有问题<br />
+<br />
+此次测试的结果是，采用PluginClassLoader没有问题<br />
+但是采用AppClassLoader却出现了问题<br />
+<br />
+以往我是在1.15进行测试，现在则是1.12，是不是版本导致了什么问题？<br />
+或者说1.12以上莫非对PluginClassLoader作出了什么改动？<br />
+JavaScript脚本的加载插件是如何解决这一问题的？（别和我说PVPIN，那玩意倒闭前就最高支持到1.11.2，第二种办法就是那边看到的）<br />
+把主线程AppClassLoader改成PluginClassLoader会不会有问题？<br />
+希望知道的大佬能不吝分享下自己的经验<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NekokeCore&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:09<br />
+冒泡<img src="static/image/smiley/rabbit/44.gif" smilieid="694" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阴阳师元素祭祀&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:28<br />
+<i class="pstatus"> 本帖最后由 阴阳师元素祭祀 于 2020-8-10 19:30 编辑 </i><br />
+<br />
+<strong><strike>首先我不会bukkit 然后我也不会JavaScript</strike></strong><br />
+<hr class="l" /><br />
+Nashorn我记得弃用了<br />
+本身就不推荐使用<br />
+<hr class="l" /><br />
+指定ScriptEngineManager加载器我懂<br />
+为什么连线程context的loader都要改<br />
+<div class="blockcode"><div id="code_lT6"><ol><li>Thread.currentThread().setContextClassLoader(getClassLoader());</ol></div><em onclick="copycode($('code_lT6'));">复制代码</em></div><br />
+因为eval js的东西的时候需要相关context么？<br />
+不可以给engine的ScriptContext自行设置相关东西么（？)<br />
+<br />
+<hr class="l" /><br />
+<div class="quote"><blockquote>然而，我以往测试的时候，似乎发现如果采用PluginClassLoader<br />
+存在一个getEngineFactories为空的问题，而直接采用AppClassLoader则没有问题<br />
+<br />
+此次测试的结果是，采用PluginClassLoader没有问题<br />
+但是采用AppClassLoader却出现了问题</blockquote></div><br />
+采用AppClassLoader出现了问题 指 getEngineFactories返回空？<br />
+<strike>请原谅我理解能力 因为我觉得就离谱(?)</strike><br />
+<hr class="l" /><br />
+改主线程的AppClassLoader成PluginClassLoader<br />
+<strong>我觉得是野蛮的</strong><br />
+非常野蛮 而且绝对大概率行不通的<br />
+<strike>希望不要有这种行为出现 不是希望 是呵斥 </strike><br />
+<strike><hr class="l" /></strike><br />
+<div class="quote"><blockquote>JavaScript脚本的加载插件是如何解决这一问题的？</blockquote></div><br />
+没用过 但是我觉得完全可以在脚本里面调用自己的java代码 然后用代码再去执行相关操作<br />
+而不是纯js加载（？)<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:41<br />
+这是我对你的问题的相关回答<br />
+<font face="Microsoft YaHei"><font face="Microsoft YaHei Mono"><font face="JetBrains Mono"><div class="blockcode"><div id="code_R8o"><ol><li><br />
+<li>public static IService getService(ClassLoader classLoader) {<br />
+<li>&nbsp; &nbsp; if (classLoader == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classLoader = Thread.currentThread().getContextClassLoader();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 当没有指定 classLoader 的时候, 大部分(不排除有部分弱智库不这样做) 库<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 都会使用 Thread.currentThread().getContextClassLoader() 作为目标 ClassLoader<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 由于 Java 的类加载本身并不依赖 Thread.currentThread().getContextClassLoader(),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 而是依赖需要使用的类他自己的唯一类加载器, 所以, 线程上下文加载器你设置成什么, 对java本身并没有任何影响<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 换句话来说, 线程上下文类加载器无法影响类本身的加载机制<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 上下文类加载器只是各种类库的缺省设置<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 这个值影响的只有类库的加载<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 对于 Bukkit Plugin System<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// Bukkit 加载插件的时候, 并不会去修改 Thread.currentThread().getContextClassLoader(),<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 也就是说, 默认情况下, contextClassLoader = ClassLoader.getSystemClassLoader()<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 此时, SystemCL 没法找到 PluginCL,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 你需要临时把上下文加载器设置成 PluginCL<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 然后, 为了避免系统不稳定性, 我们在调用完毕后需要设置回去<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 就像下面这样<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;/*<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassLoader old = Thread.currentThread().getContextClassLoader();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Thread.currentThread().setContextClassLoader(Bootstrap.class.getClassLoader());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Service loading.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} finally {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Thread.currentThread().setContextClassLoader(old);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return getServiceImpl( /* @NotNull */ classLoader)<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_R8o'));">复制代码</em></div><br />
+</font></font></font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19411855&amp;ptid=1098464" target="_blank"><font color="#999999">阴阳师元素祭祀 发表于 2020-8-10 19:28</font></a></font><br />
+<strike>首先我不会bukkit 然后我也不会JavaScript</strike><br />
+<hr class="l" /><br />
+Nashorn我记得弃用了</blockquote></div><br />
+Nashorn在javax包下没有弃用，至少针对Java8完全没有问题<br />
+<br />
+为什么连线程context的loader都要改<br />
+这个是我有疑问的地方，只能说是一种解决方法<br />
+<br />
+因为eval js的东西的时候需要相关context么？<br />
+准确的来说，PluginClassLoader没双亲委派导致的，逻辑太复杂<br />
+总之以往1.15测试时，不指定ClassLoader，没有办法通过Java.type访问其他插件的类<br />
+<br />
+采用AppClassLoader出现了问题 指 getEngineFactories返回空？<br />
+不是，没做这个测试<br />
+我说的是使用AppClassLoader，js中调用Java.type会报错ClassNotFound<br />
+<br />
+在脚本里面调用自己的java代码<br />
+Java.type就是获取Java中的类，调用Java的代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阴阳师元素祭祀&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:50<br />
+<i class="pstatus"> 本帖最后由 阴阳师元素祭祀 于 2020-8-10 19:51 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19412273&amp;ptid=1098464" target="_blank"><font color="#999999">William_Shi 发表于 2020-8-10 19:45</font></a></font><br />
+Nashorn在javax包下没有弃用，至少针对Java8完全没有问题<br />
+<br />
+为什么连线程context的loader都要改</blockquote></div><strike><br />
+<div class="quote"><blockquote><strong>不指定</strong>ClassLoader，没有办法通过Java.type访问其他插件的类</blockquote></div><br />
+这个不指定 包括ContextClassLoader (?)某个解决方法么 那没事莉<br />
+</strike><br />
+<br />
+<hr class="l" /><br />
+<div class="quote"><blockquote>总之以往1.15测试时，不指定ClassLoader，没有办法通过Java.type访问<strong>其他插件的类</strong></blockquote></div><br />
+没法访问目标类的时候 目标类加载了么<br />
+<hr class="l" /><br />
+<div class="quote"><blockquote>Java.type就是获取Java中的类，调用Java的代码</blockquote></div><br />
+你之前说的是无法访问 <strong>其他插件</strong>的类 那么自己插件的类 是能的（？）<br />
+那么脚本里面调用自己代码操作就对了（确信）<br />
+<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:53<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19412383&amp;ptid=1098464" target="_blank"><font color="#999999">阴阳师元素祭祀 发表于 2020-8-10 19:50</font></a></font><br />
+<strike><br />
+<br />
+这个不指定 包括ContextClassLoader (?)某个解决方法么 那没事莉<br />
+</strike></blockquote></div><br />
+你之前说的是无法访问 其他插件的类 那么自己插件的类 是能的（？）<br />
+那么脚本里面调用自己代码操作就对了（确信）<br />
+<br />
+都不能。如果能的话我当然可以采用自己的类封装别的插件的类<br />
+<br />
+没法访问目标类的时候 目标类加载了么<br />
+加载了。Class.forName强行加载<br />
+Class.forName未报错，返回的Class&lt;?&gt;不为空。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>洞穴夜莺&nbsp; &nbsp; <b>时间: </b>2020-8-10 19:57<br />
+个人觉得不要用Nashorn<br />
+其一，Nashorn在高版本Java已经弃用<br />
+其二，Nashorn仍然在执行ES5标准，而火狐谷歌之流都奔着ES7标准去了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 20:00<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19412160&amp;ptid=1098464" target="_blank"><font color="#999999">Karlatemp 发表于 2020-8-10 19:41</font></a></font><br />
+这是我对你的问题的相关回答</blockquote></div><br />
+最后的方法就类似PVPINJSRT（也是set回原来的CL<br />
+但是关键在于1.15发生了什么使得指定PluginClassLoader加载Nashorn无法再获取到Engine了<br />
+这与什么有关？<br />
+（1.12可以getEngineByName(&quot;js&quot;)，但是1.15getEngineFactories返回了空列表<br />
+<br />
+感谢提供完整操作，问题差不多解决了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Karlatemp&nbsp; &nbsp; <b>时间: </b>2020-8-10 20:07<br />
+针对 Nashorn, 我翻了 JDK 的源码， 希望能解决你的问题<br />
+<br />
+ScriptEngineManager manager = new ScriptEngineManager(Thread.currentThread().getContextClassLoader());<br />
+ScriptEngine engine = manager.getEngineByName(&quot;js&quot;);<br />
+<br />
+首先到 `new ScriptEngineManager` 查看 JDK 其源码, 可以发现,<br />
+可以发现， 这个 ClassLoader 参数<br />
+<div class="blockcode"><div id="code_rAB"><ol><li>public ScriptEngineManager(ClassLoader loader) {<br />
+<li>&nbsp; &nbsp; init(loader);<br />
+<li>}<br />
+<li>private void init(final ClassLoader loader) {<br />
+<li>&nbsp; &nbsp; globalScope = new SimpleBindings();<br />
+<li>&nbsp; &nbsp; engineSpis = new HashSet&lt;ScriptEngineFactory&gt;();<br />
+<li>&nbsp; &nbsp; nameAssociations = new HashMap&lt;String, ScriptEngineFactory&gt;();<br />
+<li>&nbsp; &nbsp; extensionAssociations = new HashMap&lt;String, ScriptEngineFactory&gt;();<br />
+<li>&nbsp; &nbsp; mimeTypeAssociations = new HashMap&lt;String, ScriptEngineFactory&gt;();<br />
+<li>&nbsp; &nbsp; initEngines(loader);<br />
+<li>}<br />
+<li><br />
+<li>private void initEngines(final ClassLoader loader) {<br />
+<li>&nbsp; &nbsp; Iterator&lt;ScriptEngineFactory&gt; itr = null;<br />
+<li>&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ServiceLoader&lt;ScriptEngineFactory&gt; sl = AccessController.doPrivileged(<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;new PrivilegedAction&lt;ServiceLoader&lt;ScriptEngineFactory&gt;&gt;() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; public ServiceLoader&lt;ScriptEngineFactory&gt; run() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return getServiceLoader(loader);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;});<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;itr = sl.iterator();<br />
+<li>&nbsp; &nbsp; } catch (ServiceConfigurationError err) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.err.println(&quot;Can't find ScriptEngineFactory providers: &quot; +<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; err.getMessage());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (DEBUG) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;err.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do not throw any exception here. user may want to<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// manage his/her own factories using this manager<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// by explicit registratation (by registerXXX) methods.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (itr.hasNext()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ScriptEngineFactory fact = itr.next();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; engineSpis.add(fact);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} catch (ServiceConfigurationError err) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; System.err.println(&quot;ScriptEngineManager providers.next(): &quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;+ err.getMessage());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (DEBUG) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;err.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // one factory failed, but check other factories...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; continue;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; } catch (ServiceConfigurationError err) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.err.println(&quot;ScriptEngineManager providers.hasNext(): &quot;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;+ err.getMessage());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (DEBUG) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;err.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// do not throw any exception here. user may want to<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// manage his/her own factories using this manager<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// by explicit registratation (by registerXXX) methods.<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_rAB'));">复制代码</em></div><br />
+详细逻辑请自行前往 JDK 源码查看<br />
+<br />
+不难看出， 这个 Manager 会尝试加载全部他自己找得到的 `ScriptEngineFactory`<br />
+<br />
+然后已知 JDK8 中, Java的JavaScript的Engine为 Nashorn<br />
+他的 ScriptEngineFactory 为 NashornScriptEngineFactory,<br />
+<div class="blockcode"><div id="code_nz4"><ol><li><br />
+<li>@Exported<br />
+<li>public final class NashornScriptEngineFactory implements ScriptEngineFactory {<br />
+<li>&nbsp; &nbsp; private static final String[] DEFAULT_OPTIONS = new String[]{&quot;-doe&quot;};<br />
+<li>&nbsp; &nbsp; private static final List&lt;String&gt; names = immutableList(&quot;nashorn&quot;, &quot;Nashorn&quot;, &quot;js&quot;, &quot;JS&quot;, &quot;JavaScript&quot;, &quot;javascript&quot;, &quot;ECMAScript&quot;, &quot;ecmascript&quot;);<br />
+<li>&nbsp; &nbsp; private static final List&lt;String&gt; mimeTypes = immutableList(&quot;application/javascript&quot;, &quot;application/ecmascript&quot;, &quot;text/javascript&quot;, &quot;text/ecmascript&quot;);<br />
+<li>&nbsp; &nbsp; private static final List&lt;String&gt; extensions = immutableList(&quot;js&quot;);<br />
+<li><br />
+<li>&nbsp; &nbsp; public NashornScriptEngineFactory() {<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_nz4'));">复制代码</em></div><br />
+通过查看 NashornScriptEngineFactory 的源码可以看出, Nashorn的 Factory 和 Engine 之间的创建并没有任何关联<br />
+<br />
+来到 `manager.getEngineByName(&quot;js&quot;)`, 我们查看其源码, 可以得出<br />
+<div class="blockcode"><div id="code_MUp"><ol><li><br />
+<li>public ScriptEngine getEngineByName(String shortName) {<br />
+<li>&nbsp; &nbsp; if (shortName == null) throw new NullPointerException();<br />
+<li>&nbsp; &nbsp; //look for registered name first<br />
+<li>&nbsp; &nbsp; Object obj;<br />
+<li>&nbsp; &nbsp; if (null != (obj = nameAssociations.get(shortName))) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ScriptEngineFactory spi = (ScriptEngineFactory)obj;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ScriptEngine engine = spi.getScriptEngine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;engine.setBindings(getBindings(), ScriptContext.GLOBAL_SCOPE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return engine;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (Exception exp) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (DEBUG) exp.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; for (ScriptEngineFactory spi : engineSpis) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;List&lt;String&gt; names = null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;names = spi.getNames();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (Exception exp) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (DEBUG) exp.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (names != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (String name : names) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (shortName.equals(name)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ScriptEngine engine = spi.getScriptEngine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;engine.setBindings(getBindings(), ScriptContext.GLOBAL_SCOPE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return engine;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (Exception exp) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (DEBUG) exp.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return null;<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_MUp'));">复制代码</em></div><div class="blockcode"><div id="code_pKR"><ol><li><br />
+<li>public ScriptEngine getEngineByName(String shortName) {<br />
+<li>&nbsp; &nbsp; // ....<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ScriptEngine engine = spi.getScriptEngine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;engine.setBindings(getBindings(), ScriptContext.GLOBAL_SCOPE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return engine;<br />
+<li>&nbsp; &nbsp; // ...<br />
+<li>&nbsp; &nbsp; // ...<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ScriptEngine engine = spi.getScriptEngine();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;engine.setBindings(getBindings(), ScriptContext.GLOBAL_SCOPE);<br />
+<li>&nbsp; &nbsp; // ...<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_pKR'));">复制代码</em></div><br />
+
+<br />
+可以找到, 核心就是 getScriptEngine(), 接下来我们查看 NashornScriptEngineFactory#getScriptEngine<br />
+<br />
+<div class="blockcode"><div id="code_kzN"><ol><li><br />
+<li>&nbsp; &nbsp; public ScriptEngine getScriptEngine() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return new NashornScriptEngine(this, DEFAULT_OPTIONS, getAppClassLoader(), (ClassFilter)null);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (RuntimeException var2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (Context.DEBUG) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; var2.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw var2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; private static ClassLoader getAppClassLoader() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ClassLoader ccl = Thread.currentThread().getContextClassLoader();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return ccl == null ? NashornScriptEngineFactory.class.getClassLoader() : ccl;<br />
+<li>&nbsp; &nbsp; }<br />
+<li></ol></div><em onclick="copycode($('code_kzN'));">复制代码</em></div><br />
+
+<br />
+让我们注意一下, getAppClassLoader, 他做了什么,<br />
+他直接使用了 Thread.currentThread().getContextClassLoader(),<br />
+这说明 NashornScriptEngine 的创建 本身 和 NashornScriptEngineFactory 没有任何关联!<br />
+结合我之前发的解释, 这也完美的说明了<br />
+<br />
+<div class="quote"><blockquote>为什么要给Nashorn指定类加载器呢？因为写脚本只要涉及到Java.type，取到另外Java插件的一些什么类<br />
+在不指定类加载器的情况下都会报错<br />
+Caused by: java.lang.ClassNotFoundException: xxxxxxx<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;at java.net.URLClassLoader.findClass(Unknown Source) ~[?:1.8.0_241]<br />
+<br />
+<br />
+但是刚才，我即使是按照上述写法，仍然报了ClassNotFoundException<br />
+于是我干了一件这样的事<br />
+<br />
+Thread.currentThread().setContextClassLoader(getClassLoader());<br />
+<br />
+<br />
+当我再次运行new ScriptEngineManager(Thread.currentThread().getContextClassLoader())<br />
+并且尝试Java.type 访问另外Java插件的类的时候成功了</blockquote></div><br />
+
+<br />
+没有 Thread.currentThread().setContextClassLoader(getClassLoader()); 的时候, <br />
+Nashorn 引擎使用的是 System.getClassLoader(), 自然无法找到位于 PluginClassLaoder 的任何类,<br />
+<br />
+此刻, 证毕.<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 20:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19412567&amp;ptid=1098464" target="_blank"><font color="#999999">洞穴夜莺 发表于 2020-8-10 19:57</font></a></font><br />
+个人觉得不要用Nashorn<br />
+其一，Nashorn在高版本Java已经弃用<br />
+其二，Nashorn仍然在执行ES5标准，而火狐谷歌之 ...</blockquote></div><br />
+据说Nashorn将会被一个新的JS引擎所替代<br />
+叫做Graal（GraalVM）<br />
+并且是ECMAScript 2020 compatible<br />
+还支持JDK15<br />
+可以说是非常非常新<br />
+但是我还不会用。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>William_Shi&nbsp; &nbsp; <b>时间: </b>2020-8-10 20:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=19412770&amp;ptid=1098464" target="_blank"><font color="#999999">Karlatemp 发表于 2020-8-10 20:07</font></a></font><br />
+针对 Nashorn, 我翻了 JDK 的源码， 希望能解决你的问题<br />
+<br />
+ScriptEngineManager manager = new ScriptEngine ...</blockquote></div><br />
+感谢大佬的回复<br />
+也就是说在新建了Manager时传参只能确保加载到ScriptEngineFactory<br />
+调整Engine相关还得靠改ContextClassLoader，除非它被强行设为空<br />
+<br />
+那么得出这样的结论<br />
+创建Manager使用App Class Loader确保能加载到EngineFactory<br />
+创建Engine调整ContextClassLoader为PluginClassLoader确保能访问到插件<br />
+<br />
+已经完全理清，再次感谢大佬的回复！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2020-8-22 17:46<br />
+<i class="pstatus"> 本帖最后由 2280761425 于 2020-8-22 17:48 编辑 </i><br />
+<br />
+之前我在开发时直接设置ContextClassLoader也遇到过这问题<br />
+但是不这样又不好调用其他插件的类<br />
+所以我的做法是在必要时先获取到对应插件的ClassLoader再进行加载（如果觉得麻烦也可以获取到classloader后保存，之后直接使用）<br />
+具体可以参考一下这里<a href="https://github.com/Miraclexc/JavaScriptLibraryPlugin/blob/master/src/main/resources/lib/util.js" target="_blank">https://github.com/Miraclexc/Jav ... sources/lib/util.js</a>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,105 @@
+<html>
+<head>
+<title>[盗版皮肤相关]或许1.8.9（和1.8.8）的皮肤还能再抢救一下 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[盗版皮肤相关]或许1.8.9（和1.8.8）的皮肤还能再抢救一下 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>52Dora&nbsp; &nbsp; <b>时间: </b>2016-1-29 23:20<br />
+<b>标题: </b>[盗版皮肤相关]或许1.8.9（和1.8.8）的皮肤还能再抢救一下<br />众所周知，从Minecraft 1.7.10开始，盗版用户的皮肤成了一个大问题，曾经通过AbstractClientPlayer类里面的部分方法获取皮肤的方法已经失效，改用Mojang自带的验证API获取皮肤，不过这些问题都得到了解决——<a href="thread.html?t=358932" target="_blank">UniSkinMod</a>和<a href="thread.html?t=269807" target="_blank">CustomSkinLoader</a>提供了解决方案。不过好景不长，由于国外某些技术系玩家找到了通过自定义NBT获取自定义头颅的方法，Mojang于1.8.4时期添加了皮肤域名白名单系统，只能接受来自mojang.com和minecraft.net的皮肤，于是大家懂得。<br />
+最终，即使MinecraftForge升级到1.8.8甚至是1.8.9版还是没有兼容这些版本的皮肤Mod（或许是本人太心急的原因？）。<br />
+<br />
+实际上，1.8.9的皮肤或许还能再抢救一下。<br />
+<br />
+<font size="4"><strong><img src="static/image/smiley/mc_mob_food_plants/sampling.gif" smilieid="848" border="0" alt="" />发现祸根</strong></font><br />
+由于个人原因，想玩玩1.8.9，于是开始找各种Mod，顺便解决一下皮肤问题。<br />
+<br />
+就在准备解决皮肤问题的时候，突然想到1.8.4开始不能使用外站皮肤的“BUG”，于是开始寻找该功能的来源。<br />
+<br />
+很快，本人在验证API的YggdrasilMinecraftSessionService类里找到了这些东西：<br />
+<div class="blockcode"><div id="code_XGo"><ol><li>private static final String[] WHITELISTED_DOMAINS = new String[]{&quot;.minecraft.net&quot;, &quot;.mojang.com&quot;}; // 定义白名单域名</ol></div><em onclick="copycode($('code_XGo'));">复制代码</em></div><div class="blockcode"><div id="code_KHY"><ol><li>private static boolean isWhitelistedDomain(String url) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;URI uri = null;<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;uri = new URI(url); // 定义该皮肤的URL地址<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (URISyntaxException var4) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;throw new IllegalArgumentException(&quot;Invalid URL \'&quot; + url + &quot;\'&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String domain = uri.getHost(); // 获取地址的主机名<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for(int i = 0; i &lt; WHITELISTED_DOMAINS.length; ++i) { // 遍历白名单里的域名<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(domain.endsWith(WHITELISTED_DOMAINS[i])) { // 检查主机名是否为白名单所设<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return true; // 如果在白名单里，就算通过<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return false; // 如果不在白名单里，对不起，丢掉丢掉<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_KHY'));">复制代码</em></div>（别问我怎么弄来的源代码，IDEA大法好，如果违规请通知我删除）<br />
+<br />
+找到万恶之源就很简单了，接下来便是使用Forge的Coremod技术把这个方法给黑掉。<br />
+<br />
+[diamond_pickaxe]<font size="4"><strong>大修大补</strong></font><br />
+<br />
+在这里使用的模组源代码是UniSkinMod，使用GPL v2协议，特别感谢模组原作者<a href="https://www.mcbbs.net/home.php?mod=space&amp;uid=349553" target="_blank">@RecursiveG</a>&nbsp;&nbsp;。<br />
+<br />
+<br />
+首先在Transformers添加修改这些方法的代码，于是有样学样地弄了一下：<br />
+<div class="blockcode"><div id="code_lkF"><ol><li>在构造方法里添加：<br />
+<li>// Removes skin domain whitelist system to support custom skin<br />
+<li>hookMethod(&quot;com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService&quot;,&quot;isWhitelistedDomain&quot;,&quot;isWhitelistedDomain&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &quot;(Ljava/lang/String;)Z&quot;,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; new isWhitelistedDomainTransformer());<br />
+<li><br />
+<li>然后弄一个类：<br />
+<li>&nbsp; &nbsp; /** Removes skin domain whitelist system to support custom skin [url=home.php?mod=space&amp;uid=1231151]@author[/url] DoraJDJ */<br />
+<li>&nbsp; &nbsp; private class isWhitelistedDomainTransformer implements IMethodTransformer{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void transform(MethodNode mn, String srgName, boolean devEnv, String classObfName) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.instructions.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.instructions.add(new InsnNode(Opcodes.ICONST_1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.instructions.add(new InsnNode(Opcodes.IRETURN));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.maxLocals=0;mn.maxStack=0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_lkF'));">复制代码</em></div><br />
+通常情况下，这样做就算可以了，但是后来发现在运行的时候出现了错误<br />
+<div class="blockcode"><div id="code_YV6"><ol><li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: java.lang.reflect.InvocationTargetException<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at java.lang.reflect.Method.invoke(Method.java:497)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at net.minecraftforge.gradle.GradleStartCommon.launch(GradleStartCommon.java:97)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at GradleStart.main(GradleStart.java:26)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at java.lang.reflect.Method.invoke(Method.java:497)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1052]: &nbsp; &nbsp; &nbsp; &nbsp; at com.intellij.rt.execution.application.AppMain.main(AppMain.java:144)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: Caused by: net.minecraftforge.fml.relauncher.FMLSecurityManager$ExitTrappedException<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at net.minecraftforge.fml.relauncher.FMLSecurityManager.checkPermission(FMLSecurityManager.java:30)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at java.lang.SecurityManager.checkExit(SecurityManager.java:761)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at java.lang.Runtime.exit(Runtime.java:107)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at java.lang.System.exit(System.java:971)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.launchwrapper.Launch.launch(Launch.java:138)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; at net.minecraft.launchwrapper.Launch.main(Launch.java:28)<br />
+<li>[19:14:55] [Client thread/INFO]: [java.lang.ThreadGroup:uncaughtException:1061]: &nbsp; &nbsp; &nbsp; &nbsp; ... 11 more</ol></div><em onclick="copycode($('code_YV6'));">复制代码</em></div><br />
+经过各种自学，发现疑似是try-catch block和exceptions的问题，在mn.instructions.clear();后面再添加两行代码，问题解决：<br />
+<div class="blockcode"><div id="code_Md9"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.exceptions.clear();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mn.tryCatchBlocks.clear();</ol></div><em onclick="copycode($('code_Md9'));">复制代码</em></div>（若有错误欢迎指出）<br />
+<br />
+至此，1.8.9的皮肤问题完美解决。<br />
+<br />
+最后，好奇的孩子可以看下源码了解下：<a href="https://github.com/DoraJDJ/UniSkinMod" target="_blank">https://github.com/DoraJDJ/UniSkinMod</a><br />
+<br />
+初投稿，若有任何意见欢迎指出(:3JZ<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

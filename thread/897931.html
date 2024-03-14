@@ -1,0 +1,170 @@
+<html>
+<head>
+<title>[PCD]关于Inventory的判断与数据的传递 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[PCD]关于Inventory的判断与数据的传递 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-6 17:26<br />
+<b>标题: </b>[PCD]关于Inventory的判断与数据的传递<br /><i class="pstatus"> 本帖最后由 2280761425 于 2019-8-8 18:19 编辑 </i><br />
+<br />
+很长一段时间，对于Inventory的判断我一直是用title来进行的，如果涉及到数据传递部分，那就只能通过各种神奇的方法进行了（比如截取title或者物品堆标记）。<br />
+然后今天海螺大佬告诉我还能用holder判断，我就试了一下，是挺方便的，只要新建一个实现了InventoryHolder的类传入createInventory里的第一个参数就行了（就是一般填null的那个），要判断就用instanceof来判断。<br />
+之后我想既然都可以自己传入对象了，那直接传递数据是不是可以？<br />
+然后我写了这样一个类：<br />
+<div class="blockcode"><div id="code_H42"><ol><li>public class CustomInventoryHolder&lt;T&gt; implements InventoryHolder {<br />
+<li>&nbsp; &nbsp; protected Inventory inventory;<br />
+<li>&nbsp; &nbsp; protected T data;<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public CustomInventoryHolder(T data/*, int size, String title*/) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.data = data;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//更方便创建Inventory与holder的方法<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;//this.inventory = Bukkit.createInventory(this, size, title);<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; //实现InventoryHolder里的方法，由于不能返回null所以这里设置为持有holder的Inventory<br />
+<li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public Inventory getInventory() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.inventory;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public T getData() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.data;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; public void setData(T data) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.data = data;<br />
+<li>&nbsp; &nbsp; }<br />
+<li><br />
+<li>&nbsp; &nbsp; //Inventory在这里设置。构造函数不加Inventory参数是因为在对Inventory传入holder时Inventory还未创建<br />
+<li>&nbsp; &nbsp; public void setInventory(Inventory inventory) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.inventory = inventory;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_H42'));">复制代码</em></div><br />
+
+<br />
+这样就可以进行数据传递了，与之前的方法比较代码不知道简洁了多少（bug顺便也少了很多233）<br />
+为了方便还可以把获取holder用一个方法进行：<br />
+<div class="blockcode"><div id="code_efq"><ol><li>public static CustomInventoryHolder&lt;?&gt; getHolder(Inventory inventory) {<br />
+<li>&nbsp; &nbsp; InventoryHolder holder = inventory.getHolder();<br />
+<li>&nbsp; &nbsp; if(!(holder instanceof CustomInventoryHolder)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return null;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; return (CustomInventoryHolder&lt;?&gt;) holder;<br />
+<li>}</ol></div><em onclick="copycode($('code_efq'));">复制代码</em></div><br />
+
+<br />
+这样判断一个物品栏就既可以通过CustomInventoryHolder里的data的数据也可以通过不同的继承CustomInventoryHolder的类，当然，再创建一个方法也可以<br />
+<br />
+测试代码（由于是测试所以类型判断并没有那么严格）：<br />
+<div class="blockcode"><div id="code_wEk"><ol><li>//命令里<br />
+<li>Map&lt;String, Object&gt; map = new HashMap&lt;&gt;();<br />
+<li>map.put(&quot;name&quot;, args[1]);<br />
+<li>map.put(&quot;sender&quot;, sender);<br />
+<li>map.put(&quot;count&quot;, 0);<br />
+<li>((Player) sender).openInventory(InventoryTools.createDataInventory(sender.getServer(), map));</ol></div><em onclick="copycode($('code_wEk'));">复制代码</em></div><div class="blockcode"><div id="code_iRH"><ol><li>//事件里<br />
+<li>CustomInventoryHolder&lt;?&gt; holder = InventoryTools.getHolder(event.getInventory());<br />
+<li>if(holder != null) {<br />
+<li>&nbsp; &nbsp; Map&lt;String, Object&gt; data = (Map&lt;String, Object&gt;) holder.getData();<br />
+<li>&nbsp; &nbsp; //测试map保存不同类型数据<br />
+<li>&nbsp; &nbsp; event.getWhoClicked().sendMessage((String) data.get(&quot;name&quot;));<br />
+<li>&nbsp; &nbsp; event.getWhoClicked().sendMessage(((CommandSender) data.get(&quot;sender&quot;)).getName());<br />
+<li>&nbsp; &nbsp; //测试map数据读写<br />
+<li>&nbsp; &nbsp; event.getWhoClicked().sendMessage(data.get(&quot;count&quot;).toString());<br />
+<li>&nbsp; &nbsp; data.put(&quot;count&quot;, ((Integer) data.get(&quot;count&quot;) + 1));<br />
+<li>}</ol></div><em onclick="copycode($('code_iRH'));">复制代码</em></div><br />
+
+<br />
+InventoryTools类：<br />
+<div class="blockcode"><div id="code_v8P"><ol><li>public class InventoryTools {<br />
+<li>&nbsp; &nbsp; //也是可以直接写成判断类型再强转的<br />
+<li>&nbsp; &nbsp; public static CustomInventoryHolder&lt;?&gt; getHolder(Inventory inventory) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;InventoryHolder holder = inventory.getHolder();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(!(holder instanceof CustomInventoryHolder)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return null;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return (CustomInventoryHolder&lt;?&gt;) holder;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp; //简化创建过程<br />
+<li>&nbsp; &nbsp; //已经不需要使用本方法了，可以直接用holder的构造函数创建Inventory（注释部分），感谢@810587921 提供的方法<br />
+<li>&nbsp; &nbsp; public static &lt;T&gt; Inventory createDataInventory(Server server, T data) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CustomInventoryHolder&lt;T&gt; holder = new CustomInventoryHolder&lt;T&gt;(data);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Inventory inventory = server.createInventory(holder, 54);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;holder.setInventory(inventory);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return inventory;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_v8P'));">复制代码</em></div><br />
+
+<br />
+事件传递：<br />
+既然我们已经能传入自己的holder了，那么也可以不再使用之前的方法判断Inventory了，对象的多态允许我们使用有不同方法的holder<br />
+首先需要在CustomInventoryHolder里添加一个类型为Consumer&lt;Event/*也可以是别的类型，方便就行*/&gt;（用类也行）的event字段<br />
+然后在事件发生时调用这个字段（在这之前需要先判断holder）<br />
+<div class="blockcode"><div id="code_kXe"><ol><li>holder.getEvent().accept(event/*类型就是上面指定的类型*/);</ol></div><em onclick="copycode($('code_kXe'));">复制代码</em></div><br />
+这样就可以实现不同功能的Inventory的自动加载了<br />
+<br />
+自动加载两个Inventory的代码<br />
+创建Inventory：<br />
+<div class="blockcode"><div id="code_KQ7"><ol><li>Inventory inv1 = InventoryTools.createDataInventory(player.getServer(), data, /*这个参数就是新加的event字段*/event -&gt; event.getWhoClicked().sendMessage(&quot;Holder Test.&quot;));//打开代码这里就省略了<br />
+<li>Inventory inv2 = InventoryTools.createDataInventory(player.getServer(), data, event -&gt; event.getWhoClicked().giveExp(10)/*给予玩家经验*/);<br />
+<li></ol></div><em onclick="copycode($('code_KQ7'));">复制代码</em></div><br />
+事件：<br />
+<div class="blockcode"><div id="code_Wh3"><ol><li>public void onInventoryClick(InventoryClickEvent event) {<br />
+<li>&nbsp; &nbsp; if(event.isCancelled()) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; CustomInventoryHolder holder = InventoryTools.getHolder(event.getClickedInventory());<br />
+<li>&nbsp; &nbsp; if(holder != null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;holder.getEvent().accept(event);<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_Wh3'));">复制代码</em></div>[groupid=1330]PluginsCDTribe[/groupid]<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>弱鸡绿毛怪&nbsp; &nbsp; <b>时间: </b>2019-8-6 17:36<br />
+emm Inventory可以equals的吧<img src="static/image/smiley/tong/sleep.png" smilieid="1450" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-6 17:38<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15217221&amp;ptid=897931" target="_blank"><font color="#999999">MagicLocyDragon 发表于 2019-8-6 17:36</font></a></font><br />
+emm Inventory可以equals的吧</blockquote></div><br />
+用holder毕竟还能传递数据qwq，map维护有点麻烦<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>布鲁鲁&nbsp; &nbsp; <b>时间: </b>2019-8-6 17:46<br />
+这个方法好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>a8105&nbsp; &nbsp; <b>时间: </b>2019-8-8 02:25<br />
+对于自定义Holder的获取其实并不需要那么复杂:<br />
+<br />
+<br />
+public class MyHolder implements InventoryHolder<br />
+{<br />
+&nbsp;&nbsp;private Inventory inv;<br />
+&nbsp; &nbsp;public MyHolder(){<br />
+&nbsp; &nbsp; inv=Bukkit.createInventory(this,6*9,&quot;title&quot;);<br />
+&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;public Inventory getInventory()<br />
+&nbsp; &nbsp; {<br />
+&nbsp; &nbsp; return inv;<br />
+&nbsp; &nbsp; }<br />
+}<br />
+class MyListener implements Listener{<br />
+&nbsp;&nbsp;@EventHandler<br />
+&nbsp;&nbsp;public void click(InventoryClickEvent e){<br />
+&nbsp; &nbsp; InventoryHolder holder=e.getInventory().getHolder();<br />
+&nbsp; &nbsp; if(holder!=null &amp;&amp; (holder instanceof MyHolder)){<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;MyHolder myHolder=(MyHolder)holder;<br />
+&nbsp; &nbsp; }<br />
+&nbsp;&nbsp;}<br />
+}<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2280761425&nbsp; &nbsp; <b>时间: </b>2019-8-8 18:12<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15237366&amp;ptid=897931" target="_blank"><font color="#999999">810587921 发表于 2019-8-8 02:25</font></a></font><br />
+对于自定义Holder的获取其实并不需要那么复杂:</blockquote></div><br />
+不错的方法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>shutong&nbsp; &nbsp; <b>时间: </b>2019-8-29 02:10<br />
+学习学习，目前还未掌握也没看懂
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

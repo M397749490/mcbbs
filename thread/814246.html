@@ -1,0 +1,331 @@
+<html>
+<head>
+<title>[PCD]爷爷都看得懂的从零开始的核心代码注入教程(一) - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[PCD]爷爷都看得懂的从零开始的核心代码注入教程(一) <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>弱鸡绿毛怪&nbsp; &nbsp; <b>时间: </b>2018-8-14 11:18<br />
+<b>标题: </b>[PCD]爷爷都看得懂的从零开始的核心代码注入教程(一)<br /><i class="pstatus"> 本帖最后由 MagicLocyDragon 于 2019-7-15 18:01 编辑 </i><br />
+<br />
+<font style="background-color:rgb(251, 242, 219)"><font face="&amp;quot;"><div align="center"><div align="center"><table cellspacing="0" class="t_table" style="width:90%" bgcolor="#696969"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td><div align="center"><strong><font size="6">1-1 ———— 前言</font></strong></div></td></tr></table></div><hr class="l" /><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#dcdcdc"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#ffffff"><tr><td><font size="5"> 1-1-1 学习本辣鸡教程的最低配置</font><br />
+<font size="2">—————————————————————————————<br />
+· 熟练面向对象(废话<br />
+· 能熟练使用反射<br />
+· 会使用jdgui等反编译工具翻阅核心代码<br />
+· 对Javassist(Asm)和Javaagent有了解，具体我下面都会说的<br />
+· 对ClassLoader有了解</font>，具体我下面都会说的<br />
+· 有足够的耐心和至少十五分钟的时间<br />
+<strong><font size="3">以上要求的前三个是必须的，如果没有达成你看起来会很吃力.<br />
+</font></strong>—————————————————————————————<br />
+<font size="5">1-1-2 这个能做什么?<br />
+</font>—————————————————————————————<br />
+· 当有插件使用setOp(boolean isOp)方法时，第一时间能获取到并且拦截.<br />
+· 当有插件使用Player.sendMessage(String msg)方法时，能获取到发送的信息并且修改或拦截等等<br />
+· …………<br />
+—————————————————————————————<br />
+<font size="5">1-1-3 废话(雾<br />
+</font>—————————————————————————————<br />
+使用注入核心代码操作的插件现在少的比大熊猫还少，所以想给大家分享一下自己研究的一些成果。<br />
+举个例子:<br />
+<a href="thread.html?t=630067" target="_blank">http://www.mcbbs.net/thread-630067-1-1.html</a><br />
+这个插件就是运用了Javaagent与Javassist实现了一套反后门，<font size="3">但是你能做的并不仅仅局限于反后门!</font><br />
+<font size="5"><font color="#ff0000"><strong>有错误请见谅</strong></font></font><br />
+—————————————————————————————</td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr></table></div></div></font></font><br />
+<font style="background-color:rgb(251, 242, 219)"><font face="&amp;quot;"><div align="center"><div align="center"><table cellspacing="0" class="t_table" style="width:90%" bgcolor="#696969"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td><div align="center"><strong><font size="6">1-2 ———— 定目标</font></strong></div></td></tr></table></div><hr class="l" /><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#dcdcdc"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#ffffff"><tr><td><font size="5"> 1-2-1 目标<br />
+</font>—————————————————————————————<br />
+第一篇教程我们做一个这样的注入:<br />
+当有插件使用Player.sendMessage(String msg);时，如果信息是&quot;HelloWorld&quot;，那么就修改成&quot;ByeWorld&quot; <br />
+虽然这个pl也许也能实现，不过我们这里使用Javaagent与Javassist实现，有能力的话你可以使用Asm，在这里为了演示得直观，我们使用Javassist.<br />
+Javassist(Maven仓库/下载)<br />
+<a href="https://mvnrepository.com/artifact/org.javassist/javassist/3.23.1-GA" target="_blank">https://mvnrepository.com/artifact/org.javassist/javassist/3.23.1-GA</a><br />
+<br />
+在做之前，我们要找到Player中的sendMessage的实现位置，打开反编译工具。<br />
+众所周知，CraftPlayer实现了Player接口，那么我们只需要在CraftPlayer类中找就行了<br />
+它在这里:&nbsp;&nbsp;org.bukkit.craftbukkit.v1_11_R1.entity.CraftPlayer.sendMessage(String msg);<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241185" aid="1241185" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/094059ip93j8z4jk8wlwvk.png" file="https://attachment.mcbbs.net/forum/201808/14/094059ip93j8z4jk8wlwvk.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="438" id="aimg_1241185" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241185_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>w1.png</strong> <em class="xg1">(5.04 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTE4NXw3YjE1ZGFhZXwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 09:40 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+我们只需在这段代码执行之前注入我们的修改代码即可:<br />
+if (message.equals(&quot;HelloWorld&quot;)) { message = &quot;ByeWorld&quot;; }<br />
+<br />
+· 如果没有了解过Javaagent 我也不想详细说了 直接看csdn里的帖子吧<br />
+<a href="https://blog.csdn.net/wild46cat/article/details/78917647" target="_blank">https://blog.csdn.net/wild46cat/article/details/78917647</a><br />
+<font size="3">有人说 让服主写Javaagent的启动参数岂不是很麻烦?我们之后会教如何让插件帮服主写启动参数哒~</font><br />
+—————————————————————————————</td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr></table><br />
+</div><br />
+</div></font></font><font style="background-color:rgb(251, 242, 219)"><font face="&amp;quot;"><div align="center"><div align="center"><table cellspacing="0" class="t_table" style="width:90%" bgcolor="#696969"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td><div align="center"><strong><font size="6">1-3 ———— 实际操作</font></strong></div></td></tr></table></div><hr class="l" /><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#a9a9a9"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#dcdcdc"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="#ffffff"><tr><td><font size="5">1-3-1 操作之前<br />
+</font>—————————————————————————————<br />
+ 就我们之前的目标而言，这个教程根本都用不着写插件，这只是一个Javaagent的补丁。<br />
+<strong><font size="3"><font color="#ff0000">我们先给一下项目开源地址吧<br />
+<a href="https://github.com/LocyDragon/Course_1" target="_blank">https://github.com/LocyDragon/Course_1</a></font></font></strong><strong><font size="3"><font color="#ff0000"><br />
+协议为MIT协议，这代表你可以无偿使用源码。</font></font></strong><br />
+—————————————————————————————<br />
+<font size="5">1-3-2 操作<br />
+</font>—————————————————————————————<br />
+我们这里使用maven<br />
+第一步 创建Javaagent执行类(图挂了可以去开源看)<br />
+<br />
+—————————————————————————————<br />
+<img id="aimg_iDb0D" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/08/14/5b723a2d706bf.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+—————————————————————————————<br />
+第二步 在manifest里面指定Premain-Class为Javaagent执行类，我们这里用maven办掉了。如果实在不会的话手写也行。<br />
+—————————————————————————————<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241209" aid="1241209" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/101255nh44zl4h1dta1h23.png" file="https://attachment.mcbbs.net/forum/201808/14/101255nh44zl4h1dta1h23.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="598" id="aimg_1241209" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241209_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(166.62 KB, 下载次数: 2)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTIwOXxmYTBlZTg5ZXwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:12 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+编译出来之后 我们用压缩文件打开jar 找到META-INF里的Manifest文件多了一行这个:<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241213" aid="1241213" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/101523txconmzcmco12216.png" file="https://attachment.mcbbs.net/forum/201808/14/101523txconmzcmco12216.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="468" id="aimg_1241213" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241213_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(8.09 KB, 下载次数: 4)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTIxM3w4N2VmN2JkYXwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:15 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+如果你实在不知道怎么加的话就把Manifest文件从jar里拖出来写了PremainClass再塞进jar好了.<br />
+—————————————————————————————<br />
+<font size="5"><font color="#ff0000"><strong><br />
+第三步 书写注入代码<br />
+</strong></font></font>—————————————————————————————<br />
+第一步： 确定CraftPlayer类，因为className的输出<font color="#ff0000">是像这样</font>的: org/bukkit/craftbukkit/版本/entity/CraftPlayer<br />
+我们很懒 不想判断版本号怎么办? 简单处理一下className即可，下面有源码<br />
+—————————————————————————————<br />
+第二步，注入代码片段（记得把Javassist类库导入下），直接给出最终源码了，注释都写了。<br />
+<img id="aimg_vx9gp" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2018/08/14/5b72485b4d833.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+我们把jar编译，(记得javassist打包丢入jar内)丢在服务端根目录下: <font size="3"><font color="#ff0000"><strong>(注意 别丢plugins文件夹里 原因有很多 我们下次讲</strong></font></font><br />
+
+<ignore_js_op>
+
+<img id="aimg_1241235" aid="1241235" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/103128t32jasmpp2ur55jr.png" file="https://attachment.mcbbs.net/forum/201808/14/103128t32jasmpp2ur55jr.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1241235" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241235_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(35.18 KB, 下载次数: 3)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTIzNXw1YzNlZWFjOXwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:31 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+并在bat里面写上有关Javaagent的启动参数<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241236" aid="1241236" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/104335bijazuiviigid111.png" file="https://attachment.mcbbs.net/forum/201808/14/104335bijazuiviigid111.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1241236" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241236_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(16.46 KB, 下载次数: 4)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTIzNnxmOWUxNjg0MHwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:43 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+运行服务端，看起来我们已经注入成功了，写个插件测试下吧! （之前这里为了能看到我加了个输出 现在删掉了）<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241243" aid="1241243" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/104552g1yggzgoenye22ef.png" file="https://attachment.mcbbs.net/forum/201808/14/104552g1yggzgoenye22ef.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="447" id="aimg_1241243" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241243_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(2.59 KB, 下载次数: 1)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTI0M3xhNjNmMjgwY3wxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:45 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+—————————————————————————————<br />
+第三步，测试注入是否成功<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241246" aid="1241246" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/105149uz39ubx5fbjtvvyj.png" file="https://attachment.mcbbs.net/forum/201808/14/105149uz39ubx5fbjtvvyj.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="661" id="aimg_1241246" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241246_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(48.56 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTI0NnxiYmFmYTcxMHwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 10:51 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+很显然，一点毛病都没有<br />
+
+<ignore_js_op>
+
+<img id="aimg_1241254" aid="1241254" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201808/14/110447gs97kwwneyk2z9em.png" file="https://attachment.mcbbs.net/forum/201808/14/110447gs97kwwneyk2z9em.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="226" id="aimg_1241254" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1241254_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.png</strong> <em class="xg1">(4.86 KB, 下载次数: 4)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTI1NHw2MjdiNGQyN3wxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-8-14 11:04 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+这说明注入成功啦~ 教程到此结束<br />
+<br />
+<font size="5"><font color="#ff0000"><strong>文件:</strong></font></font><br />
+Javaagent注入文件<br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/unknown.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1241255" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTI1NXwxNjZmYWNhZnwxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2" target="_blank">Agent.jar</a>
+
+<em class="xg1">(594.51 KB, 下载次数: 20)</em>
+</span>
+<div class="tip tip_4" id="attach_1241255_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2018-8-14 11:17 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+测试jar<br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/unknown.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1241256" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTI0MTI1NnwyZjRkNTI3N3wxNjEzOTY2MTg1fDI0MTk0ODZ8ODE0MjQ2" target="_blank">AgentTest.jar</a>
+
+<em class="xg1">(2.77 KB, 下载次数: 13)</em>
+</span>
+<div class="tip tip_4" id="attach_1241256_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2018-8-14 11:18 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+各位的支持会成为我更新的动力<br />
+<br />
+<a href="http://music.163.com/style/swf/widget.swf?sid=412951828&amp;type=2&amp;auto=1&amp;width=320&amp;height=66" target="_blank">http://music.163.com/style/swf/widget.swf?sid=412951828&amp;type=2&amp;auto=1&amp;width=320&amp;height=66</a></td></tr></table></div></td></tr></table></div></td></tr></table></div></td></tr></table></div></div></font></font>[groupid=1330]PluginsCDTribe[/groupid]<script type="text/javascript" reload="1">
+aimgcount[13209198] = ['1241185','1241209','1241213','1241235','1241236','1241243','1241246','1241254'];
+attachimggroup(13209198);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>15025321822&nbsp; &nbsp; <b>时间: </b>2019-7-16 15:10<br />
+先马了，慢慢学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mouwumou&nbsp; &nbsp; <b>时间: </b>2020-1-26 17:18<br />
+<br />
+马了，慢慢学习<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>chenmoand&nbsp; &nbsp; <b>时间: </b>2020-1-27 15:51<br />
+大佬, 我想说一下在这里直接用Class.forName(String) 会初始化类把,加载静态代码块, 容易出错吧<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoqiqi0923&nbsp; &nbsp; <b>时间: </b><span title="2021-2-20 18:08">前天&nbsp;18:08</span><br />
+大佬, 我想说一下在这里直接用Class.forName(String) 会初始化类把,加载静态代码块, 容易出错吧
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

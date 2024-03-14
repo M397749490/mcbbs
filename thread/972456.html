@@ -1,0 +1,109 @@
+<html>
+<head>
+<title>[前置API]PlayerData——玩家数据持久化存储层[1.12+] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[前置API]PlayerData——玩家数据持久化存储层[1.12+] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lijisoft&nbsp; &nbsp; <b>时间: </b>2020-2-29 16:33<br />
+<b>标题: </b>[前置API]PlayerData——玩家数据持久化存储层[1.12+]<br /><i class="pstatus"> 本帖最后由 lijisoft 于 2020-2-29 20:09 编辑 </i><br />
+<br />
+注意：如果您不知道这个插件的用途，请不要安装到服务器。这个插件不提供任何用户命令、权限或更改游戏机制。<br />
+该插件仅作为依赖使用。<br />
+<br />
+免责声明：持久化存储并<strong>不能保证</strong>服务器在崩溃时或在插件出错时仍能使玩家数据不受影响，本插件也（暂）<strong>不隔离插件</strong>之间的数据访问。除另行声明外，插件作者并不对任何安装此插件的服务器的数据安全和完整性负任何责任。<br />
+<br />
+插件源码：<a href="https://github.com/dousha/MySpigotPlugins/tree/master/PlayerData" target="_blank">点击这里</a><br />
+<font size="4"><br />
+</font><br />
+<font size="4">更新记录</font><br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+0.3 修复了上一个版本会尝试保存不可序列化信息的 Bug, 该更改需要手动删除插件产生的历史数据！<br />
+<br />
+<br />
+0.2 首次发布<br />
+<br />
+<br />
+0.1 内部测试，未发布<br />
+<br />
+</td></table></div></div><br />
+<font size="4"><br />
+什么是持久化存储？</font><br />
+<br />
+持久化存储即在设备断电后仍旧能保留数据的存储。在这里，我们特指在服务端重启后仍旧保留的数据存储，比如玩家的背包、位置等都属于持久化数据。通常情况下，持久化存储是通过把数据写入磁盘（如写入文件、写入数据库）实现的。<br />
+<font size="4"><br />
+为什么需要一个存储抽象层？</font><br />
+<br />
+无论是 Bukkit, Spigot 还是 PaperSpigot, 它们都不官方提供一个持久化层。插件作者必须自行管理游戏数据、自行决定文件结构、连接数据库、编写 SQL 等等，这为插件开发带来了许多不必要的麻烦。插件作者不得不同时负责**逻辑和底层逻辑，使得开发过程减慢且使得漏洞更可能出现。<br />
+<br />
+转而使用存储抽象层，插件作者无需担心底层具体的数据存储，可以直接编写**逻辑，大大简化开发步骤。同时，由于状态被托管到了抽象层，**逻辑可以成为纯函数，这使得插件得以通过 PlugMan 等工具安全地实现热重载而无需担心一致性被破坏，极大加速了插件的测试和部署速度。<br />
+<br />
+<font size="4">如何使用？</font><br />
+<br />
+插件的配置文件说明如下：<br />
+<br />
+<div class="blockcode"><div id="code_YTz"><ol><li><br />
+<li>driver: file # 持久化存储引擎，默认为 file, 使用插件自带的文件存储<br />
+<li>autosave: 10 # 自动保存，单位为分钟<br />
+<li></ol></div><em onclick="copycode($('code_YTz'));">复制代码</em></div><br />
+
+<br />
+一个使用 PlayerData 的样例插件如下：<br />
+<br />
+<div class="blockcode"><div id="code_o5c"><ol><li><br />
+<li>public class Main extends JavaPlugin implements Listener {<br />
+<li>&nbsp;&nbsp;@Override<br />
+<li>&nbsp;&nbsp;public void onEnable() {<br />
+<li>&nbsp; &nbsp; getServer().getPluginManager().registerEvents(this, this);<br />
+<li>&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp;&nbsp;public void onStorageReady(StorageReadyEvent e) {<br />
+<li>&nbsp; &nbsp; this.storage = e.getStorage();<br />
+<li>&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp;&nbsp;@EventHandler<br />
+<li>&nbsp;&nbsp;public void onPlayerJoin(PlayerJoinEvent e) {<br />
+<li>&nbsp; &nbsp; Player p = e.getPlayer();<br />
+<li>&nbsp; &nbsp; PlayerData data = storage.get(p.getUniqueId()); // 获取玩家数据，不存在则创建<br />
+<li>&nbsp; &nbsp; int joinCount = (int) data.getOrDefault(&quot;joinCount&quot;, 0); // 读取内容<br />
+<li>&nbsp; &nbsp; joinCount++;<br />
+<li>&nbsp; &nbsp; data.set(&quot;joinCount&quot;, joinCount); // 写入内容<br />
+<li>&nbsp;&nbsp;}<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_o5c'));">复制代码</em></div><br />
+
+<br />
+（由于服务器负载原因，暂时不提供 maven 仓库，请下载 jar 文件并作为本地依赖。）<br />
+<font size="4"><br />
+如何添加自己的存储引擎？</font><br />
+<br />
+请参考源码中的 SimpleFileStorage.java 和 PlayerDataStorage.java, 此处不再赘述。<br />
+<font size="4"><br />
+</font><br />
+<font size="4">关于线程安全</font><br />
+<br />
+PlayerData 对象容许多个线程同时进行访问，无需额外加锁。如果访问线程超过 16 个则可能有额外的性能损失。PlayerDataStorage 对象则由存储引擎提供线程安全，默认的 SimpleFileStorage 容许多个线程同时访问，无需额外加锁。如果访问线程超过 16 个则可能有额外的性能损失。<br />
+<br />
+注意：不要将 PlayerData 对象存储在插件内（即不要赋给成员）！用完丢弃即可，否则可能会破坏线程安全性。<br />
+<br />
+<font size="4">合规说明</font><br />
+<br />
+<font style="font-size:14px"><font style="font-size:14px">本插件所用所有代码均为原创，不存在借用/抄袭等行为。<br />
+本插件按照 GNU LGPL v2 协议授权，任何对于源码的更改必须以相同协议授权，严禁转卖或捆绑销售。<br />
+基于本插件开发的其他插件可以以其他协议授权或用于商业用途。<br />
+</font></font><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Enron233&nbsp; &nbsp; <b>时间: </b>2020-2-29 16:35<br />
+Oh 支持一个 这个感觉不错 玩家数据又多一层保障
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,526 @@
+<html>
+<head>
+<title>写了一个自动抢锭的程序 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>写了一个自动抢锭的程序 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:54<br />
+<b>标题: </b>写了一个自动抢锭的程序<br /><i class="pstatus"> 本帖最后由 雨韵 于 2020-3-8 08:50 编辑 </i><br />
+<br />
+这个帖子我不知道版规能不能发，看了下版规也没看到明确的要求。。。<br />
+所以不能发的话，，删源码吧 <font style="background-color:black">让我帖子数+1</font><br />
+<br />
+原理：检测到新帖子包含有“锭”字，就会打开浏览器并跳转到相关帖子。<br />
+<br />
+代码如下<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<font color="#808080"># -*- coding: UTF-8 -*-<br />
+</font><font color="#cc7832">import </font>win32gui<br />
+<font color="#cc7832">import </font>win32con<br />
+<font color="#cc7832">import </font>time<br />
+<font color="#cc7832">import </font>requests<br />
+<font color="#cc7832">from </font>bs4 <font color="#cc7832">import </font>BeautifulSoup<br />
+<font color="#cc7832">import </font>logging<br />
+<font color="#cc7832">import </font>webbrowser<br />
+<br />
+<br />
+<font color="#cc7832">class </font>TestTaskbarIcon:<br />
+&nbsp; &nbsp; <font color="#cc7832">def </font><font color="#b200b2">__init__</font>(<font color="#94558d">self</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;wc = win32gui.WNDCLASS()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;hinst = wc.hInstance = win32gui.GetModuleHandle(<font color="#cc7832">None</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;wc.lpszClassName = <font color="#6a8759">&quot;PythonTaskbarDemo&quot;<br />
+</font><font color="#6a8759">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font>wc.lpfnWndProc = {win32con.WM_DESTROY: <font color="#94558d">self</font>.OnDestroy<font color="#cc7832">, </font>}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;classAtom = win32gui.RegisterClass(wc)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;style = win32con.WS_OVERLAPPED | win32con.WS_SYSMENU<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#94558d">self</font>.hwnd = win32gui.CreateWindow(classAtom<font color="#cc7832">, </font><font color="#6a8759">&quot;Taskbar Demo&quot;</font><font color="#cc7832">, </font>style<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">, </font><font color="#6897bb">0</font><font color="#cc7832">, </font>win32con.CW_USEDEFAULT<font color="#cc7832">, </font>win32con.CW_USEDEFAULT<font color="#cc7832">,<br />
+</font><font color="#cc7832">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">, </font><font color="#6897bb">0</font><font color="#cc7832">, </font>hinst<font color="#cc7832">, None</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;hicon = win32gui.LoadIcon(<font color="#6897bb">0</font><font color="#cc7832">, </font>win32con.IDI_APPLICATION)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nid = (<font color="#94558d">self</font>.hwnd<font color="#cc7832">, </font><font color="#6897bb">0</font><font color="#cc7832">, </font>win32gui.NIF_ICON<font color="#cc7832">, </font>win32con.WM_USER + <font color="#6897bb">20</font><font color="#cc7832">, </font>hicon<font color="#cc7832">, </font><font color="#6a8759">&quot;Demo&quot;</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;win32gui.Shell_NotifyIcon(win32gui.NIM_ADD<font color="#cc7832">, </font>nid)<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">def </font><font color="#ffc66d">showMsg</font>(<font color="#94558d">self</font><font color="#cc7832">, </font>title<font color="#cc7832">, </font>msg):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nid = (<font color="#94558d">self</font>.hwnd<font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">句柄<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">托盘图标</font><font color="#808080">ID<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>win32gui.NIF_INFO<font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">标识<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">回调消息</font><font color="#808080">ID<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">托盘图标句柄<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6a8759">&quot;TestMessage&quot;</font><font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">图标字符串<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>msg<font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">气球提示字符串<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#6897bb">0</font><font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">提示的显示时间<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>title<font color="#cc7832">,&nbsp;&nbsp;</font><font color="#808080"># </font><font color="#808080">提示标题<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>win32gui.NIIF_INFO&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">提示用到的图标<br />
+</font><font color="#808080">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;win32gui.Shell_NotifyIcon(win32gui.NIM_MODIFY<font color="#cc7832">, </font>nid)<br />
+<br />
+&nbsp; &nbsp; <font color="#cc7832">def </font><font color="#ffc66d">OnDestroy</font>(<font color="#94558d">self</font>):<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nid = (<font color="#94558d">self</font>.hwnd<font color="#cc7832">, </font><font color="#6897bb">0</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE<font color="#cc7832">, </font>nid)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;win32gui.PostQuitMessage(<font color="#6897bb">0</font>)&nbsp;&nbsp;<font color="#808080"># Terminate the app.<br />
+</font><font color="#808080"><br />
+</font><font color="#808080"><br />
+</font><font color="#cc7832">def </font><font color="#ffc66d">GetInfo</font>(AimUrl):<br />
+&nbsp; &nbsp; res = requests.get(AimUrl)<br />
+&nbsp; &nbsp; html = res.text<br />
+&nbsp; &nbsp; html = html.encode(<font color="#6a8759">&quot;ISO-8859-1&quot;</font>)<br />
+&nbsp; &nbsp; html = html.decode(<font color="#6a8759">&quot;utf-8&quot;</font>)<br />
+&nbsp; &nbsp; soups = BeautifulSoup(html<font color="#cc7832">, </font><font color="#6a8759">'html.parser'</font>)<br />
+&nbsp; &nbsp; <font color="#cc7832">return </font>soups<br />
+<br />
+<br />
+<font color="#cc7832">def </font><font color="#ffc66d">Remind</font>():<br />
+&nbsp; &nbsp; t = TestTaskbarIcon()<br />
+&nbsp; &nbsp; t.showMsg(<font color="#6a8759">&quot;</font><font color="#6a8759">您关注的内容有了更新</font><font color="#6a8759">&quot;</font><font color="#cc7832">, </font><font color="#6a8759">&quot;</font><font color="#6a8759">有人疑似要发锭了！</font><font color="#6a8759">&quot;</font>)<br />
+&nbsp; &nbsp; time.sleep(<font color="#6897bb">5</font>)<br />
+&nbsp; &nbsp; win32gui.DestroyWindow(t.hwnd)<br />
+<br />
+<br />
+<font color="#cc7832">def </font><font color="#ffc66d">log</font>():<br />
+&nbsp; &nbsp; <font color="#808080"># </font><font color="#808080">创建一个</font><font color="#808080">logging</font><font color="#808080">对象<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>logger = logging.getLogger()<br />
+&nbsp; &nbsp; <font color="#808080"># </font><font color="#808080">创建一个文件对象&nbsp;&nbsp;创建一个文件对象</font><font color="#808080">,</font><font color="#808080">以</font><font color="#808080">UTF-8 </font><font color="#808080">的形式写入 标配版</font><font color="#808080">.log </font><font color="#808080">文件中<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>fh = logging.FileHandler(<font color="#6a8759">'AllLog.log'</font><font color="#cc7832">, </font><font color="#aa4926">encoding</font>=<font color="#6a8759">'utf-8'</font>)<br />
+&nbsp; &nbsp; <font color="#808080"># </font><font color="#808080">创建一个屏幕对象<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>sh = logging.StreamHandler()<br />
+&nbsp; &nbsp; <font color="#808080"># </font><font color="#808080">配置显示格式&nbsp;&nbsp;可以设置两个配置格式&nbsp;&nbsp;分别绑定到文件和屏幕上<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>formatter = logging.Formatter(<font color="#6a8759">'%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s'</font>)<br />
+&nbsp; &nbsp; fh.setFormatter(formatter)&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">将格式绑定到两个对象上<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>sh.setFormatter(formatter)<br />
+<br />
+&nbsp; &nbsp; logger.addHandler(fh)&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">将两个句柄绑定到</font><font color="#808080">logger<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>logger.addHandler(sh)<br />
+<br />
+&nbsp; &nbsp; logger.setLevel(<font color="#6897bb">10</font>)&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">总开关<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>fh.setLevel(<font color="#6897bb">10</font>)&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">写入文件的从</font><font color="#808080">10</font><font color="#808080">开始<br />
+</font><font color="#808080">&nbsp; &nbsp; </font>sh.setLevel(<font color="#6897bb">30</font>)&nbsp;&nbsp;<font color="#808080"># </font><font color="#808080">在屏幕显示的从</font><font color="#808080">30</font><font color="#808080">开始<br />
+</font><font color="#808080"><br />
+</font><font color="#808080">&nbsp; &nbsp; </font>logging.debug(<font color="#6a8759">'debug message'</font>)<br />
+&nbsp; &nbsp; logging.info(<font color="#6a8759">'info message'</font>)<br />
+&nbsp; &nbsp; logging.warning(<font color="#6a8759">'warning message'</font>)<br />
+&nbsp; &nbsp; logging.error(<font color="#6a8759">'error message'</font>)<br />
+&nbsp; &nbsp; logging.critical(<font color="#6a8759">'critical message'</font>)<br />
+<br />
+<br />
+<font color="#cc7832">if </font>__name__ == <font color="#6a8759">'__main__'</font>:<br />
+&nbsp; &nbsp; log()<br />
+&nbsp; &nbsp; <font color="#8888c6">print</font>(<font color="#6a8759">'</font><font color="#6a8759">请输入刷新时效</font><font color="#6a8759">(</font><font color="#6a8759">整数，越小刷新越快，但过可能会错过。建议</font><font color="#6a8759">5</font><font color="#6a8759">左右</font><font color="#6a8759">)'</font>)<br />
+&nbsp; &nbsp; PutTime = <font color="#8888c6">input</font>(<font color="#6a8759">'&gt;&gt;&gt;'</font>)<br />
+&nbsp; &nbsp; aim_url = <font color="#6a8759">'http://zhannei.baidu.com/cse/site?q=%E9%94%AD&amp;s=&amp;cc=mcbbs.net&amp;sti=' </font>+ <font color="#8888c6">str</font>(PutTime)<br />
+<br />
+&nbsp; &nbsp; <font color="#8888c6">print</font>(<font color="#6a8759">'0000 INFO: </font><font color="#6a8759">系统初始化完成</font><font color="#6a8759">..'</font>)<br />
+&nbsp; &nbsp; <font color="#8888c6">print</font>(<font color="#6a8759">'0001 INFO: </font><font color="#6a8759">正在暗中观察发锭选手</font><font color="#6a8759">..'</font>)<br />
+&nbsp; &nbsp; <font color="#8888c6">print</font>(<font color="#6a8759">'0002 INFO: </font><font color="#6a8759">作者：</font><font color="#6a8759">mcbbs [</font><font color="#6a8759">雨韵</font><font color="#6a8759">] uid:1617821'</font>)<br />
+&nbsp; &nbsp; i = <font color="#6897bb">3<br />
+</font><font color="#6897bb">&nbsp; &nbsp; </font><font color="#cc7832">while </font><font color="#6897bb">1</font>:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;soup = GetInfo(aim_url)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;divs = soup.find_all(<font color="#6a8759">&quot;h3&quot;</font><font color="#cc7832">, </font><font color="#aa4926">class_</font>=<font color="#6a8759">'c-title'</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<font color="#cc7832">if </font><font color="#8888c6">len</font>(divs) &lt; <font color="#6897bb">1</font>:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#8888c6">print</font>(<font color="#8888c6">str</font>(i).zfill(<font color="#6897bb">4</font>) + <font color="#6a8759">' INFO: </font><font color="#6a8759">暂无新帖</font><font color="#6a8759">'</font>)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;i = i + <font color="#6897bb">1<br />
+</font><font color="#6897bb">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;</font><font color="#cc7832">else</font>:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;i = i + <font color="#6897bb">1<br />
+</font><font color="#6897bb">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;</font><font color="#cc7832">for </font>r <font color="#cc7832">in </font>divs:<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; url = r.a[<font color="#6a8759">'href'</font>]<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#8888c6">print</font>(<font color="#8888c6">str</font>(i).zfill(<font color="#6897bb">4</font>) + <font color="#6a8759">' INFO: </font><font color="#6a8759">发现新的帖子地址</font><font color="#6a8759"> ' </font>+ url)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; webbrowser.open(url)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Remind()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<font color="#8888c6">exit</font>()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;time.sleep(<font color="#6897bb">2</font>)<br />
+<br />
+<br />
+</td></table></div></div><br />
+<br />
+<br />
+<font size="4">之所以放出来还有一个原因</font><br />
+<font size="5"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></font><br />
+<font size="5"><br />
+</font><br />
+<div align="center"><font size="5"><strike>我发现我开了这个也抢不过折叠= =</strike></font></div><br />
+<div align="center"><font size="5">这个代码完成于二月十号左右</font></div><br />
+<div align="center"><font size="5">百度近期更新后非常不稳定，成功率极低。且本身检测的内容便不是很准确</font></div><br />
+<div align="center"><font size="5">因此即使其他人得到这个代码，也没有啥卵用。。。</font></div><br />
+<div align="center"><font size="5">毕竟是半过期的代码（手动狗头）</font></div><br />
+<font size="5"><br />
+</font><br />
+<font size="5"></td></table></div></div></font><br />
+<br />
+<br />
+我发现我忘记发个锭把折叠召唤过来了= =<br />
+<br />
+<br />
+划重点：<br />
+<font size="4">这个<strong>现在已经非常的不好用了</strong>，所以我才会发出来= =</font><br />
+<font size="4">而且我现在上班也没时间去抢锭</font><font size="4"><br />
+</font><br />
+<font size="5"><strong>答疑：</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+这个是用python语言写的爬虫程序。 大概过程如下： <br />
+百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右。 <br />
+这个程序会向百度的站内搜索引擎提交搜索关键词“锭”的请求。 <br />
+<br />
+<div align="center">百度站内搜索链接解析：</div><div align="center">http://zhannei.baidu.com/cse/site?q=[这里是关键词]&amp;cc=mcbbs.net&amp;sti=[这里是筛选最近X分钟的帖子]</div><br />
+例如：<a href="http://zhannei.baidu.com/cse/site?q=锭&amp;s=&amp;cc=mcbbs.net&amp;sti=5" target="_blank">http://zhannei.baidu.com/cse/site?q=锭&amp;s=&amp;cc=mcbbs.net&amp;sti=5</a><br />
+指的就是5分钟内有没有含有关键词“锭”的帖子出现 <strong>（由于近期百度站内搜索不稳定，所以多进几次才能显示真正的效果）</strong><br />
+百度响应请求后，返回【在规定的时间内是否有含有关键词的帖子，以及帖子的地址是什么】 <br />
+如果5分钟内有这样的一个帖子，则会在右下角消息区弹窗提醒有关注内容 <br />
+这里由于我不会【点击消息则跳转】因此我选择了弹窗提醒的同时打开浏览器。<br />
+<strong>有会的可以教教我吗qaq </strong><br />
+这里的浏览器是默认浏览器，也就是你平时用来浏览mcbbs的浏览器。 <br />
+你的账号已经在这个浏览器登录、所以可以节省登陆的时间。 <br />
+之后就需要你根据是否的确是发锭或讨论帖，从而进行针对性的回复。 <br />
+比如恰锭和水贴<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><br />
+<br />
+这种通过爬取百度间接获取内容的爬虫对mcbbs的网站服务器比较友好。<br />
+基本不会额外占用带宽和处理器。<br />
+也因此，百度站内搜索近期更新/不稳定，导致这个爬虫失效。<br />
+</td></table></div></div><br />
+<font size="4"><br />
+</font><br />
+<font size="4"><br />
+</font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoxuandada&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:55<br />
+看不懂大佬的操作<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>零x&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:57<br />
+所以折叠的程序比你厉害点啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mohui666&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:58<br />
+折叠AI生命实锤了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>SHEEP_REALMS&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:59<br />
+鉴定完毕，没学过这种语言。Python？<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>智乃offical&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:59<br />
+哇塞是大佬，i了i了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小兜兜.&nbsp; &nbsp; <b>时间: </b>2020-3-7 11:59<br />
+这个太行了<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><img src="static/image/smiley/tong/Sad.png" smilieid="1445" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小丛雨&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:00<br />
+所以还是折叠比较神仙<img src="static/image/smiley/tong/doge.png" smilieid="1448" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>EGEE2468&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:00<br />
+机器终究是比不过人类
+
+<ignore_js_op>
+
+<dl class="tattl attm">
+<dt></dt>
+<dd>
+
+<p class="mbn">
+<a href="forum.php?mod=attachment&amp;aid=MTQ4OTY1MHxjYzhkZTE0M3wxNjE0MDE2MTIyfDI0MTk0ODZ8OTc4OTQx&amp;nothumb=yes" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" id="aid1489650" class="xw1" target="_blank">1583326577(1).jpg</a>
+<em class="xg1">(155.42 KB, 下载次数: 0)</em>
+</p>
+<div class="tip tip_4" id="aid1489650_menu" style="display: none" disautofocus="true">
+<div>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTQ4OTY1MHxjYzhkZTE0M3wxNjE0MDE2MTIyfDI0MTk0ODZ8OTc4OTQx&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+<p>
+<span class="y">2020-3-7 12:01 上传</span>
+<a href="javascript:;" onclick="imageRotate('aimg_1489650', 1)"></a>
+<a href="javascript:;" onclick="imageRotate('aimg_1489650', 2)"><img src="static/image/common/rright.gif" class="vm" /></a>
+</p>
+</div>
+<div class="tip_horn"></div>
+</div>
+<p class="mbn">
+
+</p>
+
+
+
+<div class="mbn savephotop">
+
+<a href="javascript:;"><img id="aimg_1489650" aid="1489650" src="static/image/common/none.gif" onclick="zoom(this, this.getAttribute('zoomfile'), 0, 0, '0')" zoomfile="https://attachment.mcbbs.net/forum/202003/07/120115fnnozgccukznwkkk.jpg" file="https://attachment.mcbbs.net/forum/202003/07/120115fnnozgccukznwkkk.jpg.thumb.jpg" alt="1583326577(1).jpg" title="1583326577(1).jpg" w="1101" /></a>
+
+</div>
+
+</dd>
+</dl>
+
+</ignore_js_op>
+
+<script type="text/javascript" reload="1">
+aimgcount[16775988] = ['1489650'];
+attachimggroup(16775988);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xmdhs&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:02<br />
+直接爬论坛不好，百度的爬虫哪有那么快<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16776020&amp;ptid=978941" target="_blank"><font color="#999999">xmdhs 发表于 2020-3-7 12:02</font></a></font><br />
+直接爬论坛不好，百度的爬虫哪有那么快</blockquote></div><br />
+我担心对论坛服务器造成影响，所以爬取的百度的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>苏子峰&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:15<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" />这就是高科技吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16776235&amp;ptid=978941" target="_blank"><font color="#999999">苏子峰 发表于 2020-3-7 12:15</font></a></font><br />
+这就是高科技吗</blockquote></div><br />
+相对于折叠来讲。。。<br />
+我就是个渣渣<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>45gfg9&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:18<br />
+据说隔壁euOnmyoji有一个McbbsHelper 用Java写的 也许可以改成关键字检测(X<br />
+<br />
+<strike>为什么要用win32 api啊 直接杀死其他平台玩家啊<br />
+懒得改x</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GCVillager&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:19<br />
+折叠大佬的应该也是爬虫脚本，为什么就有这么大区别呢……<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小孩孩&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:24<br />
+那好吧<br />
+标题写上“锭”，就是不设置回帖奖励<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小兜兜.&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:24<br />
+那个软件怎么用<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>可乐加薯片&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:31<br />
+满头的问号<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>主世界&nbsp; &nbsp; <b>时间: </b>2020-3-7 12:47<br />
+这不能绕开折叠吧<br />
+折叠是什么？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Enderman3133&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:01<br />
+但也有可能发锭的时候标题没“锭”字<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>42313123123123&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:02<br />
+和莉莉一样,下次我搞个标题,然后打死也不发锭<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DaiBM1&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:08<br />
+什么语言？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>838650937&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:19<br />
+表示完全看不懂<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>凉凉丶&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:22<br />
+折叠是完整代码<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>addc123&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:22<br />
+那么以后的标题就是，啥啥啥---不发锭（滑稽）<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>凋灵斯拉&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16775988&amp;ptid=978941" target="_blank"><font color="#999999">EGEE2468 发表于 2020-3-7 12:00</font></a></font><br />
+机器终究是比不过人类</blockquote></div><br />
+卢<strike>本伟</strike>滑稽，牛逼！<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>岁月静好、&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:54<br />
+我只会搬运不会写0.0<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>邪恶草&nbsp; &nbsp; <b>时间: </b>2020-3-7 13:59<br />
+论坛不禁止吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ksqeib445&nbsp; &nbsp; <b>时间: </b>2020-3-7 14:03<br />
+折叠太强了 快九级了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>PercyDan&nbsp; &nbsp; <b>时间: </b>2020-3-7 14:07<br />
+<i class="pstatus"> 本帖最后由 PercyDan 于 2020-3-7 14:09 编辑 </i><br />
+<br />
+就知道是python。。。<br />
+不算抢锭吧，是自动找锭<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小鑫emm&nbsp; &nbsp; <b>时间: </b>2020-3-7 14:11<br />
+wc 这 我以后怎么抢锭啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xiao2&nbsp; &nbsp; <b>时间: </b>2020-3-7 14:22<br />
+没事没事<br />
+你以后就是折叠第二mmm<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:03<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16778492&amp;ptid=978941" target="_blank"><font color="#999999">Xiao2 发表于 2020-3-7 14:22</font></a></font><br />
+没事没事<br />
+你以后就是折叠第二mmm</blockquote></div><div class="quote"><blockquote>这个已经非常的不好用了，所以我才会发出来= =<br />
+而且我现在上班也没时间去抢锭</blockquote></div><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:05<br />
+<i class="pstatus"> 本帖最后由 雨韵 于 2020-3-7 15:15 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16776297&amp;ptid=978941" target="_blank"><font color="#999999">GCVillager 发表于 2020-3-7 12:19</font></a></font><br />
+折叠大佬的应该也是爬虫脚本，为什么就有这么大区别呢……</blockquote></div><br />
+爬的内容不一样吧<br />
+我→百度→论坛<br />
+大佬→论坛<br />
+<br />
+相对来讲我的这个对论坛比较友好，不额外占用带宽和计算力。缺点就是速度慢（大概慢10s），需要手动回复<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16778016&amp;ptid=978941" target="_blank"><font color="#999999">邪恶草 发表于 2020-3-7 13:59</font></a></font><br />
+论坛不禁止吗</blockquote></div><br />
+已经算是半过期了，对论坛没啥影响，所以我才发出来<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xiao2&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:06<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16779302&amp;ptid=978941" target="_blank"><font color="#999999">雨韵 发表于 2020-3-7 15:03</font></a></font></blockquote></div><br />
+你怎么不搞一个好用一点 的给大家&nbsp;&nbsp;<strike>白嫖</strike><img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><br />
+<br />
+上班可以<strike>摸鱼</strike><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:07<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16775988&amp;ptid=978941" target="_blank"><font color="#999999">EGEE2468 发表于 2020-3-7 12:00</font></a></font><br />
+机器终究是比不过人类</blockquote></div><br />
+手动滑稽<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:15<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16779361&amp;ptid=978941" target="_blank"><font color="#999999">Xiao2 发表于 2020-3-7 15:06</font></a></font><br />
+你怎么不搞一个好用一点 的给大家&nbsp;&nbsp;<strike>白嫖</strike><br />
+<br />
+上班可以<strike>摸鱼</strike></blockquote></div><br />
+你咋知道我是为了上班摸鱼所以写的这个<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mmoo1122&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:21<br />
+看不懂代码，但是好奇怎么过验证码一关<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>KonoeSubaru&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:21<br />
+几天水到8级的可比不了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>快乐小方&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:23<br />
+直接检测后面带不带后缀不就好了<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>EGEE2468&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:55<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16777732&amp;ptid=978941" target="_blank"><font color="#999999">凋灵斯拉 发表于 2020-3-7 13:42</font></a></font><br />
+卢<strike>本伟</strike>滑稽，牛逼！</blockquote></div><br />
+低调，刚才看你头像，才发现你脑袋张反了？<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>专刀你&nbsp; &nbsp; <b>时间: </b>2020-3-7 15:59<br />
+折叠那是手速<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-7 16:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16779622&amp;ptid=978941" target="_blank"><font color="#999999">mmoo1122 发表于 2020-3-7 15:21</font></a></font><br />
+看不懂代码，但是好奇怎么过验证码一关</blockquote></div><br />
+不用过验证码啊，，你在哪里遇到验证码了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mmoo1122&nbsp; &nbsp; <b>时间: </b>2020-3-7 16:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16781494&amp;ptid=978941" target="_blank"><font color="#999999">雨韵 发表于 2020-3-7 16:54</font></a></font><br />
+不用过验证码啊，，你在哪里遇到验证码了</blockquote></div><br />
+有锭的回复时不是要点图片上的字？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>小lon&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:05<br />
+好活！老铁！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>longye1234&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:06<br />
+这是c++吗?<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xu__&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:06<br />
+所以LZ能不能说一下怎么运行？这是什么语言？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Wudji&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:08<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16775935&amp;ptid=978941" target="_blank"><font color="#999999">mohui666 发表于 2020-3-7 11:58</font></a></font><br />
+折叠AI生命实锤了</blockquote></div><br />
+底 特 律 变 人<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>凋灵斯拉&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:18<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16780252&amp;ptid=978941" target="_blank"><font color="#999999">EGEE2468 发表于 2020-3-7 15:55</font></a></font><br />
+低调，刚才看你头像，才发现你脑袋张反了？</blockquote></div><br />
+你懂甚，老二在晃来晃去做运动呢，老三在睡觉<br />
+<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>冰成很帅&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:32<br />
+能不能写一个外挂<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Reichsadler&nbsp; &nbsp; <b>时间: </b>2020-3-7 17:36<br />
+大佬都是用程序，我们都是靠手。。。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蟹蒙老鸽&nbsp; &nbsp; <b>时间: </b>2020-3-7 20:36<br />
+这个是走的JAVA吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Kruls&nbsp; &nbsp; <b>时间: </b>2020-3-7 20:49<br />
+这什么操作？？？所以有用没用<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>fengmowanxiang&nbsp; &nbsp; <b>时间: </b>2020-3-7 21:03<br />
+不好用 就不香了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>DE_SHARK&nbsp; &nbsp; <b>时间: </b>2020-3-7 23:57<br />
+所以你们是怎么做到实时刷mcbbs页面的？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JMBishark&nbsp; &nbsp; <b>时间: </b>2020-3-7 23:59<br />
+我觉得折叠也靠程序<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>冬天冬天W&nbsp; &nbsp; <b>时间: </b>2020-3-8 00:03<br />
+<i class="pstatus"> 本帖最后由 冬天冬天W 于 2020-3-8 15:05 编辑 </i><br />
+<br />
+if louzhu == dalao:<br />
+&nbsp; &nbsp; print(&quot;python大佬实锤<img src="static/image/smiley/rabbit/18.gif" smilieid="668" border="0" alt="" />前来膜拜，刚好我也在学习Python<img src="static/image/smiley/rabbit/18.gif" smilieid="668" border="0" alt="" />&quot;<br />
+else:<br />
+&nbsp; &nbsp;&nbsp;&nbsp;print(&quot;深藏不露<img src="static/image/smiley/rabbit/60.gif" smilieid="710" border="0" alt="" />大佬流弊！&quot;)<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>猫眼&nbsp; &nbsp; <b>时间: </b>2020-3-8 00:17<br />
+啊是大佬~~<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Doomsday_Envoy&nbsp; &nbsp; <b>时间: </b>2020-3-8 00:19<br />
+爬虫之间的对决<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 08:25<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16785654&amp;ptid=978941" target="_blank"><font color="#999999">Kruls 发表于 2020-3-7 20:49</font></a></font><br />
+这什么操作？？？所以有用没用</blockquote></div><br />
+以前有用，现在没用了所以开源<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 08:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16785457&amp;ptid=978941" target="_blank"><font color="#999999">蟹蒙老鸽 发表于 2020-3-7 20:36</font></a></font><br />
+这个是走的JAVA吗</blockquote></div><br />
+不是的呢，这个是python语言。<br />
+百度实时爬取bbs的页面<br />
+我再爬取百度的页面<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>1925312490&nbsp; &nbsp; <b>时间: </b>2020-3-8 08:30<br />
+鉴定完毕，是个大佬！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 08:39<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16781721&amp;ptid=978941" target="_blank"><font color="#999999">神秘救赎 发表于 2020-3-7 17:06</font></a></font><br />
+所以LZ能不能说一下怎么运行？这是什么语言？</blockquote></div><br />
+这个是用python语言写的爬虫程序。<br />
+大概过程如下：<br />
+百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右。<br />
+这个程序会向百度的站内搜索引擎提交搜索关键词“锭”的请求。<br />
+站内搜索链接：<br />
+<a href="http://zhannei.baidu.com/cse/site?q=" target="_blank">http://zhannei.baidu.com/cse/site?q=</a>[这里是关键词]&amp;cc=mcbbs.net&amp;sti=[这里是筛选最近X分钟的帖子]<br />
+例如：<a href="http://zhannei.baidu.com/cse/site?q=" target="_blank">http://zhannei.baidu.com/cse/site?q=</a>锭&amp;s=&amp;cc=mcbbs.net&amp;sti=5 指的就是5分钟内有没有含有关键词“锭”的帖子出现<br />
+百度响应请求后，返回【在规定的时间内是否有含有关键词的帖子，以及帖子的地址是什么】<br />
+如果5分钟内有这样的一个帖子，则会在右下角消息区弹窗提醒有关注内容<br />
+这里由于我不会【点击消息则跳转】因此我选择了弹窗提醒的同时打开浏览器。<br />
+这里的浏览器是默认浏览器，也就是你平时用来浏览mcbbs的浏览器。<br />
+你的账号已经在这个浏览器登录、所以可以节省登陆的时间。<br />
+之后就需要你根据是否的确是发锭或讨论帖，从而进行针对性的回复。<br />
+比如恰锭和水贴<br />
+<br />
+如果还有什么疑问可以继续回复我。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 09:03<br />
+更新了答疑部分<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xu__&nbsp; &nbsp; <b>时间: </b>2020-3-8 10:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16790172&amp;ptid=978941" target="_blank"><font color="#999999">雨韵 发表于 2020-3-8 08:39</font></a></font><br />
+这个是用python语言写的爬虫程序。<br />
+大概过程如下：<br />
+百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右 ...</blockquote></div><br />
+所以让我一个学C++的看python...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GL好运&nbsp; &nbsp; <b>时间: </b>2020-3-8 11:09<br />
+佛了 这就是大佬嘛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 11:42<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16791664&amp;ptid=978941" target="_blank"><font color="#999999">神秘救赎 发表于 2020-3-8 10:40</font></a></font><br />
+所以让我一个学C++的看python...</blockquote></div><br />
+C++稍微改一下就可以了啊qaq<br />
+原理都一样<br />
+而且这个比较复杂，实际用的时候可以去掉log部分和弹窗部分<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>轩辕Shi&nbsp; &nbsp; <b>时间: </b>2020-3-8 11:48<br />
+大佬牛逼了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>qq15015911125&nbsp; &nbsp; <b>时间: </b>2020-3-8 13:37<br />
+抢锭，不会被封么，听说水贴惩罚很严重的呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>雨韵&nbsp; &nbsp; <b>时间: </b>2020-3-8 13:45<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16794751&amp;ptid=978941" target="_blank"><font color="#999999">qq15015911125 发表于 2020-3-8 13:37</font></a></font><br />
+抢锭，不会被封么，听说水贴惩罚很严重的呢</blockquote></div><br />
+这个只是起到一个提醒作用，具体的还是要自己动手去回复<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaoxiao212536&nbsp; &nbsp; <b>时间: </b>2020-3-8 13:52<br />
+辣是真滴牛<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>NBlcq&nbsp; &nbsp; <b>时间: </b>2020-3-8 13:58<br />
+看不懂 流批就完事了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaobbl&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:03<br />
+再nb的脚本也干不过折叠<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mcshenglong&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:08<br />
+看不懂大佬的操作<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mcshenglong&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:08<br />
+看起来好厉害<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>玄月月&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:34<br />
+世宇宇：你这个不行，<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Xu__&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:35<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16792760&amp;ptid=978941" target="_blank"><font color="#999999">雨韵 发表于 2020-3-8 11:42</font></a></font><br />
+C++稍微改一下就可以了啊qaq<br />
+原理都一样<br />
+而且这个比较复杂，实际用的时候可以去掉log部分和弹窗部分 ...</blockquote></div><br />
+要不你帮我改改...<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>冬天冬天W&nbsp; &nbsp; <b>时间: </b>2020-3-8 14:58<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16785457&amp;ptid=978941" target="_blank"><font color="#999999">蟹蒙老鸽 发表于 2020-3-7 20:36</font></a></font><br />
+这个是走的JAVA吗</blockquote></div><br />
+这个是Python<img src="static/image/smiley/rabbit/49.gif" smilieid="699" border="0" alt="" />开始几行就是导入Python的扩展库<img src="static/image/smiley/rabbit/50.gif" smilieid="700" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JandL&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:01<br />
+我学过python你写的也是python为什么我就是看不懂呢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Neccc&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:02<br />
+我说怎么这么快抢锭、原来都用了高科技！<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JJ怪大战&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:05<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AzureHanChen&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:07<br />
+tql<br />
+我这菜鸡只能写到从Console显示出来的<br />
+而且还不能记录的那种<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>XL铭梦、&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:08<br />
+感觉很NB，但是不会用= =<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>JJ怪大战&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:08<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>神秘人233&nbsp; &nbsp; <b>时间: </b>2020-3-8 16:11<br />
+要不要把腚也加上<img src="static/image/smiley/tong/chigua.png" smilieid="1464" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>EGEE2468&nbsp; &nbsp; <b>时间: </b>2020-3-8 17:36<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16797866&amp;ptid=978941" target="_blank"><font color="#999999">JJ怪大战 发表于 2020-3-8 16:08</font></a></font><br />
+你水得太快了！</blockquote></div><br />
+我哪里水了，你看看我那认真的回复<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Strange_name&nbsp; &nbsp; <b>时间: </b>2020-3-8 17:59<br />
+欢乐泥潭大佬多<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>GenjiKai&nbsp; &nbsp; <b>时间: </b>2020-3-8 18:36<br />
+好的lz，末影之路见<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>wuliao_dada&nbsp; &nbsp; <b>时间: </b>2020-3-8 18:42<br />
+不愧是大佬啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Spider_Queen&nbsp; &nbsp; <b>时间: </b>2020-3-8 18:42<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

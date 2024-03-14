@@ -1,0 +1,212 @@
+<html>
+<head>
+<title>[插件高级编程]如何向核心中插入自己的事件 - 以PlayerOPEvent举例 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[插件高级编程]如何向核心中插入自己的事件 - 以PlayerOPEvent举例 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>coderzeng&nbsp; &nbsp; <b>时间: </b>2017-2-14 03:15<br />
+<b>标题: </b>[插件高级编程]如何向核心中插入自己的事件 - 以PlayerOPEvent举例<br /><i class="pstatus"> 本帖最后由 coderzeng 于 2017-2-14 04:20 编辑 </i><br />
+<br />
+<div align="center"><font size="5"><font color="SlateGray">如何向核心中插入自己的事件 - 以PlayerOPEvent举例<br />
+<br />
+<font size="4">这不是基础教程，函数详细用法参考百度，这里只提供思路和源码</font><br />
+<br />
+<font size="4">我们知道Bukkit在添加用户为OP的时候是没有对应事件给插件的，这可不方便管理，所以我们自己给他加一个</font><br />
+<br />
+<font size="4">本文涉及如下内容 :<br />
+JavaAgent -&nbsp;&nbsp;如果知道是啥就不用点开了<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+</font></font></font><br />
+<div align="left">javaagent的主要功能如下：</div><ul><li><div align="left">可以在加载class文件之前做拦截，对字节码做修改</div><li><div align="left">可以在运行期对已加载类的字节码做变更，但是这种情况下会有很多的限制，后面会详细说</div><li><div align="left">还有其他一些小众的功能<br />
+<ul><li>获取所有已经加载过的类<li>获取所有已经初始化过的类（执行过clinit方法，是上面的一个子集）<li>获取某个对象的大小<li>将某个jar加入到bootstrap classpath里作为高优先级被bootstrapClassloader加载<li>将某个jar加入到classpath里供AppClassloard去加载<li>设置某些native方法的前缀，主要在查找native方法的时候做规则匹配<br />
+</ul></div><br />
+</ul><font size="5"><font color="SlateGray"><font size="4"></td></table></div></div><br />
+<br />
+Javassist</font></font></font><font size="5"><font color="SlateGray"><font size="4"> -&nbsp;&nbsp;如果知道是啥就不用点开了<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+Javassist是一个开源的分析、编辑和创建Java字节码的类库。是由东京工业大学的数学和计算机科学系的 Shigeru Chiba 所创建的。它已加入了开放源代码JBoss 应用服务器项目,通过使用Javassist对字节码操作为JBoss实现动态&quot;AOP&quot;框架。<br />
+</td></table></div></div><br />
+<br />
+所以我们的目的就很简单了 -- 找到MC处理OP的代码，在真正执行之前进行判断<br />
+<br />
+Step 1 - 找到处理OP的代码<br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+方案1 -- 直接查找每个类【太特么恶心了】<br />
+方案2 -- 根据提示查找【主要讲这个】<br />
+你需要 : JD- GUI,一个核心<br />
+<br />
+首先我们在后台随便给个OP,比如给123这个玩家吧，看看会显示什么<br />
+
+<ignore_js_op>
+
+<img id="aimg_1049809" aid="1049809" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201702/14/032241pqqil4n00squi444.png" file="https://attachment.mcbbs.net/forum/201702/14/032241pqqil4n00squi444.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="403" id="aimg_1049809" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1049809_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>1.PNG</strong> <em class="xg1">(21.18 KB, 下载次数: 2)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTA0OTgwOXw1MzNhNGRiN3wxNjEzOTI3MzY5fDI0MTk0ODZ8Njc0MDk3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-2-14 03:22 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+好的，接下来让我们看看Opped这个字符出现在哪里<br />
+
+<ignore_js_op>
+
+<img id="aimg_1049811" aid="1049811" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201702/14/033021jzg1kmdpvdg1dfu1.png" file="https://attachment.mcbbs.net/forum/201702/14/033021jzg1kmdpvdg1dfu1.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1049811" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1049811_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>2.PNG</strong> <em class="xg1">(42.68 KB, 下载次数: 2)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTA0OTgxMXw1MTg1MDAyMHwxNjEzOTI3MzY5fDI0MTk0ODZ8Njc0MDk3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-2-14 03:30 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+双击打开，可以发现是调用了player.setOP()的方法，继续向前追踪<br />
+最后来到PlayerList类的addOP();,长这样<br />
+
+<ignore_js_op>
+
+<img id="aimg_1049812" aid="1049812" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201702/14/033634pr9amvi91i33i18d.png" file="https://attachment.mcbbs.net/forum/201702/14/033634pr9amvi91i33i18d.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1049812" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1049812_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>3.PNG</strong> <em class="xg1">(9.06 KB, 下载次数: 4)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTA0OTgxMnxlOTlhOTI5MXwxNjEzOTI3MzY5fDI0MTk0ODZ8Njc0MDk3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2017-2-14 03:36 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+所以第一步到此结束<br />
+</td></table></div></div><br />
+<br />
+</font></font></font><br />
+<font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">Step 2 - 构建我们自己的</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PlayerList<br />
+</font></font></font></font></font></font><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+目标 - 在真正进行添加OP操作前进行判断<br />
+先上代码，再解释功能，函数功能请查看JavaDoc<br />
+<div class="blockcode"><div id="code_d45"><ol><li>public class ABDClassPatcher {<br />
+<li>&nbsp; &nbsp; private ClassPool pool;<br />
+<li>&nbsp; &nbsp; public ABDClassPatcher(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pool = ClassPool.getDefault();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pool.appendClassPath(ABDClassHelper.getJarFilePathFromClass(ABDClassHelper.getCraftClassAsName(&quot;PlayerList&quot;,false)));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;pool.appendClassPath(ABDClassHelper.getJarFilePathFromClass(this.getClass()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (NotFoundException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; public byte[] PatchPlayerList(){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CtClass classplayerlist = pool.get(ABDClassHelper.getCraftClassAsName(&quot;PlayerList&quot;,false)); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CtMethod addopmenthod = classplayerlist.getDeclaredMethod(&quot;addOp&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;addopmenthod.insertBefore(&quot;{com.verofess.abdapi.patcher.SetOpPatcher#CallEvent($1);}&quot;); <br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return classplayerlist.toBytecode();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (NotFoundException | CannotCompileException | IOException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return new byte[0];<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_d45'));">复制代码</em></div>这是我之前发布的某个插件中的源码，<br />
+在构造函数中向ClassPool中添加了核心和自身的路径，<br />
+</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PatchPlayerList()</font></font></font></font></font></font>大概的意思就是向addOP()的前面插入了一行<br />
+</font></font></font></font></font></font><br />
+<font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">com.verofess.abdapi.patcher.SetOpPatcher#CallEvent($1);<br />
+<br />
+那么</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">SetOpPatcher的内容是什么呢？<br />
+<div class="blockcode"><div id="code_vhQ"><ol><li>public class&nbsp;&nbsp;SetOpPatcher {<br />
+<li>&nbsp; &nbsp; static public void CallEvent(GameProfile gp){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Player player = Bukkit.getServer().getPlayer(gp.getId());<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;StackTraceElement stack[] = Thread.currentThread().getStackTrace();&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if(ABDClassHelper.isFromPlugins(stack)){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PlayerSetOPEvent event = new PlayerSetOPEvent(player);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Bukkit.getServer().getPluginManager().callEvent(event);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_vhQ'));">复制代码</em></div>判断了一下这个事件是不是来自插件的，如果是就new 一个</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PlayerSetOPEvent()出来<br />
+<br />
+</font></font></font></font></font></font></font></font></font></font></font></font><br />
+<font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">getCraftClassAsName是用来取类名的，不用管它<br />
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"></td></table></div></div><br />
+<br />
+step - 3&nbsp;&nbsp;替换原始的</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PlayerList<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+我们为了完成替换，应当在</font></font></font></font></font></font></font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">原始的</font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PlayerList类加载前对其进行处理<br />
+所以只需要实现</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">JavaAgent的premain就好，代码如下<br />
+<br />
+<div class="blockcode"><div id="code_iav"><ol><li>public class ABDAgent {<br />
+<li>&nbsp; &nbsp; private static String Ver;<br />
+<li>&nbsp; &nbsp; public static void premain(String agentArgs, Instrumentation inst){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Ver = agentArgs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;ABDClassPatcher patcher = new ABDClassPatcher();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;inst.redefineClasses(new ClassDefinition(Class.forName(ABDClassHelper.getCraftClassAsName(&quot;PlayerList&quot;,false)),patcher.PatchPlayerList()));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (ClassNotFoundException | UnmodifiableClassException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public static String getVer() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return Ver;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>}</ol></div><em onclick="copycode($('code_iav'));">复制代码</em></div>这里就是调用了刚才的函数对</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4"><font size="5"><font color="SlateGray"><font size="4">PlayerList类进行了重定义，为了让java知道我们要用这个功能，还需要修改下MANIFEST.MF文件<br />
+<div class="blockcode"><div id="code_WGg"><ol><li>Manifest-Version: 1.0<br />
+<li>Premain-Class: com.verofess.abdapi.ABDAgent<br />
+<li>Can-Redefine-Classes: true<br />
+<li><br />
+<li></ol></div><em onclick="copycode($('code_WGg'));">复制代码</em></div>就像这样<br />
+<br />
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></td></table></div></div><br />
+<br />
+最后，在命令行里加上 -javaagent的选项就可以执行了<br />
+<br />
+太麻烦？其实我写的有API，不过只有我自己用的嘿嘿<br />
+<br />
+下次来讲讲Forge的，恩，完结撒花<br />
+</font></font></font></font></font></font></font></font></font></font></font></font></div><br />
+<script type="text/javascript" reload="1">
+aimgcount[11521263] = ['1049809','1049811','1049812'];
+attachimggroup(11521263);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>深海板蓝根&nbsp; &nbsp; <b>时间: </b>2017-7-27 15:28<br />
+一眨眼过去5个月了
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

@@ -1,0 +1,430 @@
+<html>
+<head>
+<title>[PCD]让你的插件使用MySQL存储数据吧！5.3 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[PCD]让你的插件使用MySQL存储数据吧！5.3 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dengyu&nbsp; &nbsp; <b>时间: </b>2018-2-20 17:36<br />
+<b>标题: </b>[PCD]让你的插件使用MySQL存储数据吧！5.3<br /><i class="pstatus"> 本帖最后由 dengyu 于 2020-10-24 18:43 编辑 </i><br />
+<br />
+<div align="center"><div align="center"><table cellspacing="0" class="t_table" style="width:90%" bgcolor="Black"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="Grey"><tr><td><div align="center"><font size="4"><strong>让你的插件使用MySQL存储数据吧！</strong></font></div></td></tr></table></div><hr class="l" /><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="Grey"><tr><td> <div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><img id="aimg_TOp11" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" width="185" height="100" src="http://images2015.cnblogs.com/blog/778697/201612/778697-20161226164629695-25269239.png" border="0" alt="" /></div><br />
+ 众所周知，MySQL比用SQLite等存储方式具有体积更小、速度快等优点，下面我就为大家带来插件使用MySQL的教程<br />
+<div align="center"><font size="3">本教程所有代码采用GPLv3协议开源</font></div><div align="center"><font size="3">教程目标：实现一个插件，使得创建一个表，包含一个int类型数据和一个最大长度为50的字符串数据</font></div><div align="center"><font size="3">并且可以通过/ms add [int] [data]添加一行数据</font></div><div align="center"><font size="3">通过/ms del [int]移除主键为[int]的一行数据</font></div><div align="center"><font size="3">通过/ms find [int]获取</font><font size="3">主键为[int]的[data]数据</font></div><div align="center"><font size="3">本教程将实现3个类</font></div><div align="center"><font size="3">Main —— 插件的主类</font></div><div align="center"><font size="3">MySQLManager —— 连接、</font><font size="3">控制</font><font size="3">MySQL的核心类</font></div><div align="center"><font size="3">SQLCommand —— 包含一些MySQL指令集（枚举类型）</font></div><div align="center"><font size="3">若此教程有任何错误请大家提出指正！<br />
+</font></div></td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font face="黑体"><font size="4">一、编写config.yml</font></font></div>使用过MySQL的人都知道，一般MySQL需要配置以下的东西：<br />
+<ul><li>主机IP<li>数据库名字<li>用户名<li>密码<li>端口<br />
+</ul>这些东西可以说是缺一不可，这样的话，我们创建一份config.yml，只需要设置这五个参数，供接下来的类使用。<br />
+在插件在plugins目录下生成config.yml的时候，我们应该将其设置为自己的用户名等<br />
+上传一份作为参考：<br />
+<a href="https://0paste.com/19982" target="_blank">代码点这里</a><br />
+<br />
+</td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font face="黑体"><font size="4">二、编写</font></font><font face="黑体"><font size="4">插件主类</font></font></div>首先，我们需要实现以下功能：<br />
+<ul><li>可以连接上MySQL数据库<li>服务器关闭时断开数据库连接<li>获取到配置的内容<li>填写命令执行器<br />
+</ul><div align="left">由于Bukkit只有一个线程，如果直接在主线程弄SQL，可能会导致服务器GG，这样的话，咱们就利用BukkitRunnable新建一个线程，重写run方法即可解决这个冲突。</div><div align="left">这个类的getConfigString和getConfigInt方法用于获取配置文件里面的相应配置</div><div align="left">在关闭服务器的时候别忘记调用shutdown关闭连接</div><div align="left"><a href="https://0paste.com/29123" target="_blank">代码点这里</a></div><br />
+</td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font color="#ff0000"><font face="黑体"><font size="4">三、编写</font></font><font face="黑体"><font size="4">SQLCommand枚举类型</font></font></font></div><div align="left">在处理MySQL的时候，我们将使用大量的数据库指令。然而一个一个写的话会很麻烦，而且在更改的时候也容易出错。</div><div align="left">我们创建一个叫做SQLCommand的枚举类型，存储着基本MySQL指令，需要时候随时用。</div><div align="left">先给出代码再详细讲解</div><div align="left"><a href="https://0paste.com/29122" target="_blank">代码点这里</a></div><div align="left">这个类型我给出了3个指令：</div><div align="left">CREATE_TABLE1：查找是否存在一个叫做table1的表，如果没有，创建之，这个表包含一个int类型数据和一个最大长度为50的字符串数据，设置int列为<font color="#006400">主键</font>，也就是说这个列就是代表，此列的int数据代表了该行其他的数据。</div><div align="left">ADD_DATA：添加一行数据；</div><div align="left"><font color="#ff0000">这个?在SQL语句里面是<strong><u>通配符</u></strong>，下文将通过调用setInt等方法将其替换掉。使用通配符的原因是相对于直接拼接SQL语句来说，使用PrepaerdStatement可以防止SQL注入式攻击。下文将讲述替换的方法，附录3讲述防止攻击的原理。</font></div><div align="left">DELETE_DATA：删除主键为[int]的一行数据；</div><div align="left">SELECT_DATA：查找主键为[int]的一行数据，返回该行包含的[String]数据。</div><br />
+</td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><div align="center"><font color="#ff0000"><font face="黑体"><font size="4">四、编写</font></font><font face="黑体"><font size="4">MySQLManager类</font></font></font></div><div align="left">这个类处理插件希望传给MySQL的各种命令，配合SQLCommand生成MySQL命令提交给MySQL执行，如果是查询的话同时返回查询结果。</div><div align="left">我们需要先写get方法。get方法主要是<font color="#ff0000">返回一个MySQLManager类的实例</font>，可以帮助我们静态引用非静态方法。首先我们可以先声明一个叫做<i><font color="#0000ff">instance</font></i>的字段。设置为null，之后编写get方法。由于如果onCommand方法或者onEnable方法在调用<i><font color="#0000ff">instance</font></i>的时候是null会抛出空指针异常。那么我们就可以编写方法了。</div><div align="left"><a href="https://0paste.com/20005" target="_blank">代码点这里</a></div><div align="left">之后，我们编写一个很重要的方法，即初始化数据库的方法enableMySQL。</div><div align="left">首先，声明一下前面提到的“五要素”，而这个方法利用写在主类里面的getConfigString和getConfigInt方法，获取配置文件的设置，通过调用connectMySQL方法连接上数据库，顺便创建一个叫做table1的表，这个创建的过程是这样的。</div><div align="left"><strike>我不会美工啊别吐槽这图</strike></div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1180451" aid="1180451" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/23/124638z6c3g6b9x8o6gbpo.png" file="https://attachment.mcbbs.net/forum/201802/23/124638z6c3g6b9x8o6gbpo.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1180451" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180451_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180223124333.png</strong> <em class="xg1">(37.76 KB, 下载次数: 13)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDQ1MXxlY2E4NDQxNXwxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-23 13:25 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">而connectMySQL方法，主要就是发送连接数据库指令，格式为</div><div align="left"><strong>jdbc:mysql://IP:端口/数据库?参数1=值1&amp;参数2=值2</strong></div><div align="left">用户名和密码单独放在后面</div><div align="left">Connection类型的connection是一个连接对象，在通过DriverManager.<i>getConnection</i>方法获取之后就可以代表一个连接。</div><div align="left">doCommand方法需要一个PreparedStatement类型的字段为参数，调用ps.executeUpdate();即可发送给MySQL执行了。</div><div align="left">至于为什么要新写一个doCommand方法，而不在下面直接executeUpdate，我们马上说。</div><div align="left"><a href="https://0paste.com/20043" target="_blank">代码点这里</a></div><div align="left">注意：由于在编写代码时使用了异步（多线程）操作，也就是说connection在执行任务时服务器不需要等待其执行完毕（如果等待了就卡服了），那么会出现一个问题：</div><div align="left"><font color="#ff0000">在多线程环境中,线程A正在doCommand，还没有结束的时候线程B却意外的申请doCommand，这个情况该怎么办。</font></div><div align="left">换句话说，如果你执行/ms add 12 data1，在没有执行完的时候又以极快的速度执行了/ms add 13 data2，那么就很尴尬。</div><div align="left">有一个解决办法是在doCommand加上<font color="#9932cc">synchronized</font>关键字，表示给方法上锁（使得执行同步化），这就是为什么我们要新写一个doCommand方法的原因。因为加上之后如果出现这种情况，让第二个操作等待之，直到doCommand执行完之后再执行。当然这个方法在执行大量SQL语句的时候效率降低了很多。</div><div align="left">另一个解决办法的使用连接池技术。这个技术将在下文附录1介绍。</div><div align="left">之后，我们要写shutdown方法connection.close();指令表示关闭数据库连接对象。</div><br />
+<div align="left">现在，我们进入重点：实现对数据库的增删查</div><div align="left"><strong>增加</strong>：编写insertData方法，用于添加一个int类型的数据和一个String类型的数据</div><div align="left">上文提到，?是通配符，使用PreparedStatement可以防止SQL注入式攻击，原理在附录3中讲解。</div><div align="left">那么，我们需要替换之。我们可以先这样写：</div><div align="left"><div class="blockcode"><div id="code_su5"><ol><li>public void insertData(String data1, String data2, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PreparedStatement ps;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String s = SQLCommand.ADD_DATA.commandToString();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps = connection.prepareStatement(s);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps.setInt(1, Integer.parseInt(data1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps.setString(2, data2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;doCommand(ps, sender);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (NumberFormatException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(&quot;输入的不是整数，插入失败&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_su5'));">复制代码</em></div><br />
+</div><div align="left">这样的话，我们可以将通配符?替换掉了，而且由于已经预编译了，在一定程度上防止了注入攻击。</div><div align="left"><strong>删除</strong>差不多，由于我们设置了int键为主键，所以我们可以照葫芦画瓢，轻轻松松写出删除的代码</div><div align="left"><div class="blockcode"><div id="code_dQ5"><ol><li>public void deleteData(String data1, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PreparedStatement ps;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String s = SQLCommand.DELETE_DATA.commandToString();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps = connection.prepareStatement(s);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps.setInt(1, Integer.parseInt(data1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;doCommand(ps, sender);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (NumberFormatException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(&quot;输入的不是整数，删除失败&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_dQ5'));">复制代码</em></div>而查询，这个是数据库操作指令中使用得最频繁最多的指令之一。为此我们先大致介绍一下用法，更高级使用请学习附录2的“实现异步回调，并且获取结果”部分。</div><div align="left">由于我们要<strong>获取结果</strong>，所以我们需要调用executeQuery方法。这个方法返回一个ResultSet类型的结果集，而我们可以遍历这个集合获得结果。</div><div align="left"><div class="blockcode"><div id="code_n1p"><ol><li>public void findData(String data1, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String s = SQLCommand.SELECT_DATA.commandToString();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PreparedStatement ps = connection.prepareStatement(s);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ps.setInt(1, Integer.parseInt(data1));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;ResultSet rs = ps.executeQuery();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;while (rs.next())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;String str = rs.getString(&quot;string&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;sender.sendMessage(str);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// TODO 自动生成的 catch 块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(&quot;查询失败&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; } catch (NumberFormatException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(&quot;输入的不是整数，查询失败&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_n1p'));">复制代码</em></div>至此，我们已经学习完毕所有关于MySQL的<strong><font color="#ff0000">最基本</font></strong>的内容了，编写一款MySQL插件应该不难了。</div><div align="left">不过，我还是推荐大家学习一下附录的内容，<font color="#ff0000">这部分内容不是必须掌握的，但是可以帮助理解上文提到的部分问题</font>。</div><div align="left">这个类的最终代码：</div><div align="left"><a href="https://0paste.com/29120" target="_blank">代码点这里</a></div><br />
+</div></td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font color="#000000"><font face="黑体"><font size="4">附录1 连接池</font></font></font></div><div align="left">连接池，顾名思义，就是<font color="#ff0000">一个提供连接的“池子</font><font color="#ff0000">”</font>，这个“池子”是干什么用的呢？</div><div align="left">一般而言，如果我们要连接数据库，我们应该是这样的：</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1180561" aid="1180561" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/22/095957zoagwbuulauuae7n.png" file="https://attachment.mcbbs.net/forum/201802/22/095957zoagwbuulauuae7n.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="584" id="aimg_1180561" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180561_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180222095847.png</strong> <em class="xg1">(25.76 KB, 下载次数: 5)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDU2MXw3YjM2YzM4ZXwxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-22 09:59 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">由于创建（connect）、关闭（close）连接都需要消耗性能，而且如果连接量达到几百几千的话，那么我们频繁创建、销毁连接就会导致有大量性能被消耗，也就是说，实际上此时<font color="#ff0000">一个连接就是一种资源</font>。</div><div align="left">于是有了连接池技术。</div><div align="left">如果我们创建若干的已经有了的连接，这些连接就是一个“池子”，此连接不被close掉，当有大量请求过来的时候，那么服务器将会从这“池子”中调出一个连接（我们称之为getConnection），当用完连接的时候，我们不关闭，而是释放使之成为空闲状态（我们称之为releaseConnection），那么，我们可以这样理解：</div><div align="left">
+<ignore_js_op>
+
+<img id="aimg_1180573" aid="1180573" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/22/101752qyndyyyqyubpnrw4.png" file="https://attachment.mcbbs.net/forum/201802/22/101752qyndyyyqyubpnrw4.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1180573" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180573_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180222101709.png</strong> <em class="xg1">(29.8 KB, 下载次数: 10)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDU3M3wxM2UxMWVmOHwxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-22 10:17 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+</div><div align="left">这样的话，我们在刚刚那份代码里面创建一个Connection类型的数组（链表更好），最好提供Statement，ResultSet的字段，当需要连接时，提供一份Connetion、Statement与ResultSet，不用时回收之即可。</div><div align="left">不过对于普通使用MySQL的Bukkit插件而言，一个持久的连接足够了。但是如果需要同步进行大量的访问数据库，使用连接池技术可以避免上文出现的尴尬局面，因为一个连接只能同时处理一个指令，多个并行指令使用连接池的确要好很多。</div><div align="left">一般而言，我们不必自己写连接池，因为已经存在很快的连接池系统，叫做HikariCP。这款连接池是目前为止最快的连接池系统了，性能、稳定性都非常好。</div><br />
+</td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font color="#000000"><font face="黑体"><font size="4">附录2 </font></font></font><font color="#000"><font face="黑体"><font size="4">实现异步回调，并且获取结果</font></font></font></div><strong>一、什么是同步调用和异步调用</strong><br />
+众所周知，我们在调用函数的时候，总会出现一个现象：<br />
+等待上一个指令执行完了才执行下一个指令。<br />
+这个执行方式叫做<strong>同步调用。</strong><br />
+这一过程大致是这样的：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1180748" aid="1180748" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/22/152724hs772s0vxz360g7v.png" file="https://attachment.mcbbs.net/forum/201802/22/152724hs772s0vxz360g7v.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="599" id="aimg_1180748" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180748_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180222152628.png</strong> <em class="xg1">(30.16 KB, 下载次数: 11)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDc0OHxmNmE2MjRhN3wxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-22 15:27 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+那么，如果函数1和函数2之间<font color="#ff0000"><u><strong>毫无联系</strong></u></font>，我们为了等待函数1执行完，必定会耗费大量的时间。<br />
+举个例子：如果你需要在六点钟给一个人打一个电话（执行函数1），现在时间为五点钟，而你还需要写作业（执行函数2），很明显这两个事件之间毫无联系，那么，如果你采取同步调用就会出现一个问题，在五点钟和六点钟这一段时间里面你需要干等，也不会做作业。为了解决这个问题，我们采取另一个方式，叫做<strong>异步调用</strong>。<br />
+异步调用允许你在函数1没有执行完的情况下执行函数2。<br />
+那我们如何实现异步调用呢？这就需要新建一个线程了。<br />
+如果你编写普通的Java程序，则普遍存在2种方法创建线程：<br />
+<ul><li>写一个类，继承Thread类型<li>实现Runnable接口<br />
+</ul>而对于Bukkit插件而言，我们可以通过上文提到的方式，使用BukkitRunnable来创建新线程。<br />
+大致就像这样：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1180762" aid="1180762" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/22/155232kcajaooziimjstts.png" file="https://attachment.mcbbs.net/forum/201802/22/155232kcajaooziimjstts.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="644" id="aimg_1180762" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180762_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180222155149.png</strong> <em class="xg1">(33.86 KB, 下载次数: 9)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDc2Mnw5ODdiN2RjNnwxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-22 15:52 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+<br />
+<strong>二、实现异步回调，并且获取结果</strong><br />
+回调，最重要的一点就是先“调用”，如果A调用了B，B调用了“调用了B”的A，则称之为<strong>回调</strong>。<br />
+实现回调需要一个接口，姑且称之为CallBack。<br />
+我们先重写一下findData方法：<br />
+<div align="center"><strong><font size="3">findData方法（有问题）</font></strong></div><div class="blockcode"><div id="code_L82"><ol><li>public void findData(String data1, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ConnectServer cs = new ConnectServer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ResultSet rs = cs.getData(connection);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //你可以随意使用这个ResultSet<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //本例先给sender发送消息<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (rs.next())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String str = rs.getString(&quot;string&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(str);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO 自动生成的 catch 块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_L82'));">复制代码</em></div>这里我们看出，我们没有及时地把整条SQL命令送给服务器执行，而是调用了上级类ConnectServer的getData方法。那么，我们应该写一下这个上级类：<br />
+<div align="center"><font size="3"><strong>ConnectServer</strong></font><strong><font size="3">类（有问题）</font></strong></div><div align="center"><div align="left"><div class="blockcode"><div id="code_Lkg"><ol><li>package com.dengyu.mysql;<br />
+<li><br />
+<li>import java.sql.Connection;<br />
+<li>import java.sql.PreparedStatement;<br />
+<li>import java.sql.ResultSet;<br />
+<li>import java.sql.SQLException;<br />
+<li><br />
+<li>public class ConnectServer {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public ResultSet getData(Connection connection) throws SQLException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ResultSet rs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String sql = &quot;SELECT * FROM &quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; PreparedStatement ps = connection.prepareStatement(sql);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; rs = ps.executeQuery();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return rs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_Lkg'));">复制代码</em></div><br />
+</div></div>这个类就执行了查询数据的指令。<br />
+然而，我们发现，<font color="#ff0000">这个指令是残缺的</font>，因为上级类并不知道下级类想干啥。<br />
+于是，就讲到我们所说的<font color="#ff0000"><strong><u>接口回调</u></strong></font>了。<br />
+我们先写一个接口，充当两个类之间反向沟通的桥梁。<br />
+<div class="blockcode"><div id="code_sBG"><ol><li>package com.dengyu.mysql;<br />
+<li><br />
+<li>public interface CallBack {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String getSQLCommand();<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_sBG'));">复制代码</em></div>然后，这个类需要实现这个接口，这个方法应该极其重要，掌握了查询的大权。<br />
+<div class="blockcode"><div id="code_r88"><ol><li> @Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public String getSQLCommand() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; /*<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 此处你应该大做文章<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 比如写判断什么的<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;* 反正就是把剩下的一半SQL指令补完<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;*/<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;`TABLE1`&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_r88'));">复制代码</em></div><br />
+由于我们需要把这个类提供给上级类，那么我们就把findData方法小修一下：<br />
+<div align="center"><strong><font size="3">findData方法</font></strong></div><div class="blockcode"><div id="code_Evs"><ol><li>public void findData(String data1, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ConnectServer cs = new ConnectServer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ResultSet rs = cs.getData(MySQLManager.this, connection);//修改的是这里<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //你可以随意使用这个ResultSet<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //本例先给sender发送消息<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (rs.next())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String str = rs.getString(&quot;string&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(str);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO 自动生成的 catch 块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; e.printStackTrace();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_Evs'));">复制代码</em></div>之后，我们也将ConnectServer类修一下：<br />
+<div align="center"><font size="3"><strong>ConnectServer</strong></font><strong><font size="3">类</font></strong></div><div align="center"><div align="left"><div class="blockcode"><div id="code_gr9"><ol><li>package com.dengyu.mysql;<br />
+<li><br />
+<li>import java.sql.Connection;<br />
+<li>import java.sql.PreparedStatement;<br />
+<li>import java.sql.ResultSet;<br />
+<li>import java.sql.SQLException;<br />
+<li><br />
+<li>public class ConnectServer {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public ResultSet getData(CallBack cb, Connection connection) throws SQLException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ResultSet rs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String sql = &quot;SELECT * FROM &quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String sql2 = cb.getSQLCommand();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; PreparedStatement ps = connection.prepareStatement(sql + sql2);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; rs = ps.executeQuery();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return rs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_gr9'));">复制代码</em></div></div></div>这样的话，我们就实现了回调方法。<br />
+整个过程大约是这样的：<br />
+
+<ignore_js_op>
+
+<img id="aimg_1180820" aid="1180820" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201802/23/195109dx2n27bcn2bncyni.png" file="https://attachment.mcbbs.net/forum/201802/23/195109dx2n27bcn2bncyni.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="700" id="aimg_1180820" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1180820_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>TIM图片20180223194857.png</strong> <em class="xg1">(46.88 KB, 下载次数: 16)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTE4MDgyMHwxMjBmMTMxNnwxNjEzOTU3MDM3fDI0MTk0ODZ8NzgzMjY3&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2018-2-23 19:51 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+至于异步嘛，由于你执行指令的时候用了BukkitRunnable，异步也已经实现了<br />
+一般的开发上面，库编写者一般会将上级类封装，只提供一个接口，开发者编写下级类的时候，如果想用调用上级类的方法，就需要实现接口供上级类回调，使得下级类可以方便地控制上级类的运作。<br />
+<br />
+</td></tr></table></div></td></tr></table><table cellspacing="0" class="t_table" style="width:98%" bgcolor="DarkGrey"><tr><td><div align="center"><table cellspacing="0" class="t_table" style="width:98%" bgcolor="White"><tr><td><div align="center"><font color="#000000"><font face="黑体"><font size="4">附录3 预防SQL注入式攻击</font></font></font></div><strong>一、什么是SQL注入式攻击</strong><br />
+我们可以先实现一些代码，代码如下：<br />
+<div class="blockcode"><div id="code_jeX"><ol><li>public void findData(String data1, CommandSender sender) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Statement s = connection.createStatement();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ResultSet rs;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; String sqlcmd = &quot;SELECT * FROM `TABLE1` WHERE `int` = &quot; + data1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; rs = s.executeQuery(sqlcmd);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; while (rs.next())<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;String str = rs.getString(&quot;string&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sender.sendMessage(str);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;} catch (SQLException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // TODO 自动生成的 catch 块<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; sender.sendMessage(&quot;查询失败&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>}</ol></div><em onclick="copycode($('code_jeX'));">复制代码</em></div>这个和刚刚我们在教程里面写的查询语句功能上是一样的，即查询int = [data1]时候的string数据<br />
+那么，这个代码有什么问题呢<br />
+实施攻击的人，如果把data1赋值成 0 OR 1=1<br />
+那么SQL语句就变成这个了：<br />
+<font style="background-color:white">SELECT * FROM `TABLE1` WHERE `int` = 0 OR <font color="#ff0000">1=1</font></font><br />
+由于1恒等于1，故前面的条件它将返回所有的string数据，不会返回特定的与int值有关联的string值。<br />
+这种在<font color="#ff0000">输入时候输入一些恶意字符串，改变查询等原来的SQL语句的本意，欺骗服务器执行恶意的SQL命令的攻击</font>，就叫做<strong>SQL注入式攻击。</strong><br />
+<strong>二、如何防止注入式攻击</strong><br />
+1.我们可以对输入字符串进行检验<br />
+上述代码中，如果我们检验一下是不是输入的是数字，不是就catch掉，比如加上这样一段代码：<br />
+<div class="blockcode"><div id="code_iu6"><ol><li>try {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;int i = Integer.parseInt(data1);<br />
+<li>} catch (NumberFormatException e) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(&quot;您输入的不是数字！&quot;);<br />
+<li>}</ol></div><em onclick="copycode($('code_iu6'));">复制代码</em></div>就可以catch掉0 OR 1=1这样的输入<br />
+2.<font color="#ff0000">（推荐）</font>我们可以用PreparedStatement代替Statement<br />
+我们像教程一样写PreparedStatement，代替掉Statement。<br />
+因为Statement是SQL语句的拼接，安全性小<br />
+而PreparedStatement，我们只需要预留出占位符?，通过setInt和setString来替换<br />
+而且更好的是，PreparedStatement在调用prepareStatement方法的时候，就已经进行<font color="#ff0000"><strong>预编译</strong></font>了。<br />
+也就是说，即使再按老套路注入恶意字符串，那一些字符串也没有特殊含义，不会在SQL命令里面起“其他作用”了<br />
+这就是为什么教程代码这样写的原因。<br />
+</td></tr></table></div></td></tr></table><br />
+<table cellspacing="0" class="t_table" style="width:98%" bgcolor="white"><tr><td><div align="center"><font face="黑体"><font size="4"><font color="#000000">更新日志</font></font></font></div><div align="left"><div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td></div><div align="left">2020.1.28 由于某种原因（可能是论坛更新的缘故），部分代码被压缩，修复此问题</div><div align="left">2019.5.3 测试、修正并优化了代码，修正文章的概念性、代码上等错误</div>2018.2.23 删除原来所有的代码并重写，更新附录<br />
+2018.2.20 创建此文章<br />
+<div align="left"></td></table></div></div></div><br />
+</td></tr></table></div></td></tr></table></div></td></tr></table></div></div>[groupid=1330]PluginsCDTribe[/groupid]<script type="text/javascript" reload="1">
+aimgcount[12732154] = ['1180451','1180561','1180573','1180748','1180762','1180820'];
+attachimggroup(12732154);
+new lazyload();
+</script>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>星&nbsp; &nbsp; <b>时间: </b>2018-2-20 17:44<br />
+支持一下 感觉国内支持MySql的插件貌似不是太多<br />
+有教程应该会更好的!<img src="static/image/smiley/tong/....png" smilieid="1443" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dengyu&nbsp; &nbsp; <b>时间: </b>2018-2-20 18:44<br />
+<i class="pstatus"> 本帖最后由 dengyu 于 2018-2-22 11:47 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12732657&amp;ptid=783267" target="_blank"><font color="#999999">yunpiao1907 发表于 2018-2-20 18:33</font></a></font><br />
+你好.请问<br />
+public void doCommand(String cmd)<br />
+这个是返回空的我怎么得到查询后的结果</blockquote></div><br />
+这个方法主要是把已经生成了的mysql命令提交给服务器执行，要返回结果请使用ResultSet<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liuyipeng001&nbsp; &nbsp; <b>时间: </b>2018-2-20 22:05<br />
+线程安全是什么 可以吃吗<img id="aimg_I9M2q" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="http://tb2.bdstatic.com/tb/editor/images/face/i_f25.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liuyipeng001&nbsp; &nbsp; <b>时间: </b>2018-2-22 14:13<br />
+先不说你这个像单例又不是的东西安不安全，你想想如果线程A拿你这个connection操作的时候，线程B同时操作并且提交了事务会怎么样。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>dengyu&nbsp; &nbsp; <b>时间: </b>2018-2-22 17:40<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12738640&amp;ptid=783267" target="_blank"><font color="#999999">liuyipeng001 发表于 2018-2-22 14:13</font></a></font><br />
+先不说你这个像单例又不是的东西安不安全，你想想如果线程A拿你这个connection操作的时候，线程B同时操作并 ...</blockquote></div><br />
+感谢建议，解决这个方法可以为方法加上synchronized关键字，不过我还是推荐使用我附录提供的连接池技术。您可以看一下谢谢<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>ddyy163&nbsp; &nbsp; <b>时间: </b>2018-2-24 09:59<br />
+<i class="pstatus"> 本帖最后由 ddyy163 于 2018-2-24 11:03 编辑 </i><br />
+<br />
+一般来说写客户端要预防注入攻击吧,插件属于服务端的东西,基本用不到<br />
+<br />
+其实我之前也不知道prepareStatment是做啥用的 嘻嘻嘻嘻嘻,多谢楼主科普<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Kugana&nbsp; &nbsp; <b>时间: </b>2018-9-15 01:29<br />
+想请问该如阿获得储存的物品，让它从文字变回物品<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>阿淼&nbsp; &nbsp; <b>时间: </b>2018-9-15 08:19<br />
+这个采用了阻塞模型，会导致整个服务器的卡顿，来和我弄非阻塞ORM吗<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>纯白剑姬&nbsp; &nbsp; <b>时间: </b>2018-9-19 13:22<br />
+请问楼主我在使用你的SQLCommand类时出现报错<br />
+java.sql.SQLException: Parameter index out of range (2 &gt; number of parameters, which is 1).<br />
+百度一下说明是sql注入参数出错了。<br />
+所以我找到sqlcommand的sql语句<br />
+<div class="blockcode"><div id="code_g57"><ol><li>ADD_DATA(<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;INSERT INTO `TABLE1` &quot; +<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;(`int`, `string`)&quot; +<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &quot;VALUES (?, \'?\')&quot;<br />
+<li>&nbsp; &nbsp; &nbsp; &nbsp; ),</ol></div><em onclick="copycode($('code_g57'));">复制代码</em></div><br />
+把&quot;VALUES (?, \'?\')&quot;修改成&quot;VALUES (?, ?)&quot;后能正常增删改查了<br />
+所以我想问问 \'?\'这个是什么写法？我这样删掉后会出什么问题嘛？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lucksheep&nbsp; &nbsp; <b>时间: </b>2019-10-25 17:54<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=12733470&amp;ptid=783267" target="_blank"><font color="#999999">liuyipeng001 发表于 2018-2-20 22:05</font></a></font><br />
+线程安全是什么 可以吃吗</blockquote></div><br />
+不可以吃，线程安全简单理解就是 按照你的预期得到结果，不受到其它线程干扰而影响结果<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lucksheep&nbsp; &nbsp; <b>时间: </b>2019-10-25 17:56<br />
+其实现在 纯 java 项目可以直接支持 mysql，引入 mybatis sql注入就能解决了，而且数据源，事务等，挺容易管理的<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>素衣颜如初&nbsp; &nbsp; <b>时间: </b>2020-5-22 20:57<br />
+MySQLManager是啥啊<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiaozia&nbsp; &nbsp; <b>时间: </b>2020-6-18 22:46<br />
+学到知识了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>592764254&nbsp; &nbsp; <b>时间: </b>2020-6-24 15:14<br />
+楼主请问你的代码是不是没有注册指令ms<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>thesamesummer&nbsp; &nbsp; <b>时间: </b>2020-7-3 15:31<br />
+<font color="Red"><strong>教程很详细！鼎力支持！<img src="static/image/smiley/rabbit/41.gif" smilieid="691" border="0" alt="" /></strong></font><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>我的丶老公&nbsp; &nbsp; <b>时间: </b>2020-7-3 20:17<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>2469012478&nbsp; &nbsp; <b>时间: </b>2020-7-27 16:07<br />
+获取连接不需要引入mysql的驱动包吗？spigot是否自带了驱动呢？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>逍遥先生.&nbsp; &nbsp; <b>时间: </b><span title="2021-2-19 16:03">3&nbsp;天前</span><br />
+收藏了，免得以后找不到，感谢楼主的分享<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>whatfilmae&nbsp; &nbsp; <b>时间: </b><span title="2021-2-19 23:23">3&nbsp;天前</span><br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鞎腿推&nbsp; &nbsp; <b>时间: </b><span title="2021-2-20 11:20">前天&nbsp;11:20</span><br />
+一阵蒙，可能还是我太年轻了吧
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

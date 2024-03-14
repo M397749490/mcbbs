@@ -1,0 +1,56 @@
+<html>
+<head>
+<title>根据固定值获得头颅皮肤 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?h0k" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>根据固定值获得头颅皮肤 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鸭蛋只吃黄&nbsp; &nbsp; <b>时间: </b>2017-10-8 18:13<br />
+<b>标题: </b>根据固定值获得头颅皮肤<br /><i class="pstatus"> 本帖最后由 凋灵兔子 于 2017-10-8 22:50 编辑 </i><br />
+<br />
+本来是我问的问题...但是长时间没人解答我自己解决了，发上来分享一下，这是原题：<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+如题，Bikkit只给出了setOwner使用正版所有者的名字来获取头颅外形的方式，有没有其他方法能直接根据如下的值直接设置皮肤？感觉这样快很多<br />
+<div class="blockcode"><div id="code_zvV"><ol><li>eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vd3d3LmJhaWR1LmNvbSJ9fX0K</ol></div><em onclick="copycode($('code_zvV'));">复制代码</em></div></td></table></div></div>API提供了使用设置所有者的方式来获得带皮肤的脑袋，其实想一下就知道是从他们的服务器下载下来的数据，我们要做的就是绕过请求服务器这一步，直接把我门持有的数据塞进要设置的头颅中。<br />
+其实一看上面这串数据我们就知道这是Base64编码后的，我们还原一下（论坛这个排版简直爆炸，我还是上图吧）：<br />
+<img id="aimg_SOrNU" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2017/10/08/59da34eee2399.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+这个图待会有用<br />
+<br />
+通过反编译SkullMeta我们知道决定头颅长啥样的字段是GameProfile类型的profile。GameProfile是mojang的一个Minecraft玩家，里面存着玩家的各种信息。从此我们确定下步骤：<br />
+1. 创建一个GameProfile对象，并且给他设置皮肤<br />
+2. 使用反射解除SkullMeta中对相关字段的保护，把我们自制的GameProfile换上去<br />
+3. 更新方块ItemMeta<br />
+<br />
+我们先伪造一个GameProfile<br />
+<div class="blockcode"><div id="code_YWb"><ol><li>GameProfile gf = new GameProfile(UUID.randomUUID(), null); //UUID那里你随便，他自带的是使用(UUID)null，我感觉不大靠谱</ol></div><em onclick="copycode($('code_YWb'));">复制代码</em></div><br />
+在GameProfile**有五个字段<br />
+<div class="blockcode"><div id="code_yC0"><ol><li>private final UUID id;<br />
+<li>&nbsp; &nbsp; private final String name;<br />
+<li>&nbsp; &nbsp; private final PropertyMap properties = new PropertyMap();<br />
+<li>&nbsp; &nbsp; private boolean legacy;</ol></div><em onclick="copycode($('code_yC0'));">复制代码</em></div>只要智力水平没问题的都应该知道properties就是咱们需要修改的字段，打开这个proxxxxxxx，一看他没有put方法，但是他是Multimap的子类，那就put。再看上面那个图，textures指的是材质<font style="background-color:black"><font color="#000000">仙阁解散了算了！又输了！</font></font>，而他的第二个参数Property咱们都很熟悉，这里就不再赘述<br />
+<br />
+<div class="blockcode"><div id="code_jd2"><ol><li>gf.getProperties().put(&quot;textures&quot;, new Property(&quot;textures&quot;, &quot;这里是一大堆数据&quot;));<br />
+<li></ol></div><em onclick="copycode($('code_jd2'));">复制代码</em></div><br />
+
+<br />
+然后我们需要把我们自制的这个gf塞进原来头颅中，这里需要用到反射中的暴力访问。<br />
+<div class="blockcode"><div id="code_Kha"><ol><li>Field f = ItemMeta的对象.getClass().getDeclaredField(&quot;profile&quot;);<br />
+<li>f.setA(代码补全)(true);</ol></div><em onclick="copycode($('code_Kha'));">复制代码</em></div>然后就是一个换<br />
+<div class="blockcode"><div id="code_Z2s"><ol><li>f.set(meta, gf);</ol></div><em onclick="copycode($('code_Z2s'));">复制代码</em></div>然后这个meta就是我们更换过脑袋数据的了<br />
+<br />
+第三步大家都会，这里就不说了。<br />
+<br />
+其实现在想想也没什么难的，用这个方式也可以直接更换皮肤，我记得很久之前我有一位朋友教过我这个，但是我给忘了，当时有很多限制，有来自格式的，有来自mojang的，这里都没遇到，不过代码确实能用。<br />
+<br />
+有什么问题欢迎dalao指点。<br />
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

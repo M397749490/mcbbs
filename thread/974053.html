@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>[前置API]PlayerTaskHook——将任务和玩家绑定[1.12+] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[前置API]PlayerTaskHook——将任务和玩家绑定[1.12+] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>lijisoft&nbsp; &nbsp; <b>时间: </b>2020-3-2 11:14<br />
+<b>标题: </b>[前置API]PlayerTaskHook——将任务和玩家绑定[1.12+]<br />注意：如果您不知道这个插件的用途，请不要安装到服务器。这个插件不提供任何用户命令、权限或更改游戏机制。<br />
+该插件仅作为依赖使用。<br />
+<br />
+免责声明：除另行声明外，插件作者并不对任何安装此插件的服务器的数据安全和完整性负任何责任。<br />
+<br />
+<font size="4">更新日志</font><br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+0.1 首次发布<br />
+<br />
+</td></table></div></div><br />
+<font size="4"><br />
+什么是钩子？</font><br />
+<br />
+钩子是关联两个对象的手段。钩子是一种有效性绑定，对于一个勾入其他对象的对象而言，被勾对象失效（或更改）时将得到通知。<br />
+<font size="4"><br />
+为什么要使用钩子？</font><br />
+<br />
+假设你要做这样一个插件：延迟中毒。一个简单的思路是设定一个定时 (Server#runTaskLater(.)). 但如果玩家在定时结束前下线，那么这个定时器要操作的对象就失效了。如果我们只监听玩家下线时间并取消定时，那么必然会有人意识到只要通过下线重登就能无限延长延迟从而永不中毒。要解决这个问题，我们就必须暂停定时器并在玩家上线后恢复。传统地，我们将不得不监听玩家的上线和下线事件，并手动挂起和恢复计时器。<br />
+<br />
+但现在通过钩子，可以将上下线事件和对定时的挂起和恢复托管到这个插件。<br />
+<br />
+<font size="4">如何使用？</font><br />
+<br />
+（由于服务器负载原因，暂时不提供 maven 仓库，请下载 jar 文件并作为本地依赖。）<br />
+<br />
+这是一个插件例子：<br />
+<br />
+<div class="blockcode"><div id="code_grF"><ol><li>public class Main extends JavaPlugin implements Listener {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@Override<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onEnable() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; getServer().getPluginManager().registerEvents(this, this);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler(priority = EventPriority.MONITOR)<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onPlayerJoin(PlayerJoinEvent event) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Player player = event.getPlayer();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; UUID uuid = player.getUniqueId();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!tracking.contains(uuid)) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Setting an task<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;PlayerTaskHookApi.runTaskTimer(this, player, () -&gt; {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;getLogger().info(&quot;tick&quot;); // &lt;-<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}, 0L, 20L);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tracking.add(uuid);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private Set&lt;UUID&gt; tracking = ConcurrentHashMap.newKeySet();<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_grF'));">复制代码</em></div><br />
+
+<br />
+插件提供两个方法创建定时任务：<br />
+<br />
+<div class="blockcode"><div id="code_du8"><ol><li>// 创建延迟任务<br />
+<li>TaskDescriptor PlayerTaskHookApi.runTaskLater(Plugin, Player, Runnable, long delay);<br />
+<li>// 创建定时任务<br />
+<li>TaskDescriptor PlayerTaskHookApi.runTaskTimer(Plugin, Player, Runnable, long delay, long interval);<br />
+<li></ol></div><em onclick="copycode($('code_du8'));">复制代码</em></div><br />
+除 Player 参数外和 Bukkit 参数一致。TaskDescriptor 提供以下方法：<br />
+<br />
+<div class="blockcode"><div id="code_XDT"><ol><li>// 恢复挂起的任务<br />
+<li>void resume();<br />
+<li>// 挂起任务<br />
+<li>void suspend();<br />
+<li>// 取消任务<br />
+<li>void cancel();<br />
+<li></ol></div><em onclick="copycode($('code_XDT'));">复制代码</em></div><br />
+<font size="4">关于线程安全</font><br />
+默认情况下，可以在异步线程中添加任务而无需额外加锁。所有任务都运行在同步线程中，可以安全地更改游戏内容。<br />
+<br />
+<br />
+<font size="4">关于性能</font><br />
+<br />
+这个插件单独维护一个任务队列，且运行在主线程内。如果安排过多任务可能会产生显著的性能问题。<br />
+玩家的加入在不为玩家安排任何定时的情况下不产生额外的性能开销。<br />
+<br />
+由于暂时没有序列化 Runnable 的方案，所有的任务都保存在内存中，且会随重启丢失。在后续版本可能添加任务休眠。<br />
+<br />
+<font size="4">关于兼容性</font><br />
+<br />
+理论上，这个 API 可以在 1.6 以及以上版本使用。但仅测试到 1.12.<br />
+由于 Concurrent* 的使用，需要至少 Java 8 的支持。（你为什么还在用 Java 6?）<br />
+<br />
+<font size="4"><br />
+合规说明</font><br />
+<br />
+<font style="font-size:14px"><font style="font-size:14px">本插件所用所有代码均为原创，不存在借用/抄袭等行为。<br />
+本插件按照 GNU LGPL v2 协议授权，任何对于源码的更改必须以相同协议授权，严禁转卖或捆绑销售。<br />
+基于本插件开发的其他插件可以以其他协议授权或用于商业用途。</font></font><br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>细雨清风&nbsp; &nbsp; <b>时间: </b>2020-3-21 19:55<br />
+很不错的插件 支持<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>凉菀彡&nbsp; &nbsp; <b>时间: </b>2020-4-1 09:08<br />
+这个插件很好~服务器刚好用得上<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>xiyue1314520&nbsp; &nbsp; <b>时间: </b>2020-8-14 11:48<br />
+233333333333333
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

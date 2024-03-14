@@ -1,0 +1,70 @@
+<html>
+<head>
+<title>bukkit 插件如何调整农作物生长速度？ - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>bukkit 插件如何调整农作物生长速度？ <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>蕾米洛伊&nbsp; &nbsp; <b>时间: </b>2020-6-17 17:48<br />
+<b>标题: </b>bukkit 插件如何调整农作物生长速度？<br />RT, 想知道 bukkit 插件能否调整作物的生长速度?这里指的是动态调整, spigot.yml 里那个貌似不能够动态应用...<br />
+调整随机刻的话, 虽然可以加速但是同时也会影响到很多诸如流水等的特性所以不考虑在内.<br />
+我比较菜只能想到遍历世界找农作物然后手动调整, 不过这也太浪费性能了遂直接 pass 掉<br />
+希望有大佬能够抛砖引玉一下QAQ 非常感谢<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>南柯郡守&nbsp; &nbsp; <b>时间: </b>2020-6-17 19:52<br />
+<i class="pstatus"> 本帖最后由 南柯郡守 于 2020-6-17 19:53 编辑 </i><br />
+<br />
+可以尝试监听 BlockGrowEvent<br />
+<a href="https://papermc.io/javadocs/paper/1.12/org/bukkit/event/block/BlockGrowEvent.html" target="_blank">https://papermc.io/javadocs/pape ... BlockGrowEvent.html</a><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>RE_OVO&nbsp; &nbsp; <b>时间: </b>2020-6-17 22:37<br />
+应该是不能针对单个农作物方块进行调整的，详见NMS类: net.minecraft.server.v1_8_R3.BlockCrops类，以下是其生长代码:<br />
+<div class="blockcode"><div id="code_iKr"><ol><li>&nbsp; &nbsp; @Override<br />
+<li>&nbsp; &nbsp; public void b(final World world, final BlockPosition blockposition, final IBlockData iblockdata, final Random random) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;super.b(world, blockposition, iblockdata, random);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (world.getLightLevel(blockposition.up()) &gt;= 9) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;final int i = iblockdata.get((IBlockState&lt;Integer&gt;)BlockCrops.AGE);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (i &lt; 7) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; final float f = a(this, world, blockposition);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (random.nextInt((int)(world.growthOdds / world.spigotConfig.wheatModifier * (25.0f / f)) + 1) == 0) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;final IBlockData data = iblockdata.set((IBlockState&lt;Comparable&gt;)BlockCrops.AGE, i + 1);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;CraftEventFactory.handleBlockGrowEvent(world, blockposition.getX(), blockposition.getY(), blockposition.getZ(), this, this.toLegacyData(data));<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_iKr'));">复制代码</em></div><br />
+
+<br />
+可以看到其仍然是调用spigotConfig的，你可以在代码里对spigotConfig(org.spigotmc.SpigotWorldConfig)内的农作物生长速度成员进行实时修改, 这是1.8所有农作物的modifier: <br />
+<div class="blockcode"><div id="code_sGY"><ol><li>&nbsp; &nbsp; private void growthModifiers() {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.cactusModifier = this.getAndValidateGrowth(&quot;Cactus&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.caneModifier = this.getAndValidateGrowth(&quot;Cane&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.melonModifier = this.getAndValidateGrowth(&quot;Melon&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.mushroomModifier = this.getAndValidateGrowth(&quot;Mushroom&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.pumpkinModifier = this.getAndValidateGrowth(&quot;Pumpkin&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.saplingModifier = this.getAndValidateGrowth(&quot;Sapling&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.wheatModifier = this.getAndValidateGrowth(&quot;Wheat&quot;);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;this.wartModifier = this.getAndValidateGrowth(&quot;NetherWart&quot;);<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_sGY'));">复制代码</em></div><br />
+
+<br />
+以下是一个example:<br />
+<div class="blockcode"><div id="code_OZz"><ol><li> public static void modify(World world){<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 强转为NMS World实例，如果你的插件是公开插件，请针对不同版本写不同的NMS适配类，或者直接反射<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;net.minecraft.server.v1_8_R3.World targetWorld = ((CraftWorld)world).getHandle();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 获得SpigotWorldConfig实例<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;SpigotWorldConfig worldConfig = targetWorld.spigotConfig;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 修改西瓜生长速度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;worldConfig.melonModifier = 100;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;// 修改胡萝贝生长速度<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;worldConfig.carrotModifier = 100;<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_OZz'));">复制代码</em></div>
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

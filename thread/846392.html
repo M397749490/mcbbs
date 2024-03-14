@@ -1,0 +1,179 @@
+<html>
+<head>
+<title>[1.12.2] CraftTweaker进阶教程 - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>[1.12.2] CraftTweaker进阶教程 <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TRAYER&nbsp; &nbsp; <b>时间: </b>2019-2-19 20:32<br />
+<b>标题: </b>[1.12.2] CraftTweaker进阶教程<br /><i class="pstatus"> 本帖最后由 TRAYER 于 2019-2-21 22:11 编辑 </i><br />
+<br />
+一时兴起的产物，写的怎么样就随他吧。也不知道什么时候会写完，可能坑了也说不定。<br />
+<br />
+这篇文章并不会讲述有关于CraftTweaker的基础知识，所以请确保你有一定ZenScript的基础再来阅读此教程。同时也建议有能够阅读 <a href="https://crafttweaker.readthedocs.io/en/latest/" target="_blank">https://crafttweaker.readthedocs.io/en/latest/</a> 的英语能力。<br />
+<br />
+一、简化：<br />
+很多时候，脚本编写时会有极大量的重复操作，比如说用ContentTweaker注册一整套石油化工所需要的流体，或者是把所有TiC矿石的冶炼给删除，这样的重复操作肯定会令人厌烦，所以这一部分主要讲怎么让你的代码去完成你没有讲出来的部分。<br />
+1、函数：<br />
+最简单，最直接的方法就是使用一个函数来打包你所需要的所有操作，比如说，我想要同时删除IE、TE磨粉的配方的话，以铁矿石为例，正常的写法如下：<br />
+<br />
+<div class="blockcode"><div id="code_TO8"><ol><li>mods.immersiveengineering.Crusher.removeRecipesForInput(&lt;minecraft:iron_ore&gt;);<br />
+<li>mods.thermalexpansion.Pulverizer.removeRecipe(&lt;minecraft:iron_ore&gt;);</ol></div><em onclick="copycode($('code_TO8'));">复制代码</em></div><br />
+
+<br />
+单独删除一个矿石可能不是很难，但是如果要删除十几，甚至几十种不同矿石在许多机器中的配方，同时再把你自己科技线的配方添加进去的话，代码量是可想而知的。<br />
+所以，第一种解决方案就是使用函数。CraftTweaker支持自定义函数来打包一些操作，或者实现更复杂的代码逻辑。使用函数的写法如下：<br />
+<br />
+<div class="blockcode"><div id="code_nr3"><ol><li>import crafttweaker.item.IItemStack;<br />
+<li>function processOre (input as IItemStack){<br />
+<li>mods.immersiveengineering.Crusher.removeRecipesForInput(input);<br />
+<li>mods.thermalexpansion.Pulverizer.removeRecipe(input);<br />
+<li>}<br />
+<li><br />
+<li>processOre(&lt;minecraft:iron_ore&gt;);</ol></div><em onclick="copycode($('code_nr3'));">复制代码</em></div><br />
+
+<br />
+这样做，就可以把这两大行代码用一个processOre代替，简化了大量的操作，如果有更多的机器会牵扯进来，那么只需要修改processOre的内容就可以了，这是第二个好处。<br />
+<br />
+2、跨脚本访问：<br />
+但很明显，上面的代码是有缺憾的，processOre这个函数只能在这个脚本内使用，如果你有按照mod分包的习惯，那么对于每一个mod都要声明一次函数也是很麻烦的，所以接下来要讲的就是如何在一个脚本内使用另一个脚本的函数方法。<br />
+假设你的processOre函数在wrapped.zs这个脚本内，那么在别的脚本中调用processOre就只需要写下：<br />
+<div class="blockcode"><div id="code_TDi"><ol><li>scripts.wrapped.processOre(&lt;minecraft:iron_ore&gt;);</ol></div><em onclick="copycode($('code_TDi'));">复制代码</em></div><br />
+你也可以使用import来进一步简化操作。<br />
+<br />
+3、数组和关联性数组：<br />
+有些时候你可能连processOre都懒得写，比如说注册一大堆合成中间物品，或者是把一大堆物品加入某个矿辞里面，这个时候又要怎么做呢？先考虑第一种情况：<br />
+当你传入的参数里只有一个东西的时候，你可以使用数组来把这些东西全部都塞进去：<br />
+<div class="blockcode"><div id="code_S83"><ol><li>val register_array = [&quot;ice_cube&quot;, &quot;frozen_earth_clot&quot;, &quot;wood_bark&quot;, &quot;bitumen&quot;] as string[]</ol></div><em onclick="copycode($('code_S83'));">复制代码</em></div><br />
+然后，遍历整个数组来注册你的所有物品：<br />
+<div class="blockcode"><div id="code_BTP"><ol><li>for strItem in register_array{<br />
+<li>var dummy = VanillaFactory.createItem(strItem );<br />
+<li>dummy.maxStackSize = 64;<br />
+<li>dummy.register();<br />
+<li>}</ol></div><em onclick="copycode($('code_BTP'));">复制代码</em></div><br />
+这是数组的使用方法。<br />
+但如果你有更多的东西要做，比如说注册物品，并指定物品的堆叠数的话，这时候就需要使用关联性数组了：<br />
+<div class="blockcode"><div id="code_qbB"><ol><li>var register_array = {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;ice_cube&quot; : 16,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;frozen_earth_clot&quot; : 32,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;wood_bark&quot; : 8,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;wood_fibre&quot; : 16,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;bitumen&quot;: 32,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;bitumen_sand&quot; : 64,<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&quot;ice_bucket&quot; : 1<br />
+<li>} as int[string];<br />
+<li><br />
+<li>for key, value in register_array{<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;var dummy = VanillaFactory.createItem(key);<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dummy.maxStackSize = value;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;dummy.register();<br />
+<li>}</ol></div><em onclick="copycode($('code_qbB'));">复制代码</em></div><br />
+这是关联性数组的使用方法。<br />
+<br />
+4、全局访问：<br />
+现在的你已经懒出境界了，甚至连把物品的名字敲出来都嫌麻烦，但这不会成为阻挡你实现功能的问题。CT提供了一系列可以全局访问的变量，其中最重要的是game和 oreDict这两个。前者包含了所有群系、方块、实体、物品、流体和药水的信息，而后者包含了矿物辞典的信息。<br />
+再拿回之前的矿物处理来说事，大部分矿物都有它自己的辞典的entry，而且大部分都以&quot;ore&quot;作为开头，那么我们可以遍历所有辞典，并找到其中名字含有ore的entry再进行操作（当然，它不是完全严谨的，如果有ore不在开头的entry的话就会出错）。<br />
+代码如下（处理矿物仍用processOre函数）<br />
+<div class="blockcode"><div id="code_Mdm"><ol><li>for odentry in oreDict.entries{<br />
+<li>if odentry.name has &quot;ore&quot;{<br />
+<li>for entryitem in odentry.items{<br />
+<li>processOre(entryitem);<br />
+<li>}<br />
+<li>}<br />
+<li>}</ol></div><em onclick="copycode($('code_Mdm'));">复制代码</em></div><br />
+
+<br />
+如何使用较为高级的方法来简化脚本编写，大概就是这样了。<br />
+<br />
+<br />
+二、CT和mod之间的东西：<br />
+1、使用preprocessor的方式：<br />
+使用预处理头，可以检测某个mod是否被加载。比如说：<br />
+<div class="blockcode"><div id="code_ECU"><ol><li>#modloaded tconstruct<br />
+<li>recipes.addShaped(&lt;tconstruct:wooden_hopper&gt;, [[&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;],[null,null,null],[&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;]]);</ol></div><em onclick="copycode($('code_ECU'));">复制代码</em></div><br />
+假设这是一个独立的脚本，那么这个脚本的内容（即给TiC的木制漏斗添加配方的这一句addShaped）只有在TiC被加载之后才会被加载。<br />
+这非常简单，但是也有它的不简便的地方。首先，#modloaded作用范围是文件内的，这意味着你没法用这个东西来做出一些更加复杂的逻辑，比如说，根据mod变化而变化的科技线什么的。虽然某种意义上也是可以的。<br />
+2、使用全局变量的方式：<br />
+CraftTweaker现在可以获取所有mod的信息，这些都存储在loadedMods这个全局变量中。<br />
+loadedMods是一个IMod的数组，包含了此整合包所有的信息。你可以通过遍历这个东西来获取所有mod的信息，同时你也可以检测这个数组中是否含有某个成员来检测某个mod是否被加载。仍然拿TiC做例子，检测mod是否加载并执行一段代码变成了这样：<br />
+<div class="blockcode"><div id="code_q96"><ol><li>if (loadedMods.contains(&quot;tconstruct&quot;){<br />
+<li>recipes.addShaped(&lt;tconstruct:wooden_hopper&gt;, [[&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;],[null,null,null],[&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;,&lt;ore:charcoal&gt;]]);<br />
+<li>}</ol></div><em onclick="copycode($('code_q96'));">复制代码</em></div><br />
+这个代码稍微有些麻烦，不过很显而易见的好处是，它是动态的。换句话说，我可以在一个矿物处理用的函数中根据不同的情况判断某些语句是否被加载，达到真的可以让科技线随着mod的改变而改变的地步。<br />
+当然，loadedMods当中含有的信息还有更多，比如说获取一个mod添加的所有物品等，可以拿来和ItemStage来做配合啥的。<br />
+下一次可能会讲合成相关的，或者是事件什么的？我暂时想不出来。<br />
+本人最近忙于实验室生活，可能暂时只能做一条懒狗了，27号上学之后说不定有时间（<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Not102&nbsp; &nbsp; <b>时间: </b>2019-2-19 20:42<br />
+这就是大佬 雾？<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>youyihj&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:05<br />
+<i class="pstatus"> 本帖最后由 友谊——hj 于 2019-2-19 21:08 编辑 </i><br />
+<br />
+我大静态变量和全局变量呢？话说，注册新物品你最好写下需要contenttweaker支持。顺便介绍下它的用法？<br />
+不过能说下CrT的进阶用法挺好的，国内的魔改基本就是非常简单的recipes.remove和recipes.addShaped就没了<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>TRAYER&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:14<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13913272&amp;ptid=846392" target="_blank"><font color="#999999">友谊——hj 发表于 2019-2-19 21:05</font></a></font><br />
+我大静态变量和全局变量呢？话说，注册新物品你最好写下需要contenttweaker支持。顺便介绍下它的用法？<br />
+不 ...</blockquote></div><br />
+静态和全局是会慢慢讲的，而且也讲到了<br />
+CoT是为了associative array服务的，换成其他的东西也是一样的<br />
+如果什么东西都要我手把手教，我选择甩你一篇中文文档<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Yesterday17&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:41<br />
+我还是建议var xxx as type = value的声明方法<br />
+<br />
+而不是var xxx = value as type（<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>youyihj&nbsp; &nbsp; <b>时间: </b>2019-2-19 21:52<br />
+<i class="pstatus"> 本帖最后由 友谊——hj 于 2019-2-19 22:02 编辑 </i><br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=13913314&amp;ptid=846392" target="_blank"><font color="#999999">TRAYER 发表于 2019-2-19 21:14</font></a></font><br />
+静态和全局是会慢慢讲的，而且也讲到了<br />
+CoT是为了associative array服务的，换成其他的东西也是一样的<br />
+如 ...</blockquote></div><br />
+
+<br />
+我也是看英文wiki的……<br />
+当时我还用Zenscript写了一个十六进制转十进制的函数……<br />
+我只是建议你的教程可以改改，你教程中说的东西我都是知道的。我在MC百科也有写了一个进阶版的CrT教程，和你的内容有一些重叠又有一些差别(不过还是没说那两变量)<br />
+不过你的教程还是得点赞。国内进阶魔改教程基本没有。<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>mcbbs2050&nbsp; &nbsp; <b>时间: </b>2019-4-27 19:23<br />
+来点实用的吧，大佬，直接举几个例子。<br />
+示例一下怎么样删掉某个附魔、怎么样删掉地牢箱子的奖励品。<br />
+新版太难，玩不转。。。<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>葬之刻&nbsp; &nbsp; <b>时间: </b>2019-5-20 12:40<br />
+大佬,能说一下怎么知道一个类的全部meber吗<br />
+no such static member in mods.thaumcraft.ArcaneWorkbench: all<br />
+我想输出神秘6奥术合成台的全部合成配方,但是wiki上没有这种方法<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>eternitk&nbsp; &nbsp; <b>时间: </b>2019-7-30 17:18<br />
+<br />
+请问如何移除所有需要使用某个物品的合成配方,&nbsp;&nbsp;比如删除所有需要使用苹果的合成配方<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Ruang_Feng&nbsp; &nbsp; <b>时间: </b>2019-9-13 20:26<br />
+提示: <em>作者被禁止或删除 内容自动屏蔽</em>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>HHH123123&nbsp; &nbsp; <b>时间: </b>2020-2-26 07:21<br />
+我想知道怎么查找合成表 JEI 应该不支持索检添加的核查表把<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>名曲南渠&nbsp; &nbsp; <b>时间: </b>2020-3-10 00:35<br />
+我想问一下 如何移除神秘的 配方<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>AS885&nbsp; &nbsp; <b>时间: </b>2020-3-17 10:26<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=16827339&amp;ptid=846392" target="_blank"><font color="#999999">名曲南渠 发表于 2020-3-10 00:35</font></a></font><br />
+我想问一下 如何移除神秘的 配方</blockquote></div><br />
+recipes.removeByMod(ModID);<br />
+这个可以删除一个mod的所有配方<br />
+recipes.remove( &lt;物品ID&gt;, true);<br />
+移除输出为某个物品的全部合成<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>理解我一下&nbsp; &nbsp; <b>时间: </b>2020-5-5 11:54<br />
+6好好好好好好好好好好好好好好<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>McprojectEX&nbsp; &nbsp; <b>时间: </b>2020-5-6 14:07<br />
+教我怎么弄，行吧
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

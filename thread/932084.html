@@ -1,0 +1,335 @@
+<html>
+<head>
+<title>在 Minecraft Mod 中使用 Coroutine - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>在 Minecraft Mod 中使用 Coroutine <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>土球球&nbsp; &nbsp; <b>时间: </b>2019-12-12 02:32<br />
+<b>标题: </b>在 Minecraft Mod 中使用 Coroutine<br /><i class="pstatus"> 本帖最后由 土球球 于 2020-2-22 01:09 编辑 </i><br />
+<br />
+<font style="font-size:32px"><strong>在 Minecraft Mod 中使用 Coroutine</strong></font><br />
+<br />
+<font style="font-size:16px">Coroutine（协程）是编程语言的一种机制，该机制允许开发者编写出和过程式写法相同的代码，并在编译时得到一系列相互调用的子过程，从而使不同的子过程可以在不同的场合执行。</font><br />
+<br />
+<font style="font-size:16px">Coroutine 的最常见用途是编写异步代码，而 Minecraft 中恰恰存在大量需要使用异步代码的场合：比方说我们有时需要将某段代码延迟到一个或多个 tick 后执行，有时需要将某段代码延迟到下一次事件触发时执行，等等。</font><br />
+<br />
+<font style="font-size:16px">目前很多主流的编程语言都提供了相对官方的 Coroutine 支持，如 C#、Python、JavaScript，等等。虽然 Java 官方至今仍然没有支持 Coroutine，但 JVM 上流行的两大编程语言 Scala 和 Kotlin，已经对 Coroutine 提供了一定程度的支持。本文将分别使用 Scala 和 Kotlin 两门编程语言实现相应的机制：</font><br />
+<br />
+<font style="font-size:16px"><img id="aimg_TFfBE" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2019/12/11/oq9sXpegHUmPLB4.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></font><br />
+<br />
+<font style="font-size:16px">上图展示的是本文的核心代码，想必对于 Scala 和 Kotlin 有着一定程度了解的读者已经猜到这段代码实现的是什么需求了。上面的代码实现的特性是玩家在攻击怪物的时候给予 100 tick（约五秒）的攻击冷却，并在冷却结束后通知玩家。</font><br />
+<br />
+<font style="font-size:16px">本文针对的是 Forge 平台的 1.12.2-14.23.5.2768 版本，不过对于插件等其他平台等，原理是通用的。</font><br />
+<br />
+<font style="font-size:24px"><strong>概述</strong></font><br />
+<br />
+<font style="font-size:16px">回调函数是实现异步逻辑的常见手段，通常异步行为执行完后会调用回调函数从而执行下一步行为：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+def foo(value: Int, next: (Bar) =&gt; Unit) = {<br />
+&nbsp;&nbsp;next(new Bar(value))<br />
+}</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+fun foo(value: Int, next: (Bar) -&gt; Unit) {<br />
+&nbsp; &nbsp; next(Bar(value))<br />
+}</code></pre><br />
+<font style="font-size:16px">任何普通的方法通常都可以写成回调函数风格，例如下面的代码负责把两个数相加：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+def add(a: Int, b: Int, next: (Int) =&gt; Unit) = {<br />
+&nbsp;&nbsp;next(a + b)<br />
+}</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+fun add(a: Int, b: Int, next: (Int) -&gt; Unit) {<br />
+&nbsp; &nbsp; next(a + b)<br />
+}</code></pre><br />
+<font style="font-size:16px">我们通常使用 Continuation Passing Style（简称 CPS）描述这种风格，虽然调用 CPS 风格的方法通常写起来会很痛苦（也就是通常所说的回调地狱）：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+add(40, 2, { value =&gt;<br />
+&nbsp;&nbsp;foo(value, { bar =&gt;<br />
+&nbsp; &nbsp; doSomethingElse(bar)<br />
+&nbsp;&nbsp;})<br />
+})</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+add(40, 2, { value -&gt;<br />
+&nbsp; &nbsp; foo(value, { bar -&gt;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;doSomethingElse(bar)<br />
+&nbsp; &nbsp; })<br />
+})</code></pre><br />
+<font style="font-size:16px">如果我们能直接写成 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">doSomethingElse(foo(add(40, 2)))</font></font> 该多好啊。实际上，把这种可读性较强的写法转换成上面的回调地狱的行为被称为 CPS 变换，它是 Scala 及 Kotlin 等语言实现 Coroutine 的基础。</font><br />
+<br />
+<font style="font-size:16px">在 Scala 中，我们可以声明返回值带有 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">@suspendable</font></font> 注解的方法，而 Kotlin 则可以使用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">suspend</font></font> 关键字。具体的写法如下：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+def add2(a: Int, b: Int): Int@suspendable = shift { next =&gt; next(a + b) }</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+suspend fun add2(a: Int, b: Int): Int = suspendCoroutine { next =&gt; next(a + b) }</code></pre><br />
+<font style="font-size:16px">这样我们就可以在特定场合下使用它们了：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+reset {<br />
+&nbsp;&nbsp;var i = 1<br />
+&nbsp;&nbsp;while (i &lt; 100) {<br />
+&nbsp; &nbsp; val j = add2(i, 1)<br />
+&nbsp; &nbsp; println(f&quot;$i + 1 = $j&quot;)<br />
+&nbsp; &nbsp; i = j<br />
+&nbsp;&nbsp;}<br />
+}</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+launch {<br />
+&nbsp; &nbsp; var i = 1<br />
+&nbsp; &nbsp; while (i &lt; 100) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;val j = add2(i, 1)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;println(&quot;$i + 1 = $j&quot;)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;i = j<br />
+&nbsp; &nbsp; }<br />
+}</code></pre><br />
+<font style="font-size:24px"><strong>配置</strong></font><br />
+<br />
+<font style="font-size:16px">首先，因为配置环境时使用了 Gradle 新特性，而 Forge 使用的 Gradle 版本太过陈旧，因此读者需要使用 Gradle 4 或更高版本（本文使用的版本是 4.10.3），如果读者使用 Gradle Wrapper 的话，请打开 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">gradle/wrapper/</font></font> 目录并修改 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">gradle-wrapper.properties</font></font> 文件（注意最后一行）：</font><br />
+<br />
+<pre><code>distributionBase=GRADLE_USER_HOME<br />
+distributionPath=wrapper/dists<br />
+zipStoreBase=GRADLE_USER_HOME<br />
+zipStorePath=wrapper/dists<br />
+distributionUrl=https\://services.gradle.org/distributions/gradle-4.10.3-all.zip</code></pre><br />
+<font style="font-size:16px">然后我们需要配置 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">build.gradle</font></font>。基于 Scala 的实现需要 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">scala-continuations</font></font> 库，考虑到该库 Forge 已经自带，因此不必额外引入该库，仅需额外声明该库对应的 Scala 编译器插件：</font><br />
+<br />
+<pre><code class="language-groovy">// scala<br />
+sourceCompatibility = targetCompatibility = '1.7'<br />
+<br />
+configurations {<br />
+&nbsp; &nbsp; compilerPlugin<br />
+}<br />
+<br />
+dependencies {<br />
+&nbsp; &nbsp; compilerPlugin 'org.scala-lang.plugins:scala-continuations-plugin_2.11.1:1.0.2'<br />
+}<br />
+<br />
+compileScala {<br />
+&nbsp; &nbsp; sourceCompatibility = targetCompatibility = '1.7'<br />
+&nbsp; &nbsp; scalaCompileOptions.additionalParameters = [<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;'-Xplugin:' + configurations.compilerPlugin.asPath,<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;'-P:continuations:enable'<br />
+&nbsp; &nbsp; ]<br />
+}</code></pre><br />
+<font style="font-size:16px">注意声明插件的同时还需要为编译器添加 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">-P:continuations:enable</font></font> 参数。</font><br />
+<br />
+<font style="font-size:16px">基于 Kotlin 的实现需要引入 Forge 并未自带的 Kotlin 环境，这通常可以通过依赖一个名为 ShadowFacts' Forgelin 的 Mod 解决：</font><br />
+<br />
+<pre><code class="language-groovy">// kotlin<br />
+sourceCompatibility = targetCompatibility = '1.8'<br />
+<br />
+repositories {<br />
+&nbsp; &nbsp; jcenter()<br />
+&nbsp; &nbsp; maven {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;name = 'shadowfacts'<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;url = 'http://maven.shadowfacts.net/'<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+dependencies {<br />
+&nbsp; &nbsp; deobfCompile 'net.shadowfacts:Forgelin:1.8.3'<br />
+}</code></pre><br />
+<font style="font-size:16px">最后别忘了把 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">apply plugin: scala</font></font> 或 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">apply plugin: kotlin</font></font> 添加到配置文件中。后者通常还需要引入 Kotlin 的 Gradle 插件，使用 Kotlin 配置过 Gradle 的应该都比较清楚，这里就不再赘述了。</font><br />
+<br />
+<font style="font-size:24px"><strong>代码</strong></font><br />
+<br />
+<font style="font-size:16px">我们声明一个 Mod 主类，并在其中实现 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextTick</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextAttackEvent</font></font> 两个方法：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+object EventListener {<br />
+&nbsp;&nbsp;val tickListeners: mutable.Queue[ServerTickEvent =&gt; Unit] = mutable.Queue()<br />
+&nbsp;&nbsp;val attackListeners: mutable.Queue[AttackEntityEvent =&gt; Unit] = mutable.Queue()<br />
+<br />
+&nbsp;&nbsp;@SubscribeEvent<br />
+&nbsp;&nbsp;def onTick(event: ServerTickEvent): Unit = {<br />
+&nbsp; &nbsp; if (event.phase == Phase.END) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;tickListeners.dequeueAll(_ =&gt; true).foreach(listener =&gt; listener(event))<br />
+&nbsp; &nbsp; }<br />
+&nbsp;&nbsp;}<br />
+<br />
+&nbsp;&nbsp;@SubscribeEvent<br />
+&nbsp;&nbsp;def onAttack(event: AttackEntityEvent): Unit = {<br />
+&nbsp; &nbsp; if (!event.getTarget.world.isRemote) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;attackListeners.dequeueAll(_ =&gt; true).foreach(listener =&gt; listener(event))<br />
+&nbsp; &nbsp; }<br />
+&nbsp;&nbsp;}<br />
+}<br />
+<br />
+private def nextTick(): ServerTickEvent@suspendable = shift { continuation =&gt;<br />
+&nbsp;&nbsp;EventListener.tickListeners.enqueue(continuation)<br />
+}<br />
+<br />
+private def nextAttackEvent(): AttackEntityEvent@suspendable = shift { continuation =&gt;<br />
+&nbsp;&nbsp;EventListener.attackListeners.enqueue(continuation)<br />
+}<br />
+<br />
+@Mod.EventHandler<br />
+def preInit(e: FMLPreInitializationEvent): Unit = {<br />
+&nbsp;&nbsp;MinecraftForge.EVENT_BUS.register(EventListener)<br />
+}</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+object EventListener {<br />
+&nbsp; &nbsp; val tickListeners: Queue&lt;(ServerTickEvent) -&gt; Unit&gt; = ArrayDeque()<br />
+&nbsp; &nbsp; val attackListeners: Queue&lt;(AttackEntityEvent) -&gt; Unit&gt; = ArrayDeque()<br />
+<br />
+&nbsp; &nbsp; @SubscribeEvent<br />
+&nbsp; &nbsp; fun onTick(event: ServerTickEvent): Unit {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (event.phase == Phase.END) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tickListeners.toList().also { tickListeners.clear() }.forEach { listener -&gt; listener(event) }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp; }<br />
+<br />
+&nbsp; &nbsp; @SubscribeEvent<br />
+&nbsp; &nbsp; fun onAttack(event: AttackEntityEvent): Unit {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;if (!event.target.world.isRemote) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;attackListeners.toList().also { attackListeners.clear() }.forEach { listener -&gt; listener(event) }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp; }<br />
+}<br />
+<br />
+private suspend fun nextTick(): ServerTickEvent = suspendCoroutine { continuation -&gt;<br />
+&nbsp; &nbsp; EventListener.tickListeners.add { event -&gt; continuation.resume(event) }<br />
+}<br />
+<br />
+private suspend fun nextAttackEvent(): AttackEntityEvent = suspendCoroutine { continuation -&gt;<br />
+&nbsp; &nbsp; EventListener.attackListeners.add { event -&gt; continuation.resume(event) }<br />
+}<br />
+<br />
+@Mod.EventHandler<br />
+fun preInit(e: FMLPreInitializationEvent): Unit {<br />
+&nbsp; &nbsp; MinecraftForge.EVENT_BUS.register(EventListener)<br />
+}</code></pre><br />
+<font style="font-size:16px">我们声明了两个事件监听器，并缓存了一串回调函数的列表。<font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextTick</font></font> 和 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextAttackEvent</font></font> 两个方法能够向相应的列表添加回调函数，并在事件触发的时候：</font><br />
+<br />
+<font style="font-size:16px"><ul><li>获取所有的回调函数；<li>清空缓存的回调函数列表；<li>按顺序依次执行所有回调函数。<br />
+</ul></font><br />
+<font style="font-size:16px">注意上面三者必须依次进行，顺序不能有任何变动，读者可以想一想为什么有这样的要求。</font><br />
+<br />
+<font style="font-size:16px">最后就是我们的核心代码了：</font><br />
+<br />
+<pre><code class="language-scala">// scala<br />
+@Mod.EventHandler<br />
+def init(e: FMLInitializationEvent): Unit = {<br />
+&nbsp;&nbsp;reset {<br />
+&nbsp; &nbsp; val coolDownPlayers = mutable.HashSet[UUID]()<br />
+&nbsp; &nbsp; while (true) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;val event = nextAttackEvent()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;val player = event.getEntityPlayer<br />
+&nbsp; &nbsp;&nbsp; &nbsp;val playerUUID = player.getUniqueID<br />
+&nbsp; &nbsp;&nbsp; &nbsp;if (coolDownPlayers.contains(playerUUID)) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;event.setCanceled(true)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;event.getTarget match {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; case _: IMob =&gt; reset {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coolDownPlayers.add(playerUUID)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;var coolDownTickLeft = 100<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;while (coolDownTickLeft &gt; 0) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;coolDownTickLeft -= 1<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;nextTick()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coolDownPlayers.remove(playerUUID)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;val message = &quot;Cool down has expired&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.sendMessage(new TextComponentString(message))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; case _ =&gt; ()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp; }<br />
+&nbsp;&nbsp;}<br />
+}</code></pre><br />
+<pre><code class="language-kotlin">// kotlin<br />
+@Mod.EventHandler<br />
+fun init(e: FMLInitializationEvent): Unit {<br />
+&nbsp; &nbsp; GlobalScope.launch {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;val coolDownPlayers = hashSetOf&lt;UUID&gt;()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;while (true) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;val event = nextAttackEvent()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;val player = event.entityPlayer<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;val playerUUID = player.uniqueID<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (coolDownPlayers.contains(playerUUID)) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; event.isCanceled = true<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; when (event.target) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;is IMob -&gt; launch {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coolDownPlayers.add(playerUUID)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;var coolDownTickLeft = 100<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;while (coolDownTickLeft &gt; 0) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; coolDownTickLeft -= 1<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; nextTick()<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coolDownPlayers.remove(playerUUID)<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;val message = &quot;Cool down has expired&quot;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;player.sendMessage(TextComponentString(message))<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;else -&gt; Unit<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp; }<br />
+}</code></pre><br />
+<font style="font-size:16px">一方面，我们可以注意到所有和实现特性相关的代码和对象声明，都放在了同一个方法下，这很好地贯彻了高内聚低耦合的设计原则；另一方面，这样做可以使代码的可读性大大增加，例如跳过 100 tick 的实现声明了一个非常单纯的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">while</font></font> 循环，并重复调用 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextTick</font></font> 方法 100 次，如果不使用 Coroutine，我难以想象类似的实现能有多复杂。</font><br />
+<br />
+<font style="font-size:24px"><strong>说明</strong></font><br />
+<br />
+<font style="font-size:16px">这里有几点需要说明：</font><br />
+<br />
+<font style="font-size:16px"><ul><li><font style="font-size:16px">我们是在 Mod 加载的时候调用的这段代码，我们可以注意到，所有代码都是被一个以 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">reset</font></font>（Scala）或 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">launch</font></font>（Kotlin） 开头的块括了起来，因此即使内部写成了死循环的形式，实际运行的时候也只会在第一次 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextAttackEvent</font></font> 调用的时候暂停，因此根本不会阻塞加载过程。</font><li><font style="font-size:16px">我们声明了一个全局性质的 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">coolDownPlayers</font></font>，但在代码里是以临时变量的方式表示的。实际上，该对象会在不同的子过程之间辗转，因此虽然它看起来是一个临时变量，但它是会被一直引用着的。</font><li><font style="font-size:16px">如果游戏世界关闭，代码在执行到 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextAttackEvent</font></font> 或 <font face="Monaco,Consolas,'Lucida Console','Courier New',serif"><font style="background-color:#ebddc0">nextTick</font></font> 的时候便永远不会继续执行下去，因此不必担心这个看起来像是死循环的代码不会终止的问题。</font><li><font style="font-size:16px">因为所有的回调函数都是在游戏内事件触发的时候执行的，因此尽管看起来代码本身不同的片段的执行时机并不完全相同，但它们都是在游戏世界的主线程执行的，不必担心任何线程安全的问题。</font><br />
+</ul></font><br />
+<font style="font-size:24px"><strong>总结</strong></font><br />
+<br />
+<font style="font-size:16px">Coroutine 虽然不是什么新的技术，但是在 Minecraft Mod 中使用 Coroutine，的确能够带来一些相对崭新的写法。这种写法粗看起来可能不那么容易让比较熟悉 Minecraft 的开发者接受（比方说我一开始也不太能接受在代码里写一个循环并在循环里直接等待下一个 tick 这种看起来像是把线程「阻塞」了的写法），但是一旦适应了这样的写法，本人相信开发效率一定能够得到显著的提升。</font><br />
+<br />
+<font style="font-size:16px">由于作者本人并不熟悉 Kotlin，因此作者不太能保证本文中的 Kotlin 代码一定完全正确，望请读者谅解。</font><br />
+<br />
+<font style="font-size:16px">以下是本文的所有相关代码：</font><br />
+<br />
+
+<ignore_js_op>
+
+<img src="static/image/filetype/zip.gif" border="0" class="vm" alt="" />
+<span style="white-space: nowrap" id="attach_1418427" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})">
+
+<a href="forum.php?mod=attachment&amp;aid=MTQxODQyN3xiODdkMzg3M3wxNjE0MDAzMzMwfDI0MTk0ODZ8OTMyMDg0" target="_blank">ForgeCoroutine.zip</a>
+
+<em class="xg1">(109.23 KB, 下载次数: 12)</em>
+</span>
+<div class="tip tip_4" id="attach_1418427_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="tip_c xs0">
+<div class="y">2019-12-12 02:32 上传</div>
+点击文件名下载附件
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>liach&nbsp; &nbsp; <b>时间: </b>2019-12-26 09:42<br />
+<div class="blockcode"><div id="code_r8e"><ol><li>// java<br />
+<li>void foo(int value, Consumer&lt;Bar&gt; next) {<br />
+<li>&nbsp; &nbsp; next.accept(new Bar(value));<br />
+<li>}</ol></div><em onclick="copycode($('code_r8e'));">复制代码</em></div><div class="blockcode"><div id="code_OUe"><ol><li>// java<br />
+<li>void add(int a, int b, IntConsumer next) {<br />
+<li>&nbsp; &nbsp; next.accept(a + b);<br />
+<li>}<br />
+<li></ol></div><em onclick="copycode($('code_OUe'));">复制代码</em></div><div class="blockcode"><div id="code_frZ"><ol><li>add(40, 2, value -&gt; foo(value, bar -&gt; doSomethingElse(bar)));<br />
+<li></ol></div><em onclick="copycode($('code_frZ'));">复制代码</em></div><br />
+楼主能写java的话还是写java让大家清晰点，scala kotlin看得头晕了<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Eldon&nbsp; &nbsp; <b>时间: </b>2020-2-16 16:12<br />
+<div class="quote"><blockquote><font size="2"><a href="https://www.mcbbs.net/forum.php?mod=redirect&amp;goto=findpost&amp;pid=15985513&amp;ptid=932084" target="_blank"><font color="#999999">liach 发表于 2019-12-26 09:42</font></a></font><br />
+楼主能写java的话还是写java让大家清晰点，scala kotlin看得头晕了</blockquote></div><br />
+这里的 Coroutine 本来就是给 Kotlin, Scala 玩家看的，前面的 callback 只是个不是很重要的引子，看不懂的话，那么后面的内容对他们来说也就没有什么意义。
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

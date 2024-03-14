@@ -1,0 +1,135 @@
+<html>
+<head>
+<title>没什么用的教程：挖掘基岩！ - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>没什么用的教程：挖掘基岩！ <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Sssss...&nbsp; &nbsp; <b>时间: </b>2020-3-22 21:09<br />
+<b>标题: </b>没什么用的教程：挖掘基岩！<br /><i class="pstatus"> 本帖最后由 Sssss... 于 2020-3-23 12:05 编辑 </i><br />
+<br />
+<font size="2"><font color="#ff0000">本教程的代码部分测试于Bukkit 1.13，理论上所有版本通用</font></font><br />
+<br />
+<strong><font size="3">一、思路整理</font></strong><br />
+<font size="2">几天前打算写一个关于基岩的插件（即将发布），但由于基岩在生存模式无法破坏，所以需要通过一些特殊的方式“挖掘”</font><br />
+<font size="2">不久后翻阅Bukkit API文档时看到了一个没用过的事件：<strong>PlayerAnimationEvent</strong>，文档内的介绍是“玩家动作事件”，只能检测摆臂</font><br />
+<br />
+<font size="2"><strong>于是因为我闲的没事干（可能），就简单测试了一下，得出以下结论：</strong></font><br />
+<ul><li><font size="2">PlayerAnimationEvent在玩家对着方块按住鼠标时，每tick触发一次</font><li><font size="2">PlayerInteractEvent仅在玩家按下鼠标的那一刻触发一次，刚好可以用于防止连点器挖掘</font><li><font size="2">PlayerInteractEvent在Animation之前触发</font><br />
+</ul><br />
+<strong><font size="2">现在可以通过计数器实现基岩挖掘。经过简单的思考，得出以下过程：</font></strong><ul><li><strong><font size="2">记录在两次PlayerInteractEvent之间的PlayerAnimationEvent触发次数</font></strong><li><font size="2"><strong>当次数达到规定次数（也就是基岩挖掘所需的刻数）时破坏方块并刷新进度</strong></font><br />
+</ul><font size="2"><br />
+<strong>考虑到挖掘的方块变化、手中物品变化时需要清零挖掘进度</strong></font><strong><font size="2">得到以下较为详细的过程（以下[I]代表Interact事件监听器，[A]代表Animation）：</font></strong><br />
+<ul><li><font size="2">以下所有的变量（<u>isMining</u>，<u>animationCount</u>，<u>lastInteract</u><u>Location</u>，<u>lastInteractTool</u>）实际应用时应改为Map</font><li><font size="2">监听器的各种判断，如是否点击方块、方块种类等省略，此处列举的为思路，并非实际代码实现</font><li><font size="2">设挖掘时间为5秒，即100ticks</font><br />
+</ul><ul type="1" class="litype_1"><li><font size="2">[I] 将<u>isMining</u>设置为true<font color="#696969"> // 声明玩家正在挖掘基岩，使Animation监听器工作</font></font><li><font size="2">[I] 将<u>animationCount</u>设为0 <font color="#696969">// 重置进度</font></font><li><font size="2">[I] 向<u>lastInteractLocation</u>写入点击的方块位置<font color="#808080"> // 防止鼠标移动挖掘其他方块</font></font><li><font size="2">[I] 向<u>lastInteractTool</u>写入手中的物品 <font color="#808080">// 防止切换到其他物品</font></font><br />
+</ul><font color="#ff0000">也许有人会好奇为什么没有一个100t之后刷新进度的定时器？</font><font color="#ff0000">因为实际上不刷新进度不会有影响，玩家松开鼠标以后再次点击必将触发PlayerInteractEvent，所以是否刷新无关紧要</font><br />
+<ul type="1" class="litype_1"><li><font size="2">[A] 若<u>isMining</u>为false（玩家不在挖掘基岩），则跳出监听器</font><li><font size="2">[A] 若<u>lastInteractLocation</u>或<u>lastInteractTool</u>不匹配（前者使用getTargetBlock方法），则将isMining设置为false并跳出监听器</font><li><font size="2">[A] <u>animationCount</u>的值增加1 // 计数</font><li><font size="2">[A] 若<u>animationCount</u>的值为100（即挖掘结束），将<u>isMining</u>设置为false，触发方块破坏</font><br />
+</ul><font size="2"><font size="2"><br />
+</font><br />
+</font><font size="2"><strong>深究一下，会发现isMining变量实际上并没有作用</strong></font><br />
+<font size="2"><strong>因为挖掉方块后会因为lastInteractLocation不符而不再执行[A]监听器，若下方为虚空则不会继续触发[A]</strong></font><br />
+<font size="2"><strong>于是删除I.1与A.1两步<br />
+</strong></font><br />
+<br />
+<strong><font size="3">二、代码实现</font></strong><font size="3"><strong>（由于MCBBS自带的代码显示会出现内容消失等bug，故直接使用文本形式）</strong></font><br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public static final int TICKS = 100; <font color="#2e8b57">// 挖掘所需时间</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static int animationCount = 0;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static Location lastInteractLocation;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;static ItemStack lastInteractTool;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onInteract(PlayerInteractEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!event.getAction != Action.LEFT_CLICK_BLOCK) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#2e8b57">// 一堆判断</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 下面的判断铁镐是我懒得写null判断（毕竟也不能让玩家随意挖掘基岩）</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!event.hasBlock()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; <font color="#2e8b57">// 此处特意写出来并注释</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 为什么？</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 因为如果这么写，可以通过挖掘其他方块并切换到另一个之前挖掘过的方块</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // 导致程序错乱（实际上应该也没有什么大问题）</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // if (event.getClickedBlock().getType() != Material.BEDROCK) {</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; //&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;</font><br />
+<font color="#2e8b57">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // }</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!event.hasItem()) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (event.getItem().getType() != Material.IRON_PICKAXE) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; animationCount = 0;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lastInteractLocation = event.getClickedBlock().getLocation();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lastInteractTool = event.getPlayer().getInventory().getItemInMainHand();<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;@EventHandler<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;public void onAnimation(PlayerAnimationEvent event) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!lastInteractLocation.equals(event.getPlayer().getTargetBlock(10).getLocation())) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return; <font color="#2e8b57">// 正在挖掘的方块位置与第一次触发不符</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (!lastInteractTool.equals(event.getPlayer().getInventory().getItemInMainHand())) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return; <font color="#2e8b57">// 手中的物品不符</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; animationCount++; // 计数<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; if (animationCount == TICKS) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;toBreak(event.getPlayer().getTargetBlock(10)); <font color="#2e8b57">// 破坏方块</font><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private void toBreak(Block block) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; block.setType(Material.AIR);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.BEDROCK));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+</td></table></div></div>然后就可以正常运行了，手持铁镐对着基岩按住五秒后基岩就掉落为物品<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FFVzdqKyADB3WO8b" target="_blank"><img id="aimg_VTHgt" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/22/FVzdqKyADB3WO8b.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+<strong>是不是觉得少了什么？</strong><br />
+<ul><li>没有粒子效果使破坏过程过于突兀，于是加上粒子效果：游戏卡顿的时候可以观察到破坏方块的粒子实际上是从4x4x4的64个点创建的<li>因为基岩无法显示挖掘进度，所以可以加一条ActionBar<li>而且挖基岩需要大量时间与精力<strike>（才5秒？）</strike>，可以让它掉落经验球<br />
+</ul><br />
+<strong>于是toBreak方法改为：</strong><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;private void toBreak(Block block) {<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; for (double dx = -0.5; dx &lt;= 0.5; dx += 0.333) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (double dy = -0.5; dy &lt;= 0.5; dy += 0.333) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;for (double dz = -0.5; dz &lt;= 0.5; dz += 0.333) {<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Location location = block.getLocation().toCenterLocation().add(dx, dy, dz);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; block.getWorld().spawnParticle(Particle.BLOCK_DUST, location, 3, block.getBlockData());<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; }<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; block.setType(Material.AIR);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; block.getWorld().dropItemNaturally(block.getLocation().toCenterLocation(), new ItemStack(Material.BEDROCK));<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ExperienceOrb orb = (ExperienceOrb) block.getWorld().spawnEntity(block.getLocation(), EntityType.EXPERIENCE_ORB);<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; orb.setExperience(new Random().nextInt(120) + 60);<br />
+</td></table></div></div>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<strong>onAnimation下方加一行：</strong><br />
+event.getPlayer().sendActionBar(&quot;§7基岩挖掘中... §f&quot; + Math.round((double) animationCount / TICKS * 1000) / 10 + &quot;%&quot;);<br />
+<br />
+<strong><font size="3">三、最终效果</font></strong><br />
+<strong>完美实现破坏基岩：</strong><br />
+（我截完这张图以后发现粒子太多了，于是把那边的8改成了3）<br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FVCkGNQELDqpTBYe" target="_blank"><img id="aimg_Yz2Rd" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/22/VCkGNQELDqpTBYe.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+<a href="https://www.mcbbs.net/plugin.php?id=link_redirect&target=https%3A%2F%2Fsm.ms%2Fimage%2FxR%2A%2AdQ9q4mG8Ck" target="_blank"><img id="aimg_ITXrx" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2020/03/22/xR**dQ9q4mG8Ck.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /></a><br />
+<br />
+由于最后一张图片的链接有敏感词（D.J），请手动输入链接查看（去掉链接中的中括号）<br />
+<a href="https://i.loli.net/2020/03/22/xRD" target="_blank">https://i.loli.net/2020/03/22/xRD</a>[]JydQ9q4mG8Ck.png<br />
+<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>602723113&nbsp; &nbsp; <b>时间: </b>2020-3-22 22:16<br />
+如果挖掘基岩的效果可以配合上NMS的Block Break Animation, 那就会更好了，这里是包的信息<br />
+<a href="https://wiki.vg/Protocol" target="_blank">https://wiki.vg/Protocol#Block_Break_Animation</a><br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>洞穴夜莺&nbsp; &nbsp; <b>时间: </b>2020-3-22 22:34<br />
+为什么不直接使用原版的挖掘动画？
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

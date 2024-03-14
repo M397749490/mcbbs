@@ -1,0 +1,185 @@
+<html>
+<head>
+<title>StructurePiece.applyXTransform 方法做了什么事[已解决] - Minecraft(我的世界)中文论坛 - Powered by Discuz!</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" href="static/page.css">
+<script src="data/cache/forum_viewthread.js?LPb" type="text/javascript"></script>
+
+</head>
+
+<body>
+<h1>Minecraft(我的世界)中文论坛</h1>
+<b>标题: </b>StructurePiece.applyXTransform 方法做了什么事[已解决] <br />
+<script type="text/javascript">var zoomstatus = 0;var aimgcount = new Array();</script><hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>鸭蛋只吃黄&nbsp; &nbsp; <b>时间: </b>2019-9-23 00:14<br />
+<b>标题: </b>StructurePiece.applyXTransform 方法做了什么事[已解决]<br /><i class="pstatus"> 本帖最后由 SkinBBS 于 2019-9-23 08:44 编辑 </i><br />
+<br />
+环境是 Fabric 1.14.4 896c7fbb42<br />
+其中在 net.minecraft.structure.StructurePiece 下有一个方法:<br />
+<div class="blockcode"><div id="code_lhE"><ol><li>protected int applyXTransform(int int_1, int int_2) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;Direction direction_1 = this.getFacing();<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;if (direction_1 == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return int_1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;switch(direction_1) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case NORTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case SOUTH:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return this.boundingBox.minX + int_1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case WEST:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return this.boundingBox.maxX - int_2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case EAST:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return this.boundingBox.minX + int_2;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;return int_1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;}</ol></div><em onclick="copycode($('code_lhE'));">复制代码</em></div>其实逻辑是很简单的, 就是根据 boundingBox 将相对坐标的 x 分量转化为在世界中的绝对坐标(顺便考虑朝向). 但是它对默认方向(北向)的处理有点看不懂. 即便是什么都不考虑, 在面朝北的时候<font color="Red"><strong>绝对坐标怎么可能等于相对坐标</strong></font>. 在使用相对坐标时 x,z 的最大值 = 15, y 最大值 = 512, 难道面朝北的结构就只能生成在地图中心的这一点区域了么... 不过奇怪的是其他方法自己调用运行时正常的. 求 dalao 解答一下....我快哭了真的<br />
+<br />
+<br />
+<img id="aimg_iZ5o3" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/4.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+<font size="5">睡了一觉醒来脑子清晰了很多, 自己分析一波:</font><br />
+<br />
+<font size="5"><font color="Red">以后请叫我铁憨憨谢谢<img src="static/image/smiley/tong/cry.png" smilieid="1453" border="0" alt="" /></font></font><br />
+<br />
+<font size="4">刚在分析的过程中, 一位朋友找到我, 说在代码执行时返回的是南向的值, 我当时就惊呆了, 在我的理解中 switch 只要没遇到 break 就回一直向下匹配. 也就是说 North 虽然匹配上了, 但是代码块是空的而且没有 break, 继续向下匹配, 没有匹配到任何其他值就执行 default. 但是经过朋友的提示, 我写了个 demo:</font><br />
+<div class="blockcode"><div id="code_oJ3"><ol><li>enum Type {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;A, B, C<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public static void main(String... args) throws IOException {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;Type type = Type.A;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;System.out.println(check(type));<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; public static String check(Type type) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;switch (type) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case A:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case B:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;B&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case C:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;C&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;default:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; return &quot;A&quot;;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;}<br />
+<li>&nbsp; &nbsp; }</ol></div><em onclick="copycode($('code_oJ3'));">复制代码</em></div>返回的居然是 &quot;<strong><font color="Red">B</font></strong>&quot;....<br />
+<br />
+这就告诉我们: <strong>不能好高骛远, 一定要有扎实的基本功</strong><br />
+<br />
+至于为什么会返回 B, 容我 javap...<br />
+我的天, 还真是:<br />
+<img id="aimg_iUVnY" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="https://i.loli.net/2019/09/23/BgPLpRHzkAma59v.png" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+<font size="5"><font color="Red"><strong>下面的别看了, 太丢人了</strong></font></font><br />
+<br />
+<br />
+<img id="aimg_MrK65" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/5.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+<br />
+<br />
+先自己反编译一下 mc 的代码, 看看是不是在反编译的过程中出现了错误:<br />
+<div class="blockcode"><div id="code_Z4c"><ol><li>&nbsp;&nbsp;protected int a(int var0, int var1) {<br />
+<li>&nbsp; &nbsp; EnumDirection var2 = i();<br />
+<li>&nbsp; &nbsp; if (var2 == null) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;return var0;<br />
+<li>&nbsp; &nbsp; }<br />
+<li>&nbsp; &nbsp; <br />
+<li>&nbsp; &nbsp; switch (null.a[var2.ordinal()]) {<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;case 2:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.n.a + var0;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;case 3:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.n.d - var1;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;case 4:<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;return this.n.a + var1;<br />
+<li>&nbsp; &nbsp; } <br />
+<li>&nbsp; &nbsp; return var0;<br />
+<li>&nbsp;&nbsp;}</ol></div><em onclick="copycode($('code_Z4c'));">复制代码</em></div><strong><font color="White"><font style="background-color:blue">看来不是...</font></font></strong><br />
+<br />
+<img id="aimg_qCCN8" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/5.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+然后 javap 一波, 看看是不是两次反编译都出了错:<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td><br />
+<div class="blockcode"><div id="code_ltu"><ol><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;0: aload_0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;1: invokevirtual #141&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; // Method i:()Lnet/minecraft/server/v1_14_R1/EnumDirection;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;4: astore_3<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;5: aload_3<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;6: ifnonnull&nbsp; &nbsp;&nbsp;&nbsp;11<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;9: iload_1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;10: ireturn<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;11: getstatic&nbsp; &nbsp;&nbsp;&nbsp;#252&nbsp;&nbsp;// Field net/minecraft/server/v1_14_R1/StructurePiece$1.a:[I<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;14: aload_3<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;15: invokevirtual #255&nbsp;&nbsp;// Method net/minecraft/server/v1_14_R1/EnumDirection.ordinal:()I<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;18: iaload<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;19: tableswitch&nbsp; &nbsp;{ // 1 to 4<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;1: 48<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;2: 48<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;3: 58<br />
+<li><br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;4: 68<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;default: 78<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;48: aload_0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;49: getfield&nbsp; &nbsp;&nbsp; &nbsp;#89&nbsp; &nbsp;// Field n:Lnet/minecraft/server/v1_14_R1/StructureBoundingBox;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;52: getfield&nbsp; &nbsp;&nbsp; &nbsp;#200&nbsp; &nbsp;// Field net/minecraft/server/v1_14_R1/StructureBoundingBox.a:I<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;55: iload_1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;56: iadd<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;57: ireturn<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;58: aload_0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;59: getfield&nbsp; &nbsp;&nbsp; &nbsp;#89&nbsp;&nbsp;// Field n:Lnet/minecraft/server/v1_14_R1/StructureBoundingBox;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;62: getfield&nbsp; &nbsp;&nbsp; &nbsp;#212&nbsp; &nbsp;// Field net/minecraft/server/v1_14_R1/StructureBoundingBox.d:I<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;65: iload_2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;66: isub<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;67: ireturn<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;68: aload_0<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;69: getfield&nbsp; &nbsp;&nbsp; &nbsp;#89&nbsp;&nbsp;// Field n:Lnet/minecraft/server/v1_14_R1/StructureBoundingBox;<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;72: getfield&nbsp; &nbsp;&nbsp; &nbsp;#200&nbsp; &nbsp;// Field net/minecraft/server/v1_14_R1/StructureBoundingBox.a:I<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;75: iload_2<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;76: iadd<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;77: ireturn<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;78: iload_1<br />
+<li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;79: ireturn</ol></div><em onclick="copycode($('code_ltu'));">复制代码</em></div></td></table></div></div><br />
+<font style="background-color:blue"><font color="White"><strong>翻...翻车了</strong></font></font><br />
+<br />
+<img id="aimg_bv5x5" onclick="zoom(this, this.src, 0, 0, 0)" class="zoom" src="static/image/hrline/5.gif" onmouseover="img_onmouseoverfunc(this)" onload="thumbImg(this)" border="0" alt="" /><br />
+不要紧, 一计不成再生一计, 丛林神庙也使用了这个代码, 断点一下看看它为什么能正常运行<br />
+<br />
+<hr noshade size="2" width="100%" color="#808080">
+<b>作者: </b>Bryan33&nbsp; &nbsp; <b>时间: </b>2019-9-23 16:04<br />
+仅调侃 无他意<br />
+<br />
+<div class="spoiler"><div class="spoilerheader"><input type="button" class="spoilerbutton" value="展开 / 收起隐藏文字" onClick="n = this.parentNode.parentNode.lastChild;if(n.style.display == 'none') {n.style.display = 'block';} else {n.style.display = 'none';} return false;"/></div><div class="spoilerbody" style="display: none;border-style:inset;padding-right:5px;border-color: #ccc; "><table><td>
+<ignore_js_op>
+
+<img id="aimg_1394841" aid="1394841" src="static/image/common/none.gif" zoomfile="https://attachment.mcbbs.net/forum/201909/23/160327ybvc9xxkrgrggwj7.png" file="https://attachment.mcbbs.net/forum/201909/23/160327ybvc9xxkrgrggwj7.png" class="zoom" onclick="zoom(this, this.src, 0, 0, 0)" width="451" id="aimg_1394841" inpost="1" onmouseover="showMenu({'ctrlid':this.id,'pos':'12'})" />
+
+<div class="tip tip_4 aimg_tip" id="aimg_1394841_menu" style="position: absolute; display: none" disautofocus="true">
+<div class="xs0">
+<p><strong>SAI~VSL55DLZ5~USPPD{E.png</strong> <em class="xg1">(198.19 KB, 下载次数: 0)</em></p>
+<p>
+<a href="forum.php?mod=attachment&amp;aid=MTM5NDg0MXxlNDZjYTYwZHwxNjEzOTk3NDU5fDI0MTk0ODZ8OTE1MjU2&amp;nothumb=yes" target="_blank">下载附件</a>
+
+</p>
+
+<p class="xg1 y">2019-9-23 16:03 上传</p>
+
+</div>
+<div class="tip_horn"></div>
+</div>
+
+</ignore_js_op>
+<br />
+&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp;跳过了Java基础的Modder<br />
+</td></table></div></div><br />
+这个时候安利一波kotlin<br />
+<br />
+when表达式就不会有这个问题了233<br />
+<script type="text/javascript" reload="1">
+aimgcount[15644524] = ['1394841'];
+attachimggroup(15644524);
+new lazyload();
+</script>
+
+<br /><br /><br /><br /><hr noshade size="2" width="100%" color="BORDERCOLOR">
+
+</body>
+</html>

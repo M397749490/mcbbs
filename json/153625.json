@@ -1,0 +1,29 @@
+{
+    "title": "利用Forge API开发联机MOD【基础篇】【第十章】",
+    "author": "yuxuanchiadm",
+    "replyCount": 4,
+    "timestamp": 1375605720,
+    "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-8-8 18:39 编辑 \n\n利用Forge API开发联机MOD【基础篇】【第十章】\n解决MOD的反混淆问题\n作者：yuxuanchiadm\n\n索引贴地址：http://www.mcbbs.net/thread-38211-1-1.html\n\n请确定你已经阅读完成第九章的内容:\nhttp://www.mcbbs.net/thread-39294-1-1.html\n否则不要阅读此贴！\n\n序：\n在上一章里，我们完成了我们的MOD，使其在MCP中能正常运行，并有我们所有想要的功能。但是，如果将其编译后放在客户端里运行，MOD就会出现各种问题了。今天，我们就来着手解决此类问题。\n\n问题原因：\n之所以我们的MOD无法编译后在客户端正常运行，是因为MCP编译步骤有个重新混淆步骤，为什么会有重新混淆步骤呢，因为MC虽然能够通过MCP等工具轻易获得近似官方的源代码，但是毕竟MC目前还不是免费的，开源的，所以必然和会有一些产权保护措施，混淆就是其中一个。MCP为了让反编译后的源码可读，所以在反编译后有个反混淆步骤，目的是还原被混淆的符号到可读状态。所以理所当然在编译MOD时需要把所有的符号引用重新混淆成和MC对应的，不然MOD就无法运行。看起来十分天衣无缝，但实际情况没那么理想，真的所有的符号引用都会被重新混淆么？重新混淆只能作用于直接引用，对于间接引用无能为力，最典型的就是反射操作。反射带来了很大的灵活性，可以读取、写入私有字段，访问运行时注解等。但是所有的引用都不是直接符号引用，而是间接引用（字符串引用）。在重新混淆阶段MCP并不敢轻易动这些字符串，所以会导致我们的MOD在MCP能正常运行，而到了玩家手里就运行不能了。\n\n/**知识点：混淆\nJAVA是一种灵活性很高的动态链接语言，编译后所有的方法名、变量名、类名等都被存储在Class文件里，这为JAVA提供了很高的灵活性，最典型的例子就是反射。然而，这也会导致JAVA程序十分容易被反编译。而且除了注释、语法糖等结构几乎和用来编译这个程序的源码相无几。混淆就是解决这问题的一种方法。混淆并不能直接阻止反编译，它的作用是让反编译后的代码可读性几乎为零。通过把符号引用替换成简单的a、b、c，把所有类都移到顶级包等方法，实现混淆。代码对于虚拟机来说并没有实质性的改变，还是能正常运行，但反编译后的代码就不是那样了，我们并不能通过名称得知某个方法、字段、类的用途，也不能找到任何注释来间接理解程序，这样就间接防止了反编译。\n**/\n\n/**知识点：反混淆\n为了让混淆后的代码在反编译后仍然可读，出现了反混淆技术，反混淆是一件十分费时费力的工作，需要通过程序的逻辑推断出各个字段、方法、类的名称。比如MCP就是一个反编译兼自动反混淆的一个工具。\n**/\n\n/**知识点：符号引用\nJAVA是一个动态链接语言，C、C++等语言则是静态链接语言。JAVA中对一个方法等元素的引用，在编译后的字节码中表示为一个字符串（大概可以这么说），而不是一个内存地址。JAVA的链接操作是在运行时进行的。\n**/\n\n解决问题：\n要解决这个问题，我们首先知道程序自身是处于被反混淆的状态还是处于被混淆的状态，最简单的方法就是判断一个会被混淆的类的名称是否是被反混淆的名称。\nForge给了我们一个更简单的方法，通过ObfuscationReflectionHelper.obfuscation复制代码就可以直接获取到当前的状态。当这个字段为true的时候，程序就处于被混淆后的状态。\n其次我们怎么才能知道方法、字段、类被混淆后的名称呢？打开mcp\\conf文件夹下的joined.srg、fields.csv和methods.csv文件，这其中就储存着反混淆名称和混淆后的名称的对应关系。\n首先打开TileEntityAdvancedMobSpawner类的构造函数，整个构造函数都在通过反射修改字段的可见性，在try块底部添加：if(ObfuscationReflectionHelper.obfuscation)\n{\n    \n}\nelse\n{\n    \n}复制代码并导入ObfuscationReflectionHelper类，然后把上面的代码移动到else块中，最后复制else块中的代码到if块中。\n现在我们需要对if块中的反射进行修改，例如第一个字段minSpawnDelay。首先第一件事便是在fields.csv中搜索minSpawnDelay如果只有一个，那么记下前面的中间符号field_70388_f，并在joined.srg中搜索这个符号，应该找到：FD: ans/g net/minecraft/src/TileEntityMobSpawner/field_70388_f复制代码这一行，首先前面的“FD:”表示这是一个字段(field)，其次后面的ans/g，表示他是ans类（TileEntityMobSpawner被混淆后的名称）的g字段（被混淆后的中间符号field_70388_f，也就是被混淆后的符号minSpawnDelay）。后面的net/minecraft/src/TileEntityMobSpawner/field_70388_f则表示这个字段是net/minecraft/src/TileEntityMobSpawner类的field_70388_f字段（被反混淆的minSpawnDelay的中间符号）。ans/g的g，便是被混淆后的minSpawnDelay字段。替换minSpawnDelayField = TileEntityMobSpawnerClass.getDeclaredField(\"minSpawnDelay\");复制代码为：minSpawnDelayField = TileEntityMobSpawnerClass.getDeclaredField(\"g\");复制代码其他反射的修改类似。\n最终if块看起来应该是这样：minSpawnDelayField = TileEntityMobSpawnerClass.getDeclaredField(\"g\");\nminSpawnDelayField.setAccessible(true);\nmaxSpawnDelayField = TileEntityMobSpawnerClass.getDeclaredField(\"h\");\nmaxSpawnDelayField.setAccessible(true);\ncachedEntity = TileEntityMobSpawnerClass.getDeclaredField(\"j\");\ncachedEntity.setAccessible(true);\nspawnerTags = TileEntityMobSpawnerClass.getDeclaredField(\"f\");\nspawnerTags.setAccessible(true);\nmobID = TileEntityMobSpawnerClass.getDeclaredField(\"d\");\nmobID.setAccessible(true);复制代码其中field_92017_j字段貌似在fields.csv中找不到，因为这个字段本身就是一个中间符号，MCP没有为其添加具体的名称，在MCP中这样的字段还有很多，遇到这种以field_开头的字段直接在joined.srg中搜索就行了，而不必去fields.csv中找。当然如果在fields.csv中找一个字段的中间符号，由于字段很简单（比如x,rand之类的），搜索时搜索到了我们不需要搜索的内容（注释和中间符号），那么就在字段两头加上逗号（比如“,x,”），搜索就会更快。如果在fields.csv中找一个字段的中间符号不止一个，那么就需要在joined.srg和fields.csv中互相对照了，因为这种情况很少，所以不详细讨论。同理对GuiMobSpawnerSetting的76行左右的反射也进行类似修改：if(ObfuscationReflectionHelper.obfuscation)\n{\n    stringToIDMapping = EntityList.class.getDeclaredField(\"f\");\n    stringToIDMapping.setAccessible(true);\n}\nelse\n{\n    stringToIDMapping = EntityList.class.getDeclaredField(\"stringToIDMapping\");\n    stringToIDMapping.setAccessible(true);\n}复制代码 总结：\n恭喜你已经完成联机MOD制作教程的所有内容，并解决了反混淆问题，MOD开发技术是基础，但是创意才是关键，好的创意才能成就好的MOD。\n\n此MOD源码下载：http://www.mcbbs.net/thread-153670-1-1.html",
+    "replies": [
+        {
+            "author": "wangchujinqwe",
+            "timestamp": 1375605720,
+            "txt_content": "雨轩你好雨轩再见"
+        },
+        {
+            "author": "minehenry",
+            "timestamp": 1375605780,
+            "txt_content": "我不懂技术如何破"
+        },
+        {
+            "author": "虚伪寂寞",
+            "timestamp": 1375606860,
+            "txt_content": "不明觉厉。。。。。            "
+        },
+        {
+            "author": "kuafuzhuguang",
+            "timestamp": 1375798200,
+            "txt_content": "成功完成例题。。。看看自己开发点啥吧。。"
+        }
+    ]
+}

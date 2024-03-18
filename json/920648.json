@@ -1,0 +1,39 @@
+{
+    "title": "1.14execute和function命令执行顺序的问题",
+    "author": "Chelover_C60",
+    "replyCount": 6,
+    "timestamp": 1571302740,
+    "txt_content": "昨天我在看问答版时，看到了这个问题。2.有很多堆as，每堆很多as重叠在一起互相之间没有区分度，如何让每堆只剩一个as\n看到第二问的时候，我想到利用execute不同实体执行命令的微延迟（这个究竟该怎么称呼？）来仅给一堆盔甲架中的某一个盔甲架加标签，以此来区分不同盔甲架。因此，我写出了以下命令\n/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep复制代码但是在实际执行中，所有盔甲架都被添加了标签。由于当时比较晚，就没再继续研究，先去睡了。结果第二天发现被抢答了\n第二天我在研究的时候，写了以下的命令\n/execute as @e[type=minecraft:armor_stand] at @s run function abc:123复制代码abc:123.mcfunction\nexecute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep复制代码在执行时，确实做到了每堆只有一个盔甲架加被添加了标签。同时，我用僵尸做了类似的实验，结果完全相同。那么问题来了：\n\nwiki对execute的执行顺序表述如下：\n游戏会在处理run后的命令和存储子命令之前，先处理其他子命令，故run后的命令和存储子命令无法影响其他子命令。run后的命令和存储子命令也无法相互影响。——命令/execute - Minecraft Wiki，最详细的官方我的世界百科\n那么上面的两种方法的主体命令都是execute，去掉run子命令后的主体命令是execute as @e[type=minecraft:armor_stand] at @s，两者没有区别，因此不存在处理顺序上的区别。run子命令后，一个是execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep，一个是function abc:123，但是由于function abc:123实际上就是execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep，所以两者还是没有区别，那么为什么执行结果就会不同呢？",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1571302740,
+            "txt_content": " 本帖最后由 梓榆 于 2019-10-17 21:30 编辑 \n\n两年前的旧东西了\nhttps://www.mcbbs.net/thread-770198-1-1.html\n\n\n一\nexecute as @e at @s run execute ...\n完全等价于\nexecute as @e at @s ...\n\n两条命令根本没有分开，解析是一起完成的，运算是一起完成的。\n\n事实上 ⊙u⊙ 的解释是完全正确的。as、at、unless 三个子命令按顺序执行，其中每个子命令在执行的时候会同时操作多个命令执行源（包括命令的执行者、执行位置等）。\n\n\n二\nexecute as @e at @s run function ...\n解析分开了，运算分开了，实体及时更新了。\n\n\n源码\n((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)CommandManager.literal(\"execute\").requires((class_2168_1) -> {\n         return class_2168_1.hasPermissionLevel(2);\n      })).then(CommandManager.literal(\"run\").redirect(commandDispatcher_1.getRoot()))).then(addConditionArguments(literalCommandNode_1, CommandManager.literal(\"if\"), true))).then(addConditionArguments(literalCommandNode_1, CommandManager.literal(\"unless\"), false))).then(CommandManager.literal(\"as\").then(CommandManager.argument(\"targets\", EntityArgumentType.entities()).fork(literalCommandNode_1, (commandContext_1) -> {\n         List<ServerCommandSource> list_1 = Lists.newArrayList();\n         Iterator var2 = EntityArgumentType.getOptionalEntities(commandContext_1, \"targets\").iterator();\n\n         while(var2.hasNext()) {\n            Entity class_1297_1 = (Entity)var2.next();\n            list_1.add(((ServerCommandSource)commandContext_1.getSource()).withEntity(class_1297_1));\n         }\n\n         return list_1;\n      }))))复制代码\n懒得解释了，因为我根本看不懂。"
+        },
+        {
+            "author": "雪颜の顾",
+            "timestamp": 1571306100,
+            "txt_content": "把/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep\n改成/execute as @e[type=minecraft:armor_stand] at @s unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep\n试一试，或许可能就是这个原因"
+        },
+        {
+            "author": "⊙u⊙",
+            "timestamp": 1571307360,
+            "txt_content": "execute as @e[type=armor_stand] at @s unless entity @e[distance=..0.01,type=armor_stand,tag=keep] run tag @s add keep\n\nexecute as @e[type=armor_stand] at @s run function abc:123\n        #abc:123\n        execute unless entity @e[distance=..0.01,type=armor_stand,tag=keep] run tag @s add keep复制代码\n按照你的说法的话处理流程应该是这样...\n\n1)\nas    以所有适格对象为目标 > 筛选完毕\nat    各目标使用自身坐标 > 获取完毕\nunless    检测是否满足条件 > 全员通过\n\nrun tag    全员按顺序执行tag[我tag我自己]\n\n2)\nas    以所有适格对象为目标 > 筛选完毕\nat    各目标使用自身坐标 > 获取完毕\n\n\nrun function    全员按顺序执行function[按顺序到function里走一遍]\nAS1    通过unless > 给自己加tag\nAS2+    不通过unless > 没有tag\n\n"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1571316960,
+            "txt_content": "雪颜の顾 发表于 2019-10-17 17:55\n把/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,typ ...\n这里加一个run execute就是为了把两段命令分割开，以此操控微延迟。\n另外我试过去掉run execute，没有达到理想效果"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1571317020,
+            "txt_content": " 本帖最后由 CHElover_C60 于 2019-10-17 22:09 编辑 \n⊙u⊙ 发表于 2019-10-17 18:16\n按照你的说法的话处理流程应该是这样...\n\n1)\n\n/execute as @e[type=minecraft:armor_stand] at @s run execute unless entity @e[distance=..0.001,type=armor_stand,tag=keep] run tag @s add keep\n第一种里at @s后接着有run execute，把两段命令分开了\n\n\n\n\n\n来自选好最佳之后\n如果你强调了run execute等于啥都没有，或者强调了所有目标选择器同时完成解析，我应该会考虑给个最佳"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1571332980,
+            "txt_content": "CHElover_C60 发表于 2019-10-17 20:56\n这里加一个run execute就是为了把两段命令分割开，以此操控微延迟。\n另外我试过去掉run execute，没有达 ...\n主要的问题就是这样它分不开。\n你写了一个function就分开了。\n\n\n（那天晚上我写好了第一个题目，然后一看第二个题目一个命令不行，打不断，需要函数，这就得现场建数据包，又太晚了，就睡了。\n我又不想发没有自己试过的指令XD\n第二天起来被抢了XD）"
+        }
+    ]
+}

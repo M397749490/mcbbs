@@ -1,0 +1,99 @@
+{
+    "title": "【CBL|SPG】石锤！原版自瞄！",
+    "author": "SPGoding",
+    "replyCount": 18,
+    "timestamp": 1517805300,
+    "txt_content": " 本帖最后由 SPGoding 于 2018-9-23 10:30 编辑 \n\nHi，我是想射死一只蝙蝠的其实，然而minecraft的手感实在太差了(才不是我菜呢)，因此今天我们就将利用datapack做一个弓箭的辅助瞄准，能够预判目标走位以及弹道下坠，最终效果如图。（第一箭空了，因为蝙蝠实在太蛇皮啦！）\n\n我们拿Tag——话说\"Tag\"这个词还有\"#\"这个符号被s.bmj赋予的意义太多了——hacker表示神仙，target表示被瞄准的目标，marker表示玩家鼠标要瞄的地方。先来做一个最简单的吧：\n# spgoding_hacker:_init/init\n# 首先把下面要用到的变量全部定义，以后就不提了，可以不看这部分，都是dummy没什么特别的。\n# 储存target的motion\nscoreboard objectives add xMotion dummy\nscoreboard objectives add yMotion dummy\nscoreboard objectives add zMotion dummy\n\n# 储存target位置\nscoreboard objectives add xTarget dummy\nscoreboard objectives add yTarget dummy\nscoreboard objectives add zTarget dummy\n\n# 储存hacker位置\nscoreboard objectives add xHacker dummy\nscoreboard objectives add yHacker dummy\nscoreboard objectives add zHacker dummy\n\n# 储存marker位置\nscoreboard objectives add xMarker dummy\nscoreboard objectives add yMarker dummy\nscoreboard objectives add zMarker dummy\n\n# 储存距离\nscoreboard objectives add xDistance dummy\nscoreboard objectives add zDistance dummy\nscoreboard objectives add d dummy\n\n# 储存marker的变化距离\nscoreboard objectives add xDelta dummy\nscoreboard objectives add yDelta dummy\nscoreboard objectives add zDelta dummy\n\n# 常数\nscoreboard objectives add value dummy\nscoreboard players set c1 value 1\nscoreboard players set c10000 value 10000\nscoreboard players set c200 value 200\n\n# 临时变量\nscoreboard objectives add tmp dummy\n\n# modules\nfunction spgoding_hacker:sqrt/init复制代码# spgoding_hacker:tick\n# 给你要瞄准的东西加target\n# 这里比较偷懒，正经使用时小心锁上火球之类的东西…\ntag @e[type=!player,type=!area_effect_cloud,type=!item,type=!arrow] add target\n\n# 确保有一个marker\nexecute unless entity @e[tag=marker] run summon area_effect_cloud ~ ~ ~ {Tags:[\"marker\"],Duration:2147483647}\n\n# 获取离hacker最近的target的坐标，放大1000倍\n# 当然很容易溢出【摊手，我能怎么办，我也很绝望\nexecute at @p[tag=hacker] store result score @s xTarget run data get entity @e[sort=nearest,tag=target,limit=1] Pos[0] 1000\nexecute at @p[tag=hacker] store result score @s yTarget run data get entity @e[sort=nearest,tag=target,limit=1] Pos[1] 1000\nexecute at @p[tag=hacker] store result score @s zTarget run data get entity @e[sort=nearest,tag=target,limit=1] Pos[2] 1000\n\n# 计算出marker的位置\n# x坐标：\nscoreboard players operation @p[tag=hacker] xMarker = @p[tag=hacker] xTarget\n# y坐标：\nscoreboard players operation @p[tag=hacker] yMarker = @p[tag=hacker] yTarget\n# z坐标\nscoreboard players operation @p[tag=hacker] zMarker = @p[tag=hacker] zTarget\n\n# 改变marker位置\n# 为啥不直接tp? 这不是为咱后面做准备嘛\nexecute store result entity @e[tag=marker,limit=1] Pos[0] double 0.001 run scoreboard players get @p[tag=hacker] xMarker\nexecute store result entity @e[tag=marker,limit=1] Pos[1] double 0.001 run scoreboard players get @p[tag=hacker] yMarker\nexecute store result entity @e[tag=marker,limit=1] Pos[2] double 0.001 run scoreboard players get @p[tag=hacker] zMarker\n\n# 让hacker锁定marker\nexecute as @p[tag=hacker] at @s anchored eyes if entity @e[tag=target,sort=nearest,limit=1] run tp @s ~ ~ ~ facing entity @e[tag=marker,limit=1] eyes复制代码reload，然后使用/tag add @s hacker把自己变成神仙，弄几只动物，你就发现准心会锁着离你最近的target了。但现在这个辅助瞄准只适合即时命中且无重力的这类武器，可惜mc vanilla里并没有这种东西存在。远距离我们的辅助瞄准根本没用，因此我们做一些更改。\n\n首先使其能够预判弹道下坠。原理：根据target与hacker之间的距离，改变marker的y坐标，达到玩家准心提高的效果。\n\n# 添加以下命令\n\n# 获取hacker的坐标，放大1000倍\nexecute store result score @p[tag=hacker] xHacker run data get entity @p[tag=hacker] Pos[0] 1000\nexecute store result score @p[tag=hacker] yHacker run data get entity @p[tag=hacker] Pos[1] 1000\nexecute store result score @p[tag=hacker] zHacker run data get entity @p[tag=hacker] Pos[2] 1000\n\n# 计算target与hacker的水平距离(垂直距离呢？那抛物线太玄学了，我们不考虑。假设玩家和目标接近同一水平面。)\n# 计算原理：d=√[(x ^2-x^2)^2+(z^2-z^2)^2]\n# 下面是计算xDistance^2\nscoreboard players operation @p[tag=hacker] xDistance = @p[tag=hacker] xTarget\nscoreboard players operation @p[tag=hacker] xDistance -= @p[tag=hacker] xHacker\nscoreboard players operation @p[tag=hacker] xDistance *= @p[tag=hacker] xDistance\n# 下面计算zDistance^2\nscoreboard players operation @p[tag=hacker] zDistance = @p[tag=hacker] zTarget\nscoreboard players operation @p[tag=hacker] zDistance -= @p[tag=hacker] zHacker\nscoreboard players operation @p[tag=hacker] zDistance *= @p[tag=hacker] zDistance\n# 下面算出d\nscoreboard players operation @p[tag=hacker] d = @p[tag=hacker] xDistance\nscoreboard players operation @p[tag=hacker] d += @p[tag=hacker] zDistance\n# 开根号与今天的教程无关，所以spgoding_hacker:sqrt/calculate的\n# 内容就不放了，开根号部分大家可以看chyx dalao的讲解，很详细XD：www.bilibili.com/av17932394\n# 不知有没有不用开根号的方法？或许我做得太麻烦了，求指点~\nscoreboard players operation @p[tag=hacker] sqrtInput = @p[tag=hacker] d\nexecute as @p[tag=hacker] run function spgoding_hacker:sqrt/calculate\nscoreboard players operation @p[tag=hacker] d = @p[tag=hacker] sqrtOutput\n\n# 根据d我们可以算出准心要抬高的距离\n# 根据测试，大约每20格，需要抬高准心1格，即\n# deltaY = d / 20 * 1 (这其实不很准确，你有更精确的数值/方法可以替换)\n# cXX 是玩家假名，其值在_init/init里已经设置为XX\n# 所以为什么是c200？我也不知道啊（摊手）瞎加零试出来的#run反正能用\nscoreboard players operation @p[tag=hacker] yDelta = @p[tag=hacker] d\nscoreboard players operation @p[tag=hacker] yDelta /= c200 value\nscoreboard players operation @p[tag=hacker] yDelta *= c1 value\n\n# 计算出marker的位置\n# x, z坐标不变，y坐标：\nscoreboard players operation @p[tag=hacker] yMarker = @p[tag=hacker] yTarget\nscoreboard players operation @p[tag=hacker] yMarker += @p[tag=hacker] deltaY\n\n# “改变marker位置”开始命令不变，不再赘述复制代码现在，我们的准心会根据hacker与target的位置而预判弹道下坠啦。但即使如此，这个挂也只适用于即时命中的弹道武器，很遗憾minecraft vanilla里也没有这种东西。\n\n\n为了让弓表现得更好，我们可以预判target的走位。原理：根据d，估计出箭到达target的时间；由时间与motion估计出target的位移（显然这是不准确的，但可以保证命中率），由位移计算出marker应当在的位置。\n# spgoding_hacker:tick\n# 加入以下代码：\n# 获取离hacker最近的target的Motion，放大1000倍\nexecute as @p[tag=hacker] at @s store result score @s xMotion run data get entity @e[sort=nearest,tag=target,limit=1] Motion[0] 1000\nexecute as @p[tag=hacker] at @s store result score @s yMotion run data get entity @e[sort=nearest,tag=target,limit=1] Motion[1] 1000\nexecute as @p[tag=hacker] at @s store result score @s zMotion run data get entity @e[sort=nearest,tag=target,limit=1] Motion[2] 1000\n\n# 下面我们预判一下target的走位\n# 首先估计一下箭到达target的时间tmp（懒得改名了，就tmp了）：\nscoreboard players operation @p[tag=hacker] tmp = @p[tag=hacker] d\n# 这里的c15000完全是经验之谈【逃\nscoreboard players operation @p[tag=hacker] tmp /= c15000 value\n# 然后根据tmp和Motion估计一下位移\nscoreboard players operation @p[tag=hacker] xDelta = @p[tag=hacker] xMotion\nscoreboard players operation @p[tag=hacker] xDelta *= @p[tag=hacker] tmp\nscoreboard players operation @p[tag=hacker] zDelta = @p[tag=hacker] zMotion\nscoreboard players operation @p[tag=hacker] zDelta *= @p[tag=hacker] tmp\n\n# 计算出marker的位置\n# x坐标：\nscoreboard players operation @p[tag=hacker] xMarker = @p[tag=hacker] xTarget\nscoreboard players operation @p[tag=hacker] xMarker += @p[tag=hacker] xDelta\n# y坐标(命令未改动)：\nscoreboard players operation @p[tag=hacker] yMarker = @p[tag=hacker] yTarget\nscoreboard players operation @p[tag=hacker] yMarker += @p[tag=hacker] yDelta\n# z坐标\nscoreboard players operation @p[tag=hacker] zMarker = @p[tag=hacker] zTarget\nscoreboard players operation @p[tag=hacker] zMarker += @p[tag=hacker] zDelta复制代码现在，已经是一个完美的辅助瞄准了……吗？并不是，minecraft vanilla里的弓箭有扩散，距离远了以后并不能保证命中率。同时距离过远，target的运动不可预测，这该怎么办呢？\n\n古人曾经说过，打得准不如接得准\n因此，我们可以使用以下一句终极命令，我就用它来结束今天的教程：\n#spgoding_hacker:final_tick\nexecute at @p[tag=hacker] run teleport @e[tag=target,limit=1,sort=nearest] ^ ^ ^1复制代码Thx for your watching!\n\n\n\n附datapack下载：\n\n\n\nspgoding_haker.zip\n(5.63 KB, 下载次数: 113)\n\n\n\n2018-2-5 12:30 上传\n点击文件名下载附件\nspgoding_hacker阅读权限: 10\n\n\n\n\n\n感谢CBL里dalaos，感谢chyx的开根讲解\n感谢s.bmj\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1517809140,
+            "txt_content": "想到了玩起床时一群人用弓把对面家压得出不来，打完之后对面大喊一声“自瞄挂！”"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1517821260,
+            "txt_content": "震惊，外挂作者公开软件代码，游戏生态恐将崩溃"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1517823600,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-2-5 17:53 编辑 \nkakagou12 发表于 2018-2-5 17:01\n震惊，外挂作者公开软件代码，游戏生态恐将崩溃\n微博观光团是啥…我要报警的 emm看到中文论坛发的了…\n\n这可是以原版的方式制作的原版外挂！"
+        },
+        {
+            "author": "x小奇",
+            "timestamp": 1517824380,
+            "txt_content": "我满怀憧憬的进来，看到了代码之后，留下了金粒，然后拜拜\n（顺便问一句，大佬，要腿部挂件吗？）"
+        },
+        {
+            "author": "906761258",
+            "timestamp": 1517994900,
+            "txt_content": "300M 外弓箭不屏息！是自瞄，实锤了！"
+        },
+        {
+            "author": "萌萌的小白",
+            "timestamp": 1517996040,
+            "txt_content": "有没有路飞挂"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1518006600,
+            "txt_content": "自从出了改准星的功能后我就在想啥时候有人会做自瞄...\n55开走起"
+        },
+        {
+            "author": "风扇滑翔翼",
+            "timestamp": 1518160020,
+            "txt_content": " 本帖最后由 风扇滑翔翼 于 2018-2-9 15:08 编辑 \n\n这叫内挂\n游戏内挂上去的东西而不是游戏外挂上去的游戏\n或许可以直接把箭实体TP到蝙蝠头上？\n或许可以做一台巨大的红石计算机计算抛物线←或许传说中的Comeputer Craft可以做到"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1518160200,
+            "txt_content": "风扇滑翔翼 发表于 2018-2-9 15:07\n这叫内挂\n游戏内挂上去的东西而不是游戏外挂上去的游戏\n或许可以直接把箭实体TP到蝙蝠头上？\n直接tp不帅气【逃\n不过有dalao在做自动追踪…似乎没发到mcbbs\n红石什么的是不可能的，这辈子都不可能碰的"
+        },
+        {
+            "author": "Mithey",
+            "timestamp": 1518160560,
+            "txt_content": "这些函数再过半个月看，你会发现看不懂自己写的是什么了"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1518160680,
+            "txt_content": "Mithey 发表于 2018-2-9 15:16\n这些函数再过半个月看，你会发现看不懂自己写的是什么了\n不存在的…\n就跟你永远看得懂自己写的hello world是什么意思一样\n【逃"
+        },
+        {
+            "author": "Mithey",
+            "timestamp": 1518161460,
+            "txt_content": "SPGoding 发表于 2018-2-9 15:18\n不存在的…\n就跟你永远看得懂自己写的hello world是什么意思一样\n【逃\n我写了个连杀系统过了一星期再看就看不懂自己的思路了hhh"
+        },
+        {
+            "author": "风扇滑翔翼",
+            "timestamp": 1518165240,
+            "txt_content": "SPGoding 发表于 2018-2-9 15:10\n直接tp不帅气【逃\n不过有dalao在做自动追踪…似乎没发到mcbbs\n红石什么的是不可能的，这辈子都不可能碰的 ...\n吧蝙蝠TP到抛物线路径上XD"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1518202380,
+            "txt_content": "Mithey 发表于 2018-2-9 15:16\n这些函数再过半个月看，你会发现看不懂自己写的是什么了\n+1\n从不写注释\n从不写备忘\n写完就扔"
+        },
+        {
+            "author": "翼水网络",
+            "timestamp": 1518587400,
+            "txt_content": "Mithey 发表于 2018-2-9 15:31\n我写了个连杀系统过了一星期再看就看不懂自己的思路了hhh\n论注释的重要性（逃"
+        },
+        {
+            "author": "878淡淡",
+            "timestamp": 1518677580,
+            "txt_content": "這真是太神啦"
+        },
+        {
+            "author": "达斯·龙须",
+            "timestamp": 1518849000,
+            "txt_content": "洗不了洗不了"
+        },
+        {
+            "author": "Folsiti",
+            "timestamp": 1519357500,
+            "txt_content": "把蝙蝠tp"
+        }
+    ]
+}

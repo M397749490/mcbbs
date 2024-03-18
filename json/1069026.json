@@ -1,0 +1,59 @@
+{
+    "title": "插件是如何实现TNT爆炸让四周的方块变成掉落沙四溅的",
+    "author": "aa0307bb",
+    "replyCount": 10,
+    "timestamp": 1593269940,
+    "txt_content": "是有现成的第三方API？（不过比起套用API，我更想知道原理",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593276480,
+            "txt_content": "监听EntityExplodeEvent，有一个方法blockList​()，可以获取被tnt破坏的方块列表，替换为下落的沙子实体即可"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593279480,
+            "txt_content": "疾风暗影 发表于 2020-6-28 00:48\n监听EntityExplodeEvent，有一个方法blockList​()，可以获取被tnt破坏的方块列表，替换为下落的沙子实体即 ...\n“替换”是指遍历这个方块列表，获取每个方块的Location然后在相同的Location生成与该方块对应的掉落沙吗就行了吗？\n如果是的话，有几个问题：\n①所以不再需要自己去计算每个掉落沙的运动参数？\n②因为我们没有去cancel这个EntityExplodeEvent，所以被炸掉的方块会照常消失。而且服务器对这些掉落沙的运动参数的计算是发生在“替换成掉落沙”这个过程之后？"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593280380,
+            "txt_content": "aa0307bb 发表于 2020-6-28 01:38\n“替换”是指遍历这个方块列表，获取每个方块的Location然后在相同的Location生成与该方块对应的掉落沙吗 ...\nfor(Block block : e.blockList())\n{\n\nfloat x = (float) -0.5 + (float) (Math.random() * ((0.5 - -0.5) + 1));\nfloat y = (float) -1 + (float) (Math.random() * ((1 - -1) + 1));\nfloat z = (float) -0.5 + (float) (Math.random() * ((0.5 - -0.5) + 1));\nFallingBlock fb = block.getWorld().spawnFallingBlock(block.getLocation(), Material.SAND);\n\n\nfb.setVelocity(new Vector(x, y, z));\nblock.setType(Material.AIR);\n\n}\n\n也就是先设成空气(移除)，然后生成沙子，计算轨迹\n计算公式自己调参数\n\n凭印象写的，可能有小错"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593285780,
+            "txt_content": "疾风暗影 发表于 2020-6-28 01:53\nfor(Block block : e.blockList())\n{\n感谢！\n问亿下：\n①fb.setVelocity()设置的速度的单位是？（m/tick？）\n②你用的是spawnFallingBlock(Location, Material, byte)\n我想换成\nspawnFallingBlock(Location, MaterialData)或者（好吧MaterialData是过时的）\nspawnFallingBlock(Location, BlockData)\n这第二个参数 BlockData该怎么填\n③这里spawnFallingBlock(block.getLocation(), Material.SAND)设定掉落沙全是固定的沙子，\n该如何替换成与block（取自for(Block block : e.blockList())循环）类型相同"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593290820,
+            "txt_content": "blockdata是带有方块状态的量，比如带方向的铁砧，用Bukkit.createBlockdata创建\n\n与block相同的话自己用getType获取对应的material"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593320040,
+            "txt_content": "疾风暗影 发表于 2020-6-28 04:47\nblockdata是带有方块状态的量，比如带方向的铁砧，用Bukkit.createBlockdata创建\n\n与block相同的话自己用ge ...\n①似乎Bukkit.createBlockdata是1.12没有的（？\n用↓这个曲线救国\nblock.getWorld().spawnFallingBlock(block.getLocation(), block.getType(), (byte) block.getTypeId());\n但是发现会把草炸成枯死的灌木\n\n②另外有没有什么办法让爆炸产生的掉落沙落地之后不变成方块（fb.isOnGround()？）\n（仅限“爆炸产生的掉落沙”，其它事件产生的掉落沙正常变成方块）"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593320880,
+            "txt_content": "aa0307bb 发表于 2020-6-28 12:54\n①似乎Bukkit.createBlockdata是1.12没有的（？\n用↓这个曲线救国\nfallingBlock.setDropItem(false);\n\n遇到问题请先查询javadoc"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593321600,
+            "txt_content": "疾风暗影 发表于 2020-6-28 13:08\nfallingBlock.setDropItem(false);\n\n遇到问题请先查询javadoc\n查过了，但我问的是“不要变成方块”而不是“不要掉落物品”，这似乎找不到现成的API"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593322020,
+            "txt_content": "aa0307bb 发表于 2020-6-28 13:20\n查过了，但我问的是“不要变成方块”而不是“不要掉落物品”，这似乎找不到现成的API ...\nhttps://minecraft.gamepedia.com/Falling_Block/ED\n\nnms设置entity的time为接近600的值，time超过600会自动删除不留方块"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593326820,
+            "txt_content": "疾风暗影 发表于 2020-6-28 13:27\nhttps://minecraft.gamepedia.com/Falling_Block/ED\n\nnms设置entity的time为接近600的值，time超过600会 ...\nfb.setTicksLived()也可以设置time\n用“时长超过600tick”这个特性来实现的话，\n太接近600 爆炸效果没怎样显示就没了\n稍微小一点，爆炸效果有了但是那些炸得不高的掉落沙就变成方块了\n\n我尝试过在监听器的for循环里把每个FallingSand加进一个列表\nfor(Block block : e.blockList()){\n    ...\n    PluginMain.fb_ls.add(fb);\n}\n\n再开一个每tick执行一次的任务用于监视这个插件创建的掉落沙，用isOnGround()判断掉落沙掉地上了，然后就fb.remove()来清除这个掉落沙\nfor(FallingBlock fb : PluginMain.fb_ls) {                        \n                        if(fb.isOnGround()) {\n                                fb.remove();\n                                PluginMain.fb_ls.remove(fb);\n                        }\n}\n\n但是行不通"
+        }
+    ]
+}

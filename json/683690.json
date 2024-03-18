@@ -1,0 +1,49 @@
+{
+    "title": "有关JAVA反编译",
+    "author": "langyo",
+    "replyCount": 8,
+    "timestamp": 1490965140,
+    "txt_content": "可能这话题比较旧了,但还是希望能有人来,互相讨论有关此的问题\n\n原因呐,我看@andylizi 拆快照其实很辛苦的,即便是直接只看常量字符串,也是很蛋疼的\n以及MCP,其实仍然有很大一部分诸如field_xxxxxx_xx等这种令人懵逼的鬼东西,MCP官方也是可以\n劳资已经抄用掉两个大本子了,现在正在考虑弄个特别厚的,专门抄entity.java和block.java这两特别大的类…\n以及,entity.java太长了,光是import就含了五六十个类;其中有个moveEntity方法,差点第二个本子不够用,一个方法居然占用了十几页的空间才勉强抄完,我也因此修仙到4点;目前entity.java进度35%\n\n\n反编译程序的原理是什么?根据汇编代码生成语法树,然后不断合并、剪枝、去除无用代码,最终再统一批量命名\nMCP的原理呢?还没看.py文件,不能妄自下定论\n个人猜测,首先MCP官方先对反编译的成品进行解析,比对之前新增或减去的MCP成品,然后把正确的方法名变量名统一修改掉,再用python对成品进行语法树分析,把每个对应方法名、变量名提取特征(比方说,在MCP反编译后某一部分的语法树,匹配语法树配置文件里的某方法,那么就可以断定这个方法是原先解析的某方法,并由此再推断出所有与此相关的方法、变量对应于语法树配置文件的某些内容),写入语法树配置文件\n如果有误,还请素质提出,谢谢\n\n但为什么会出现之前所提的没注释的变量名、方法名?一是语法树配置文件里确实没记录,二则是反编译的游戏版本比MCP的支持版本高,多出了一些新方法\n\n由此,请容我我下个定论,新版本快照理论讲可以被最新MCP解析,除了多出的class文件确实尴尬了,多出或减去的方法、变量仍然可以解析\n这么做会有个优点,由于版本跨度短,而且新发布版本时官方也会大概给我们指点方向,所以我们可以很快地依托之前的MCP辅助解析,而不是完全反编译、看那些生涩的各种标号\n\n因此,我们可能要自己造轮子了,追踪快照、在上一版本基础上解析源码相对来讲是很容易的\n\n欢迎提出错误、纠正/实现思路,但语气请别太激烈,暗讽特别容易擦火花,我不希望发生这种事情\n(其实TRP泛交流群天天出这种破事)\n(等暑假我再重新加群,我会拿出些资本来作为理由)\n\n@FHC红石 @chyx @ustc_zzzz @Zero_Exact \n其他人就暂时不@了,因为你们可能不屑一顾,这种臆断属于小儿科\n\n不用骂我收膝盖误导人,满足自己虚荣心什么的,因为这么做其实对我根本没有什么实实在在的好处\n\n最后,别评分,我更需要的是有营养的回复;看不懂就右上角关闭吧,别回复看不懂求教一类,我担当不起\n(其实很缺积分,少赚了12天的积分,毕竟禁言;差200积分就9级了呢)\n\n(最近弄出了个非常棒的压缩算法,不依赖字典,也不依赖特别复杂的数学方法,简单却有效,我能在这里公开么?)",
+    "replies": [
+        {
+            "author": "andylizi",
+            "timestamp": 1491010800,
+            "txt_content": " 本帖最后由 andylizi 于 2017-4-1 09:47 编辑 \n\nMCP是否支持新版本快照我觉得是不一定的，这取决于mc使用的混淆器的策略\n\n举个梨子，假设mc的源码的实体包里有如下3个类：（按字母顺序）\nChicken.classCow.classSheep.class\n\n然后混淆器进行混淆后，变为\na.class （对应Chicken）b.class （对应Cow）c.class （对应Sheep）\n\n于是mcp进过研究后就知道了他们的对应关系。\n但是呢，在新快照里，加入了鹦鹉这种生物，于是实体包内现在是这样子（字母顺序）\nChicken.classCow.classParrot.classSheep.class\n\n混淆器进行混淆：\na.class （对应Chicken）b.class （对应Cow）c.class （对应Parrot）d.class （对应Sheep）\n\n然后mcp如果不升级，就会愉快把 c.class 翻译为 Sheep 了。\n\n其实mcp的工作原理应该没你想象的那么复杂吧？在mcp根目录/conf下有好几个配置文件，joined.srg开头部分如下（mcp931，对应1.10）PK: . net/minecraft/src\nPK: net net\nPK: net/minecraft net/minecraft\nPK: net/minecraft/client net/minecraft/client\nPK: net/minecraft/client/main net/minecraft/client/main\nPK: net/minecraft/realms net/minecraft/realms\nPK: net/minecraft/server net/minecraft/server\nCL: a net/minecraft/util/text/TextFormatting\nCL: aa net/minecraft/command/CommandEffect\nCL: aaa net/minecraft/entity/projectile/EntityLargeFireball\nCL: aab net/minecraft/entity/IProjectile\nCL: aac net/minecraft/entity/projectile/ProjectileHelper\nCL: aad net/minecraft/entity/projectile/EntityShulkerBullet复制代码（PK意为package，包；CL意为class，类；开头的 . 意为根目录/默认包）\n所以我们可以看出，在1.10的核心中， aac.class 这个类本来的名字（严格来说，是mcp的开发人员认为/取名为）叫做 net.minecraft.entity.projectile.ProjectileHelper\n也就是简单的记录了对应关系而已。\n\n\n至于为什么要有field_xxxxxx_xx，建议看一下@ustc_zzzz  大佬写的mod开发教程里的附录C-混淆与反射"
+        },
+        {
+            "author": "madessxc",
+            "timestamp": 1491039840,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1491049080,
+            "txt_content": " 本帖最后由 langyo 于 2017-4-1 20:20 编辑 \nandylizi 发表于 2017-4-1 09:40\nMCP是否支持新版本快照我觉得是不一定的，这取决于mc使用的混淆器的策略\n\n举个梨子，假设mc的源码的实体包 ...\n不错,其实并不需要那么复杂,只要记录对应关系足矣\n但是,这也是我发帖的原因了,我希望MCP更聪明一点,依靠语法树而不是简单对应名字来确定类\n但是,MCP官方没这么做,造轮子需要的时间很长、也很累,毕竟要构造能够化简语法树的程序也是够蛋疼的,很难\n\n→_→以及,谢谢你的链接\n\n清明节快乐!"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1491049260,
+            "txt_content": "madessxc 发表于 2017-4-1 17:44\n你之前被禁言还掉了一级，同情\n没掉啊?另外那个v2是我小号"
+        },
+        {
+            "author": "madessxc",
+            "timestamp": 1491050820,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1491056160,
+            "txt_content": "langyo 发表于 2017-4-1 20:18\n不错,其实并不需要那么复杂,只要记录对应关系足矣\n但是,这也是我发帖的原因了,我希望MCP更聪明一点,依靠语 ...\nhttps://github.com/FyberOptic/DynamicMappings ？"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1491056460,
+            "txt_content": "u.s.knowledge 发表于 2017-4-1 22:16\nhttps://github.com/FyberOptic/DynamicMappings ？\n谢谢了\n\n但只要MCP里有配置文件就足够了啊?\n而且这Star和Fork数不科学"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1528966080,
+            "txt_content": "andylizi 发表于 2017-4-1 09:40\nMCP是否支持新版本快照我觉得是不一定的，这取决于mc使用的混淆器的策略\n\n举个梨子，假设mc的源码的实体包 ...\n还好只是命名混淆(ProGuard)，如果哪天Mojang要是抽风用ZelixKlassmaster和Stringer混淆器来一波混淆,MCP就凉凉了。这2个混淆器混淆的很变态，AAC/Reflex就是用的这2个混淆器。\n贼恐怖\n"
+        }
+    ]
+}

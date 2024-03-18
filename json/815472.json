@@ -1,0 +1,69 @@
+{
+    "title": "一个小小小点卡插件的实现 -大神还是别进来喷我了",
+    "author": "3357dou",
+    "replyCount": 12,
+    "timestamp": 1534585800,
+    "txt_content": " 本帖最后由 3357dou 于 2018-8-20 16:59 编辑 \n\n开始的开始 我要感谢这么些天来 论坛的各位大佬给我的帮助以下为@的人;\n[url=]@810587921[/url]\n@耗子 \n由于等级不够所以只艾特了对我帮助较大的人\n同时感谢以下的教程作者\n链接:http://www.mcbbs.net/forum.php?m ... eid%26typeid%3D1029\n正题\n因为本人的服务器的需求所以自己编写了这样的一个小小的插件(本人学过一段时间的Java，一开始我在论坛发帖子 不知道为什么后来有人回复我不知道所以我并不知道有类似的插件 当然这是后话了)\n以下为实现这个插件的思路\n在玩家加入的时候对玩家的点卡余额进行查询 如果大于0那么则可以进入服务器 否则将玩家踢出\n这段代码的实现使用了PlayerJoinEvent 这个类的意思是玩家加入服务器时触发\n以下为源码\npublic class ListenerjoinPlayerTimeCardBalance implements Listener{//监听器的类\npublic static Connection conn;\n    public static Statement stmt;\n    @EventHandler\n    public void onPlayerJoin(PlayerJoinEvent event)//玩家加入时触发\n    {\n        Player player =event.getPlayer();//获取加入玩家\n        String playername = player.getName();//获取加入\n玩家的名字\n        try{\n            Class.forName(\"org.sqlite.JDBC\");//加载驱动\n            conn =DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//连接数据库\n            try{如果是第一次加载那么将创建表 如果表存在这意味着插件不是第一次运行则会报错 因此报错后插件将判断插件不是第一次运行\n            stmt = conn.createStatement();\n            String sql =\"CREATE TABLE xx\"+\n                        \"(Player TEXT NOT NULL,\"+\n                        \"Balance INT NOT NULL)\";\n            stmt.executeUpdate(sql);//执行sql语句\n            stmt.close();\n            conn.close();\n            player.kickPlayer(\"§4您的点卡余额不足！无法继续游戏！\");//将玩家踢出\n            }catch (SQLException e){\n                stmt = conn.createStatement();\n                String sql =\"SELECT * FROM xx WHERE Player='\"+playername+\"'\";//读取玩家的点卡余额\n                ResultSet jg =stmt.executeQuery(sql);\n                int balance = jg.getInt(\"Balance\");//获取余额\n                if(balance<=0){//进行判断\n                    player.kickPlayer(\"§4您的点卡余额不足！无法继续游戏！\");//踢出玩家\n                }else{\n                    player.sendMessage(\"§a您的点卡余额为： \"+String.valueOf(balance)+\",祝您游戏愉快\"); //向玩家发出信息  \n                }\n            stmt.close();\n            conn.close();\n            }\n        }catch(ClassNotFoundException | SQLException e){\n            getLogger().info(\"数据库连接失败!\");//如果数据库连接失败向后台发出错误的信息\n            getLogger().info(e.getMessage());//向后台发出错误信息\n            String sqlerr =e.getMessage();\n            if (sqlerr == \"ResultSet closed\")//如果没有查询到数据则意味着玩家是第一次加入\n            {\n                getLogger().info(\"新玩家加入!\");//对服务器发出新玩家的公告\n                String sql = \"INSERT INTO xx VALUES ('\"+playername+\"','0')\";//sql语句\n                try {\n                    stmt.execute(sql);//执行语句\n                    stmt.close();\n                    conn.close();\n                } catch (SQLException ex) {\n                    getLogger().info(\"语句执行失败！\");//如果失败在后台发出警告\n                }\n                player.kickPlayer(\"§4您的点卡余额不足！无法继续游戏！\");//踢出玩家\n            }\n        }\n    }\n    @EventHandler\n    public void onPlyaerQuit (PlayerQuitEvent event)//玩家退出时\n    {\n        Player player =event.getPlayer();\n        long jointime = player.getLastPlayed()/1000L;//获取加入的unix时间缀\n        long quittime = System.currentTimeMillis()/1000L;//获取当前时间的unix时间缀\n        int gametime = (int) (quittime - jointime);//相减得出游戏时间\n        if(gametime>=60){//如果游戏时间大于0 这个主要是防止玩家加入游戏后因为卡顿而退出游戏 从而对点卡余额的浪费\n            int fz = gametime/60;//得出一共玩了多少分钟 收费标准为1分钟1点券余额\n            try{\n                Class.forName(\"org.sqlite.JDBC\");//加载驱动\n                conn =DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//连接数据库\n                stmt = conn.createStatement();\n                String sql =\"SELECT * FROM xx WHERE Player='\"+player.getName()+\"'\";//sql语句\n                ResultSet jg =stmt.executeQuery(sql);\n                int balance = jg.getInt(\"Balance\");//获取玩家剩余的点卡余额\n                int ye = balance - fz; //剩下的余额\n                sql = \"UPDATE xx SET Balance='\"+ String.valueOf(ye) +\"' WHERE Player='\"+ player.getName() +\"'\";\n                stmt.execute(sql);//执行sql语句\n            } catch (ClassNotFoundException | SQLException ex) {\n                getLogger().info(\"数据库加载失败!\");//如果失败向后台报错\n            }\n        }\n    }复制代码\n对于命令和plugin.yml的设置\nplugin.yml的设置：\nname: TimeCard      #插件名\nmain: com.zl.TimeCard      #插件的包名+主类\nversion: 1.0       #版本\ncommands:\n   tclist:\n     description: 查询自身点卡余额\n     usage: /tclist\n     permission: tc.user\n     permission-message: §4您没有足够的权限是使用这个权限!\n   tcadd:\n     desciption: 为指定玩家增加点卡余额\n     usage: /tcadd\n     permission: tc.admin\n     permission-message: §4您没有足够的权限是使用这个权限!\n   tcremove:\n     desciption: 为指定玩家扣除点卡余额\n     usage: /tcremove\n     permission: tc.admin\n     permission-message: §4您没有足够的权限是使用这个权限!\n   tcset:\n     desciption: 为指定玩家设置点卡余额\n     usage: /tcset\n     permission: tc.admin\n     permission-message: §4您没有足够的权限是使用这个权限!\npermissions: //玩家权限组\n   tc.user: \n     default: true\npermissions: //op权限组\n   tc.admin: \n     default: op复制代码程序命令方面：public class TimeCard extends JavaPlugin {//主类\n    @Override\n    public void onEnable() {\n            //启用插件时自动发出\n            getLogger().info(\"点卡插件加载成功!\");\n            getServer().getPluginManager().registerEvents(new ListenerjoinPlayerTimeCardBalance(), this);//注册监听器\n            File file =new File(\"plugins/TimeCard\");    \n//如果文件夹不存在则创建    \n            if  (!file .exists()  && !file .isDirectory())      \n            {       \n                file .mkdir();     \n            }  \n    }\n\n    @Override\n    public void onDisable() {//关闭插件时发出\n            //关闭插件时自动发出\n            getLogger().info(\"点卡插件卸载成功!\");\n    }\n    @Override\n    public boolean onCommand(CommandSender sender,Command cmd,String label,String[] args)  {//命令的监听\n        if(cmd.getName().equalsIgnoreCase(\"tclist\")){//点卡查询余额指令\n            try{\n                Connection conn = DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//加载数据库\n                Statement stmt= conn.createStatement();\n                String sql =\"SELECT * FROM xx WHERE Player='\"+sender.getName()+\"'\";\n                ResultSet jg =stmt.executeQuery(sql);\n                int balance = jg.getInt(\"Balance\");//点卡余额\n                sender.sendMessage(\"§a您的点卡余额为： \"+String.valueOf(balance));   //向玩家发出的信息\n                stmt.close();\n                conn.close();\n                }catch (SQLException e){\n                    getLogger().info(\"数据库加载失败!\");//失败后的报错\n                    getLogger().info(e.getMessage());//错误信息\n            }\n            return true;\n        }\n        else if(cmd.getName().equalsIgnoreCase(\"tcadd\")){//op的指令 给玩家加点卡余额\n                try{\n                Connection conn = DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//连接数据库\n                Statement stmt= conn.createStatement();\n                String sql =\"SELECT * FROM xx WHERE Player='\"+args[0]+\"'\";\n                ResultSet jg =stmt.executeQuery(sql);\n                int balance = jg.getInt(\"Balance\");//获取余额\n                getLogger().info(String.valueOf(balance));\n                int yzjdye =Integer.parseInt(args[1]);//要加的点卡余额数量\n                balance =balance + yzjdye;//相加\n                sql = \"UPDATE xx SET Balance='\"+String.valueOf(balance)+\"' WHERE Player='\"+args[0]+\"'\";\n                stmt.execute(sql);\n                sender.sendMessage(\"§a添加成功!\");//向op发出信息\n                stmt.close();\n                conn.close();\n                }catch (SQLException e){\n                    getLogger().info(\"数据库加载失败!\");//报错\n                    getLogger().info(e.getMessage());//错误信息\n                    sender.sendMessage(\"§a添加失败!\");//向op发出错误\n                }    \n                return true;\n        }\n        else if(cmd.getName().equalsIgnoreCase(\"tcremove\")){//为指定人物扣除点卡余额\n              try{\n                Connection conn = DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//连接数据库\n                Statement stmt= conn.createStatement();\n                String sql =\"SELECT * FROM xx WHERE Player='\"+args[0]+\"'\";\n                ResultSet jg =stmt.executeQuery(sql);\n                int balance = jg.getInt(\"Balance\");//获取余额\n                int yzjdye =Integer.parseInt(args[1]);\n                balance =balance - yzjdye;//相减\n                sql = \"UPDATE xx SET Balance='\"+String.valueOf(balance)+\"' WHERE Player='\"+args[0]+\"'\";\n                getLogger().info(sql);\n                stmt.execute(sql);\n                sender.sendMessage(\"§a删除成功!\");//向op发出成功\n                stmt.close();\n                conn.close();\n                }catch (SQLException e){\n                    getLogger().info(\"数据库加载失败!\");//报错\n                    getLogger().info(e.getMessage());//错误原因\n                    sender.sendMessage(\"§a删除失败!\");//向op发出失败\n                }    \n                return true;\n        }\n        else if(cmd.getName().equalsIgnoreCase(\"tcset\")){//op设置玩家点卡余额\n            try{\n                Connection conn = DriverManager.getConnection(\"jdbc:sqlite:plugins/TimeCard/sql.db\");//连接服务器\n                Statement stmt= conn.createStatement();\n                String sql = \"UPDATE xx SET Balance='\"+args[1]+\"' WHERE Player='\"+args[0]+\"'\";\n                getLogger().info(sql);\n                stmt.execute(sql);\n                sender.sendMessage(\"§a设置成功!\");//向op发出成功\n                stmt.close();\n                conn.close();\n                }catch (SQLException e){\n                    getLogger().info(\"数据库加载失败!\");//报错\n                    getLogger().info(e.getMessage());//错误原因\n                    sender.sendMessage(\"§a设置失败!\");//向op发出错误\n                }    \n                return true;\n        }\n        return false;\n    }\n}复制代码最后的最后\n我发这个帖子 主要是为论坛作贡献\n因为我在制作插件的过程 翻遍了论坛的教程\n始终没有几个帖子是关于插件实战的\n因此我这个帖子是为了抛砖引玉\n因为实践永远比理论强\n在此 我再一次的感谢 在我编写这个插件过程中 论坛大佬对我的帮助\n也感谢论坛为我们提供这样的环境\n帖子发表时间20180818 1800\n",
+    "replies": [
+        {
+            "author": "耗子",
+            "timestamp": 1534591260,
+            "txt_content": "数据库连接可以持续打开，不必每次玩家加入服务器时打开。。。"
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534591320,
+            "txt_content": "耗子 发表于 2018-8-18 19:21\n数据库连接可以持续打开，不必每次玩家加入服务器时打开。。。\n不知道为什么那个会提示数据库锁"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1534593420,
+            "txt_content": "3357dou 发表于 2018-8-18 19:22\n不知道为什么那个会提示数据库锁\n因为你close了数据库连接。。。"
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534595340,
+            "txt_content": "耗子 发表于 2018-8-18 19:57\n因为你close了数据库连接。。。\n哦哦哦哦哦"
+        },
+        {
+            "author": "erry64",
+            "timestamp": 1534597920,
+            "txt_content": "[code]复制代码代码了解一下，看起来有点累，不过还是鼓励创作"
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534599720,
+            "txt_content": "berry64 发表于 2018-8-18 21:12\n代码了解一下，看起来有点累，不过还是鼓励创作\n第一次发这种贴 有考虑用 不过怕搞不好\n所以就没了"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1534750200,
+            "txt_content": "2-6: 排版干净，文字通顺，条理清晰，有有效内容, 无错别字；\n2-9: 质量过于低下或内容过于简陋的教程贴会被删除；\n请使用[code]标签来优化您的排版，希望您可以整改。"
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534755480,
+            "txt_content": "gooding300 发表于 2018-8-20 15:30\n请使用[code]标签来优化您的排版，希望您可以整改。\n哦哦哦\n第一次发这种贴没啥经验"
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534755600,
+            "txt_content": "@gooding300 看看现在行不行"
+        },
+        {
+            "author": "ybw0014",
+            "timestamp": 1534831440,
+            "txt_content": "其实创建表可以加个IF NOT EXIST就不用加try-catch了."
+        },
+        {
+            "author": "3357dou",
+            "timestamp": 1534857960,
+            "txt_content": "ybw0014 发表于 2018-8-21 14:04\n其实创建表可以加个IF NOT EXIST就不用加try-catch了.\nok"
+        },
+        {
+            "author": "灵铭KK",
+            "timestamp": 1534862280,
+            "txt_content": "都试试吧！加油"
+        }
+    ]
+}

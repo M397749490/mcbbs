@@ -1,0 +1,49 @@
+{
+    "title": "[15w45a|TML|乾坤]模拟自然生成球类建筑",
+    "author": "乾.坤",
+    "replyCount": 8,
+    "timestamp": 1447335660,
+    "txt_content": " 本帖最后由 乾.坤 于 2015-11-12 21:57 编辑 \n\n大家好，我是TML的乾坤，这次来参加工机巧艺的作品是:模拟自然生成球类建筑 是一个概念性的原型机，又因为是快照版本，还有电路用到了区块价值的一些东西，导致BUG更多，这次主要是分享一下我的脑洞XD\n话不多说，首先说是要生成建筑对吧，那先来看看（我都看不下去，建筑技能点-250）\n\n\n\n\n长得和毒瘤差不多。。。\n内部（有一只自定义掉落随机物品的僵尸，那个箱子内物品也是通过Loot table随机生成的，具体参见我的LootTable教程贴和其他触例如SYL的LootTable的教程）:\n\n\n\n大家可以看到，图中后面是一堆类似的建筑，就是用电路生成出来的，我为了让效果更加明显，故意调低了间隔距离，这个一会再谈。\n\n\n（中间那个白色的就是源建筑）\n==================================分割线===============================\n那我们来看看电路和使用:\n电路总览:\n\n虽然电路不大，甚至很小，但从图中可以看出，没有一个红石元件，全部是CB链组成的，这个的原理可以参考pca的纯CB逻辑，能够大大简化逻辑门和计分板，所以本地图也没有一个计分板，包括Tag,说了那么多，先来看看命令（右边是主逻辑串，左边是被调用的CB链）:\n右:\n/blockdata ~ ~ ~ {auto:0b}\n/blockdata -9996 4 -9997 {auto:1b}\n/blockdata -9996 4 -9998 {auto:0b}\n/testfor @e[type=ArmorStand,name=SP]\n/blockdata -9996 4 -9997 {auto:0b}\n/blockdata -9996 4 -9998 {auto:1b}\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /testfor @e[type=ArmorStand,name=Build,r=200]\n/blockdata -9996 4 -9998 {auto:0b}\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /spreadplayers ~ ~ 1 300 false @e[type=ArmorStand,name=SP]\n/summon ArmorStand ~2 ~ ~2 {CustomName:SP}\n/blockdata -10000 4 -9988 {auto:1b}\n/blockdata -9996 4 -9988 {auto:1b}复制代码\n左（被调用）：\n/blockdata ~ ~ ~ {auto:0b}\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /clone -10014 3 -10013 -10020 13 -10020 ~ ~ ~ replace force\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /summon Zombie ~3 ~2 ~4 {DeathLootTable:test:test1}\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /summon ArmorStand ~ ~ ~ {CustomName:Build}复制代码\n主逻辑我就不重点提了，无非是逻辑嵌套，这里说一些有意思的东西：\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /testfor @e[type=ArmorStand,name=Build,r=200]\n/execute @e[type=ArmorStand,name=SP] ~ ~ ~ /spreadplayers ~ ~ 1 300 false @e[type=ArmorStand,name=SP]\n首先看这两条命令，第一条控制的是两个建筑物之间的最小距离（r=200），而第二条控制的是刷出建筑物的落点随机范围(1-300)这两个命令决定了最终建筑的距离，这个大家可以自己体会一下。\n然后是两个Loottable的代码:\n箱子:\n{\"pools\":[{\"rolls\":{\"min\":3,\"max\":5},\"entries\":[{\"type\":\"item\",\"name\":\"minecraft:diamond\",\"weight\":2,\"functions\":[{\"function\":\"set_count\",\"count\":{\"min\":1,\"max\":3}}]},{\"type\":\"item\",\"name\":\"minecraft:cookie\",\"weight\":5},{\"type\":\"item\",\"name\":\"minecraft:enchanted_book\",\"weight\":2,\"functions\":[{\"function\":\"set_nbt\",\"tag\":\"{StoredEnchantments:[{lvl:3s,id:35s}]}\"}]},{\"type\":\"item\",\"name\":\"minecraft:iron_pickaxe\",\"weight\":3,\"functions\":[{\"function\":\"enchant_with_levels\",\"treasure\":false,\"levels\":{\"min\":10,\"max\":30}},{\"function\":\"set_damage\",\"damage\":{\"min\":0,\"max\":1}}]},{\"type\":\"item\",\"name\":\"minecraft:iron_ingot\",\"weight\":6}]}]}复制代码\n僵尸:\n{\"pools\":[{\"rolls\":{\"min\":3,\"max\":3},\"entries\":[{\"type\":\"item\",\"name\":\"minecraft:iron_ingot\",\"weight\":5,\"functions\":[{\"function\":\"looting_enchant\",\"count\":{\"min\":1,\"max\":3}},{\"function\":\"set_count\",\"count\":{\"min\":0,\"max\":2}}]},{\"type\":\"item\",\"name\":\"minecraft:diamond_sword\",\"weight\":1,\"functions\":[{\"function\":\"enchant_with_levels\",\"treasure\":false,\"levels\":{\"min\":20,\"max\":30},\"conditions\":[{\"condition\":\"random_chance_with_looting\",\"chance\":0.05,\"looting_multiplier\":0.03}]},{\"function\":\"set_count\",\"count\":{\"min\":1,\"max\":1}},{\"function\":\"set_damage\",\"damage\":{\"min\":0,\"max\":0.25}}],\"conditions\":[{\"condition\":\"killed_by_player\",\"inverse\":false}]}]}]}复制代码\n总而言之就是做到了每个建筑都不相同，符合MC自然生成的规律\n还有最后一个CB是用来控制循环的，要想停止刷出，就将这个cb的need redstone开启即可.\n\n\n\n\n=============================分割线================================\n好了，作品主要已经交代完了，接下来说几句题外话，其实这个原型机拓展空间很大，例如可以加入探测生物群系生成等，这样可以做到很接近那些原版自然建筑（如雪屋只在雪原生成，这个可通过STATS指令比对方块做到，但可能有简便的做法），这个SYL,PCA他们告诉我国外有个叫GameMode4的原版地图，似乎是有这些功能，应该非常强大，大家可以去了解一下（我没去看，要翻墙）\n好了就这些吧，谢谢大家的浏览！下载链接：http://pan.baidu.com/s/1nt2DEyP @kongbaiyo  @lzs1234  @pca006132  @握地师兄  @34105401  @MsYqgzt  @ouqianwei  @zhjjhz  @PotatoMaster101  @宇来自RR网 @ghyzhi10086 \n============================分割线===============\n来自群组:The Minecraft Lover\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "爽濠",
+            "timestamp": 1447335720,
+            "txt_content": "用在RPG会很好。"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1447337040,
+            "txt_content": "我看到了clone。。。好吧，倒也是个好点子，就是默认地形里面不太好搞吧？？233\n\n话说，球呢？（手动斜眼）"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1447338180,
+            "txt_content": "你可以用r生成球，那样更像点……你这个实在是……"
+        },
+        {
+            "author": "Cth_Can阿残",
+            "timestamp": 1447338240,
+            "txt_content": "原来要用loottable……如果能做成ooc那就不得了了233"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1447347840,
+            "txt_content": "首先呢，你这个和球没啥关系，不能说是带点弧度就是球，算是跑题了。\n我昨天也是发了一个原版生成自定义结构的帖子，今天你就又来了这样的帖子啊，创新性不足。\n没用红石原件也并没什么好骄傲的，需要对各项技术进行客观的评价，这种一味的高频只会提高电脑负荷。\n此外，这种方法的普适性不够，甚至用了绝对坐标。这是极其不方便的。\n再然后使用的是spreadplayers的这种方式完全没有稳定性和再实现性。\n总的来说并不能说是非常出彩，分我就不加了。此外请注意帖子中的违规现象。"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1447851840,
+            "txt_content": "乙烯_中国 发表于 2015-11-13 01:04\n首先呢，你这个和球没啥关系，不能说是带点弧度就是球，算是跑题了。\n我昨天也是发了一个原版生成自定义结 ...\n抱歉过了好几天才来正式回复，不知是不是怠慢了伟大的版主先生，一条条来说。\n跑题这个虚心接受\n至于第二个不知道你家网速什么时候好，这几天都挂了？\n第三个不用红石元件旨在说明1.9如何用CB系统取代红石，提供一种新的思考（制作）方式，并没有骄傲的意思\n第四个理由难道不觉得有些牵强么？想转相对坐标不是难事，要不我现在就转一下？\n第五个的确是算法上的问题，还需改进，所以我说了这是原型机，此外我想出了更简洁的算法，也可一试。\n至于违规现象在下不常来bbs、，还请版主大人多多劳烦了。"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1449880560,
+            "txt_content": "乙烯……\n乾坤的最新技术展出23333\n话说之前来看过，一直没加分也没回复\n顶起（不到一个月不算挖坟吧？）"
+        },
+        {
+            "author": "Ricestones",
+            "timestamp": 1477147980,
+            "txt_content": "6666...然而。球呢。/手动斜眼"
+        }
+    ]
+}

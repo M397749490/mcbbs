@@ -1,0 +1,19 @@
+{
+    "title": "testfor等命令中NBT匹配的诡异行为",
+    "author": "土球球",
+    "replyCount": 2,
+    "timestamp": 1520621580,
+    "txt_content": " 本帖最后由 ustc_zzzz 于 2018-3-10 03:08 编辑 \n\n大家好我是萌新\n\n原作者：@ustc_zzzz。\n\n感谢 @玄素 在测试过程中提供的帮助。\n\n本文应该基于所有包含有/testfor系列指令的MC版本，当然1.13就没有了。\n\n起\n\n这件事的发现原因极其无聊，无聊到没人想听的，在此略过不提，直接上正文。\n\nCBer都知道包括但不限于/testfor等指令会匹配一个实体或者物品或者什么的NBT，这种匹配绝大多数情况我们都是清楚的：\n\n对于数字、字符串等基本类型，匹配的条件是完全相等。对于复合（Compound）类型，命令里的a匹配游戏元素b的条件是a提供的所有子键b都匹配，比如说{a:b,c:d}匹配{a:b,c:d,e:f}什么的。\n\n那等等，对于列表呢？\n好，盲生，你发现了华点，我们试一试。\n\n以下所有测试的最初版本由玄素完成，毕竟你们这些CBer比我有经验得多。\n\n我们先召唤一个物品，它的NBT标签由a、b、c三个字符串组成：\n\n/summon minecraft:item ~ ~ ~ {Item:{tag:{Test:[a,b,c]},id:\"minecraft:stick\",Count:1},PickupDelay:32767}复制代码\n然后我们匹配一下这个物品的NBT标签：\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,b,c]}}}复制代码\n成功匹配到这个物品了，这说明两个列表完全相同的时候是可以匹配的。\n\n是时候展开更多测试了。\n\n承\n\n我们开始进行更多的测试。\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[b,c,a]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[c,a,b]}}}复制代码\n以上两个测试成功了，说明列表的匹配是无序的。\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[b,c]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[c]}}}复制代码\n以上两个测试也成功了，说明列表的匹配是局域的，只要有元素匹配到了就行。\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[b,c,d]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,c,e]}}}复制代码\n以上两个测试失败了，这很正常，毕竟也没d和e两个字符串。\n\n我们好像能摸清一些套路了，我们只要把列表看成一个集合，然后把命令里的a列表匹配游戏元素b列表的条件看成a是b的子集就行了。\n\n但是事实果真如此吗？\n\n转\n\n我们拿一个空列表去匹配：\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[]}}}复制代码\n我们惊奇地发现，没有匹配。\n\n然后如果我们用这样的东西去匹配呢？\n\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,a]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,a,a]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,a,a,a]}}}\n/testfor @e[type=item,c=1] {Item:{tag:{Test:[a,b,a,b,a]}}}复制代码\n待匹配的物品里只有一个a和一个b，多个a和多个b居然匹配成功了。\n\n这些奇怪的现象已经超出我们常理认知了。\n\n是时候翻代码了（相关方法：net.minecraft.nbt.NBTUtil#areNBTEquals）。\n\n合\n\n经过一些你们也不会愿意看的翻代码过程，我们可以总结出两个列表的匹配规则：\n\n命令里的a列表匹配游戏元素b列表的条件是：把a的所有元素拿去和b的元素匹配，只要b中存在元素匹配则称a中的该元素匹配成功，如果a中的所有元素都匹配成功了，那么则称a匹配b。当然有一种例外：如果a列表为空，那么只有b列表为空时才能匹配成功。\n以上规则只对较为复杂的列表成立，作为基本元素的Byte、Int、Long这三种列表要想匹配还是需要列表完全相同且一一有序对应的。\n\n为什么规则这么诡异？因为MJSB就是这么写的。\n\n今天在游戏技巧版块灌水的全部内容就到这里，谢谢大家。",
+    "replies": [
+        {
+            "author": "pca006132",
+            "timestamp": 1520647740,
+            "txt_content": " 本帖最后由 pca006132 于 2018-3-10 10:12 编辑 \n\nemmm...其实命令进阶有写的\n[NBT及结构]\n...\n检测的时候不会循序检测，只会看看目标列表里有没有这几个标签，不论次序。\n简单来说就是你无法控制次序\n...\n直接检查[]会检查该列表是否一个空的列表。[基本类型]\n...\n而数组则是检查整个数组看看是否符合指定要求，检查包括该标签所在位置、顺序等等。\n\n//这就很尴尬了"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1520655120,
+            "txt_content": "pca006132 发表于 2018-3-10 10:09\nemmm...其实命令进阶有写的\n你没有讨论拿[a,a]这种情况匹配的结果，所以我不算完全火星，哼"
+        }
+    ]
+}

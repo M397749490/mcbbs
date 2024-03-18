@@ -1,0 +1,34 @@
+{
+    "title": "关于Entity创建时的问题",
+    "author": "hendyzone",
+    "replyCount": 5,
+    "timestamp": 1350314160,
+    "txt_content": " 本帖最后由 hendyzone 于 2012-10-15 23:31 编辑 \n\n原文地址：http://www.minecraftforum.net/topic/1417041-mod-entity-problem/\n\n\n个人觉得有借鉴意义 =w= 就搬过来了\n许多人在创建新的怪物或者是其他形式的实体时都遇到过一些问题。在论坛里我曾经见过许多像下面这样的错误报告。\nSkipping Entity with id -72\njava.lang.NullPointerException\nat net.minecraft.src.NetClientHandler.handleMobSpawn(NetClientHandler.java:726)\nat net.minecraft.src.Packet24MobSpawn.processPacket(Packet24MobSpawn.java:131)\nat net.minecraft.src.MemoryConnection.processReadPackets(MemoryConnection.java:65)\nat net.minecraft.src.NetClientHandler.processReadPackets(NetClientHandler.java:91)\nat net.minecraft.src.WorldClient.tick(WorldClient.java:64)\nat net.minecraft.client.Minecraft.runTick(Minecraft.java:1614)\nat net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:775)\nat net.minecraft.client.Minecraft.run(Minecraft.java:723)\nat java.lang.Thread.run(Unknown Source)复制代码\n我找到了对应的报错的行数，就是handleMobSpawn方法所在的位置，这个方法通过EntityId来检索Entity。这个错误报告应该是在Entity被检索是显示为null时发生。所以我再次检查了我的代码，确认了我加了我确实是把Mob用Modloader方法添加EntityList中。\n\nModLoader.registerEntityID(entityClass, entityClass.getSimpleName(),\nModLoader.getUniqueEntityId());复制代码\n\n\n这个Entity确实已经注册了，但是我依然会收到错误报告。但是如果你仔细看错误报告的第一行，\nSkipping Entity with id -72复制代码\n\n\n你可以发现你的Entity的Id看起来有些问题。在Modloader的方法调用中Modloader.getUniqueEntityId（）返回的EntityId应该为3000。所以每次你调用这个方法它都会为你的每个Entity的Id赋予独一无二的值。我的EntityId应该是3000但是为什么在Minecraft会变成-72呢？\n\n\n\n显然，这个问题出在Packet24MobSpawn类中。这是一个数据包（packet）类，它的功能是将数据传送给客户端；但是，我并不确定。我注意到在构造函数之前的这段代码。\nthis.type = (byte) EntityList.getEntityID(par1EntityLiving);复制代码\nthis.type为一个用来表示怪物种类的整数，EntityList.getEntityID(par1EntityLiving) 检索来自Entity object(par1EntityLiving)的Id信息. 很简单不是么? 所以我的EntityId为3000，那么 this.type， \n也应该是3000，可是它并不是. 它实际上是-72. 原因就是java将它强制转换为byte型数据。在Java中, byte型数据的范围为-128 to 127 ，所以3000无法被正确的转换. 所以说-72为 窄化转换（Narrowing Primitive Conversion）产物。当然，我并不是这方面的专家，有人可以解释的更加详细。\n\n这就是说,任何超过127的值将无法被使用. 如果你查看EntityList.class你可以在它的静态块中找到所有的Entity和它们的Id，除了EntityEnderCrystal（末影水晶的实体状态）每一个都是小于127。EntityEnderCrystal使用Packet23VehicleSpawn它并不转换实体参数所以没问题\n\n/**Entity ID. */\npublic int entityId;\n\n/** mob类型. */\npublic int type;\n\n....\n\npublic Packet24MobSpawn(EntityLiving par1EntityLiving) {\nthis.entityId = par1EntityLiving.entityId;\nthis.type = (byte) EntityList.getEntityID(par1EntityLiving);\n......\n}复制代码\n\n这是 Packet24MobSpawn中的一段. \n我不明白为什么他们（Mojang）要转换为byte型。tybe并不是byte型。我猜测这是为了减少数据的传输量，或者这是一个bug？现在我只要删除这个强制转换我自己制作的mob就能正常使用了：）（这段作者划掉了=。=）\n\n",
+    "replies": [
+        {
+            "author": "hendyzone",
+            "timestamp": 1350315720,
+            "txt_content": "=A= 敢不敢有个回复的QAQ"
+        },
+        {
+            "author": "a626508372",
+            "timestamp": 1350351000,
+            "txt_content": "好像很厉害的样子"
+        },
+        {
+            "author": "当风过时",
+            "timestamp": 1350361800,
+            "txt_content": "还没怎么接触Entity。。。如果是TileEntity的话我还可以帮忙"
+        },
+        {
+            "author": "hendyzone",
+            "timestamp": 1350361920,
+            "txt_content": "当风过时 发表于 2012-10-16 12:30 \n还没怎么接触Entity。。。如果是TileEntity的话我还可以帮忙\n{:10_502:}这是别人对某个问题的分析。。。"
+        },
+        {
+            "author": "当风过时",
+            "timestamp": 1350362340,
+            "txt_content": "hendyzone 发表于 2012-10-16 12:32 \n这是别人对某个问题的分析。。。\n好吧。。。"
+        }
+    ]
+}

@@ -1,0 +1,29 @@
+{
+    "title": "[编程]Libs64——写sql是不可能的,这辈子不可能的【已更新NMS】[1.7+]",
+    "author": "erry64",
+    "replyCount": 4,
+    "timestamp": 1575620040,
+    "txt_content": " 本帖最后由 berry64 于 2019-12-31 14:51 编辑 \n\n\n现招募Javadoc, Wiki & bbs帖子撰写者\n有意者请论坛dm私聊联系\nLibs64 v2.0-SNAPSHOT\n\n#排版有待编辑\n你这又脑抽做了什么?\n  插件前置库，给写插件的开发者提供种种迷惑方便的方法，提升插件开发效率\n什么，你想学开发插件？点击这里让各路服主摆在你的石榴键盘下\n\n下载地址: 这里尽量挑比较新的，名字里包含shaded的且结尾为.jar下载(.md5 .sha1不是插件)\nP.S 以后会更新更好的下载界面现在先凑合使使吧\n提示：插件仍在开发版中，有bug请回复/上github issue去\n特点:\n\n颠覆性的SQL数据库操作方式\n\nMYSQL\nSQLITE\n\n简化繁琐的文件操作\n\n一个方法call把资源文件导出到你想要的位置\n一个方法完成配置文件的初始化/重载\n\n简化多语言支持(Babel翻译)/I18N (开发中)- 动态修复NMS\n\n食用方法\nMaven:\n把以下内容添加到你的插件pom.xml\n<repositories>\n     <repository>\n         <id>berry64-repo</id>\n         <url><a href=\"https://raw.github.com/berry64/mvn-repo/master/</url\" target=\"_blank\">https://raw.github.com/berry64/mvn-repo/master/</url></a>\n     </repository>\n</repositories>\n\n<dependencies>\n        <dependency>\n            <groupId>net.berry64.libs64</groupId>\n            <artifactId>Libs64-api</artifactId>\n            <version>2.0-SNAPSHOT</version>\n        </dependency>\n</dependencies>\n当然，别忘了添加到你的plugins.yml\ndepends: Libs64\n\n你问什么是颠覆性的sql数据操作?\n前言: 虽然有很多MC插件都有数据库支持，但这些插件有很大一部分都是通过直接写SQL语句运行的。\n这样虽然简单粗暴又有效，但需要开发者了解SQL才能实现。\n\n这就有问题了:\n学习是不可能学习的，这辈子不可能\n\n点题了快夸我\n\n于是出现了Libs64:\n有了这个前置库之后你可以不碰任何sql给你的插件加上sql支持。\n举个例子: \n我要写一个插件，这个插件要用sqlite数据库储存玩家等级信息，假设我的主类叫Core.java\n\n主类Core.java:\npackage net.berry64.example;\n\nimport net.berry64.libs64.sql.Lib64SQL;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport java.io.File;\n\npublic class Core extends JavaPlugin {\n    Lib64SQL database;        //这里是数据库\n\n    @Override\n    public void onEnable() {\n        File databaseFile = new File(this.getDataFolder(), \"database.db\"));   //把数据库文件位置设置成插件文件夹里的database.db文件\n        database = Lib64SQL.createSQLite(databaseFile); //初始化数据库\n    }\n}复制代码\n\n然后之后我们创建一个新的myPlayer类，来代表我们的数据库文件格式，我们让它继承net.berry64.libs64.sql.Model\n（懂数据库的可以把这个想成表格框架）\nmyPlayer.java:\nimport net.berry64.libs64.sql.DBData;\nimport net.berry64.libs64.sql.DataType;\nimport net.berry64.libs64.sql.Model;\n\npublic class myPlayer extends Model {\n}复制代码\n\n然后我们写上数据库里需要储存的数据，以@DBData修饰, type为数据类型\n避免原始数据类型(primitive data types)\n比如不要用int, 用Integer, 不用double用Doubleimport net.berry64.libs64.sql.DBData;\nimport net.berry64.libs64.sql.DataType;\nimport net.berry64.libs64.sql.Model;\n\npublic class mzPlayer extends Model {\n    @DBData(PrimaryKey = true, NotNull = true, type = DataType.INT) //这里的PrimaryKey代表这个是SQL用来引索的数据，只能为数字类型\n    public Integer playerID;\n\n    @DBData(type = DataType.TEXT)\n    public String name;\n\n    @DBData(type = DataType.INT)\n    public Integer level;\n}复制代码\n\n回到主类注册一下这个类: 不注册就尝试直接使用会报错\nCore.java:\npackage net.berry64.example;\n\nimport net.berry64.libs64.sql.Lib64SQL;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport java.io.File;\n\npublic class Core extends JavaPlugin {\n    Lib64SQL database;\n\n    @Override\n    public void onEnable() {\n        File databaseFile = new File(this.getDataFolder(), \"database.db\"));\n        database = Lib64SQL.createSQLite(databaseFile);\n\n        database.register(myPlayer.class);     //注册\n    }\n}复制代码\n\n之后的所有操作都基本可以在java内以对象的形式操作了：\n比如添加数据你就new 一个myPlayer, 并且给里面的变量附上值:\nmyPlayer player = new myPlayer();\nplayer.name=\"DORK\";     //实际你不应该这样直接改数据，用getter&setter\nplayer.level=9001;\nplayer.addTo(database);   //这样数据就会添加到数据库里了复制代码\n\n那我们要怎么从数据库里读取数据呢?\n这时候就要介绍自动补全系统了:\nmyPlayer incompletePlayer = new myPlayer();\nincompletePlayer.level= 100;   //注意这里我们只给了level变量赋值，也就是说这时候playerID与name为null\nList<myPlayer> completePlayers = database.fetchAll(incompletePlayer);   //这里返回的就是所有符合level=100的数据，并转化成myPlayer实力\nfor(myPlayer player : completePlayers){\n    getLogger().info(player.name);     //这里就会显示所有level为100的玩家名\n}复制代码\ndatabase.fetchOne(incompletePlayer);复制代码也是同理，不过它返回的只是第一个而不是所有\n\n\n哪你的NMS补丁又咋用?\n看这里\n\n哇尽然这么好用，目前有什么已知bug嘛?\n肯定有的:\n1. 效率会比直接调用sql语句低 (这不肯定，反射都用上了)\n2. 功能比直接调用sql语句少(这我没辙)\n3. 目前还在开发，可能后续版本会对方法有一定的改动\n\n\n\nemmmm开源的话再说吧...我先过过瘾\n\n\n口嗨一时爽，一直口嗨一直爽， 唉嘿嘿\n\n",
+    "replies": [
+        {
+            "author": "Lao_Ge",
+            "timestamp": 1575624480,
+            "txt_content": "这对我帮助很大，谢谢"
+        },
+        {
+            "author": "诺凡克罗诺",
+            "timestamp": 1575686460,
+            "txt_content": "好东西，希望能有个具体wiki教程"
+        },
+        {
+            "author": "天宫时雨",
+            "timestamp": 1575710640,
+            "txt_content": "支持支持，求开源，另外在分发和使用上有什么要求吗？"
+        },
+        {
+            "author": "sa22sa",
+            "timestamp": 1594344660,
+            "txt_content": "ssssssssssss"
+        }
+    ]
+}

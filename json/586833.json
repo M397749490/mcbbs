@@ -1,0 +1,504 @@
+{
+    "title": "【e.c.Tec】【乙烯】五子棋",
+    "author": "乙烯_中国",
+    "replyCount": 99,
+    "timestamp": 1464135840,
+    "txt_content": " 本帖最后由 乙烯_中国 于 2016-5-29 15:47 编辑 \n\n【不是我藏着掖着，是茶壶里有饺子，此外各位可以配合jianghr的回复食用\n注：2016/5/29 6:00 代码大改，高度优化代码以及提升棋力（虽然还有偷懒没优化的）\nHello，大家好，我是乙烯，这阵子我捣鼓了一个五子棋AI，觉得速度上可以接受，下起来也不会显得太傻，所以今天我就发帖，来给大家说说，我是如何实现五子棋AI的。\n五子棋，作为一个拥有着先手必胜属性的棋类，实际上是不公平的，就算是后人给加上了禁手，换子这样的规则，先手依旧有着极大的优势。正是因为这样的不公平，五子棋的AI早就可以啪啪啪打死人类几条街了，因为机器只要是先手，就很容易推导出必胜下法。今天我带来的五子棋AI，是一个无禁手的后手AI，理论上基本上是不能下赢人类的，不过你要是被这个AI下赢了的话，这辈子我推荐你不要再碰五子棋了。再这么说就有失偏颇了，现在的棋力能够糊弄糊弄elo小于1000的人类。\n那么，闲谈也就先告一段落，接下来来具体说说思路与方法。这里附带两张被奕心吊打的棋局，顺带一提，奕心的elo是保持在2000以上的，属于世界冠军级别的AI。奕心被限制在深度探索两层，而这个ai没有深度探索，所以不被吊打才不正常。这次的AI下子速度被压缩到了三到五秒，这是让我很满足的一件事。现在的下子速度可以达到一秒，如果局面复杂会延长到1.5秒\n楼下有几波带节奏的，这个AI的特性就是计算量小，所需时间要小，计算时间短到足以和人对弈，比那些强行搬运复制别人的AI代码的制作方式要好到不知道哪里去了。如果说我抄的某些人的，那么别酸溜溜的只撂一句话，拿代码出来啊，我核心的代码通通丢出来了，我写帖子是为了普及制作方法的，你们将制作方法束之高阁，不爽不要来。\n\n\n\n\n\n\n一、思路。\n对于整个五子棋AI来说，玩家只会在意两点，时间和棋力。我们的目标是计算时间消耗更短，且棋力达到不会很蠢的地步。\n网上所能找到的大多数五子棋AI，都有着这样的特征，也就是每次局面更新的时候，都会对棋盘进行一次遍历估值，或许对于别的平台或者别的语言来说，这并没有什么问题，但是，如果我们需要用mc来进行编写的话，第一道难关就是mojang的辣鸡优化。事实证明，每次对局面遍历一次都将极大程度的延长计算时间。那么我们的首要目标就是，通过代码的优化来弥补这以先天不足。对于五子棋AI来说，则是减少需要读写的范围。这里也有大量的AI将遍历区域缩小至棋子的周围四格，这是很合理并且很容易执行的策略，这将是核心思路之一。\n在时间压缩下来后，我们需要提高AI的棋力，通常市面上的解法是博弈树，但是这往往对于我们来说是无法忍受的，因为博弈树就代表深度探索，不仅要遍历棋局，更要遍历各种可能性，这就代表着时间将呈指数级别的延长。就算是一些高优化的AI，对于一些局面的探索也会需要几十秒甚至几分钟的计算，同样的计算量放在mc里就有可能需要几小时甚至几天来运行，那么这样的一个AI是没有意义的。同样的，mc对于变量的管理方式虽然不至于像前几个版本那样贫瘠，但是也是远远不能达到一般程序的需求的，所谓在夹缝中求生存嘛。\n那么我们只有仅进行当前局面估值，完全放弃可能性计算。这也就代表了第一层的下法得尽可能的好。此外，经过实验证明，过于频繁的棋型判断也会造成极大程度的延时，所以这一点我们也得尽可能的压缩。\n二，实际演练。\n提前说一下，下子以及胜利判定之类的可替换操作我就不深入来说了，因为毕竟可替换也就是说有一万种方法来实现，能看懂这篇文章的也就代表能够自己制作出来了，所以篇幅留给核心算法。因为是要求快速的算法，所以基本上是简约不简单。\n棋盘规格是19*19。以下这些不要问我为啥不用代码格式而用引用格式，被吞无数次，这是不得已的下策。棋盘上所有点将会拥有一个Start标记，为了防止和别的实体产生干扰。每个点会根据当前的状态拥有不同的名字。\na为已下子，这样的话计算局面时将直接剔除该点的计算。因为你并不会在一个已经有子的地方下子。\nb为正在下子。\no为当前无子。\n我方棋子为黑色染色玻璃，敌方则为白色染色玻璃。\nx\ny\nl\nh  以上四个计分板是属于每个格子的固有属性，是代表着这个格子的行，列，以及第几条斜线，所存储的值是绝对不会更改的。\nxc\nyc\nlc\nhc以上四个是用来计算落子点与该格的行列差值的，0代表和落子点处于同一行。\nb1\nb2\nb3\nb4\nw1\nw2\nw3\nw4以上八个计分板是用来存储各个方向上的权值的。b代表防守，w代表进攻，下同。在开局时会根据格子位置给予一个微小的初始量，如最中间的是10，最外围的是1。\nb01   =b1+b2\nb02   =b1+b3\nb03   =b1+b4\nb04   =b2+b3\nb05   =b2+b4\nb06   =b3+b4\nw01\nw02\nw03\nw04\nw05\nw06  以上12个计分板仅用来做取最大值的中间计分板。加法缓存用，用于综合评价该点的威胁度。最后最大值将被存储至w01\nattack 计算该位置敌方的威胁度。wow 计算我方对对方的威胁度\n以上是我全部的计分板。此外额外有个名为head的实体用于暂存最大值，这个其实就比较随意了，你愿意的话存储到玩家身上也可以。\n接下来来从指令层面讲解整体的流程。有关于一些特定棋型的判断就是通过叠加execute然后探测方块实现的，难是不难，就是很卡，所以为了防止你们想不到更好的答案，我这里就讲到这里。补充：如出现必须堵上的点会给这个点一个high的tag标记。如果出现不堵上会有可能输的点，会给这点的attack计分板+1。同样的，ohhh对应黑棋的high，wow对应黑棋的attack。这里加上了对白棋的必胜着法的优先度。\n这里补充一下棋型的检测，\n首先各种四连珠情况，即不堵上就会输的情况\n活三\n活二\n并不是检测不出来，而是预防万一而进行检测。execute @e[name=o] ~ ~ ~ detect ~1 ~1 ~ stained_glass 15 execute @e[name=o,r=0] ~ ~ ~ detect ~2 ~1 ~ stained_glass 15 execute @e[name=o,r=0] ~ ~ ~ detect ~3 ~1 ~ stained_glass 15 execute @e[name=o,r=0] ~ ~ ~ detect ~4 ~1 ~ air 0 scoreboard players tag @e[name=o,c=1] add high 复制代码\n这是一个检测x轴上的活三的例子，\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] xc = @e[type=ArmorStand,c=1,r=0] x\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] yc = @e[type=ArmorStand,c=1,r=0] y\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] hc = @e[type=ArmorStand,c=1,r=0] h\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] lc = @e[type=ArmorStand,c=1,r=0] l\n以上四条是为了给每个单元的计算计分板读取所在的坐标值。\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] xc -= @e[name=b,c=1] x\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] yc -= @e[name=b,c=1] y\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] hc -= @e[name=b,c=1] h\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] lc -= @e[name=b,c=1] l\n以上四条是计算该点与刚刚落子的那一点的坐标差值，0即代表是和落子位处于同一斜线。\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=6,score_yc=0,score_yc_min=0,name=o,score_b2=4100] b2 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=6,score_xc=0,score_xc_min=0,name=o,score_b1=4100] b1 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=4,score_hc=0,score_hc_min=0,name=o,score_b4=4100] b4 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=4,score_lc=0,score_lc_min=0,name=o,score_b3=4100] b3 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=6,score_yc=0,score_yc_min=0,name=o,score_w2=4100] w2 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=6,score_xc=0,score_xc_min=0,name=o,score_w1=4100] w1 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=4,score_hc=0,score_hc_min=0,name=o,score_w4=4100] w4 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=4,score_lc=0,score_lc_min=0,name=o,score_w3=4100] w3 1300\n这里是落子点对周围处在统一斜线上的空位权值的修正，这样每次最多只需要重新修改32个位置的权值，比重新遍历一遍棋盘不知道高到哪里去了。然后注意的是，防守的权值修正高于进攻权值修正（实验表明，将方式和进攻的权值修正相等后这个AI的表现很惊艳），因为，反正后手劣势，不如以防守为主。这样的偏差虽然会导致一点微小的差错，但是基本上是难以预料到这一点的。和卷卷聊过之后把进攻和防守的权值互换，这样的AI会更像真人一般下棋。效果也更佳。你要是不注意的话还会被AI偷摸一下。\n此外，这里也要注意一下半径有微妙的调整，这是因为斜向的四格会更长一些，根号二倍。\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 = @e[type=ArmorStand,c=1,r=0] b1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 += @e[type=ArmorStand,c=1,r=0] b2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b02 = @e[type=ArmorStand,c=1,r=0] b1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b02 += @e[type=ArmorStand,c=1,r=0] b3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b03 = @e[type=ArmorStand,c=1,r=0] b1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b03 += @e[type=ArmorStand,c=1,r=0] b4\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b04 = @e[type=ArmorStand,c=1,r=0] b2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b04 += @e[type=ArmorStand,c=1,r=0] b3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b05 = @e[type=ArmorStand,c=1,r=0] b2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b05 += @e[type=ArmorStand,c=1,r=0] b4\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b06 = @e[type=ArmorStand,c=1,r=0] b3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b06 += @e[type=ArmorStand,c=1,r=0] b4\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 = @e[type=ArmorStand,c=1,r=0] w1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 += @e[type=ArmorStand,c=1,r=0] w2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w02 = @e[type=ArmorStand,c=1,r=0] w1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w02 += @e[type=ArmorStand,c=1,r=0] w3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w03 = @e[type=ArmorStand,c=1,r=0] w1\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w03 += @e[type=ArmorStand,c=1,r=0] w4\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w04 = @e[type=ArmorStand,c=1,r=0] w2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w04 += @e[type=ArmorStand,c=1,r=0] w3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w05 = @e[type=ArmorStand,c=1,r=0] w2\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w05 += @e[type=ArmorStand,c=1,r=0] w4\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w06 = @e[type=ArmorStand,c=1,r=0] w3\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w06 += @e[type=ArmorStand,c=1,r=0] w4\n这里是计算出之前结构的12个估值变量，注意，是每个格子都拥有各自的12个变量。\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 > @e[type=ArmorStand,c=1,r=0] b02\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 > @e[type=ArmorStand,c=1,r=0] b03\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 > @e[type=ArmorStand,c=1,r=0] b04\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 > @e[type=ArmorStand,c=1,r=0] b05\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] b01 > @e[type=ArmorStand,c=1,r=0] b06\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] w02\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] w03\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] w04\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] w05\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] w06\nentitydata @e[name=b] {CustomName:\"a\"}\n每个格子都选出自己最大的当前权值。\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] w01 > @e[type=ArmorStand,c=1,r=0] b01\n\n判断进攻权值是否大于防御权值，取二者最大值。\nscoreboard players add @e[name=o,tag=high] w01 2000\n\n判断这个点是否是需要被特殊照顾一下，如果是，进一步加大权值。\n/scoreboard players operation @e[tag=head,c=1] x > @e[tag=Start,name=o] w01\n/scoreboard players operation @e[tag=Start,name=o] w01 -= @e[tag=head,c=1] x\nentitydata @r[type=ArmorStand,score_w01_min=0,c=1,name=o] {CustomName:\"b\"}\n选出拥有最大权值的格子，并给予落子标签。\nexecute @e[tag=Start,name=b] ~ ~ ~ setblock ~ ~1 ~ stained_glass 0\n\n落子！\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] xc = @e[type=ArmorStand,c=1,r=0] x\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] yc = @e[type=ArmorStand,c=1,r=0] y\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] hc = @e[type=ArmorStand,c=1,r=0] h\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] lc = @e[type=ArmorStand,c=1,r=0] l\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] xc -= @e[name=b,c=1] x\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] yc -= @e[name=b,c=1] y\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] hc -= @e[name=b,c=1] h\nexecute @e[tag=Start,name=!a] ~ ~ ~ /scoreboard players operation @e[type=ArmorStand,c=1,r=0] lc -= @e[name=b,c=1] l\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=6,score_yc=0,score_yc_min=0,name=o,score_b2=4100] b2 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=6,score_xc=0,score_xc_min=0,name=o,score_b1=4100] b1 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=4,score_hc=0,score_hc_min=0,name=o,score_b4=4100] b4 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players remove @e[r=4,score_lc=0,score_lc_min=0,name=o,score_b3=4100] b3 1000\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=6,score_yc=0,score_yc_min=0,name=o,score_w2=4100] w2 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=6,score_xc=0,score_xc_min=0,name=o,score_w1=4100] w1 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=4,score_hc=0,score_hc_min=0,name=o,score_w4=4100] w4 1300\nexecute @e[name=b] ~ ~ ~ scoreboard players add @e[r=4,score_lc=0,score_lc_min=0,name=o,score_w3=4100] w3 1300\n与之前相同的权值修正。\nentitydata @e[name=b] {CustomName:\"a\"}\n\n将落子点的标记修正成已落子的标记。\n/scoreboard players set @e[tag=head,c=1] x 0\n\n清理最优解缓存。\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "xukarhei",
+            "timestamp": 1464136980,
+            "txt_content": "好厉害，大触请受我一拜。"
+        },
+        {
+            "author": "末影矿工",
+            "timestamp": 1464142380,
+            "txt_content": "好厉害，大触请受我一拜。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1464147060,
+            "txt_content": " 本帖最后由 chyx 于 2016-5-25 11:33 编辑 \n\n居然做出了AI      一颗赛艇\n比其他人（包括我）不知高到哪里去了"
+        },
+        {
+            "author": "Wsbyeah",
+            "timestamp": 1464168960,
+            "txt_content": "这....何止触？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1464172560,
+            "txt_content": "我用java花了好久做出五子棋的输赢算法，AI怎么做都做不出来，而这AI居然是在mc里实现的口rz\n可怕"
+        },
+        {
+            "author": "hkdonny",
+            "timestamp": 1464179760,
+            "txt_content": "非人类。。。。"
+        },
+        {
+            "author": "lichi2050",
+            "timestamp": 1464200820,
+            "txt_content": "一颗赛艇 棋高一着 在下佩服 望 有朝一日 汝..."
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1464279060,
+            "txt_content": " 本帖最后由 jianghr 于 2016-5-28 16:23 编辑 \n\n从目前为止的回复来看，绝大多数人是没看懂的。\n经过和乙烯在QQ上长达3个小时的交易，算是大致明白这个算法的设计思路。\n实际上也算是种取巧的设计，但很适合MC这种大规模四则弱鸡而@e遍历功能强大的系统。\n排除太长不看的因素，这乙烯解说上明显又偷懒了，还想找我要精{:10_499:}。从设计上来说，在MC这种坑爹环境下实现这种算法可以精2，但是这个帖子么解说上明显是有缺陷的，但看他也是憋了几夜，先给个精1。\n\n修好后再考虑提升档次，群众们看好了，要是乙烯24H没修回这个帖子，欢迎踊跃向我私信举报。\n\n\n我觉得个人还是很有必要补充一下，请务必结合LZ解说阅读。\n\n19*19 的棋盘阵列，塞满盔甲架。\n盔甲架命名有3种方式：a为已落子，b为上一次落子，o为空白（这个都没说清还想要精华？）\n\n然后这个算法主体，在整个棋盘实际上在下起来之后……完全无视了棋盘上已经下的子是怎么排列的{:10_499:}\n\n它是通过一种类似计算攻击力和防御力（权值）的方式，实际上是统计各条线上敌我战力比，并做了双线评估：\n\n在空白棋盘初始化中，默认中央的攻防高，周围的攻防低，从而让AI落子趋向于中间。\n\n然后分每轮敌（人）我（机）两个步骤落子：\n\n敌（人）先手，人操作\n落子后，落子点标记为b，遍历“米”字方向上4格内共4条线（横竖方向上半径为4，斜向半径6≈4*1.414）内未落子位置（还有一个<4100的选择器应该包含于胜负控制），\n将其对应连线方向上的\n攻击力+1300（b1~b4） 防御力-1000（w1~w4）——这些都是在一盘内长期记录\n\n然后，统计所有非已落子位置（原文用非a，其实我觉得或许用未落子标志o更合适）\n4条线上的两两组合的\n总攻击力（b01~b06）和总防御力（w01~w06）——这些都是一次AI计算的临时记录\n\n然后取最高值，再取攻防最高值，决定本点的落子权重\n\n之后乙烯专门另做的一套系统识别一些必封招（如无封3子，主系统这都识别不出{:10_493:}），如果是的话那套系统输出tag=high，传递到这里权重再加2000（这咸鱼烯又藏着另个不说，让他补上）\n\n上次落子点b改为a（已落子）\n\n接着我方（机）在权重高处落子，落子点标记为b\n\n落子后再次进行一次类似的遍历，不同的是\n我方落子后，米字型4范围内空位对应连线方向上的\n攻击力-1300 防御力+1000\n不进行多线战力统计（下把又不是AI下当然不需要统计）\n（这里乙烯目测是耍了个心眼子，敌方战力1300,我子战力1000，4100目测是一个阈值，可能也用于胜负判定（乙烯这里又没写，要他补）\n然后4100>4000(我*4)>3900(敌*3)>3000(我*3)，大家用五子棋的思路体会一下{:10_532:}）\n注：咸鱼烯修改版又对调了权重，这让我怎么解说嘛。\n上次落子点b改为a（已落子），清理缓存后进入敌方回合，依次往复。\n\n@andylizi 大概明白了没？\n\n总之，命令方块编程化还是很好的。乙烯看见了，有什么理解不对的也说明下，以免误导。\n\n最最后，原帖代码中在本次回复前有一处错误，观众复制粘贴需注意一处“score_w3”误为“score_wl”\n\n"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1464351540,
+            "txt_content": "原理理解了 \n\n\n细节只能说是 逻辑不足 无法慢慢看下去\n\n这个ai我只能说用双头坑杀很简答   但还是触到飞起"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1464354420,
+            "txt_content": " 本帖最后由 林扬骐 于 2016-5-27 21:32 编辑 \n\n感觉某人要哭@乾.坤 \n\n另外最好把存档放出来一下（呃，除了效果图还是要看真实效果的）\n\n另外为什么我会觉得lz把原理讲复杂了（代码占贴子长度晃眼，可以用折叠）\n\n嗯，不过，能做出来，一定是很不错的，虽然原理什么可以网上搜索来偷懒(雾)但也需要极强的恒心和不错的脑洞"
+        },
+        {
+            "author": "729947069",
+            "timestamp": 1464361620,
+            "txt_content": "虽然看不懂但是感觉好像很厉害的样子"
+        },
+        {
+            "author": "lubluu_2",
+            "timestamp": 1464391740,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Sakura千代",
+            "timestamp": 1464405300,
+            "txt_content": "可以的Orz"
+        },
+        {
+            "author": "zmdd",
+            "timestamp": 1464411960,
+            "txt_content": "膜拜大触2333，虽然不玩mc的指令语言"
+        },
+        {
+            "author": "kuangwenxin",
+            "timestamp": 1464412500,
+            "txt_content": "一大堆东西完全看不懂."
+        },
+        {
+            "author": "OMG_ten",
+            "timestamp": 1464414000,
+            "txt_content": "不明觉厉= ="
+        },
+        {
+            "author": "notcd",
+            "timestamp": 1464427740,
+            "txt_content": "好厉害，大触受我一拜"
+        },
+        {
+            "author": "可能maybe",
+            "timestamp": 1464432240,
+            "txt_content": "跟我看物理课本一样，云里雾里233"
+        },
+        {
+            "author": "34105401",
+            "timestamp": 1464440940,
+            "txt_content": "你们微博上说mc因限制没办法做出比你这AI跟聪明的太绝对了吧，乾坤的ER感觉比乙烯你的AI智商高，不过那确实建立在一大堆计算的前提上"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1464441540,
+            "txt_content": " 本帖最后由 FHC红石 于 2016-5-28 21:25 编辑 \n\n很好奇这个算法，还下不过人，但是这么多字我还是想看地图"
+        },
+        {
+            "author": "ws1918827377",
+            "timestamp": 1464489540,
+            "txt_content": "不明觉厉666"
+        },
+        {
+            "author": "hanxi_mc",
+            "timestamp": 1464490140,
+            "txt_content": "乙烯好厉害！！{:10_512:}"
+        },
+        {
+            "author": "TRely",
+            "timestamp": 1464495960,
+            "txt_content": "非常棒的作品"
+        },
+        {
+            "author": "谢开",
+            "timestamp": 1464594840,
+            "txt_content": "完全看不懂啊。大触"
+        },
+        {
+            "author": "划破天际つ",
+            "timestamp": 1464608760,
+            "txt_content": "乾坤又要咬人了【手动滑稽】"
+        },
+        {
+            "author": "MC时空之城",
+            "timestamp": 1464610800,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "SYS_TEM",
+            "timestamp": 1464693480,
+            "txt_content": "用DFS+BFS，如果可以的话再加DP\n你觉得怎样？\nInteresting?"
+        },
+        {
+            "author": "fffl",
+            "timestamp": 1464694620,
+            "txt_content": "给跪了{:10_523:} 可惜和我五子棋二段打就是被切"
+        },
+        {
+            "author": "qq780520800",
+            "timestamp": 1464702060,
+            "txt_content": "我的天，眼睛花"
+        },
+        {
+            "author": "坑爹-kengdie",
+            "timestamp": 1464703980,
+            "txt_content": "大触告诉我你怎么把圆形棋子和标准棋盘给搬进MC的"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1464754740,
+            "txt_content": "完全没看懂2333\n触手太触了233"
+        },
+        {
+            "author": "kj415j45",
+            "timestamp": 1464767820,
+            "txt_content": "你应该顺便申请首页"
+        },
+        {
+            "author": "DGK2",
+            "timestamp": 1464777120,
+            "txt_content": "看哭了QAQ好强，字数那么多我居然看过来了2333"
+        },
+        {
+            "author": "0ojixueseno0",
+            "timestamp": 1464797460,
+            "txt_content": "看不懂啊= ="
+        },
+        {
+            "author": "1264068891",
+            "timestamp": 1464947880,
+            "txt_content": "我的游戏    别人的游戏      {:10_528:}"
+        },
+        {
+            "author": "wxm2002",
+            "timestamp": 1464967380,
+            "txt_content": "一份辛苦一份才的作者"
+        },
+        {
+            "author": "魔星666",
+            "timestamp": 1465025460,
+            "txt_content": "我受到了100000000000000000000000000000000000000000000000000000000000000000000000点伤害"
+        },
+        {
+            "author": "2562942264",
+            "timestamp": 1465028580,
+            "txt_content": "jianghr 发表于 2016-5-27 00:11\n从目前为止的回复来看，绝大多数人是没看懂的。\n经过和乙烯在QQ上长达3个小时的交易，算是大致明白这个算法 ...\n大神大神"
+        },
+        {
+            "author": "linzhibin",
+            "timestamp": 1465041600,
+            "txt_content": "看了一半之后感觉看不懂，决定不看了"
+        },
+        {
+            "author": "猜猜谁是谁",
+            "timestamp": 1465044660,
+            "txt_content": "看起来好厉害。。。我不会告诉你我是来伸手，结果发现没抓到的"
+        },
+        {
+            "author": "孤独秋叶",
+            "timestamp": 1465102380,
+            "txt_content": "明年就有象棋了"
+        },
+        {
+            "author": "KPP",
+            "timestamp": 1465107780,
+            "txt_content": "我跪了！大神！"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1465117500,
+            "txt_content": "如果不偷懒的话，加入17种开局的换算法，会使电脑AI获胜几率变得更高"
+        },
+        {
+            "author": "特伦酥",
+            "timestamp": 1465136880,
+            "txt_content": "乙烯大大受我一拜"
+        },
+        {
+            "author": "晓兜",
+            "timestamp": 1465190820,
+            "txt_content": "好厉害...."
+        },
+        {
+            "author": "2949848385",
+            "timestamp": 1465277160,
+            "txt_content": "看不懂+高能"
+        },
+        {
+            "author": "RD_Z",
+            "timestamp": 1465291620,
+            "txt_content": "后排膜拜乙烯，顺便@乾坤"
+        },
+        {
+            "author": "1174961314",
+            "timestamp": 1465309800,
+            "txt_content": "版主的帖子，默认判定精华，跟写论文一样"
+        },
+        {
+            "author": "623015429",
+            "timestamp": 1465353720,
+            "txt_content": "好厉害。。。。虽然并没有看懂233"
+        },
+        {
+            "author": "lcplcplcp",
+            "timestamp": 1465544040,
+            "txt_content": "看样子国内的红石越来越厉害了啊。。"
+        },
+        {
+            "author": "灯笼大人",
+            "timestamp": 1465577400,
+            "txt_content": "就算这样我也只是看懂了一丢丢"
+        },
+        {
+            "author": "练习册",
+            "timestamp": 1465627500,
+            "txt_content": "诶！ 命令方块版 _(:з」∠)_"
+        },
+        {
+            "author": "Xin_陆",
+            "timestamp": 1465741260,
+            "txt_content": "想起一个笑话\n一边玩手机还能把棋下的那么好！"
+        },
+        {
+            "author": "siis1234",
+            "timestamp": 1465815960,
+            "txt_content": "太棒了!我电脑玩起来有点卡...虽然完全看不懂"
+        },
+        {
+            "author": "放学别走丶",
+            "timestamp": 1466177040,
+            "txt_content": "水精炎？"
+        },
+        {
+            "author": "zi-min的fan",
+            "timestamp": 1466220360,
+            "txt_content": "前方高能预警"
+        },
+        {
+            "author": "复仇者大大",
+            "timestamp": 1466242680,
+            "txt_content": "表示根本看不明白呢"
+        },
+        {
+            "author": "hsk001ufo",
+            "timestamp": 1466307720,
+            "txt_content": "这东西看着好可怕【根本看不下去，好吧我懒得看】"
+        },
+        {
+            "author": "Eirik",
+            "timestamp": 1466428920,
+            "txt_content": "膜拜大触{:10_492:}（万一输给AI怎么办{:10_493:}）"
+        },
+        {
+            "author": "zhao55052",
+            "timestamp": 1466435040,
+            "txt_content": "楼主实在厉害，mc的指令语言果然博大精深，玩不来"
+        },
+        {
+            "author": "co2x",
+            "timestamp": 1466444520,
+            "txt_content": "膜拜大触！"
+        },
+        {
+            "author": "懒虫哥",
+            "timestamp": 1466829780,
+            "txt_content": "你们。。新的人工智能？"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1467275640,
+            "txt_content": "如果2个AI对下。。。"
+        },
+        {
+            "author": "dongduoduo2011",
+            "timestamp": 1467424860,
+            "txt_content": "可惜没抢到首发2333"
+        },
+        {
+            "author": "晓阳",
+            "timestamp": 1467434520,
+            "txt_content": "什么破系统，给我一万年我也能做"
+        },
+        {
+            "author": "OEANGEDADA",
+            "timestamp": 1467449100,
+            "txt_content": "宝宝只能看懂一丢丢"
+        },
+        {
+            "author": "xsx111xsx",
+            "timestamp": 1468035120,
+            "txt_content": "xsx111xsx 发表于 2016-7-9 11:38\n2333333333333333\n不错= ="
+        },
+        {
+            "author": "xsx111xsx",
+            "timestamp": 1468035480,
+            "txt_content": "2333333333333333"
+        },
+        {
+            "author": "q2539171536",
+            "timestamp": 1468048320,
+            "txt_content": "收下在下的膝盖~"
+        },
+        {
+            "author": "qwe15071900041",
+            "timestamp": 1468161300,
+            "txt_content": "\n好厉害，大触请受我一拜。"
+        },
+        {
+            "author": "Green_stone",
+            "timestamp": 1468220640,
+            "txt_content": "思路不错，看懂有点难……"
+        },
+        {
+            "author": "Green_stone",
+            "timestamp": 1468220640,
+            "txt_content": "思路不错，看懂有点难……"
+        },
+        {
+            "author": "Maro丨马络",
+            "timestamp": 1468586880,
+            "txt_content": "不错呀，很好玩的小游戏"
+        },
+        {
+            "author": "1768019994",
+            "timestamp": 1468703460,
+            "txt_content": "一颗赛艇 棋高一着 在下佩服 望 有朝一日 汝..."
+        },
+        {
+            "author": "黑喵菌",
+            "timestamp": 1468762020,
+            "txt_content": "不明嚼铝"
+        },
+        {
+            "author": "cjc20000312",
+            "timestamp": 1468764000,
+            "txt_content": "看不懂233"
+        },
+        {
+            "author": "小空流",
+            "timestamp": 1469104560,
+            "txt_content": "{:10_499:}  这表情表达了我看大神贴的心情与感触   这强大三维逻辑理解究竟是怎么想到而且做出来的话也很厉害  看完我万分激动的留下了回帖以上内容...."
+        },
+        {
+            "author": "HomeCraftRPG",
+            "timestamp": 1469147580,
+            "txt_content": "看不懂。。。"
+        },
+        {
+            "author": "懒虫哥",
+            "timestamp": 1469325300,
+            "txt_content": "你们怎么想的，好厉害啊"
+        },
+        {
+            "author": "2095065648",
+            "timestamp": 1469333760,
+            "txt_content": "jianghr 发表于 2016-5-27 00:11\n从目前为止的回复来看，绝大多数人是没看懂的。\n经过和乙烯在QQ上长达3个小时的交易，算是大致明白这个算法 ...\n大触 {:10_492:}"
+        },
+        {
+            "author": "936871992",
+            "timestamp": 1469456880,
+            "txt_content": "好厉害，大触请受我一拜。 66666"
+        },
+        {
+            "author": "2427612196",
+            "timestamp": 1469516040,
+            "txt_content": "楼主好帅，不过有什么用啊"
+        },
+        {
+            "author": "小宇lalala",
+            "timestamp": 1469527860,
+            "txt_content": "果然是被吊打"
+        },
+        {
+            "author": "!QAZ",
+            "timestamp": 1469529420,
+            "txt_content": "好厉害 光是思路就想不到"
+        },
+        {
+            "author": "SuperWangCC",
+            "timestamp": 1469532240,
+            "txt_content": "红石万岁！！一定要好好学习红石技术"
+        },
+        {
+            "author": "王念一",
+            "timestamp": 1469548440,
+            "txt_content": "妈蛋，，，直接用命令裆块写就跟写汇编一样麻烦啊（明明就是在计分板上出栈入栈吗！虽然栈的最大深度是1，233333）\n另外居然还能实现权重的判定，这也是极为牛逼的了\n如果要是碰到weight一样的两个格子怎么办？比如双活四"
+        },
+        {
+            "author": "Galaxy.",
+            "timestamp": 1469624520,
+            "txt_content": "大触，请收下我的膝盖"
+        },
+        {
+            "author": "waixsh",
+            "timestamp": 1469759160,
+            "txt_content": "强 无敌666666"
+        },
+        {
+            "author": "ArisV",
+            "timestamp": 1469865540,
+            "txt_content": "mdzz 看都看不懂 不过摸摸触角"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1469971800,
+            "txt_content": "lcplcplcp 发表于 2016-6-10 15:34\n看样子国内的红石越来越厉害了啊。。\n关红石什么事？"
+        },
+        {
+            "author": "h1293553090",
+            "timestamp": 1470027000,
+            "txt_content": "好厉害，大触请受我一拜"
+        },
+        {
+            "author": "h1293553090",
+            "timestamp": 1470027420,
+            "txt_content": "好厉害，大触请受我一拜"
+        },
+        {
+            "author": "332842890",
+            "timestamp": 1470134100,
+            "txt_content": "一脸懵逼 直接看评论= ="
+        },
+        {
+            "author": "lcplcplcp",
+            "timestamp": 1470210720,
+            "txt_content": "MODlover 发表于 2016-7-31 21:30\n关红石什么事？\n命令方块也是红石的类别啊。。"
+        },
+        {
+            "author": "15068631197",
+            "timestamp": 1470378720,
+            "txt_content": "是啊，也是看不懂，为什么为什么，太笨了哈哈"
+        },
+        {
+            "author": "hkw7979",
+            "timestamp": 1470404640,
+            "txt_content": "{:10_512:}看着好复杂 但是很不错"
+        },
+        {
+            "author": "wu123yue",
+            "timestamp": 1470466500,
+            "txt_content": "大触 给你跪了  收下我的膝盖"
+        },
+        {
+            "author": "Ivan-i",
+            "timestamp": 1470476160,
+            "txt_content": "我的世界里面什么都可以玩66666666{:10_496:}"
+        },
+        {
+            "author": "Dhuic",
+            "timestamp": 1470494220,
+            "txt_content": "为什么我看不懂。。{:10_492:}"
+        }
+    ]
+}

@@ -1,0 +1,79 @@
+{
+    "title": "初步实现小木斧功能 1 快速填充",
+    "author": "qaz1-qaz1-",
+    "replyCount": 14,
+    "timestamp": 1550050020,
+    "txt_content": " 本帖最后由 qaz1-qaz1- 于 2019-2-13 17:29 编辑 \n\n引言\n这个东西应该火星了，但是因为forge1.13还没有发出来，于是就蹭一下热度好了。我想想这个标题中的\"1\"要不要加，万一填补上坑就凉了，但是也许有后续呢？还是加上好了。\n不废话了，上效果：\n\n在这个帖子中，使用说明在第二页，附有下载，如果要细看则在之后的几页，我认为可供参考的地方在目录的抛砖引玉处，最后有想说的话\n使用说明\n安装：\n百度云：\nhttps://pan.baidu.com/s/10Rw2N8Te27r2yH0_PKG-bw\n密码：hhig\n下载此数据包在安装前找到数据包下的 数据包/data/tool/functions/clone 目录在目录中打开 start.mcfunction，按注释要求进行更改在目录中打开 clone.mcfunction，按注释要求进行更改安装数据包进入游戏，输入 /function tool:help 查看帮助\n\n使用：\n使用 function tool:tool 获得选择工具对着你想定位的方块按右键，此处的方块指的是一整个方块，比如说玻璃、草、石头、泥土...，如果要选择不是一整个的方块，如玻璃板...，请先把选择整个方块，再将方块替换成你想要的，比如你想选择玻璃板：在玻璃板处放下玻璃，选择玻璃，把玻璃打碎放上玻璃板选中三个点后使用 /function tool:commands/fill 来填充如果选错了，可以用 /function tool:remove 来移除最近放下的定位点，如果不放心，可以多用几次，直到跳出提示\n\n这个数据包很脆弱，没有设置误操作处理，别尝试去作，用用够了，这个理论上是支持多人的。\n功能实现\n选择 file: .../functions/selector/set.mcfunction\n这个功能主要分为两部分来实现\n一、射出箭矢\n二、射中时生成盔甲架\n射出箭这一个部分在我之前的传送法杖一文已经讲过了，这里就不再赘述的，这里主要讲讲生成盔甲架的部分。步骤与命令如下图所示，为了文章的简略性，命令有所删减\n检测箭的落地，这里只要检测箭有没有inGround标签即可\nexecute as @e[tag=tool_arrow,nbt={inGround:1b}] at @s run function tool:selector/set复制代码\n在箭前面放置定位点，用execute命令，这里的 rotate as 非常关键，规定了以人的方向为基准执行这个命令，这样可以省去将人的Rotation复制到箭上的麻烦，而且还避免了bug（复制很可能不会成功）\nexecute at @e[tag=tool_arrow_setting] rotated as @s positioned ^ ^ ^0.5 align y run summon minecraft:armor_stand ~ ~ ~ {...}复制代码\n功能实现\n复制 file: .../functions/clone/\n\n在这个目录下有两个函数，start 用于初始化，即搭建一个中继环境，clone用于封装复制模块，功能是把 @e[tag=tool_from] 处的方块复制到 @e[tag=tool_to] 处，这里主要讲克隆模块。\n克隆主要分为两步，1.打开冰箱门把方块复制到中继处，2.将中继处的方块复制出来。\n因为一个命令的两组坐标无法直接相对于两个实体，只能用中继的方法了，不然就是用结构方块。这里是这样实现的\nexecute at @e[tag=tool_from] run clone ~ ~ ~ ~ ~ ~ -168 3 -783\nexecute at @e[tag=tool_to] run clone -168 3 -783 -168 3 -783 ~ ~ ~复制代码\n非常的简单粗暴了\n功能实现\n填充 file: .../functions/fill/\n初始化 file: .../function/commands/fill.mcfunction\n\n初始化非常的简单，需要算出3个数据来：两个定位的xyz差值，再作类似于植树问题的处理不好的回忆啊，实现如下，以dx值为例\nexecute store result score #x_temp tool_calc run data get entity @e[tag=tool_belong,scores={tool_selector=2},limit=1] Pos[0]\nexecute store result score #x_left tool_calc run data get entity @e[tag=tool_belong,scores={tool_selector=3},limit=1] Pos[0]\nscoreboard players operation #x_left tool_calc -= #x_temp tool_calc\nexecute if score #x_left tool_calc matches 0.. run scoreboard players add #x_left tool_calc 1\nexecute if score #x_left tool_calc matches ..-1 run scoreboard players remove #x_left tool_calc 1复制代码\n详细解释如下：\n获取第一个选择点的x获得第二个选择点的x相减分类做\"植树问题\"处理，因为如果直接相减，则会遗漏掉一层，所以还要加(或者减)一\n\n\n位移 file: .../function/fill/\n\n核心思想就是迭代迭代迭代迭代迭代迭代迭代迭代迭代迭代迭代迭代根本停不下来\n在使用过程中会有以下的逻辑\nx方向的移动\n=> 如果x方向移动完了，就在y方向上移动一次，并重置x\n=> 如果y方向移动完了，就在z方向上移动一次，并重置y\n=> 如果z方向移动完了，就完成操作，否则继续重复\n这里以移动x为例贴上具体函数(move_x.mcfunction)\n#x\n#+\n#如果在1上面，就向x+移动\nexecute if score #x_left tool_calc matches 1.. run tp @s ~1 ~ ~\n#修改left\nexecute if score #x_left tool_calc matches 1.. run scoreboard players remove #x_left tool_calc 1\n\n#-\n#如果在-1下，就向x-移动\nexecute if score #x_left tool_calc matches ..-1 run tp @s ~-1 ~ ~\n#修改left\nexecute if score #x_left tool_calc matches ..-1 run scoreboard players add #x_left tool_calc 1复制代码\n分类讨论是向正方向移动还是向负方向移动后，主要分为两个步骤：位移与记分板的运算。\n\n重置 file: .../function/fill/\n\n因为复制的操作是类似于打印机一样一行一行复制的，所以每次移动完x方向后，就要再在移动y方向移动1格，并且重置x坐标，接下来，以重置x坐标为例说明\n#获得位置\nexecute store result score #x_temp tool_calc run data get entity @s Pos[0] 1000\n#将x_origin*1000\nscoreboard players operation #x_origin tool_calc *= #thousand tool_calc\n#相加 \nscoreboard players operation #x_temp tool_calc -= #x_origin tool_calc\n#写入\nexecute store result entity @s Pos[0] double 0.001 run scoreboard players get #x_temp tool_calc\n#将x_origin/1000\nscoreboard players operation #x_origin tool_calc /= #thousand tool_calc\n#恢复left\nscoreboard players operation #x_left tool_calc = #x_origin tool_calc复制代码\n获得x坐标，记为x1将x1减去在x轴上已经移动的距离将x1写入Pos[0]完成重置（讲的不是很清楚）\n\n对y方向上进行的重置也是同理\n其他想说的\n\n在写函数的过程中，我陷入了递归懵逼之中：为什么不行 => 改了这个应该就行了 => 为什么不行 => 改了这个应该就行了 => ...\n而这一切的一切都是因为甩锅，明明就是技术不好233没有很好的调试工具，来看一看文件中随处可见的心酸的痕迹，#log\n# tellraw @a [\">>reset x\"]\n# execute store result score yo_y test run data get entity @s Pos[0] 1000\n# tellraw @a [\"x: \",{\"score\":{\"objective\":\"test\",\"name\":\"yo_y\"}}]\n# execute store result score yo_y test run data get entity @s Pos[1] 1000\n# tellraw @a [\"y: \",{\"score\":{\"objective\":\"test\",\"name\":\"yo_y\"}}]\n# execute store result score yo_y test run data get entity @s Pos[2] 1000\n# tellraw @a [\"z: \",{\"score\":{\"objective\":\"test\",\"name\":\"yo_y\"}}]复制代码\n但是我还是凑着过来了，真好。\n我实现这一个东西应该是因为打fill指令挺麻烦的，希望大家能用的愉快。不愉快也轻喷\n",
+    "replies": [
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1550050200,
+            "txt_content": "突然间发现不会用目录了...尴尬"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1550051760,
+            "txt_content": "你似乎没火星……反正我是没看到过同类数据包的发布帖子……\n\n实现起来较为简单，不过一大票写命令的却又一起咕咕咕……诶"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1550056080,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-2-13 19:10 编辑 \n\n用箭是一种很奇怪的方式…\n\n在箭刚生成的时候，客户端认为它 Motion[] 全部为 0，会导致它在视野前方停顿一段时间然后再按照你设置的 Motion[] 射出，带给玩家的体验实际上…很糟。\n\n不如直接用视线追踪找到前方方块。国外有一个还原 WorldEdit 的 datapack（BlingEdit），它的做法就类似这样，它还添加了对选中方块的高亮（也就是在那个方块的位置生成一个带有 Glowing 的实体［史莱姆潜影贝之流］。由于实体被添加到了拥有颜色的 team 里面，所以高亮边框还有颜色），效果是不错的…"
+        },
+        {
+            "author": "阿科i",
+            "timestamp": 1550073120,
+            "txt_content": "66666，学到了"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1550112540,
+            "txt_content": " 本帖最后由 隐退 于 2020-2-18 14:42 编辑 \n\n楼主你可以参考一下：\nhttp://www.mcbbs.net/thread-843864-1-1.html\n看来我们这种帖子几乎只有 dalao 才会看\n这个模组还有一个大 BUG 没修，算了算了\n准备弃坑了"
+        },
+        {
+            "author": "为王的诞生",
+            "timestamp": 1550116260,
+            "txt_content": "66666"
+        },
+        {
+            "author": "YuanCH.",
+            "timestamp": 1550154720,
+            "txt_content": "谢谢分享，正好需要哈哈哈"
+        },
+        {
+            "author": "小小风风520",
+            "timestamp": 1554898380,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "小小风风520",
+            "timestamp": 1554898380,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "我是Matteoo",
+            "timestamp": 1554907860,
+            "txt_content": "很棒啊非常棒"
+        },
+        {
+            "author": "筱枫最帅啦",
+            "timestamp": 1554981780,
+            "txt_content": "学会了，这功能真不错！"
+        },
+        {
+            "author": "3055892644",
+            "timestamp": 1555154640,
+            "txt_content": "虽然我不懂这个东西  但看起来好叼 不过又好像是创**mod"
+        },
+        {
+            "author": "DouXiaoBi",
+            "timestamp": 1555209600,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "yluow",
+            "timestamp": 1555219860,
+            "txt_content": "学到了，666666666"
+        }
+    ]
+}

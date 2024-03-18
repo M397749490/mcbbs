@@ -1,0 +1,79 @@
+{
+    "title": "[上古之石]Pathfinder插件教程",
+    "author": "zghh008",
+    "replyCount": 14,
+    "timestamp": 1516466580,
+    "txt_content": " 本帖最后由 zghh008 于 2020-2-20 19:54 编辑 \n\n0.引言\n\n其实这篇教程很早之前就想写了，但是上了高中没太多时间，现在统一写一个教程。\n前段时间为了开发一个尸潮插件（ZombieComing:地址：http://www.mcbbs.net/thread-733022-1-1.html）\n因为我的主要目的是实现僵尸破坏方块和放置方块。所以我就想到僵尸有一个破坏门的ai，末影人有一个放置方块的ai，所以我就决定用ai来实现。于是我就系统的自己研究了一下ai的机制。\n下面是一些心得。\n\n\n\n1.先来简单介绍一下PathfinderGoal\nPathfinderGoal是mc的一个内部实现，它在nms（net.minecraft.server）包下，被实现的ai一般以PathfinderGoal开头，它是一套mc自己的机制，用于实体操作。下面我简单叙述一下它的工作原理。在一个标准的PathfinderGoal里面一共有五个基础方法。boolean shouldExecute()boolean continueExecuting()void startExecuting()void resetTask()void updateTask()在mc的AI机制中，首先它会调用shouldExecute判断是否开始这个AITask，如果返回true，则立刻调用startExecuting。在接下来的tickUpdate中，如果一个AI已经开始了，那么它就会调用continueExecuting判断是否继续，如果返回true则调用updateTask，否则则调用resetTask，然后退出这个AITask。如果你听了很迷糊，那我就简单的举个梨子。\n\n\n\n\n02.3.png (26.83 KB, 下载次数: 22)\n\n下载附件\n\n2018-1-19 23:09 上传\n\n\n\n\n就拿铁傀儡看村民AI举个梨子。当AI机制开始运行时，他会首先调用shouldExecute方法。很明显，第一个if是判断铁傀儡所在世界是不是白天，第二个if判断用铁傀儡的Random(随机数)来获取0-7999中任意一个是否为0(概率为1/8000)，只有满足这两个条件它才会继续，最后就是获取这个铁傀儡周围的村民（具体实现的话，自己可以去研究一下，本人在这里不做阐述），当然获取村民是有范围的，与this.theGolem.boundingBox.expand(6.0D, 2.0D, 6.0D)有关，当满足最后的获取到的村民不是null时就会满足shouldExecute方法，然后返回true，紧接着调用startExecuting。根据参数名就可以看出，设置了一个lookTime为400，并且设置伸出花花为true。调用完startExecuting后，这个AITask（AI每运行一次就是一个AITask）就被设置为已经启动了，然后就会每过1tick调用continueExecuting方法。在continueExecuting方法中，是一个判断lookTime是不是大于0的语句。大于0就证明还可以继续看，就会返回true，小于0就不会继续看，就会返回false。如果返回true，就会调用updateTask方法，第一个语句就是让铁傀儡看着这个村民，第二个语句就是lookTime减1。如果返回false，就会调用resetTask方法，第一个语句就是让铁傀儡不再拿着花花，然后this.theVillager = null，将村民重置。AITask结束。纵观一下，启动这个AI的概率大概是1s为1/400，这个AI持续的时间为20s。\n\n\n2.简单介绍一下如何自己写一个PathfinderGoal\n首先你需要打开IDE，然后新建一个类，让它继承PathfinderGoal类。它会让你自动实现shouldExecute方法。下面我就写一个蜘蛛生成网的AI。(建议取名字以PathfinderGoal开头。我对于这个蜘蛛生成网的AI取的名字为PathfinderGoalNet)为了只让蜘蛛有生成网的功能，我就要写一个参数为蜘蛛的构造函数。注意:这个AI的实体选择可以使用nms的实体也可以使用BukkitAPI，我将以BukkitAPI的实体作为例子，因为毕竟BukkitAPI的实体比较容易操作。但是我在构建函数里面写的仍是nms下面的Spider，因为我要对于类似前面的Random操作。类似于前面的随机方法，我将获得这个实体的Random来设置一个几率。当然我还要判断蜘蛛是否在地上(在空中织网你们不觉得有点怪么)。\n\n\n\n\nfff.png (10.68 KB, 下载次数: 16)\n\n下载附件\n\n2018-1-20 23:25 上传\n\n\n\n\n接下来我就要写startExecuting了。startExecuting里面就应该写在当前位置生成一个蜘蛛网。\n\n\n\n\nfff.png (23.2 KB, 下载次数: 15)\n\n下载附件\n\n2018-1-20 23:33 上传\n\n\n\n\n(用BukkitAPI还有一个原因，你不需要去callEvent和给客户端发包(客户端发包这里没有提现))根据思路，我们生成一个网就可以退出了，所以我们可以在continueExecuting里面返回false结束这个AITask(因为continueExecuting默认返回调用startExecute，如果不重写返回false，那么这将不会结束，最终也只会执行一次)。而resetTask和updateTask方法就可以不写了。\n\n\n\n\nfff.png (25.49 KB, 下载次数: 13)\n\n下载附件\n\n2018-1-20 23:39 上传\n\n\n\n\n这个AI就搞定了。下面我就讲一下如何注册AI。\n3.注册PathfinderGoal注册AI是调用PathfinerSelector的a方法，因为PathfinderSelector的实例在实体内部是protected，对于我们来说是不可视的，所以必须用到反射。\n\n\n\n\nfff.png (20.71 KB, 下载次数: 8)\n\n下载附件\n\n2018-1-20 23:50 上传\n\n\n\n\n现在我来简单说一下PathfinerSelector的a方法的两个参数，第二个参数很明显是PathfinderGoal实例，不用多讲，重点是第一个int，这个是优先级的意思。数值越小优先级越高，范围应该为1到正无穷。一般确定AI优先级是由比较同类AI优先级确定。\n4.下面我就举个例子来说明一下PathfinderGoal的具体实现。\n\n我的ZombieComing插件的破坏方块实现。因为我是按照PathfinderGoalBreakDoor的思路来写的。于是我就学着它写了一个基类，和一个具体实现类。当然注册的是具体实现的类。\n\n\n\n\nfff.png (28.01 KB, 下载次数: 12)\n\n下载附件\n\n2018-1-21 00:03 上传\n\n\n\n\n\n\n\n\n\nffff.png (17.83 KB, 下载次数: 19)\n\n下载附件\n\n2018-1-21 00:05 上传\n\n\n\n\nshouldExecute中的this.getBlock方法是我自己写的获取它周围方块的方法，然后判断是否为null如果不为null那么就会进行配置AITask，并开始AITask，如果为null则不会开始。配置主要是获取了Block的掉落物品和Block的Bukkit实例以及Block的BlockPosition(就是它的x，y，z值)。在startExecuting方法中配置了isStop为false(判断是否停止)，然后计算了一下x和y的值(具体作用我也忘了，我当时是按照BreakDoor来写的，大概是和updateTask一起判断这个方块是不是僵尸以及移除了)。在continueExecuting中，是判断isStop是否为true如果是那么就结束AITask。在updateTask方法中写了满足某种条件(上面已经解释了)将isStop设置为true(主要是为了后面实现这个类的类判断操作)。接下来我们来看具体实现的类\n\n\n\n\nfffff.png (25.05 KB, 下载次数: 19)\n\n下载附件\n\n2018-1-21 00:14 上传\n\n\n\n\n\n\n\n\n\nffffffff.png (28.32 KB, 下载次数: 16)\n\n下载附件\n\n2018-1-21 00:14 上传\n\n\n\n\n构造函数这里写的Object是为了兼容版本。shouldExecute方法是两个if判断，一个是判断父类的shouldExecute方法是否成立，也就是前面已经讲过的获取方块，基本配置。第二个是判断这个世界的GameRule是否允许Mob对地形造成修改。如果允许，那么才继续(如果这个rule不允许，僵尸不能破坏门，苦力怕不能破坏方块，末影人也一样，我设置这个判定主要是合乎mc原版机制)。startExecuting就是调用父类的startExecuting然后再将breakTime设置为0，breakTime主要是用于控制破坏时间的。continueExecuting是判断breakTime是否小于等于30，如果大于就结束AITask，用于控制破坏时间。updateTask是调用父类的updateTask，然后breakTime加1，这里的breakSit是破坏程度，因为破坏方块不都有一种特殊的视觉效果么，这里获取的breakSit就是为了确定不同的视觉效果。紧接着判断视觉效果和域内的是否相等，不相等就发一个方块破坏包（block break packet 用于更改方块的破坏程度）。然后设置域内的breakSit等于目前的breakSit。然后判断breakTime是否等于30，即马上结束了，然后就手动callEvent，如果被cancel掉了就调用startExecuting重新破坏(这个属于Event机制，不必了解，我这里并没有使用BukkitAPI，如果使用BukkitAPI代码将简洁很多)，然后就是破坏方块，掉落破坏后的物品。resetTask就是调用父类的resetTask，注意这里因为我前面那个类并没有写resetTask，所以他调用的是PathfinderGoal的resetTask，但是这个方法里面啥都没有。说白了，其实这个语句没有用。然后就发了一个PacketPlayOutBlockBreakAnimation包结束。\n5.谈谈使用PathfinderGoal\n说了这么多，想必你们也明白了吧。其实如果不写PathfinderGoal同样也行。可以自己注册事件，自己写个Runnable同样也可以搞定。但是通过PathfinderGoal能够更快的处理。因为这是一套mc自己的机制。是它自己一直都在运行的。具有高效性。当然它也是一种内部实现，更能让你了解mc如何工作。但是使用PathfinderGoal也要注意兼容问题。毕竟每个版本nms的包名是不一样的。所以建议各位在食用的时候注意兼容(目前一般使用兼容的方式为ASM艹字节码，还有就是接口实现。我的Zombiecoming插件即为接口实现，这里要感谢莫老指教 )。当然除了兼容问题还有就是要注意任何一个关于PathfinderGoal的异常都有很大可能引起整个服务器的崩溃。\n\n\n\n\n\n\n\n[groupid=324]上古之石美工工作组[/groupid]",
+    "replies": [
+        {
+            "author": "20050221yandasu",
+            "timestamp": 1517562120,
+            "txt_content": "感谢lz,正好需要\n真是雪中送炭,要不然不知道要查多少个API\n能不多几个例子呢\n例如玩家喂给猪人一些肉,然后猪人跟者玩家,帮玩家打怪,砍树。希望给一下,1294243258@qq.com\n人气送你"
+        },
+        {
+            "author": "zghh008",
+            "timestamp": 1517632680,
+            "txt_content": "20050221yandasu 发表于 2018-2-2 17:02\n感谢lz,正好需要\n真是雪中送炭,要不然不知道要查多少个API\n能不多几个例子呢\n谢谢建议。"
+        },
+        {
+            "author": "SiYao",
+            "timestamp": 1528630260,
+            "txt_content": "大佬啊牛逼2323"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1555411740,
+            "txt_content": "你都写ai了干嘛不用mcp或者sponge呢，开发起来还简单"
+        },
+        {
+            "author": "Savior_Hn",
+            "timestamp": 1555641300,
+            "txt_content": "很实用的教程，收下了，感谢~"
+        },
+        {
+            "author": "zghh008",
+            "timestamp": 1556720580,
+            "txt_content": "liach 发表于 2019-4-16 18:49\n你都写ai了干嘛不用mcp或者sponge呢，开发起来还简单\n我这是bukkit插件开发教程。面向大部分bukkit端插件制作者。\n那我要是不想用sponge，不想写mod怎么办？"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1556770920,
+            "txt_content": "zghh008 发表于 2019-5-1 22:23\n我这是bukkit插件开发教程。面向大部分bukkit端插件制作者。\n那我要是不想用sponge，不想写mod怎么办？ ...\nbukkit本身设计里面完全不包含任何跟实体AI有关的内容。我表示如果你需要大量开发实体Goal，我个人更推荐使用forge mod或者sponge插件这两个平台，如果不行则使用mcp的mappings（内含 AI 反混淆）而不是bukkit mappings。\n\n同时楼主没有发现mob goal系统除了实现这几个方法外还要呼叫setMutexBits/setCategoryBits方法。这个方法可以避免某些使用相同操作的goal共同运行，比如羊吃草的时候Mutex bit是 4+2+1，所以它就不会在吃草的时候乱跳乱看乱走。有些bug，比如村民在和玩家交易的时候乱跳，就是mutex bit没设好导致的（没有设跳跃对应的mutex bit 4）"
+        },
+        {
+            "author": "2404540291",
+            "timestamp": 1556772060,
+            "txt_content": "感谢lz,正好需要\n真是雪中送炭,要不然不知道要查多少个API"
+        },
+        {
+            "author": "zghh008",
+            "timestamp": 1556778060,
+            "txt_content": "liach 发表于 2019-5-2 12:22\nbukkit本身设计里面完全不包含任何跟实体AI有关的内容。我表示如果你需要大量开发实体Goal，我个人更推荐 ...\n首先我先声明这是一篇教程，我是怀着我要用bukkit来写ai的目的。如果这是一篇咨询帖子，有人咨询是用bukkit写ai还是用其他什么东西写ai比较好，我想你的回答是有意义的。\n\n所以你告诉我有什么用？如果你想秀一秀你的学识，你可以单独发个帖子说什么其他东西写ai比bukkit写ai好。\n\n我只是给其他插件开发者提供一个捷径。你也没必要告诉我那个比那个好。\n\n就像我用一个垃圾手机玩游戏需要开一些内存优化，我就写了一个内存优化的教程贴，你也没必要告诉我去买一个好一点的手机。因为我就是为了让垃圾手机玩的起游戏。\n\n我不知道你是什么心理，非要这么上纲上线。\n\n其次我这篇教程是我在一天之内完成的，不可能完全的介绍完ai的工作机制，在部分评论中我也说明我后续有可能会完善。所以我接受你的第二条提出的问题。关于你的第一条言论我实在不敢苟同。"
+        },
+        {
+            "author": "yujm4623",
+            "timestamp": 1556943420,
+            "txt_content": "这真是不服都不行了"
+        },
+        {
+            "author": "Tcaks_NB",
+            "timestamp": 1561908360,
+            "txt_content": "...表示看的有点懵。"
+        },
+        {
+            "author": "【NightSky】",
+            "timestamp": 1565332380,
+            "txt_content": "不服不行啊"
+        },
+        {
+            "author": "li709854423",
+            "timestamp": 1566286920,
+            "txt_content": "liach 发表于 2019-5-2 12:22\nbukkit本身设计里面完全不包含任何跟实体AI有关的内容。我表示如果你需要大量开发实体Goal，我个人更推荐 ...\n学习了！！！！"
+        },
+        {
+            "author": "wuzexi",
+            "timestamp": 1566294540,
+            "txt_content": "MCBBS有你更精彩"
+        }
+    ]
+}

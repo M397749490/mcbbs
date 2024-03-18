@@ -1,0 +1,29 @@
+{
+    "title": "【CBL|秋一】面对巨大的随机数如何取舍速度与精度",
+    "author": "秋一",
+    "replyCount": 4,
+    "timestamp": 1512112680,
+    "txt_content": " 本帖最后由 acordome 于 2017-12-1 15:24 编辑 \n　　大家好，许久不见。\n　　最近，由于1.13的快照更新，想必大家也在持续关注着命令改动的动向。其中当以execute和选择器的变动最为显著。在这个贴子中，我想以随机数的例子，和大家讨论一下实际写模组/做地图时，在精度与速度方面的取舍。\n　　注意，在写本帖时，使用的版本为17w48a，不保证1.13正式版有所更改，但原理相通。\n\n　　题目如下\n\n在一个游戏刻中，生成一个0~1000之间的随机整数，以tellraw的形式输出到聊天窗\n　　这个题目看起来很简单，其实大有学问。在MC中，我们用来生成随机数的方法有很多，但目前从运用角度上最佳的还是使用随机选择器@r。\n\n　　我们先来看一个“笨办法”。\n　　1. 创建一个记分板项，名为mathRnd。/scoreboard objectives add mathRnd dummy复制代码　　2. 放置10个盔甲架。\n　　3. 创建一个函数，其路径为rnd:summon_aecsummon area_effect_cloud ~ ~ ~ {CustomName:\"mathRnd\"}\nscoreboard players add @e[name=mathRnd,type=area_effect_cloud] mathRnd 1复制代码　　4. 创建一个函数，其路径为rnd:method1#通过execute乘数法将rnd:summon_aec执行1000次\nexecute at @e[limit=10] at @e[limit=10] at @e[limit=10] run function rnd:summon_aec\n#这时就已经有1~1000的数了，我们还需要一个0\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"mathRnd\"}\nscoreboard players add @e[name=mathRnd,type=area_effect_cloud] mathRnd 0\n#然后打印在聊天窗上\n#这里特别说明一下，由于当前版本@r选不到玩家以外的实体，所以使用@e[sort=random,limit=1]来代替\ntellraw @a {\"score\":{\"name\":\"@e[sort=random,limit=1,name=mathRnd,scores={mathRnd=0..1000}]\",\"objective\":\"mathRnd\"}}复制代码\n　　这个所谓的“笨办法”，就是生成1001个实体，其分数依次是0,1,2...,1000，然后直接使用随机选择器在其中抽一个出来即可。这个办法起码可以保证所有数字出现的概率是均等的，每个数字被抽到的概率都是1/1000，也就是我们所说的保证精度。\n　　但是这个方法存在问题，大家可以想象一下，1秒钟被划分为20个游戏刻，在一个游戏刻中要生成1001个实体，执行一系列运算。这是相当消耗性能资源的一种做法。大家可以等到我讲完另一种方法后，自行对比一下。这是肉眼就可以看出来的区别。\n\n　　接下来我向大家介绍另一种方法。\n　　创建函数rnd:method2#获取0~10这11个数\nexecute as @e[limit=10] run function rnd:summon_aec\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"mathRnd\"}\nscoreboard players add @e[name=mathRnd,type=area_effect_cloud] mathRnd 0\n#以一个名为rndNum的实体为寄存，执行下面的运算。先在0~9中抽取一个数，加到rndNum上\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"rndNum\"}\nscoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd += @e[sort=random,limit=1,name=mathRnd,scores={mathRnd=0..9}] mathRnd\n#左移一位，即乘10\nscoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd *= @e[name=mathRnd,scores={mathRnd=10}] mathRnd\n#重复一次上面的过程\nscoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd += @e[sort=random,limit=1,name=mathRnd,scores={mathRnd=0..9}] mathRnd\nscoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd *= @e[name=mathRnd,scores={mathRnd=10}] mathRnd\n#到这一步，你将得到一个\"XY0\"的数字，XY的范围是0~99\n#分情况讨论，如果XY=99，那么接下来应该从0~10中抽取一个数字\nexecute if entity @e[name=rndNum,scores={mathRnd=990}] run scoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd += @e[sort=random,limit=1,name=mathRnd,scores={mathRnd=0..10}] mathRnd\n#反之，则只能在0~9中抽取数字\nexecute if entity @e[name=rndNum,scores={mathRnd=..980}] run scoreboard players operation @e[name=rndNum,type=area_effect_cloud] mathRnd += @e[sort=random,limit=1,name=mathRnd,scores={mathRnd=0..9}] mathRnd\n#最后，打印到聊天窗\ntellraw @a {\"score\":{\"name\":\"@e[name=rndNum,type=area_effect_cloud]\",\"objective\":\"mathRnd\"}}复制代码\n　　这个方法实际上就是对每一位上的数字进行随机，再拼接起来。这样做可以大大降低资源消耗，提高运算速度，但是这个方法存在一个问题，就是每个数字并不是等概率被抽到的。\n　　对于0~989这990个数字，其被抽到的概率是(1-1/10*1/10)*1/10=1/990，而对于990~1000这11个数字，其被抽到的概率是(1/10*1/10*1/11)=1/1100，也就是说，后面这几个数字被抽的概率会低一些。\n\n　　那么问题来了，在实际使用的时候，玩家究竟能感觉到这个差别吗？\n　　我想是不能的。因为这两个概率相减，差值只有万分之一大小，凭肉眼根本看不出来的。\n　　可是性能上的对比就不一样了，大家可以拿这两个方法去对比一下便知。\n\n　　在这个时候，你更愿意选择哪种方法呢？\n　　答案是后者，但不完全是这样做。除非你的确像题目中所说那样生成0~1000之间的随机数，否则如果你只是想控制事件发生的概率，完全不需要到这么大的随机数，相信百分比就够用了……[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "pca006132",
+            "timestamp": 1512122460,
+            "txt_content": "1000和1023非常接近...\n随机生成5个0-3（@r 5次），组成随机数，然后检查是不是大于1000，如果大于则重来...\n如果这样还是效率很慢的话...你去买彩票吧我帮不了你\n\n这样生成一个较大但是大不了多少的随机数，然后去掉太大的情况，那就可以保证随机均匀\n选取4只是为了减少重试的可能，因为那间隔小了几率自然也比较低了\n而且讲道理...一般还是 0..999吧...多了1个出来真的很麻烦\n\n而且我在想能不能拿着loot table生成个random nbt然后用data get来获取那nbt，那么估计就相当有效率了\n就是没空测试那是不是瞬间，而且也有个问题就是那玩意得事先弄而不能根据要求生成。\n\n写了个破烂玩意出来确定那进制，能用倒是能用但是效率比较低，但也没所谓了反正这玩意不怎么需要效率2333：\nimport math\n\ndef decimal(x):\n    diff = []\n    for i in range(15):\n        temp = (i+2)**(math.floor(math.log(x, i+2))+1) - 1\n        diff.append(temp - x)\n    return 16 - list(reversed(diff)).index(min(diff))"
+        },
+        {
+            "author": "1041159637",
+            "timestamp": 1512136200,
+            "txt_content": "下面是一点拙见。\n其实应该是可以用倍增的思想的。如果说只需要从1000个数里面选一个数的话，可以转化成求1/(2^10)。因为2^10=1024>1000，是最接近1000的2的幂。\n那么区间内所有的数就可以表示成512*a[1]+128*a[2]+...+2*a[9]+1*a[10],其中a[1,2,...,10]∈{0,1}\n每一次只需要随机10次1/2的概率就可以了。\n这样的一个优点是最多只需要用两个Marker就可以模拟出所有概率，而且概率是精确的，时间上也能接受。但缺点也很明显，如果算出来的数大于1000，也就是这个数不在取值范围里面的话，就得重新随机了。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1512277080,
+            "txt_content": "我记得乙烯的帖子讲过的，比如要产生1~1000的随机数，只需要log_2 1024=10个就行，分数为1,2,4,……,512，用于产生1~1024的随机数，然后加个判断就行。"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1512281580,
+            "txt_content": "如果只要显示数字而不要分数的话LootTable刷个物品出来把它名字tellraw出来好像也不错【雾"
+        }
+    ]
+}

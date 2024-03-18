@@ -1,0 +1,29 @@
+{
+    "title": "关于物品模型，还有玩家基础属性",
+    "author": "YZL314159265",
+    "replyCount": 4,
+    "timestamp": 1563549120,
+    "txt_content": "1.自己写的一个类似于弓的东西长按右键使用还是原来的样子，贴图不变。仿照原版弓写的JSON文件，后台没报任何找不到JSON或者PNG。（难道ItemRender的注册写法也不一样吗）\n2.SharedMonsterAttributes里找不到攻击距离，只有什么最大生命和移动速度之类的。某些模组加近战攻击距离的武器怎么实现的（总不能偷鸡发射一个透明实体吧）\n请大佬解答，谢了（我真的翻过1.12MCP了但是真的没找到）。",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1563558420,
+            "txt_content": "1. 弓的物品模型有这么一个东西\n    \"overrides\": [\n        {\n            \"predicate\": {\n                \"pulling\": 1\n            },\n            \"model\": \"item/bow_pulling_0\"\n        },\n        {\n            \"predicate\": {\n                \"pulling\": 1,\n                \"pull\": 0.65\n            },\n            \"model\": \"item/bow_pulling_1\"\n        },\n        {\n            \"predicate\": {\n                \"pulling\": 1,\n                \"pull\": 0.9\n            },\n            \"model\": \"item/bow_pulling_2\"\n        }\n    ]复制代码\n相应的它的物品的构造器里有\n        this.addPropertyOverride(new ResourceLocation(\"pull\"), new IItemPropertyGetter()\n        {\n            @SideOnly(Side.CLIENT)\n            public float apply(ItemStack stack, @Nullable World worldIn, @Nullable EntityLivingBase entityIn)\n            {\n                if (entityIn == null)\n                {\n                    return 0.0F;\n                }\n                else\n                {\n                    return !(entityIn.getActiveItemStack().getItem() instanceof ItemBow) ? 0.0F : (float)(stack.getMaxItemUseDuration() - entityIn.getItemInUseCount()) / 20.0F;\n                }\n            }\n        });\n        this.addPropertyOverride(new ResourceLocation(\"pulling\"), new IItemPropertyGetter()\n        {\n            @SideOnly(Side.CLIENT)\n            public float apply(ItemStack stack, @Nullable World worldIn, @Nullable EntityLivingBase entityIn)\n            {\n                return entityIn != null && entityIn.isHandActive() && entityIn.getActiveItemStack() == stack ? 1.0F : 0.0F;\n            }\n        });复制代码\n\n2.\n参考剑（ItemSword）的 getItemAttributeModifiers 方法（func_111205_h）"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1563795780,
+            "txt_content": "u.s.knowledge 发表于 2019-7-20 01:47\n1. 弓的物品模型有这么一个东西\n\n相应的它的物品的构造器里有\npublic Multimap<String, AttributeModifier> getItemAttributeModifiers(EntityEquipmentSlot equipmentSlot)\n    {\n        Multimap<String, AttributeModifier> multimap = super.getItemAttributeModifiers(equipmentSlot);\n\n        if (equipmentSlot == EntityEquipmentSlot.MAINHAND)\n        {\n            multimap.put(SharedMonsterAttributes.ATTACK_DAMAGE.getName(), new AttributeModifier(ATTACK_DAMAGE_MODIFIER, \"Weapon modifier\", (double)this.attackDamage, 0));\n            multimap.put(SharedMonsterAttributes.ATTACK_SPEED.getName(), new AttributeModifier(ATTACK_SPEED_MODIFIER, \"Weapon modifier\", -2.4000000953674316D, 0));\n        }\n\n        return multimap;\n    }\n\n\n抱歉还是没看懂，这不是只修改了攻速和攻击力吗。。。SharedMonsterAttributes也没有攻击距离呀。。。"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1563802080,
+            "txt_content": " 本帖最后由 ustc_zzzz 于 2019-7-22 21:38 编辑 \nYZL314159265 发表于 2019-7-22 19:43\npublic Multimap getItemAttributeModifiers(EntityEquipmentSlot equipmentSlot)\n    {\n        Multima ...\nWell，我的建议是监听 net.minecraftforge.event.entity.player.AttackEntityEvent 事件，然后根据物品以及距离动态添加 Attribute：\nimport net.minecraft.entity.player.EntityPlayer;\nimport net.minecraft.entity.SharedMonsterAttributes;\nimport net.minecraft.entity.ai.attributes.IAttribute;\nimport net.minecraft.entity.ai.attributes.AttributeModifier;\nimport net.minecraftforge.event.entity.player.AttackEntityEvent;\nimport net.minecraftforge.fml.common.eventhandler.SubscribeEvent;\n\n@SubscribeEvent\npublic void on(AttackEntityEvent event)\n{\n    EntityPlayer player = event.getEntityPlayer();\n    IAttribute attribute = SharedMonsterAttributes.ATTACK_DAMAGE;\n    AttributeModifier modifier = new AttributeModifier(xxxxxx, xxxxxx, xxxxxx);\n    if (player.distance(event.getTarget()) < xxxxxx && player.getHeldItemMainhand().xxxxxx)\n    {\n        player.getEntityAttribute(attribute).applyModifier(modifier);\n    }\n    else\n    {\n        player.getEntityAttribute(attribute).removeModifier(modifier);\n    }\n}复制代码"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1569064200,
+            "txt_content": "土球球 发表于 2019-7-22 21:28\nWell，我的建议是监听 net.minecraftforge.event.entity.player.AttackEntityEvent 事件，然后根据物品以 ...\n我监听了AttackEntityEvent,可是问题在于，当实体在玩家攻击距离以外（原本的攻击距离），根本不触发这个事件，那又怎么能执行到监听该事件触发的代码，从而增加攻击距离呢。。。"
+        }
+    ]
+}

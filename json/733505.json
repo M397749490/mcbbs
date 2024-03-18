@@ -1,0 +1,59 @@
+{
+    "title": "命令函数逻辑变换",
+    "author": "pca006132",
+    "replyCount": 10,
+    "timestamp": 1508595600,
+    "txt_content": " 本帖最后由 pca006132 于 2017-10-22 15:24 编辑 \n\n概述\n本文将会简述如何使用命令函数实现一些编程里常用的控制结构，包括if, while循环, for循环，以及如何实现exit, break及continue等中断执行的语句。最后会探讨如何实现命令函数之间的参数传递及结果回传。目标版本为1.13，虽然大部分也不特别需要1.13的特性。\n下文的转换方法是特地为了程序而设计的，人手进行操作可能会比较麻烦，仅供参考之用。这些转换方法主要考虑的是实际执行效率而不是可读性，故此生成出的东西可读性会比较差。例子里经常会以 A/B/C/X/Y/Z 等代号指代不限数量的命令，故并不会对看似单个命令的代号进行优化，但读者应清楚若实际上那部分只是单一命令就不必放在独立命令函数里。\n这里一切转换建基于命令函数是由实体执行，因为大量数据需要依赖执行者来储存。如果不是实体执行就需要透过 execute as <entity> then function <name> 来让实体执行此命令函数。\n语法定义\n为了方便起见，我们会定义一些语法供本文例子使用。本文语法使用 Off-side rule ，也就是以缩进表示代码块的范围。\n<>代表需要替换为指定内容。\n注释:\n//单行注释\n/* 多行\n     注释 */\n复制代码\n--------------------------\n命令函数定义：\ndef <名称>:\n    内容\n复制代码内容内每一行代表一条命令。\n本文假设所有命令函数都是在 system 命名空间里的。\n\n--------------------------\nIf:\nif [not] <selector>:\n    选择[不]到目标时执行的内容\nelif [not] <selector>: //else if，如果上方失败时才进行检测。\n    选择[不]到目标时执行的内容\n//经过任意个elif之后\nelse: //前方所有检测都失败\n    前方所有检测都失败后执行的内容\n复制代码注意不一定需要有elif及else部分，但必须有if部分。\n[not]可选，如果写上了就代表检测不到目标时执行，检测到目标代表失败。\n\n--------------------------\nWhile（先检测条件后循环）:\nwhile [not] <selector>:\n    当selector选择到目标时循环执行的内容\n复制代码\n--------------------------\nExit: 离开当前的命令函数（def的部分，不是生成后的命令函数）\nexit //好像一般命令那样使用\n复制代码\n--------------------------\nContinue: 跳过当前迴圈继续执行\ncontinue //好像一般命令那样使用\n复制代码\n--------------------------\nBreak:    离开当前循环继续执行\nbreak\n复制代码\n--------------------------\nIf处理\n如果只有if部分而没有任何elif或else，则可以进行特殊优化。首先把内容部分放进另外的命令函数，名字不会和其他发生冲突即可，把名字记为 name。然后把if的语句进行以下转换：\nif <selector> -> execute if <selector> then function <name>if not <selector> -> execute unless <selector> then function <name>\n\n--------------------------\n假如有elif/else的部分，我们则会先找出符合哪个条件，储存在分数里，然后根据分数来选择执行哪个部分。这是为了避免先执行内容部分可能导致的副作用，如影响条件判断等。注意该记分板变量(Objective)必须为独一无二，不同If部分需要有不同的记分板变量，不然可能有别的命令修改了这个分数导致错误。\nif A:\n    W\nelif B:\n    X\nelif not C:\n    Y\nelse:\n    Z\n复制代码转换为\nscoreboard players set @s $a 0\nexecute if A then scoreboard players set @s $a 1\n//如果分数$a <= 0则代表前面的条件不成功\nexecute if @s[score_$a=0] if B then scoreboard players set @s $a 2\nexecute if @s[score_$a=0] unless C then scoreboard players set @s $a 3\n\n//假设system:$w代表 W 命令组，system:$x代表 X 命令组，如此类推。\nexecute if @s[score_$a_min=1,score_$a=1] then function system:$w\nexecute if @s[score_$a_min=2,score_$a=2] then function system:$x\nexecute if @s[score_$a_min=3,score_$a=3] then function system:$y\n//所有都不成功则$a分数还是0\nexecute if @s[score_$a_min=0,score_$a=0] then function system:$z\n复制代码While 循环\n我们会使用递归模拟循环。\ndef bla:\n    while A: //这里的A代表的是选择器而不是命令组\n        X\n复制代码会被转换为\ndef bla:\n    //先判断条件后执行内容。\n    //如果需要做到not则把function if更换为unless\n    execute if A then function system:$a\n\n//while的命令函数\ndef $a:\n    //while的内容\n    X\n    //最后判断需不需要继续递归\n    //如果需要做到not则把function if更换为unless\n    execute if A then function system:$a\n复制代码Exit, break和continue\n这个的概念比较复杂，和代码块有关。我们先以exit为例，其余两者亦是类似做法。\n我们把if, while, def等视作一个代码块， exit 命令后和 exit 在同一个代码块内的命令会被忽略掉，因为逻辑上它们不会被执行。如：\ndef test:\n    if A:\n        exit\n        //B在exit之后并且和exit在同一个代码块内，所以会被忽略掉。\n        B\n    //X在exit之后但不和exit在同一个代码块内，所以不会被忽略掉。\n    X\n复制代码exit 命令会被替换为 scoreboard players tag @s add $exit_tag。\nexit 命令所在代码块（包括直接和间接，比如上方例子中的 def test 也是exit命令所在的代码块）后的命令会被放进别的命令函数里，根据执行者有没有那 $exit_tag 来判定是否需要执行剩下的命令。这一步会递归处理直至到达“目标代码块”，比如exit就是def部分，continue就是while的内容部分（就是不包括最后的判定是否继续递归），break就是整个while的命令函数（就是包括最后的判定是否继续递归）。\n最后在“目标代码块”完结的时候移除掉那个tag以重用tag（$break_tag $continue_tag 及 $exit_tag 都可以重用，因为不会被其他命令函数影响及不会影响别的命令函数。读者可以自行尝试证明。）\ndef a:\n    if A:\n        if B:\n            exit\n        X\n    Y\n复制代码变换为\ndef a:\n    execute if A then function $ifa\n    execute if @s[tag=!$exit_tag,tag=!$break_tag,tag=!continue_tag] then function $aremaining\n    scoreboard players tag @s remove $exit_tag\ndef $ifa:\n    execute if B then function $ifb\n    execute if @s[tag=!$exit_tag,tag=!$break_tag,tag=!continue_tag] then function $ifaremaining\ndef $ifb:\n    scoreboard players tag @s add $exit_tag\ndef $aremaining:\n    Y\ndef $ifaremaining:\n    X\n复制代码\n--------------------------\n我们可以对break进行优化，与其在每次循环的最后移除一次tag造成大量重复的无用执行，我们可以选择在循环的调用完结后移除$break_tag。\ndef bla:\n    while A:\n        if B:\n            break\n        X\n    Y\n复制代码可以转换为\ndef bla:\n    execute if A then function system:while_a\n    scoreboard players tag @s remove $break_tag\n    Y\ndef while_a:\n    execute if B then function system:b\n    execute if @s[tag=!$break_tag] then function system:while_a_remaining\ndef while_a_remaining:\n    X\n    execute if A then function system:while_a\ndef b:\n    scoreboard players tag @s add $break_tag\n复制代码参数传递及结果回传\n我们只容许传递记分板分数。\n参数假名名称为 #param$<id> ，id 从0开始，比如是 #param$0 #param$1\n回传假名名称为 #return$<id> ，id从0开始，n个回传的数据就有n个\n共同记分板名称为 $internaldata\n因为id是共用的，如果用户需要调用别的函数后继续使用那些参数的数值则需要对那些数值进行备份，因为其他函数的执行可能会改变那些参数的数值。\n如果强制所有参数传递都进行备份或者是实现栈一类的结构，在游戏里的效率会比较低，而且很多时候也是不必要的，故此建议由程序整理参数的使用然后根据需求进行备份。\n建议使用假名进行备份，离开function的时候reset那些假名的分数。\n所有暂时使用的假名的id为\n#<模块名称的hash，32位16进制>$<在该模块内独一无二的标识>\n如 #69E7AEA8$1\n\n特别鸣谢\n@tineseack_bk 帮忙找出部分错误\n",
+    "replies": [
+        {
+            "author": "pineapple_",
+            "timestamp": 1508596020,
+            "txt_content": "没人气了，先收藏吧\n\n就算1.13特性用的很多也没关系！因为假如等这个帖子被审一遍，1.13应该也就出了\n\n仅仅对于mc的命令方面来说，越来越接近编程游戏了……"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1508596080,
+            "txt_content": "先顶个帖，慢慢看一下……"
+        },
+        {
+            "author": "Mithey",
+            "timestamp": 1508632740,
+            "txt_content": "java版越来越偏向专业玩家了emmm"
+        },
+        {
+            "author": "縻风",
+            "timestamp": 1508634540,
+            "txt_content": "前几天刚看完书，现在一看清楚多了。谢谢lz"
+        },
+        {
+            "author": "1377023219",
+            "timestamp": 1508634540,
+            "txt_content": "minecraft Java 1.13可以用if了吗？"
+        },
+        {
+            "author": "45gfg9",
+            "timestamp": 1508770020,
+            "txt_content": "港真，感觉这个语法好像Python的说"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1508770380,
+            "txt_content": "45gfg9 发表于 2017-10-23 22:47\n港真，感觉这个语法好像Python的说\n没错，我喜欢python的语法"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1510389600,
+            "txt_content": "凑个热闹....\n好久没开bbs了刚刚才看到抱歉"
+        },
+        {
+            "author": "花旦",
+            "timestamp": 1515307140,
+            "txt_content": "来写个伪解释器吧0.0   寒假开坑系列0.0"
+        },
+        {
+            "author": "Hao_cen",
+            "timestamp": 1515575340,
+            "txt_content": "最新的快照 execute 的 then 已经改成 run 了 希望能把代码改一下"
+        }
+    ]
+}

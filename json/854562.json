@@ -1,0 +1,49 @@
+{
+    "title": "【1.13.2】scoreboard指令求解",
+    "author": "Delamer",
+    "replyCount": 8,
+    "timestamp": 1554137820,
+    "txt_content": "如何运用scoreboard存储及调用实体的的位置信息、nbt信息等数据？\n举个例子，比如，地上有一把耐久为1的木剑，我想要召唤一个盔甲架在该木剑的位置并使其手持这把木剑该怎么写指令？\n目前的逻辑已经实现到直接将盔甲架召唤到木剑位置并消除掉落物木剑，再给予盔甲架装备，但是由于不会操作scoreboard，于是直接使用选择器@s来实现的。\n在论坛里翻半天看到好多旧版本的scoreboard指令但是没有看到专门讲1.13的scoreboard指令的。翻了好久还是不太懂怎么用。如果有大佬知道哪有相关资料的还请给个链接。",
+    "replies": [
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1554137820,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2019-4-1 14:37 编辑 \n\n啊对了...因为可以直接store...data get，所以不需要记分板。\n\n如果要把记分板的分数保存为Damage的话，这样[也就多出了存/取score的步骤]execute as @e[name=\"木剑\"] store result score @s damage run data get entity @s Item.tag.Damage复制代码execute store result entity @e[type=armor_stand] HandItems[0].tag.Damage int 1 run scoreboard players get @e[name=\"木剑\"] damage复制代码至于这个 HandItems[0].tag.Damage 是怎么来的\ndata get entity @e[type=armor_stand,limit=1]  得到一段，其中有这么一部分\n{.....,HandItems:[{id:\"minecraft:stone\",tag:{Damage:2}},{}],....}\n\n\nHandItems:[{id:\"minecraft:stone\",tag:{Damage:200}},{id:\"minecraft:dirt\",tag:{Damage:500}}]\n\n蓝色的为HandItems里的第一个框框...红色为第二个\n数字从0数起，所以第一个框为0，第二个框才为1。\n所以\nHandItems[0]获取到的是{id:\"minecraft:stone\",tag:{Damage:200}\nHandItems[1]获取到的是{id:\"minecraft:dirt\",tag:{Damage:500}\n\n把路径写详细点\nHandItems[1].tag.Damage\n得到的就是500\n\n不确定的话可以逐个data get查看自己的路径是否正确\ndata get entity @e[type=armor_stand,limit=1]\ndata get entity @e[type=armor_stand,limit=1] HandItems\ndata get entity @e[type=armor_stand,limit=1] HandItems[0]\ndata get entity @e[type=armor_stand,limit=1] HandItems[0].tag\ndata get entity @e[type=armor_stand,limit=1] HandItems[0].tag.Damage\n...复制代码\n\n"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1554138480,
+            "txt_content": "/scoreboard objectives add sword dummy\n/scoreboard players set @e[name=\"木剑\"] sword 1\n/scoreboard players set @e[name=\"石剑\"] sword 2\n在这里我用一个数据存储了剑的类型，这个数据还是简单的。毕竟只有五种剑\n/scoreboard objectives add damage dummy\n/scoreboard players set @e[name=\"木剑\"] damage ?\n然后到这里就卡住了。因为这里只能输入一个整数，我不知道该如何根据对象掉落物的数值来动态的设置这个数据。总不能摆一百多个命令方块循环对应一百多种耐久的剑吧。钻石剑还有一千五的耐久呢。。\n然后坐标存储的时候我也是卡在这个位置，不知道怎么获取数据，求解啊。。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1554160920,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2019-4-1 14:31 编辑 \nexecute as @e[type=item,name=\"木剑\",nbt={OnGround:1b}] at @s run function foo:bar\n\n#foo:bar\nsummon armor_stand ~ ~ ~ {Tags:[\"ams\"],HandItems:[{id:\"wooden_sword\",Count:1b,tag:{Damage:1}},{}]}\nexecute store result entity @e[type=armor_stand,tag=ams,limit=1,sort=nearest] HandItems[0].tag.Damage int 1 run data get entity @s Item.tag.Damage\nkill @s复制代码\n\n以地上的木剑执行\n召唤木架(拥有标签，手持木剑)(必须要有这个Damage，不然后面的store没地方存数值...)\n获取地[ruby=命令后半部分]上木剑的Da[/ruby]mage值，然后把获取的值储存[ruby=前半部分]到木架手[/ruby]上的木剑里。\n清除地上木剑\n\n\n如果是1.14的话，召唤木架之后，可以使用data modify，直接把地上物品实体的所有物品数据保存到木架上。\ndata modify entity @e[type=armor_stand] HandItems[0] merge from entity @e[type=item,nbt={OnGround:1b},name=\"任意剑\"] Item复制代码"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1554178980,
+            "txt_content": "⊙v⊙ 发表于 2019-4-2 08:14\n啊对了...因为可以直接store...data get，所以不需要记分板。\n\n如果要把记分板的分数保存为Damage的话，这 ...\n万分感谢！但是大佬啊，我实际使用起来遇到点小问题。就是\nexecute store result entity @e[type=armor_stand] HandItems[0].tag.Damage int 1 run scoreboard players get @e[name=\"木剑\"] damage\n的两个@e选择器部分，使用的时候提示只允许一个实体，这个该怎么避免呢。"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1554179880,
+            "txt_content": "⊙v⊙ 发表于 2019-4-2 08:14\n啊对了...因为可以直接store...data get，所以不需要记分板。\n\n如果要把记分板的分数保存为Damage的话，这 ...\n啊楼上的这个问题我解决了。拆成两条用@s单选就好了。另外问一下，如果不是木剑，而是复数的其他物品，该用的是HandItems[x].tag.Count么"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1554184380,
+            "txt_content": "另外我发现这样写的话满耐久的剑不会被检测到。。啧。。我想想。。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1554195480,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2019-4-1 23:06 编辑 \nDelamer 发表于 2019-4-1 19:53\n另外我发现这样写的话满耐久的剑不会被检测到。。啧。。我想想。。\n只允许一个实体的话，后面的选择器内补上limit=1就好，不必拆开。\n\n不是，Damage这个标签在tag里面所以是HandItems[0].tag.Damage，但Count和tag是同一层的所以\n保存至木架时是 HandItems[0].Count\n获取掉落物数量时是 Item.Count\n\n是吗？...把summon时的Damage值改为0应该就好了，不知道为什么我填的是1..."
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1554208140,
+            "txt_content": "⊙v⊙ 发表于 2019-4-2 16:58\n只允许一个实体的话，后面的选择器内补上limit=1就好，不必拆开。\n\n不是，Damage这个标签在tag里面所以是H ...\n\n\n\n\n2019-04-02 15-05-48 (2).gif (903.08 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-2 20:28 上传\n\n\n\n\n\n总之谢谢大佬指点了！现在只需要改动一些细节就能实现很多好玩的效果了。\n\n"
+        }
+    ]
+}

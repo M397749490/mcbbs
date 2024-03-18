@@ -1,0 +1,134 @@
+{
+    "title": "【CBL·K_bai】 纯原版命令方块有登录模组 能够禁止玩家输入指令的新式登陆模组",
+    "author": "kongbaiyo",
+    "replyCount": 25,
+    "timestamp": 1442066460,
+    "txt_content": " 本帖最后由 kongbaiyo 于 2017-2-10 19:08 编辑 \n\n===================前言===================\n在命令方块逼死插件的道路上\n各种玩家在做不停的努力\n像2b的 原版 /sethome /back /spawn 成为一个经典\n今天我终于制作出了原版的登陆插件\n并突破了无法禁止玩家输入指令的瓶颈\n请看视频介绍\n\n[bili=2899678]1[/bili]\n=================原理详解=================\n\n首先是视频中已经讲过的限制玩家使用指令的方法\n不断在玩家处放置/破坏一个地狱门\n这里不多赘述，视频中演示很清楚了\n\n这里主要讲获取玩家输入的密码\n以及如何判定和存储的密码相同\n\n\n分如下几个模块\n\n1. 获取玩家输入\n2. 给第一次进入服务器的玩家创建密码\n3. 与存储的密码进行比较\n4. 进行下一个循环\n\n我们一个一个来\n首先是创建所需要的计分板\n\n/scoreboard objectives add passwd dummy 密码\n用于存储玩家的密码/scoreboard objectives add passwdVerify dummy 密码验证\n用于暂时存储玩家输入的密码/scoreboard objectives add passwdTime dummy 密码时间\n用于存储玩家已输入的密码的位数/scoreboard objectives add passwdJoinGame stat.leaveGame 离开游戏\n用于检测玩家进入游戏 (这个判据会在玩家离开游戏时加一\n也就是说如果一个玩家这个计分板值为1 说明他刚刚进入游戏)\n\n\n\n1. 获取玩家输入\n\n这个很简单啦 基础指令\n\n/scoreboard players add @a[score_passwdTime=6,score_passwdTime_min=1,score_passwdJoinGame_min=1] \npasswdVerify 1 {SelectedItemSlot:0}这个命令的意思是 当一个玩家要输入第1到第六位密码时(由score_passwdTime=6,score_passwdTime_min=1体现)\n并且还未登陆(由score_passwdJoinGame_min=1体现)\n并且选中第一个格子 让他的passwdVerify值加一\n\n\n用这个原理将第1-8个格子穷举出来\n这就是获取当前输入\n\n那么进入下一个循环时 需要将已输入的密码向左移一位\n也就是个位变成十位 十位变成百位...\n例如:1->10    123->1230\n翻译成 人话就是将原来的计分板值乘十 用到了opeartion\n\n/scoreboard players set passwdTime passwdVerify 10/scoreboard players operation @a[score_passwdTime=6,score_passwdTime_min=1,score_passwdJoinGame_min=1] passwdVerify *= passwdTime passwdVerify\n如此两小部分即可获得玩家输入的密码\n\n2. 给第一次进入服务器的玩家创建密码 (前提是玩家没有存储的密码)\n\n/tellraw @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,score_passwd=0] {text:\"\",extra:[\"成功创建密码 请牢记\"],color:gray}\n#输完六位就可以提示了/scoreboard players operation @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,score_passwd=0] passwd += @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,score_passwd=0] passwdVerify\n#把已输入的密码加到原密码上\n\n对判据的解释:\nscore_passwdTime=6,score_passwdTime_min=6 -> 已输完六位密码score_passwdJoinGame_min=1 -> 玩家还未登陆score_passwd=0 -> 玩家无存储的密码\n\n\n3. 与存储的密码进行比较 (前提是玩家有存储的密码)\n比较的最简单方法就是作差法\na>b <=> a-b=0\n所以将玩家保存的密码与验证的密码相减即可 用到了operation\n\n/scoreboard players operation @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,score_passwd_min=1] passwdVerify -= @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,score_passwd_min=1] passwd\n\nscore_passwdTime=6,score_passwdTime_min=6 -> 密码输完了第六位score_passwdJoinGame_min=1 -> 玩家还未登陆score_passwd_min=1 -> 玩家有存储的密码\n\n\n然后就是对密码正确的玩家的处理\n/tellraw @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify=0,score_passwdVerify_min=0,score_passwd_min=1] {text:\"密码正确\",color:gray}\n#提示/tp @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify=0,score_passwdVerify_min=0,score_passwd_min=1] @e[name=spawn,type=ArmorStand,c=1]\n#传送/scoreboard players reset @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify=0,score_passwdVerify_min=0,score_passwd_min=1] passwdJoinGame\n#将他标记为已登录\n\n对密码错误的玩家的处理\n/tellraw @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify=-1,score_passwd_min=1] {text:\"密码错误\",color:gray}\n#提示/tellraw @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify_min=1,score_passwd_min=1] {text:\"密码错误\",color:gray}\n#提示/scoreboard players set @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify=-1,score_passwd_min=1] passwdTime 0\n#将他输入的密码位数置为零/scoreboard players set @a[score_passwdTime=6,score_passwdTime_min=6,score_passwdJoinGame_min=1,\nscore_passwdVerify_min=1,score_passwd_min=1] passwdTime 0 \n#将他输入的密码位数置为零/scoreboard players set @a[score_passwdTime=0,score_passwdTime_min=0,score_passwdJoinGame_min=1,\nscore_passwd_min=1] passwdVerify 0 \n#重置他已输入的密码\n\n\n\n4. 进行下一次循环\n\n/scoreboard players add @a[score_passwdTime=6,score_passwdJoinGame_min=1] passwdTime 1\n#给所有玩家输入位数加一/tellraw @a[score_passwdTime=6,score_passwdJoinGame_min=1] {text:\"\",extra:[\"请输入密码第\",{score:{name:\"*\",objective:\"passwdTime\"},color:red},\"位:\"]}\n#提示\n\n然后给未登陆的玩家状态效果\n/gamemode 2 @a[score_passwdJoinGame_min=1,m=1]/tp @a[score_passwdJoinGame_min=1] @e[name=passwd,type=ArmorStand,c=1]/effect @a[score_passwdJoinGame_min=1] minecraft:slowness 5 10 true/effect @a[score_passwdJoinGame_min=1] minecraft:jump_boost 5 250 true/effect @a[score_passwdJoinGame_min=1] minecraft:regeneration 5 10 true\n\n\n整个流程就结束了\n所有指令会在百度网盘中发出\n=================地图下载=================\n\nhttp://pan.baidu.com/s/1bnvzYI7\n文件名: [CBL·K_bai] 教程 [20150912].zip \n包含存档以及文本格式的所有指令\n\n===================结语===================\n\n这个新式登陆插件最重要的是可以限制玩家输命令 其他没啥亮点\n不过这种模块式的命令符合现在主流的命令编写方式\n大家可以学习看一下~\n\n特别声明: 并不推荐在服务器中使用本模组 仅作为头脑风暴之用\n不推荐的原因很简单 有更好的插件不用为啥用这个费资源的玩意? 233\n如果是原版服务器, 我相信各位服主也不会不相信服务器内的玩家\n这个东西没有实质的存在意义 目的仅为训练命令方块水平\n\n我也开了很久的服务器， 各种人我也见过\n但是我仍然觉得 防御性的措施固然重要 但更重要的是玩家之间的信任\n培养玩家们的诚信意识和互相的信任程度才是恒久发展之道\n\n——By K_bai\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "握地师兄",
+            "timestamp": 1442066520,
+            "txt_content": "这个终于做出来了！！！\n太激动了！！！"
+        },
+        {
+            "author": "正价氟",
+            "timestamp": 1442066700,
+            "txt_content": "很棒的作品！大爱空白2333{:10_512:}"
+        },
+        {
+            "author": "番茄茄",
+            "timestamp": 1442066880,
+            "txt_content": "标题错别字"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1442067180,
+            "txt_content": "西红柿片 发表于 2015-9-12 22:08\n标题错别字\n谢谢提醒233！\n已修改"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1442067300,
+            "txt_content": "求解，卡不卡。"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1442067660,
+            "txt_content": "2545320709 发表于 2015-9-12 22:15\n求解，卡不卡。\n并不卡= ="
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1442069040,
+            "txt_content": "刚才为何打不开？"
+        },
+        {
+            "author": "埃克斯歪",
+            "timestamp": 1442069880,
+            "txt_content": "逼死登录插件已成为近期的主题233"
+        },
+        {
+            "author": "SunHeavenRuler",
+            "timestamp": 1442074500,
+            "txt_content": "前排支持下！其实原版登陆还是很有用的，毕竟一些类似盘灵古域的原版服务器又不开正版验证很怕熊。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1442103420,
+            "txt_content": "盘灵古域是存档的名字 不是服务器的种类"
+        },
+        {
+            "author": "czmknmsl",
+            "timestamp": 1442108580,
+            "txt_content": "我昨天早上发了一个，今天早上起来就看到这货==\n不得不说楼主的水平还是比我高得多\n蛋是！蛋是！\n如果我在未登录的情况下丢一个物品进地狱门会怎样？\n然后换另一个号捡。。。\n至于上线自动检测，我估计只有单机有效\n反正是各有所长咯\n（其实如果mojang允许命令方块输入/op,/deop指令就一切都解决了）"
+        },
+        {
+            "author": "55444444444444",
+            "timestamp": 1442108640,
+            "txt_content": "命令方块大角虫！QWQ"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1442110080,
+            "txt_content": "czmknmsl 发表于 2015-9-13 09:43\n我昨天早上发了一个，今天早上起来就看到这货==\n不得不说楼主的水平还是比我高得多\n蛋是！蛋是！\n恩恩看到你那个了！\n本来我之前做好了一直在做视频 看到你居然提早发了真是气死我了2333333333\n之前我也做过一个类似的 做到最后发现不能/deop 一气之下把原来的fill了233！\n\n上线检测的话 因为是计分板的判据 服务器也是可以用的 亲测√\n\n但是如果允许了/deop或者/op\n服务器的op-level就没用了... 所以必须禁止\n\n啊丢物品真的没法阻止了= =要真要解决这个问题的话...可以选择用杀掉掉落在那里的物品实体\n居然遇到有共同想法的人真是好开心!"
+        },
+        {
+            "author": "czmknmsl",
+            "timestamp": 1442110740,
+            "txt_content": "kongbaiyo 发表于 2015-9-13 10:08\n恩恩看到你那个了！\n本来我之前做好了一直在做视频 看到你居然提早发了真是气死我了2333333333\n之前我也 ...\n上线检测计分板判据？是退出游戏次数那个吗？\n好吧我有空也改一改\n防止丢物品我想了一下。。。把tp到盔甲架的频率再改的快一点，并且强制让玩家看着上面\n然后再用/entitydata @e[type=Item,r=2] {PickupDelay:0}\n应该可行？"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1442110860,
+            "txt_content": "czmknmsl 发表于 2015-9-13 10:19\n上线检测计分板判据？是退出游戏次数那个吗？\n好吧我有空也改一改\n防止丢物品我想了一下。。。把tp到盔甲 ...\n恩恩是那个！\n\n对哦好机智的方法！√丢出去立马捡起来就好了233"
+        },
+        {
+            "author": "末影炉子",
+            "timestamp": 1442116020,
+            "txt_content": "什么东东？？？"
+        },
+        {
+            "author": "xnxz2002",
+            "timestamp": 1444625580,
+            "txt_content": "似乎不能阻止Q键丢物品"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1444653420,
+            "txt_content": "人物在水下怎么办？或者岩浆等透明方块？或者沙子淹一格然后退出？地狱门会给替代啊"
+        },
+        {
+            "author": "MVW",
+            "timestamp": 1444653960,
+            "txt_content": " 本帖最后由 MVW 于 2016-1-24 19:11 编辑 \n\n本白痴看不懂（之前回复时加载错误了）"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1445082120,
+            "txt_content": "林扬骐 发表于 2015-10-12 20:37\n人物在水下怎么办？或者岩浆等透明方块？或者沙子淹一格然后退出？地狱门会给替代啊 ...\n玩家会被tp到一个特定位置的"
+        },
+        {
+            "author": "1019838443",
+            "timestamp": 1445084400,
+            "txt_content": "up66666666666666666666666666"
+        },
+        {
+            "author": "kedailin",
+            "timestamp": 1445090520,
+            "txt_content": "很棒的作品！大爱空白233333333333333333333333"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1486639860,
+            "txt_content": "提示，标贴错别字坑死人，是登录不是登陆\n刚才找帖子搜索登录半天找不到\n或者你一个登录另一个登陆我也不介意\n@kongbaiyo"
+        },
+        {
+            "author": "Zevn",
+            "timestamp": 1486645680,
+            "txt_content": "现在地狱门是不是没用了，1.10做出更改了"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1486724760,
+            "txt_content": "Zevn 发表于 2017-2-9 21:08\n现在地狱门是不是没用了，1.10做出更改了\n不好意思我也没做测试233"
+        }
+    ]
+}

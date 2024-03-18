@@ -1,0 +1,44 @@
+{
+    "title": "Coremod 的制作",
+    "author": "hyperx",
+    "replyCount": 7,
+    "timestamp": 1354140720,
+    "txt_content": " 本帖最后由 hyperx 于 2012-11-29 06:16 编辑 \n\n警告：上级者向\n非mod制作者不需要看本帖\n仅仅是对modding入门感兴趣的人不需要看本帖\n_________________________________________________________________________________\n\n新版forge出了一种东西叫做coremod，允许你修改任何一个minecraft.jar里面的类，而不需要将class文件拖入到jar文件本身。这个东西是由ASM库实现的。\n由于Lex认为coremod并不那么安全，让一般人随便使用会很容易崩溃，因此打算把forge的这个特性就这么放在那里，除非mod开发者能够去通过读代码搞明白coremod怎么使用，否则这个特性是不提倡的。因此连教程也没有。\n今天稍微读了一下，感觉略凶残；ASM不仅允许你重载一个类，还允许你仅仅修改某一个类的某个方法，甚至是只在某个方法的某处增加一行指令。\n\n\n\n最凶残的是，如果所有mod在这里做的事情都仅仅是在某些方法的第一行增加一个hook来做事件处理，那么所有的这些本来会需要修改class文件本身（并且因此不兼容）的mod，都可以兼容。\n\n壮哉我大cpw。\n\n下面是通过读维基得到的一个coremod使用方法的简单说明。\n\n——————————————————————————————————————————————————\n\n1、基本模板。\n\ncoremod的结构是，一个jar，然后里面一个MANIFEST.MF来指明mod主类位置。其他所有类都放在这个jar里。\nMANIFEST.MF的内容：\nManifest-Version: 1.0\nFMLCorePlugin: <我的包>.<我的主类>复制代码然后创建你的主类，路径与MANIFEST.MF的路径要匹配。\n\n你的类需要实现IFMLLoadingPlugin，也就是需要以下结构：\npackage tutorial.asm;\n\nimport java.util.Map;\n\nimport cpw.mods.fml.relauncher.IFMLLoadingPlugin;\nimport cpw.mods.fml.relauncher.IFMLLoadingPlugin.TransformerExclusions;\n/*\n * 在这里将这个coremod的整个包排除在其他做代码替换的mod的有效范畴以外\n * \n */\n@TransformerExclusions({\"tutorial.asm\"})\npublic class TutorialLoadingPlugin implements IFMLLoadingPlugin {\n\n        @Override\n        /*\n         * 如果你使用了额外的java库来做mod，你可以实现一个ILibrarySet类，然后在这里返回类名\n         * 比如 return new String[] { \"tutorial.asm.downloaders.DownloadUsefulLibrary \" };\n         */\n        public String[] getLibraryRequestClass() {\n                return null;\n        }\n        /*\n         * 反回你做的ASM代码替换类的类名。重点。\n         */\n        @Override\n        public String[] getASMTransformerClass() {\n                return null;\n        }\n        /*\n         * 返回一个你写的包含mod的开发版本、作者之类信息的类。\n         */\n        @Override\n        public String getModContainerClass() {\n                return null;\n        }\n        /* 不重要。\n         * If you want to do stuff BEFORE minecraft starts, but after your mod is loaded.\n         */\n        @Override\n        public String getSetupClass() {\n                return null;\n        }\n        /* 暂时不知道有什么用。\n         * Gives the mod coremod data if it wants it.\n         */\n        @Override\n        public void injectData(Map<String, Object> data) {\n\n        }\n\n}复制代码\n\n至此，你就有了一个什么效果都没有的coremod。要增加功能，你需要自己实现对应的类，然后在这里指明你的类的类名。\n\n2、AccessTransformer\n\n这玩意儿超蛋疼。虽然说官方wiki只有这个的教程，我觉得不看也罢，几乎毫无意义。\n\n3、类重载\n\n这里提供一段Chickenbones的代码，你可以在你的Transformer当中调用这个类来简单地实现将一个类整个替换成你的版本。\nClassMapping和ObfuscationManager是ChickenBones的另外两个类，这部分不重要，你可以直接用String来代替。\n\npackage codechicken.core.asm;\n\nimport java.io.File;\nimport java.io.InputStream;\nimport java.util.zip.ZipEntry;\nimport java.util.zip.ZipFile;\nimport codechicken.core.asm.ObfuscationManager.ClassMapping;\n\npublic class ClassOverrider\n{\n        public static byte[] overrideBytes(String name, byte[] bytes, ClassMapping classMapping, File location)\n        {\n                if(!name.equals(classMapping.classname) || !ObfuscationManager.obfuscated)\n                        return bytes;\n                \n                try\n                {\n                        ZipFile zip = new ZipFile(location);\n                        ZipEntry entry = zip.getEntry(name.replace('.', '/')+\".class\");\n                        if(entry == null)\n                                System.out.println(name+\" not found in \"+location.getName());\n                        else\n                        {\n                                InputStream zin = zip.getInputStream(entry);\n                                bytes = new byte[(int) entry.getSize()];\n                                zin.read(bytes);\n                                zin.close();\n                                System.out.println(name+\" was overriden from \"+location.getName());\n                        }\n                        zip.close();\n                }\n                catch(Exception e)\n                {\n                        throw new RuntimeException(\"Error overriding \"+name+\" from \"+location.getName(), e);\n                }\n                return bytes;\n        }\n}\n\n        \n复制代码\n\n4、如果你需要做其他事情，可以去研究ASM库的使用方法。注意，ASM是在jvm的机器码级别上操作代码的一个库，因此如果出了什么状况，是非常让人没辙的。别玩脱。",
+    "replies": [
+        {
+            "author": "geludan",
+            "timestamp": 1354141620,
+            "txt_content": "不感兴趣，路过，支持LZ"
+        },
+        {
+            "author": "Danny仔",
+            "timestamp": 1354141860,
+            "txt_content": "理由同上= =路過支持"
+        },
+        {
+            "author": "洛音",
+            "timestamp": 1354146720,
+            "txt_content": "路过打酱油..."
+        },
+        {
+            "author": "qq654874734",
+            "timestamp": 1354150020,
+            "txt_content": "洛音 发表于 2012-11-29 07:52 \n路过打酱油...\n一样的啦~！打酱油"
+        },
+        {
+            "author": "a201208",
+            "timestamp": 1354157520,
+            "txt_content": "路过顺带膜拜随手写Coremod的atomicstryker"
+        },
+        {
+            "author": "sjjklh",
+            "timestamp": 1354180260,
+            "txt_content": "LZ出系列，索引贴必加精"
+        },
+        {
+            "author": "1076742624",
+            "timestamp": 1354909020,
+            "txt_content": "{:10_527:}触手，意见同楼上。"
+        }
+    ]
+}

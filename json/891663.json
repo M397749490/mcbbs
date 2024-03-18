@@ -1,0 +1,329 @@
+{
+    "title": "【CBL|丢人素学姐，00ll00】丢人钟V3：完全压缩，防沉迷系统等",
+    "author": "丢人素学姐",
+    "replyCount": 64,
+    "timestamp": 1564098060,
+    "txt_content": " 本帖最后由 Vinogradov 于 2019-8-4 16:15 编辑 \n\n\n丢人钟V3：完全压缩，防沉迷系统等\n\n作者：丢人素学姐，00ll00\n\n丢人钟系统可能是目前为止唯一可以在原版Minecraft中获取机器时间的解决方案。经历了V1与V2两个版本，它的体积大幅缩小，也不会造严重卡顿。\n\n但作者仍然想问：我还能做得更好吗？基于这套系统我还能做些什么？\n\n基于这样的动机，在好几位大佬的提点下，作者完成了丢人钟的第三个版本，这也会是最后一个版本。以后丢人钟只会基于bug进行帖内更新。\n\n更新内容：\n\n压缩到1个命令方块。在目前的游戏机制下这已经是理论最优值。加载即用，无需安装。拆分数据包，重写附加功能。（可选）添加了在生存模式获取告示牌时钟的方法。（可选）使游戏内时间与机器时间同步。（可选，仅服务器可用）实现了原版防沉迷系统：在管理员指定的时间段内（可设置）非白名单成员（可设置）禁止上服务器。\n\n在以下内容中，作者会不加说明地使用V1与V2的发布帖中提到的内容，所以如果有读不懂的地方请自行翻阅旧帖 （虽然V2的帖子并不算很旧）。\n\n核心系统：\n\n使用方法：加载即用，无需安装。\n\n注意事项：加载该数据包时会将maxCommandChainLength设为1000000（当然实际上峰值只是8万多，并不会到一百万）。另外，在服务器中使用时请保证enable-command-block为true。\n\n毫无疑问，要做到只有1个CB，除了被探测LastOutput的那个以外，其余所有的命令都放入mcfunction中被高频执行（带有minecraft:tick的标签）。于是我们就来分析一下这个被循环的函数（DiurenClock\\data\\diuren-clock\\functions\\main_loop.mcfunction）：\n\nscoreboard players set DiurenClock.flag DiurenClock.impl 0\n\nexecute if score DiurenClock.SecFromMidnight DiurenClock.impl matches ..43199 run function diuren-clock:bisearch/bs_0_43199\nexecute if score DiurenClock.SecFromMidnight DiurenClock.impl matches 43200.. run function diuren-clock:bisearch/bs_43200_86399\n\nexecute if score DiurenClock.flag DiurenClock.impl matches 0 run function #diuren-clock:runtime_all\n\nscoreboard players operation DiurenClock.hour DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.hour DiurenClock /= Const3600 DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock /= Const60 DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock %= Const60 DiurenClock.impl\nscoreboard players operation DiurenClock.second DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.second DiurenClock %= Const60 DiurenClock.impl复制代码\n将flag设为0【第1行】通过二分法（实际上作者使用了二分和三分的混合。为什么要这么做？因为作者很无聊。），由当前的DiurenClock.SecFromMidnight（即日秒）决定具体要运行的是哪个穷举的分组（每个分组中穷举30秒。这个数字是可以，且应该被缩小的。但作者懒得改了，反正也不会造成卡顿，而且拆分更细的话反而可能会引起载入的卡顿）并执行该分组。若执行成功的话将flag设为1【第3行-第4行】若flag仍然为0，则一次性执行所有穷举，强制同步。【第6行】\n\n第8行-第14行不过是简单的计算，不再分析。\n\n在上述第2步中，有一个技巧是如何只使用一条命令，在匹配成功的分支中同时设置日秒的值并将flag设为1？利用execute store success！示例如下：\n\nexecute if block ~ 0 ~ repeating_command_block{LastOutput: \"{\"extra\":[{\"color\":\"red\",\"extra\":[{\"color\":\"gray\",\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"/ayaka\"},\"extra\":[{\"text\":\"/\"},{\"underlined\":true,\"color\":\"red\",\"text\":\"ayaka\"},{\"italic\":true,\"color\":\"red\",\"translate\":\"command.context.here\"}],\"text\":\"\"}],\"text\":\"\"}],\"text\":\"[00:09:00] \"}\"} run execute store success score DiurenClock.flag DiurenClock.impl run scoreboard players set DiurenClock.SecFromMidnight DiurenClock.impl 540复制代码\n至于这样的过程的合理性，留作习题。。。额。。。不对。。。显然，略。\n\n这样下来，在常规tick，每tick只有几十个命令在执行，且多为记分板命令，不会造成卡顿。\n\n免安装\n\n注意到带有minecraft:tick或者minecraft:load标签的函数在自动执行时，执行地点为世界出生点，所以只需要在数据包的安装函数（带minecraft:load标签）中，使用\n\nsetblock ~ 0 ~ minecraft:repeating_command_block[facing=up]{auto:1b,Command:\"/ayaka\"}复制代码\n，并在穷举时把坐标改成0 ~ 0 即可。如果玩家中途更改了出生点，只需/reload或者重进游戏即可，非常方便。\n\n附加功能：\n\n怀表（数据包名：DiurenClock-Holding，命名空间：diuren-clock.holding）\n\n使用方法：加载即用，无需安装。\n\n这和V2中没有很大的变化。只是将一处记分板实现改为了tag，稍稍化简了命令。\n\n告示牌时钟 （数据包名：DiurenClock-Sign，命名空间：diuren-clock.sign）\n\n使用方法：将一个钻石块和一个钟丢在地上合成蝙蝠蛋，然后对着告示牌（任何种类都可）Shift+右键即可。\n\n告示牌显示和V1与V2中的技术完全一样，不另加分析。\n\n首先，这里的合成是标准的ground crafting（我看外国论坛上是这么叫的，就是把原料扔到地上然后合成产物。为什么不用recipes？不能带nbt啊。）。\n\n对着告示牌右键时，蝙蝠蛋会在此位置生成一个带特定tag的药水云。execute at 这个药水云，summon一个带Sign tag的marker。在这之后，同1tick内，该药水云会被杀死。之后只需高频执行\n\nexecute at @e[tag=Sign] run xxx复制代码\n即可用一条命令对所有启动的告示牌时钟经行显示更新。\n\n注意：当告示牌方块变为其他方块时，该marker会被（刻意地）清除。想要重新获得告示牌时钟需重复上述步骤。\n\n同步游戏时间为机器时间（数据包名：DiurenClock-GameTimeSync，命名空间：diuren-clock.game_time_sync）\n\n使用方法：加载即用，无需安装。\n\n注意事项：加载该数据包时会将doDaylightCycle设为false。\n\n先把日秒换算成游戏内tick数，然后再使用time add二分地将这个值设为当前游戏时间。\n\n防沉迷系统（数据包名：DiurenClock-GoToBed，命名空间：diuren-clock.go_to_bed）\n\n使用方法：将服务器的function-permission-level改为4，并在DiurenClock-GoToBed\\data\\diuren-clock.go_to_bed\\functions\\white_list.mcfunction中添加自己的名字（使用方法见文件内示例）。在同一文件夹的setup.mcfunction中将StartSec的值修改为开始管制的时间点的日秒数（hour*3600+minute+60+second），将EndSec的值修改为结束管制的时间点的日秒数。默认的值为StartSec=82800，EndSec=25200；即晚上11点到次日早上7点，非白名单人员禁止入服。这些设置在数据包加载后，在游戏中也可手工修改。\n注意事项：该数据包只会在服务器上生效，且仅支持1.14.4。\n这个功能实现起来并不复杂，无非是高频检测目前日秒是否在管制时间段内，若是则把不带白名单tag的玩家kick出去。在管制时间到来之前的5分钟，1分钟，10秒，9秒，。。。，1秒时会对非白名单玩家弹出提醒。\n\n其它\n\n本来想做个闹钟啥的，后来觉得太麻烦就咕了。\n\n改进\n\n我想，如果Minecraft内无法直接操作字符串的话，现在的架构应该很完美了。虽然作者在V2的帖子里也说过这样的话，但现在应该真的做到底了。\n\n唯一可能改进的地方之前也提到了，就是现在实际上没有必要像V2一样一次性穷举30个可能性。为了保证检测的流畅性，每次检测两三个连续的时间点即可。具体地说，设目前日秒为s，那么V3中单次会检测s所在的半分钟（即xx:xx:00-xx:xx:29或者xx:xx:30-xx:xx::59）内的30秒及这接在这半分钟后的两秒。多两秒是为了在相邻的两个半分钟切换时不会造成变化的不均匀，也有更强的鲁棒性，即在服务器发生比较严重的卡顿时也不容易需要强行同步。但这个数字30是来源于V2中压缩CB大阵体积的需求。事实上，我们只需1+2=3条命令（1是从现在的30改的，后面的2还是起增强稳定性的作用）即可在V3中维持同样的鲁棒性，且每tick也少了20+条命令的执行。\n\n然而这样带来的问题就是我们需要86400个runtime函数（如上所述，每个文件里是三条穷举命令），比起原来86400/30个runtime函数，会加剧加载时的卡顿。另一方面，现在这多余的20+条命令并不会对服务器的流畅运行造成明显卡顿，所以就决定维持现状了。\n\n另外，二分和三分的混合是由于作者的强迫症：86400=2^6*3*5*30。所以实际上是先6次二分，再一次三分，再一个文件中穷举5个runtime函数。 这是不科学的，但鉴于它并不会带来多少性能损失，所以也不改了。\n\n写在最后\n\n从最初想到读LastOutput，到现在丢人钟的坑彻底填完，也有两年多了。在这期间，我得到了很多大佬的帮助和鼓励，这其中包括玄素，如花，土球，SPG，洞洞幺幺洞洞，panda4994，等。我对他们表示衷心的感谢。现在我的三次元事务很多，想开的长期坑也不知何时可以真正地开始做。但至少，我仍然对此保留兴趣与热忱。\n\n感谢\n\n洞洞幺幺洞洞  与他的讨论使我受益良多。他参与了部分测试，并帮我找出了一些我找不出的问题。如花似玉 V3使用的二分法就是来自他的指导意见。SPGoding 他在V2的帖子下面给出了非常有意思的回复，并提出了一个看似可行的改进方案（即使用技巧拼接字符串，反向穷举）。虽然这个方案最后被证明目前不能用，但这样的思路是我从来没有考虑，或者说即使考虑了也无从下手的。\n\n\n\n\n\n\nDiurenClock.7z.zip\n(252.38 KB, 下载次数: 29)\n\n\n\n2019-8-4 16:08 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\nDiurenClock-Sign.zip\n(3.85 KB, 下载次数: 15)\n\n\n\n2019-8-4 16:08 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\nDiurenClock-GoToBed.zip\n(3.93 KB, 下载次数: 9)\n\n\n\n2019-8-4 16:08 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\nDiurenClock-GameTimeSync.zip\n(3.28 KB, 下载次数: 15)\n\n\n\n2019-8-4 16:08 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\nDiurenClock-Holding.zip\n(4.09 KB, 下载次数: 12)\n\n\n\n2019-8-4 16:08 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\n丢人钟 V2：更薄，更流畅，更多功能\n\n作者：丢人素学姐\n基于panda4994提出的架构开发\n\n前情回顾：\n\n在初代丢人钟的发布帖中，作者已经阐述了在游戏内获取机器时间的基本原理：通过穷举匹配rcb的LastOutput中的时间戳；并以此造出了一台巨大的机器。\n\n作为原型演示，初代丢人钟无可厚非。然而它所存在的缺点是显而易见的：\n\n体积过于庞大对时的时候会出现明显的卡顿对时部分的命令写得过于混乱\n\n针对这些问题，基于Panda4994的改进版本，作者开发出了丢人钟v2。\n\n图片展示：\n\n\n\n\n2019-07-25_23.57.11.png (123.13 KB, 下载次数: 5)\n\n下载附件\n\n2019-7-26 00:10 上传\n\n\n\n\n\n\n\n\n2019-07-25_23.56.10.png (88.47 KB, 下载次数: 5)\n\n下载附件\n\n2019-7-26 00:09 上传\n\n\n\n\n\n\n\n\nfile_1564070991000.jpg (70.79 KB, 下载次数: 5)\n\n下载附件\n\n2019-7-26 00:09 上传\n\n\n\n\n\n\n\n\n2019-07-25_23.55.05.png (82 KB, 下载次数: 5)\n\n下载附件\n\n2019-7-26 00:09 上传\n\n\n\n\n\n\n\n注意事项：\n\n由于作者实在是懒，本模组只给出存档与材质包，其中datapack中命令的坐标全部写死的。所以如果想移植的话请自行forceload这几个区块。\n\n新版本特点：\n\n使用datapack进行了完全的重写，代码不再混乱对时可以在1 tick中完成，几乎感觉不到卡顿制作了怀表、告示牌时钟、以及钟面\n\n主要原理讲解：\n\n显然，想知道当前机器时间的时分秒，等价于知道当前时刻到当天0点经过了多少秒，称之为“日秒”。这其中的换算小学生都会，这里就不重复了。为了减少内部命令数量，我们在穷举时获取日秒，然后再通过计算转换为时分秒。示例如下：\n\nexecute if block -2 0 0 repeating_command_block{LastOutput: \"{\"extra\":[{\"color\":\"red\",\"extra\":[{\"color\":\"gray\",\"clickEvent\":{\"action\":\"suggest_command\",\"value\":\"/ayaka\"},\"extra\":[{\"text\":\"/\"},{\"underlined\":true,\"color\":\"red\",\"text\":\"ayaka\"},{\"italic\":true,\"color\":\"red\",\"translate\":\"command.context.here\"}],\"text\":\"\"}],\"text\":\"\"}],\"text\":\"[00:03:26] \"}\"} run scoreboard players set DiurenClock.SecFromMidnight DiurenClock.impl 206复制代码\n我们将日秒存在记分板DiurenClock.impl的DiurenClock.SecFromMidnight假名下。\n\n我们接下去着重讲解runtime.mcfunction中的命令。这个函数带有minecraft:tick标签，即它每tick都会运行。\n\n该函数如图：\n\ntp @e[type=armor_stand,tag=DiurenClock.Iterator] -1 0 0\n\n\nscoreboard players operation DiurenClock.Iterator.PosY DiurenClock.impl = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.Iterator.PosY DiurenClock.impl /= DiurenClock.Const3600 DiurenClock.impl\nscoreboard players operation DiurenClock.Iterator.PosZ DiurenClock.impl = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.Iterator.PosZ DiurenClock.impl /= DiurenClock.Const30 DiurenClock.impl\nscoreboard players operation DiurenClock.Iterator.PosZ DiurenClock.impl %= DiurenClock.Const120 DiurenClock.impl\n\n\nexecute store result entity @e[type=armor_stand,tag=DiurenClock.Iterator,limit=1] Pos[1] double 1 run scoreboard players get DiurenClock.Iterator.PosY DiurenClock.impl\nexecute store result entity @e[type=armor_stand,tag=DiurenClock.Iterator,limit=1] Pos[2] double 1 run scoreboard players get DiurenClock.Iterator.PosZ DiurenClock.impl\n\n\nexecute at @e[type=armor_stand,tag=DiurenClock.Iterator] run setblock ~ ~ ~-1 iron_block replace\nexecute at @e[type=armor_stand,tag=DiurenClock.Iterator] run fill ~ ~ ~ ~ ~ ~1 redstone_block\n\n\nexecute if score DiurenClock.SecFromMidnight DiurenClock.impl < DiurenClock.Const0 DiurenClock.impl run scoreboard players set DiurenClock.flag DiurenClock.impl 1\nexecute if score DiurenClock.flag DiurenClock.impl = DiurenClock.Const1 DiurenClock.impl run say Syncing...\nexecute if score DiurenClock.flag DiurenClock.impl = DiurenClock.Const1 DiurenClock.impl run fill -1 0 0 -1 23 119 redstone_block replace\nexecute if score DiurenClock.flag DiurenClock.impl = DiurenClock.Const1 DiurenClock.impl run fill -1 0 0 -1 23 119 iron_block replace\nexecute if score DiurenClock.flag DiurenClock.impl = DiurenClock.Const1 DiurenClock.impl run say Synced.\nscoreboard players set DiurenClock.flag DiurenClock.impl 0\n\n\nscoreboard players operation DiurenClock.hour DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.hour DiurenClock /= DiurenClock.Const3600 DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock /= DiurenClock.Const60 DiurenClock.impl\nscoreboard players operation DiurenClock.minute DiurenClock %= DiurenClock.Const60 DiurenClock.impl\nscoreboard players operation DiurenClock.second DiurenClock = DiurenClock.SecFromMidnight DiurenClock.impl\nscoreboard players operation DiurenClock.second DiurenClock %= DiurenClock.Const60 DiurenClock.impl\n\nscoreboard players set DiurenClock.SecFromMidnight DiurenClock.impl -40\n复制代码\n首先，我们有一个marker，带有DiurenClock.Iterator的tag。\n\n将该marker tp到rcb阵列外。【第1行】通过DiurenClock.SecFromMidnight的现有值，计算出能匹配到该值的穷举命令所在的分组，即所在的rcb的方块坐标。【第4行-第8行】将该marker tp到前述的方块坐标。（我们有execute store啦！可以直接把记分板里的值存到marker的Pos[1]和Pos[2] nbt中。）【第11行-第12行】通过marker，将该rcb 的前一个rcb关闭，即将用于激活前一rcb的红石块（如果存在）替换为铁块；同时激活该rcb及下一个rcb。（注意：这里rcb排成了长方形阵列，所以到每行末尾时，需要额外的一个cb将红石块“转移”到“下一行”的开头。当然这只是实现上的trick，不是核心问题。）【第15行-第16行】如果DiurenClock.SecFromMidnight的值小于0，则同时激活所有rcb，然后再同时关闭所有rcb。（注意，因为懒得再写一个mcfunction，这里实际模拟了一个if结构。）【第19行-第24行】通过DiurenClock.SecFromMidnight的值计算时分秒。【第27行-第33行】将DiurenClock.SecFromMidnight的值设为-40。【第35行】\n\n为什么这样可以？分为两种情况分析。\n\n若当前tick的是“常规”tick，即当前的时间点在被激活的两个rcb（注意前述第4步，这里激活两个是为了防止在组间切换的时候恰好失去同步）的匹配范围内，在第7步执行完后，DiurenClock.SecFromMidnight会被当前的两个rcb中执行的函数所刷新，而不会是小于0的值。所以在下一tick中前述第5步不会被执行。而通过其余各步，可以稳定地更新被激活地rcb，以保持整个系统地正常运行。若当前tick不是“常规”tick，即当前的时间点不在被激活的两个rcb的匹配范围内，那么在runtime.mcfunction执行完后，即前述第7步执行完后，DiurenClock.SecFromMidnight不会被刷新。那么在下一tick时，前述第5步的判定条件就会通过，系统会通过把所有rcb都执行一次的方式强行将DiurenClock.SecFromMidnight的值纠正。（注意：在每tick中rcb的执行总是晚于带minecraft:tick的mcfunction的执行，因此值的纠正发生在第7步之后。）在此之后就回到了常规tick的情况。\n\n\n\n附加功能：\n\n怀表和告示牌数字时钟都是在v1中都有的功能，这里只不过写进了mcfunction，就不说了。\n\n带指针的钟面需要加载作者自己做的材质包。由于作者毫无美化的意愿，只想早点了结这个坑，所以做得很丑，读者看个样子就行。原理上很简单：转盔甲架的头（头上戴了个被我魔改了模型的按钮。。。）。命令示例如下：\n\nexecute store result entity @e[tag=s,limit=1] Pose.Head[0] float 6 run scoreboard players get DiurenClock.second DiurenClock复制代码\n（这里的这个倍数6是个小trick，意义在于60*6=360，什么意思读者自己体会吧）\n\n另外由于Pose.Head[0]等于0的时候，看上去头实际指在了9点钟方向，所以制作模型时要进行适当旋转。\n\n改进空间：\n\n好像没了。。。我想不到怎么把这些压缩到单个cb。似乎如果全放到mcfunction的话又会回到最一开始那个超级卡顿的形式了。\n\n感谢：\n\npanda4994  丢人钟v2的主体架构是panda看了丢人钟v1后提出的。\nruhuasiyu\nCBL的各位，特别是SPGoding\n某咸鱼群的各位\n\n\n\n注意：由于上传文件的大小与格式限制，存档经行了两次压缩。\n\n\n\n\n\n丢人钟-1.14.4.7z.zip\n(497.21 KB, 下载次数: 9)\n\n\n\n2019-7-26 07:33 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\n材质包.zip\n(5.32 KB, 下载次数: 6)\n\n\n\n2019-7-26 07:28 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "1234fzk",
+            "timestamp": 1564100940,
+            "txt_content": "这是怎么玩的"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1564105080,
+            "txt_content": " 本帖最后由 天狼星black 于 2019-7-26 09:41 编辑 \nexecute store result entity @e[tag=s,limit=1] Pose.Head[0] float 6 run scoreboard players get DiurenClock.second DiurenClock\n这样不会导致其数值大于360吗？\n\n好像真的可以……我好丢人\n"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1564106400,
+            "txt_content": "天狼星black 发表于 2019-7-26 09:38\n这样不会导致其数值大于360吗？\n\n好像真的可以……我好丢人\nsecond不是0-59嘛"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1564128300,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-7-26 16:38 编辑 \n\n还是没有摆脱命令方块\n要是能存储和调用字符串，对字符串进行运算（如字符串连接、提取子串等），就啥事都没有了……"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1564142220,
+            "txt_content": "1234fzk 发表于 2019-7-26 08:29\n这是怎么玩的\n加载存档呗"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1564142280,
+            "txt_content": "Teenager_Yang 发表于 2019-7-26 16:05\n还是没有摆脱命令方块\n要是能存储和调用字符串，对字符串进行运算（如字符串连接、提取子串 ...\n这话怎么这么眼熟。。。\n\n啊我好像也说过"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564228680,
+            "txt_content": " 本帖最后由 梓榆 于 2019-7-27 22:25 编辑 \n\n有个大胆的想法，不穷举真实时间，而是穷举记分板拼出来的时间（\n\n\n通过 JSON 文本和三个记分板动态拼出一个文本：\n[\"[\",{\"score\":{\"objective\":\"diuRenClock\",\"Name\":\"$hour\"}},\":\",{\"score\":{\"objective\":\"diuRenClock\",\"Name\":\"$minute\"}},\":\",{\"score\":{\"objective\":\"diuRenClock\",\"Name\":\"$second\"}},\"] \"]\n\n把这个文本放到告示牌中，就会自动解析出分数的值：\n'{\"extra\":[{\"score\":{\"name\":\"$hour\",\"objective\":\"diuRenClock\",\"value\":\"12\"}},{\"text\":\":\"},{\"score\":{\"name\":\"$minute\",\"objective\":\"diuRenClock\",\"value\":\"34\"}},{\"text\":\":\"},{\"score\":{\"name\":\"$second\",\"objective\":\"diuRenClock\",\"value\":\"56\"}},{\"text\":\"] \"}],\"text\":\"[\"}'\n\n这个格式和 lastOutput 中的格式差得太大了。可以把它转存到一个实体的名称中，对这个实体使用命令（需要注意的是，我们应该使用的命令要满足两个条件 (a)没有语法错误，不然不执行；(b)要发生运行时错误，错误信息中还要包含实体名。如果没有发生运行时错误的话，显示出来的实体名会被解析成更长的一大串东西，而不是简单的文本。比如 enchant @e[tag=marker] minecraft:aqua_affinity），把这一长串 JSON 拍扁到命令方块的 lastOutput 里：\n'{\"extra\":[{\"color\":\"red\",\"extra\":[{\"translate\":\"commands.enchant.failed.itemless\",\"with\":[\"[12:34:56] \"]}],\"text\":\"\"}],\"text\":\"[hh:mm:ss] \"}'\n\n于是 extra 中已经有了拍扁的文本。\n\n\n接下来，再把真实时间用同样的办法，转存到实体名称里面，再对这个实体用一次 enchant，我们就得到了包含真实时间的 JSON 文本：\n'{\"extra\":[{\"color\":\"red\",\"extra\":[{\"translate\":\"commands.enchant.failed.itemless\",\"with\":[\"[hh:mm:ss] \"]}],\"text\":\"\"}],\"text\":\"[hh:mm:ss] \"}'\n\n\n通过 data modify block ... LastOutput from block ... LastOutput，并储存命令的返回值，判断是否为 0，即可知道动态生成的文本与真实时间的文本是否相同。\n接下来所要做的，就是用函数递归穷举 $hout $minute $second 了，没什么难度。\n\n全部过程，只需要两个 CB，一个告示牌。如果想要再简化一下，可以把 CB 的内容转存到告示牌上，这样只需要一个 CB 与一个告示牌了，不过这样其实效率更低，得不偿失。\n\n\n其实最早是在国外某个 MinecraftCommands 的 Discord 组看到的思路，后来仔细试了试，大概就是这样了，以上内容都是我是嫖来的（跑\n\n\n"
+        },
+        {
+            "author": "kfz大大",
+            "timestamp": 1564291380,
+            "txt_content": "有点意思啊这个"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1564420500,
+            "txt_content": "梓榆 发表于 2019-7-27 19:58\n有个大胆的想法，不穷举真实时间，而是穷举记分板拼出来的时间（\n\n\n我对这种穷举已经失去了兴趣。\n我现在打算用这个了"
+        },
+        {
+            "author": "Chaoren⑥",
+            "timestamp": 1564423920,
+            "txt_content": "中间都是啥，我在哪里，我在看什么，有这种操作，溜了溜了，看不懂"
+        },
+        {
+            "author": "颜魂i",
+            "timestamp": 1564468440,
+            "txt_content": "我瞎了吗，这啥"
+        },
+        {
+            "author": "MC_HJY",
+            "timestamp": 1564472940,
+            "txt_content": "我看不见啊:)...."
+        },
+        {
+            "author": "271457236",
+            "timestamp": 1564485600,
+            "txt_content": "hhhhhhhhhh"
+        },
+        {
+            "author": "271457236",
+            "timestamp": 1564485600,
+            "txt_content": "hhhhhhhhhh"
+        },
+        {
+            "author": "271457236",
+            "timestamp": 1564485660,
+            "txt_content": "2333333333"
+        },
+        {
+            "author": "满心欢喜yza",
+            "timestamp": 1564488720,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "奋飞的小鸟",
+            "timestamp": 1564501860,
+            "txt_content": "hhhh23333333333333333\n"
+        },
+        {
+            "author": "MCUT",
+            "timestamp": 1564527180,
+            "txt_content": "大佬大佬XD"
+        },
+        {
+            "author": "MengZeYi",
+            "timestamp": 1564538100,
+            "txt_content": "666\n学到了\n谢谢"
+        },
+        {
+            "author": "你的小介介",
+            "timestamp": 1564539420,
+            "txt_content": "６６６谢谢学到了"
+        },
+        {
+            "author": "MengZeYi",
+            "timestamp": 1564539600,
+            "txt_content": "谢谢楼主学到了"
+        },
+        {
+            "author": "abc11350235",
+            "timestamp": 1564543260,
+            "txt_content": "这个……，还算可以"
+        },
+        {
+            "author": "mc火神",
+            "timestamp": 1564546560,
+            "txt_content": "666谢谢了，学到了"
+        },
+        {
+            "author": "wyl1296528631",
+            "timestamp": 1564550220,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "雷鸣与闪电",
+            "timestamp": 1564555680,
+            "txt_content": "看不懂 看不懂 真的看不懂"
+        },
+        {
+            "author": "LurenGer",
+            "timestamp": 1564562280,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "小白菌666",
+            "timestamp": 1564562400,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "1581277682",
+            "timestamp": 1564564680,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "823202450",
+            "timestamp": 1564591080,
+            "txt_content": " 本帖最后由 823202450 于 2019-8-1 00:43 编辑 \n\n哇 刚开始看看封面和简单的原理还能看懂 \n往后一翻\n这么长？？这是啥？？？ 我是谁？？？？？   我在哪  ？ 我在干什么？    这也许就是大佬吧\n羡慕你们能把指令玩出花的人  我老了"
+        },
+        {
+            "author": "ChiMon_PZ",
+            "timestamp": 1564617540,
+            "txt_content": "可以很强。"
+        },
+        {
+            "author": "Lin_cra",
+            "timestamp": 1564619580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "zl3263464201",
+            "timestamp": 1564646880,
+            "txt_content": "666666666可以很强"
+        },
+        {
+            "author": "xiaoc_",
+            "timestamp": 1564655520,
+            "txt_content": "6666666很强  "
+        },
+        {
+            "author": "Sadan..",
+            "timestamp": 1564664820,
+            "txt_content": "6666666666666666666666666666好"
+        },
+        {
+            "author": "YQ_fenghai",
+            "timestamp": 1564667880,
+            "txt_content": "666666666666666666666666"
+        },
+        {
+            "author": "18066021533",
+            "timestamp": 1564673340,
+            "txt_content": "6666，很棒"
+        },
+        {
+            "author": "lovethx",
+            "timestamp": 1564675500,
+            "txt_content": "666666666!!!!"
+        },
+        {
+            "author": "skmydk",
+            "timestamp": 1564679220,
+            "txt_content": "给力 66666"
+        },
+        {
+            "author": "yuhaoran666",
+            "timestamp": 1564693200,
+            "txt_content": "给力 66666"
+        },
+        {
+            "author": "曾年糕",
+            "timestamp": 1564718160,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "ZYC781125",
+            "timestamp": 1564729200,
+            "txt_content": "很丰富的游戏规则a"
+        },
+        {
+            "author": "Profieayl",
+            "timestamp": 1564751640,
+            "txt_content": "aaaa\n\n12\naaaaaa"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1564776060,
+            "txt_content": "问一个题外话，压缩到单个cb。相比放到mcfunction有哪些优势？"
+        },
+        {
+            "author": "🥶❄️☠️",
+            "timestamp": 1564791840,
+            "txt_content": "Hmmm……Interesting！妈妈再也不用怕我玩游戏没有时间概念了！"
+        },
+        {
+            "author": "00ll00",
+            "timestamp": 1564924080,
+            "txt_content": "uuu2011 发表于 2019-8-3 04:01\n问一个题外话，压缩到单个cb。相比放到mcfunction有哪些优势？\nemm 没太get到意思，不过尝试回复一下（\n\n压缩到单个CB而不是彻底抛弃CB，其原因是目前还必须靠CB执行命令后反馈信息才能获取到机器时间。即使真的全部写到数据包里，最终也会在初始化的时候在世界的某个角落放一个CB出来。\n\n而比较于V1 V2就能看出，把大量命令放到mcfunction是能节省出许多空间的，而且便于其他玩家使用数据包。"
+        },
+        {
+            "author": "GouYH",
+            "timestamp": 1564983480,
+            "txt_content": "唉，新人不大会玩"
+        },
+        {
+            "author": "GouYH",
+            "timestamp": 1564983480,
+            "txt_content": "好多那种MOD记不住"
+        },
+        {
+            "author": "GouYH",
+            "timestamp": 1564983480,
+            "txt_content": "就像那个植物魔法，和神秘"
+        },
+        {
+            "author": "GouYH",
+            "timestamp": 1564983540,
+            "txt_content": "元素合成，末影制品，"
+        },
+        {
+            "author": "GouYH",
+            "timestamp": 1564983540,
+            "txt_content": "还有拔刀，工业等等"
+        },
+        {
+            "author": "contionability",
+            "timestamp": 1565056680,
+            "txt_content": "楼上素质5连，禁止发言（咳咳）其实我觉得36个Ticks（秒）一分组比30个Ticks（秒）一分组要好一些运行会稍微流畅些\n不过已知的问题是这样分组的话如果帧数掉下来或者电脑卡一下就要重新Sync一次[fly]2333[/fly]\n"
+        },
+        {
+            "author": "contionability",
+            "timestamp": 1565056800,
+            "txt_content": " 本帖最后由 contionability 于 2019-8-6 10:03 编辑 \ncontionability 发表于 2019-8-6 09:58\n楼上素质5连，禁止发言（咳咳）其实我觉得36个Ticks（秒）一分组比30个Ticks（秒）一分组要好 ...\nTips：楼上80%是云玩家（这样不会扣我人气吧233）\n补充：对于这种系统是去除不掉CB的（能去掉就神了），毕竟还是要枚举时间,枚举的过程怎么都少不了错误指令的判断\n[fly]2333333333333333333333333333333333333[/fly]\n\n\n"
+        },
+        {
+            "author": "SuperVegetto",
+            "timestamp": 1565083380,
+            "txt_content": "。。。\n。。。。。。。"
+        },
+        {
+            "author": "若爱小阔耐",
+            "timestamp": 1565149320,
+            "txt_content": "emmmmmmmmm"
+        },
+        {
+            "author": "烟火依旧",
+            "timestamp": 1565156400,
+            "txt_content": "............"
+        },
+        {
+            "author": "墨筱玖",
+            "timestamp": 1565157300,
+            "txt_content": "。。。。。。。"
+        },
+        {
+            "author": "🥶❄️☠️",
+            "timestamp": 1565163900,
+            "txt_content": "contionability 发表于 2019-8-6 05:00\nTips：楼上80%是云玩家（这样不会扣我人气吧233）\n补充：对于这种系统是去除不掉CB的（能去掉就神了），毕 ...\n我看你是想到处找别人麻烦寻衅滋事吧。你这样处处逼人，迟早会被别人终结的"
+        },
+        {
+            "author": "筱柒儿",
+            "timestamp": 1565190720,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "contionability",
+            "timestamp": 1565224260,
+            "txt_content": "沙漠之鹰xzy 发表于 2019-8-7 15:45\n我看你是想到处找别人麻烦寻衅滋事吧。你这样处处逼人，迟早会被别人终结的 ...\n你就不怕被举报吗？发表个人观点与任何人无关ok？\n测试了一下（小范围），36个Ticks（秒）一压缩不会有问题的（但还是有小几率在隔一段时间后Sync扫描一次）\n"
+        },
+        {
+            "author": "JGZ",
+            "timestamp": 1565509860,
+            "txt_content": "牛逼6666666"
+        },
+        {
+            "author": "QAQexe",
+            "timestamp": 1565861160,
+            "txt_content": "顶一下，支持"
+        },
+        {
+            "author": "印度小仨",
+            "timestamp": 1582463640,
+            "txt_content": "防沉迷把我骗进来了233"
+        },
+        {
+            "author": "woaijuan",
+            "timestamp": 1582465860,
+            "txt_content": "太高深了看不懂啊"
+        },
+        {
+            "author": "woaijuan",
+            "timestamp": 1582467360,
+            "txt_content": "我也想学，楼主是从哪里学会的？"
+        }
+    ]
+}

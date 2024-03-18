@@ -1,0 +1,34 @@
+{
+    "title": "关于TileEntity中流体存储与GUI流体绘制",
+    "author": "src_resources",
+    "replyCount": 5,
+    "timestamp": 1583592420,
+    "txt_content": "想要实现一个有流体储存功能的方块。请教大家几个问题：\n1.TileEntity中怎么实现流体数据的存储(以mB为单位)，以及自动输入输出流体？\n2.如何在GUI中绘制流体材质，以显示其内部的流体储量？\n\n",
+    "replies": [
+        {
+            "author": "墨之永恒",
+            "timestamp": 1583754240,
+            "txt_content": "可以去看看相关的mod，比如热力系列的源代码"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1583791620,
+            "txt_content": " 本帖最后由 3TUSK 于 2020-3-10 06:12 编辑 \nTileEntity中怎么实现流体数据的存储\n所以我们首先需要让 TileEntity 有一个保存流体信息的字段。这里我们选 FluidTank，原因一会再说：\nimport net.minecraft.tileentity.TileEntity;\nimport net.minecraftforge.fluids.FluidTank;\n\npublic class MyTank extends TileEntity {\n  FluidTank tank;\n}复制代码\n既然说“存储”，那么我们希望它在退出游戏时，数据会保存起来。所以：\nimport net.minecraft.nbt.NBTTagCompound;\nimport net.minecraft.tileentity.TileEntity;\nimport net.minecraftforge.fluids.FluidTank;\n\npublic class MyTank extends TileEntity {\n  FluidTank tank = new FluidTank(8000); // 上限 8000 mB\n  @Override\n  public NBTTagCompound writeToNBT(NBTTagCompound data) { // 写数据进存档\n    data.setTag(\"Tank\", this.tank.writeToNBT(new NBTTagCompound()));\n    return super.writeToNBT(data);\n  }\n  @Override\n  public void readFromNBT(NBTTagCompound data) { // 从存档读数据\n    super.readFromNBT(data);\n    this.tank.readFromNBT(data.getCompoundTag(\"Tank\"));\n  }\n}复制代码\n(以mB为单位)\nFluidTank 默认以 mB 为单位，所以不用担心。\n\n以及自动输入输出流体\n也就是说我们要支持其他 Mod 的流体自动化设备。这需要借助 Forge 提供的标准化的流体 Capability 接口，IFluidHandler。\n上文中使用的 FluidTank 已经实现了 IFluidHandler 所以不用担心。我们只需要通过 Capability 系统，向外界宣布“这个方块支持流体交互”即可。\nimport net.minecraft.nbt.NBTTagCompound;\nimport net.minecraft.tileentity.TileEntity;\nimport net.minecraftforge.fluids.FluidTank;\nimport net.minecraftforge.fluids.capability.CapabilityFluidHandler;\n\npublic class MyTank extends TileEntity {\n  FluidTank tank = new FluidTank(8000); // 上限 8000 mB\n  @Override\n  public NBTTagCompound writeToNBT(NBTTagCompound data) { // 写数据进存档\n    data.setTag(\"Tank\", this.tank.writeToNBT(new NBTTagCompound()));\n    return super.writeToNBT(data);\n  }\n  @Override\n  public void readFromNBT(NBTTagCompound data) { // 从存档读数据\n    super.readFromNBT(data);\n    this.tank.readFromNBT(data.getCompoundTag(\"Tank\"));\n  }\n  \n  @Override\n  public boolean hasCapability(Capability<?> cap, EnumFacing face) {\n    return cap == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY || super.hasCapability(cap, face);\n  }\n  \n  @Override\n  public <T> T getCapability(Capability<T> cap, EnumFacing face) {\n    if (cap == CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY) {\n      return CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY.cast(this.tank);\n    }\n    return super.getCapability(cap, face);\n  }\n}复制代码\n如何在GUI中绘制流体材质\n把这个丢进你继承 GuiContainer 的类里。\n/**\n * Draw a fluid tank with given parameters. If the given tank is null, it will does nothing.\n * @param tank The {@link IFluidTank} instance, will keep unmodified\n * @param x The starting x-coordinate of tank\n * @param y The starting y-coordinate of tank\n * @param tankWidth The fluid tank full width in the GUI texture\n * @param tankHeight The fluid tank full height in the GUI texture\n */\npublic void renderFluidTank(final IFluidTank tank, final int x, final int y, final int tankWidth, final int tankHeight) {\n  if (tank == null || tank.getFluid() == null)\n    return;\n                \n  TextureAtlasSprite fluidSprite = this.mc.getTextureMapBlocks().getAtlasSprite(tank.getFluid().getFluid().getStill().toString());\n  this.mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);\n  \n  int scaledHeight = tankHeight * tank.getFluidAmount() / tank.getCapacity();\n  this.drawTexturedModalRect(x, y + tankHeight - scaledHeight, fluidSprite, tankWidth, scaledHeight);\n}复制代码\n节选自 https://github.com/3TUSK/FrogCra ... leFrog.java#L71-L88\n使用方法：在 GuiScreen/GuiContainer.drawGuiContainerBackgroundLayer 方法中调用。x 的正方向朝右，y 的正方向朝下，原点是 GUI 的左上角。\n\n以显示其内部的流体储量\n上文给出的 helper method 会自动按流体储量缩放绘制的流体纹理高度。你也可以选择在 drawGuiContainerForegroundLayer(int mouseX, int mouseY) 中调用 GuiScreen.drawHoveringText 来绘制 Tooltip。\n但，不论选哪一个，都涉及到一个问题：你的客户端上没有流体的数据。对于你的客户端来说，除非你的服务器告诉客户端“这个流体罐子里有 X 流体 Y mb”，你的客户端是什么都不知道的。\n而且这个逻辑不能反过来。客户端绝不能，也绝不应该决定服务器上的数据。否则你是在给作弊者铺平道路。\n所以我们需要一个方法告诉客户端“这个罐子里有什么流体，有多少”。这个方法可以是 SimpleNetworkWrapper。\nSimpleNetworkWrapper 的相关资料：\nhttps://harbinger.covertdragon.t ... etwork-wrapper.html\nhttps://mcforge.readthedocs.io/en/1.12.x/networking/simpleimpl/\n具体来说，我们要同步的数据有：1. 目标 TileEntity 所在维度（World.provider.getDimension()）和坐标（TileEntity.getPos()） 2. 那个 FluidTank 里的关键信息（FluidTank.getFluid() 和 FluidTank.getCapacity()）。\n\n也可以是利用 Container。你的 GUI 如果要显示玩家背包，那 Container 是必不可少的存在。原版熔炉使用 Container 类下的几个方法同步熔炉的进度条数据。\n\n\n\n万事开头难。是的，楼主你描述的需求实现起来确实有这样复杂。习惯了就好。"
+        },
+        {
+            "author": "ArcoWave_龙梦",
+            "timestamp": 1583902920,
+            "txt_content": "3TUSK 发表于 2020-3-10 06:07\n所以我们首先需要让 TileEntity 有一个保存流体信息的字段。这里我们选 FluidTank，原因一会再说：\n\n既然 ...\n大神，我想请教一下\n如果我想通过按一个按钮来对物品槽进行操作\n由于按钮按下是在GuiContainer这个客户端上操作的\n如果不给服务器发包的话怎么才能同步Container呢？"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1583905620,
+            "txt_content": "ArcoWave_龙梦 发表于 2020-3-11 13:02\n大神，我想请教一下\n如果我想通过按一个按钮来对物品槽进行操作\n由于按钮按下是在GuiContainer这个客户端 ...不给服务器发包\n那是不可能的。你不从客户端向服务器发包，就好像是你写完了作业不告诉老师一样，老师也只能当你没写。\n\n按钮按下去的的逻辑大约是 GuiContainer.actionPerformed。\nhttps://github.com/TeamCovertDra ... Packet.java#L84-L95"
+        },
+        {
+            "author": "2076959984",
+            "timestamp": 1584690600,
+            "txt_content": "666666666666666666666666"
+        }
+    ]
+}

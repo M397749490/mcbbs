@@ -1,0 +1,109 @@
+{
+    "title": "listener是否需要用runnable注册",
+    "author": "redfish",
+    "replyCount": 20,
+    "timestamp": 1591951200,
+    "txt_content": " 本帖最后由 redfish 于 2020-6-12 16:47 编辑 \n\n之前看到有人说直接注册listener是新手行为，要用runnable注册\n\n但是我看了几个插件，都是直接注册的，\n\n所以，，，，需要用runnable来注册监听器吗\n找到看到的地方了\n\nhttps://www.zhihu.com/question/63200488\n",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591951320,
+            "txt_content": " 本帖最后由 南柯郡守 于 2020-6-12 17:12 编辑 \n\n用runnable注册监听器闻所未闻孤陋寡闻\n可以 但没必要"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591951560,
+            "txt_content": "南柯郡守 发表于 2020-6-12 16:42\n用runnable注册监听器闻所未闻\n可以 但没必要\n\n找到了，是因为这个playermovevent比较特殊吗\n\n\nhttps://www.zhihu.com/question/63200488\n\n\n\n\n\n\nimage.png (47.02 KB, 下载次数: 0)\n\n下载附件\n\n2020-6-12 16:45 上传\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591952400,
+            "txt_content": " 本帖最后由 南柯郡守 于 2020-6-12 17:07 编辑 \n\n这样啊 我没用过PlayerMoveEvent所以不清楚这个\n\n但是就从API来说  PlayerMoveEvent是理论上触发次数最多的一个事件\n而且要求的响应时间极短\n所以如果只是简单的处理是不需要用Runnable来注册PlayerMoveEvent这个事件的监听器\n(我也不清楚是否用Runnable注册的监听器就是确实异步)\n\n举个简单的例子\n比如说我要监听玩家移动并比较玩家是不是在一个区域里面\n简单的就是\n\nif((Vector)(player.getLocation()).isInAABB(min,max)){\n//do something\n}复制代码\n\n像这样简单的语句 耗时可以忽略不计的语句  是可以直接监听\n\n如果 如果用Runnable注册的监听器就是确实异步的话 那么可以做一些复杂的、耗时长的、可能卡住主线程处理。\n但是不能涉及到比如 e.setCancelled(true);\n因为你在异步，主线程上可能这个事件已经处理完都走下一步了  你这会来个cancel  主线程要怎么处理？是吧\n这个时候服务器就会抛出报错 可能还会崩服\n另 在异线程处理之后需要调用一些东西时提示异线程无法操作的 可以使用Bukkit.getScheduler().runTask();来实现\n\n\n综上  如果Runnable注册的监听器确实异步  那么是可以用来处理复杂的 可能使主线程卡死的一些事件\n特别是针对PlayerMoveEvent 这个事件 因为这个事件就算是玩家动一下鼠标都会触发\n\n另 最好不要在PlayerMoveEvent事件中使用e.setCancelled(true); 如有必要 可以使用e.setTo(e.getFrom);\n(确实异步指 这个监听器确实是在异线程上运行 而不是 用异线程注册后依然在主线程上  是我瞎编的词 能看懂就好)\n(我也是个才学了两个多月的半吊子 对底层的理解不是很深，还请各位大佬指出谬误)\n\n"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591953420,
+            "txt_content": "南柯郡守 发表于 2020-6-12 17:00\n这样啊 我没用过PlayerMoveEvent所以不清楚这个\n\n但是就从API来说  PlayerMoveEvent是理论上触发次数最多的 ...\n感觉如果让我实现监听器的话，监听线程肯定是异步出来的，难道bukkit不是这样操作吗"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591954260,
+            "txt_content": "redfish 发表于 2020-6-12 17:17\n感觉如果让我实现监听器的话，监听线程肯定是异步出来的，难道bukkit不是这样操作吗 ...\n就我写了这几个插件的情况来看\n不是的 除了AsyncPlayerChatEvent是异线程处理的以外 基本上其他事件都是同步的\n\n即其他事件都是在主线程上同步进行的 必须等你这个处理完了 我才继续往下走 \n你如果在某个事件监听器中写了一个死循环你就知道了\n服务器会卡死 然后spigot会直接停掉服务器\n\n再举个例子 \n你现在在上课 老师提问你一个数学题 然后等你算答案(主线程等待) 这时候你说  我要拿到边上去算(异步) 老师你先继续讲(主线程忽略你这个监听器的反馈继续执行)。\n过了十分钟 你拿着算好的结果来找老师(异线程计算结束反馈) 。\n这个时候老师说了  我们都讲完这题下课了你还来干吗\n\n这就好比游戏中比如监听一个爆炸事件 \n你拿出来异步了 \n然后主线程已经炸完了 东西破坏了 玩家死了又复活了\n\n你过了一分钟拿着结果让服务器说 你别炸了 伤害也要取消掉\n服务器：？？？"
+        },
+        {
+            "author": "wisdomme",
+            "timestamp": 1591954320,
+            "txt_content": " 本帖最后由 wisdomme 于 2020-6-12 17:35 编辑 \n\n你要是直接监听playermoveevent能给你服务器整跨咯。这个比较特殊，所以需要新建线程来监听。正常触发次数没有这么极其频繁的事件就不需要新建线程来注册事件了。\n草？我今天下午刚看到这个，下面评论区还有我呢，哈哈哈哈\n我觉得他这个只是举个例子而已"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591954980,
+            "txt_content": "wisdomme 发表于 2020-6-12 17:32\n你要是直接监听playermoveevent能给你服务器整跨咯。这个比较特殊，所以需要新建线程来监听。正常触发次数 ...\n是的 同时他这个例子也是对的\n在一定程度上这些事件都是可以在异线程处理的\n只要你不反馈的主线程都是可以异线程处理\n\n比如你只是想要记录一下玩家移动的坐标和路线\n那么是可以异线程去监听移动事件 同时也可以简单的把玩家传送一下\n\n其他事件也是  比如我上面举例的爆炸事件 \n你异步监听如果只是记录一下爆炸地点和时间 也是可以的"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591955580,
+            "txt_content": " 本帖最后由 redfish 于 2020-6-12 17:56 编辑 \n南柯郡守 发表于 2020-6-12 17:43\n是的 同时他这个例子也是对的\n在一定程度上这些事件都是可以在异线程处理的\n只要你不反馈的主线程都是可 ...\n那么问题又来了，如果在新线程里面注册监听器，如果调用主线程的资源是不是会有线程同步问题\n原谅我对java多线程了解太少"
+        },
+        {
+            "author": "wisdomme",
+            "timestamp": 1591955760,
+            "txt_content": " 本帖最后由 wisdomme 于 2020-6-12 18:01 编辑 \nredfish 发表于 2020-6-12 17:53\n那么问题又来了，如果在新线程里面注册监听器，如果调用主线程的资源是不是会有线程同步问题 ...\n我记得异步线程中是不可以调用部分主线程方法的"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591955880,
+            "txt_content": "wisdomme 发表于 2020-6-12 17:56\n我记得异步线程中是不可以调用任何主线程方法的\n我自己实现的一个简单功能，可以正常使用啊public class ListenerRunnable implements Runnable {\n\n    Plugin plugin;\n\n    public ListenerRunnable(Plugin plugin){\n        this.plugin = plugin;\n    }\n\n    @Override\n    public void run() {\n        Bukkit.getServer().getPluginManager().registerEvents(new Listener() {\n\n            @EventHandler\n            public void onMMOLevelUp(McMMOPlayerLevelUpEvent event){\n\n                /*\n                 * todo:某个mcmmo等级达成即可触发命令\n                 *\n                 * 挖矿达到等级400\n                 */\n                if(event.getSkill() == MINING && event.getSkillLevel() == 400){\n                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), String.format(\"lp user %s parent add landlord\", event.getPlayer().getName()));\n                    Bukkit.broadcast(String.format(\"玩家%s挖矿等级达到400，获得领主（可圈地）称号\", event.getPlayer().getName()), \"mcmmolvup.receive.broadcast\");\n                }\n            }\n        }, this.plugin);\n    }\n}复制代码"
+        },
+        {
+            "author": "wisdomme",
+            "timestamp": 1591956060,
+            "txt_content": "redfish 发表于 2020-6-12 17:58\n我自己实现的一个简单功能，可以正常使用啊\n啊，我记得上次我想搞个啥来着的，但是发现没办法用，最后论坛上问说是不可以在其他线程中调用，忘了是啥了。。。"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591956420,
+            "txt_content": " 本帖最后由 redfish 于 2020-6-12 18:08 编辑 \nwisdomme 发表于 2020-6-12 18:01\n啊，我记得上次我想搞个啥来着的，但是发现没办法用，最后论坛上问说是不可以在其他线程中调用，忘了是啥 ...\n是不是用的bukkit给的runnable？\n我之前有看到一个文章也是这么说的，但好像是需要用到游戏tick才需要用bukkit提供的，所以我直接用java提供的了"
+        },
+        {
+            "author": "wisdomme",
+            "timestamp": 1591956780,
+            "txt_content": "redfish 发表于 2020-6-12 18:07\n是不是用的bukkit给的runnable？\n我之前有看到一个文章也是这么说的，但好像是需要用到游戏tick才需要用bu ...\n哦对！确实如此，但是我因为需要计时所以用的bukkit的runnable"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591957680,
+            "txt_content": "redfish 发表于 2020-6-12 18:07\n是不是用的bukkit给的runnable？\n我之前有看到一个文章也是这么说的，但好像是需要用到游戏tick才需要用bu ...\n比如说你在异线程里面想要给玩家打开一个Inventory是打不开的  \n会抛出异线程调用主线程方法的错\n\n这个时候可以用\n\nBukkit.getScheduler().runTask(plugin,new Runnable(){\n    @Override\n    public void run(){\n        player.openInventory(inv);\n    }\n);复制代码\n\n这个runTask() 会把你的这个任务排到主线程里的下一个tick 这样就是在主线程运行你的任务了\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1591967040,
+            "txt_content": "插件在onEnable中的性能损耗，忽略不计（除非是大型插件）\n而且注册几个监听没什么必要用任务调度\n可能是指临时事件监听\n也就是说比如说就像海螺螺大佬的 completable future 那个教程一样\n我举个例子\n玩家发送 我是 卢本伟\n此时你想要监听玩家发送“卢本伟”这个字符串\n玩家发送 我是 pdd\n此时你想要监听玩家发送“pdd”这个字符串\n那么这个时候你就可以把listener当成是对象\n整个事件监听器的类给一个类变量，构造方法传入一个string参数\n值就是 卢本伟 或者 pdd 或者是玩家发送的任何东西\n再进行事件监听的时候，就可以调用这个变量判断是不是相同的字符串\n监听逻辑执行完，取消事件监听（重要！\n\n这就是所谓临时事件监听\n一般来说插件主体事件监听直接放在onEnable注册，或者是扫包反射得到newinstance注册（详见PVPINdemoRL的源代码，我写的，只不过没写扫包的教程）\n除了临时事件监听，其他的事件监听没必要强行任务调度"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1591972680,
+            "txt_content": "William_Shi 发表于 2020-6-12 21:04\n插件在onEnable中的性能损耗，忽略不计（除非是大型插件）\n而且注册几个监听没什么必要用任务调度\n可能是指 ...\n那用新线程来处理会不会确实对性能有提升呢，毕竟主线程就不用花费时间来完成监听器的调用和执行了，对于频繁触发的事件来说是不是效果就比较明显了，比如引用的例子playerMovmentEvent或者BlockBreakEvent这类的。\n\n还有一个就是如果执意要调度来处理的话是不是还要注意公用对象的同步问题。"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1591972740,
+            "txt_content": "redfish 发表于 2020-6-12 22:38\n那用新线程来处理会不会确实对性能有提升呢，毕竟主线程就不用花费时间来完成监听器的调用和执行了，对于 ...\n我的意思是，注册监听没必要搞乱七八糟的操作\n执行可以看情况异步"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1592751840,
+            "txt_content": "wisdomme 发表于 2020-6-12 17:32\n你要是直接监听playermoveevent能给你服务器整跨咯。这个比较特殊，所以需要新建线程来监听。正常触发次数 ...\n1. 并不是完全不能用，只要处理的够快，监听PlayerMoveEvent并不会造成性能影响, 这个就看代码优化了。得完全避免进行耗时操作，优化算法复杂度。\n2. 而且有些场景必须用PlayerMoveEvent, 因为一个Event可以在一个tick触发多次，要是用Task，你就只能检测到这个tick玩家总共运动了多少，而不是每个运动分别运动了多少。(不过貌似需要这么精确的运动检测只有反作弊需要了)"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1592782140,
+            "txt_content": "jebme 发表于 2020-6-21 23:04\n1. 并不是完全不能用，只要处理的够快，监听PlayerMoveEvent并不会造成性能影响, 这个就看代码优化了。得 ...\n不一定是反作弊\n一般来说为了保证性能我监听玩家跳跃都是\n先监听玩家统计数据增长\n再判断增长的是不是跳跃数据\n但是缺点是没有办法进行诸如取消事件那样的操作\n（取消统计数据增长，玩家还是跳了）\n必须通过玩家移动事件来计算y坐标\n然后达到监听跳跃的效果\n一般来说都是这样实现二段跳的\n\n监听move事件，性能没你想象的 那么  差\n但是的确要避免耗时操作\n我写了篇扯 dan 的玩家移动事件高并发"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1592807880,
+            "txt_content": "William_Shi 发表于 2020-6-22 07:29\n不一定是反作弊\n一般来说为了保证性能我监听玩家跳跃都是\n先监听玩家统计数据增长\n跳跃监听移动Y轴速度就完事了\n\n跳跃高度 = 0.42 + (0.1 * 跳跃药水等级);\n顺便判断下是否在地面\n跳跃的第1个tick就是这个速度\n"
+        }
+    ]
+}

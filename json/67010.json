@@ -1,0 +1,94 @@
+{
+    "title": "ForgeBukkit的困境科普",
+    "author": "hyperx",
+    "replyCount": 17,
+    "timestamp": 1353792120,
+    "txt_content": " 本帖最后由 +倒霉の忍者+ 于 2012-11-26 20:18 编辑 \n\n所以说在现在minecraft的mod玩家当中，主要有两种东西是非常受欢迎的：\n\n1、Minecraftforge，主要维护者cpw和Lex，以及最近不知道在干吗的SpaceToad和Eloraaaaaaam.\n2、CraftBukkit，主要维护者EvilSeph和Dinnerbone升级为Mojang员工了，剩下的人似乎很大怨念？\n\n这两个东西，前者让大多数工业mod和大型mod成为可能，而后者则是大多数服务器所不可或缺的。\n\n但问题是，这两种东西装不到一块儿去。从来就没有一起工作过。无论是以前还是现在。即使是1.2.5时它们能在一起运行，也甚至完全不能相互通信。何况我们有1.3版本的这次内核大改。\n\n本文主要以个人理解为大家科普，为什么Craftbukkit和Forge装不到一块儿去。\n\n一、MCP 和 Forge\n\n做mod的人都知道你需要装MCP。装了MCP过后，放minecraft的可执行程序进去，就能得到minecraft的源代码。一改就能用。\n\n但很明显，Mojang是一个商业公司，不会把自己的商业游戏拿来开源的。Mojang只是出于Minecraft良好的名誉以及mod社区，而默许甚至支持了开源。\n\n而这个开源当然不是Mojang自己把源码送给人们的。java是一个伪脚本语言，它的代码是可以反编译的，而Mojang也采取了一些反制反编译的措施，也就是代码混淆。直接反编译的结果是命名打乱而完全不可读的大规模代码，非常难以修改。一旦反编译器出了什么问题，甚至完全无法修复。\n\n所以我们有了MCP小组。他们通过某种方式对混淆后的代码进行重新命名，并且将整个代码还原成可读的状态。当然，这并不一定和Mojang使用的命名法一样，但在运行时，两者是一样的。\n\nForge本身也是基于MCP的一套mod。其他mod作者可以通过Forge提供的API来制作mod并且通过FML从外部被载入。\n与forge mod不同的是，forge需要修改源文件。这样，每次minecraft新版更新，forge都需要对同样的类进行同样的修改，这很蛋疼，所以forge并不以一个可编译的代码库的形式存在，而是通过diff文件的形式提供。这就是forge源码的install脚本做的事情——对MCP的反编译结果打forge/fml补丁，使其能够提供forge需要的hook。这一点让forge能够在minecraft新版出之后迅速的进行更新。\n\n二、bukkit \n\n首先，craftbukkit和bukkit是不同的东西。bukkit是一套API，基于这个API那一堆插件才能工作。而craftbukkit则是基于Mojang原版服务器的一个mod。\n\n你的craftbukkit.jar里面会有两个文件夹，一个是net.minecraft.server，这里面是Mojang原版服务器代码，并且是经过craftbukkit开发组增加了一些所谓Hook，来提供给craftbukkit实现它的功能；另一个是org.bukkit.craftbukkit，这部分是用于与插件交互，并且通过Hook来修改原版服务器的表现。\n\n而net.minecraft.server里面的东西，也就是Mojang的人的代码，也是反混淆过的。不幸的是，他们似乎没有使用MCP作为反混淆工具，因此这些代码跟MCP的可能不同（应该说是肯定不同），跟Mojang的也不同。\n\n三、forge开发者跟craftbukkit开发者属于是吵架的关系\n\ncpw自称有一摞forge+bukkit的整合代码没有发，比如可用lwc上锁的铁箱子，但介于与bukkit那帮人的沟通极为不利，所以完全没办法施展。cpw在这个问题上似乎有300小时当量的代码。\n而bukkit的人，对于cpw的合作要求，则是非常明确的进行了回绝。bukkit虽然开源，但之前就因为与Canary的竞争而隐藏过mc-dev。而在bukkit的论坛上，部分开发者也以非常极端的措辞，拒绝”将bukkit的工作成果交给其他人“。另外还有bukkit开发者认为cpw的要求有违bukkit初衷，反而给他们增加了很多负担。\n也就是说，做forgebukkit的人，不可能是bukkit开发者。也就是说只有可能是cpw了。\n四、cpw需要什么\n前面说过，forge的源码是以对MCP源码的diff的形式存在的。所以每当minecraft新版更新，MCP小组在第一时间做好反编译，然后cpw拿到代码后能立即把diff打到MCP反编译结果上去，经过一些调整就能做出新版forge。只要MCP更新，cpw就能在短时间内更新forge。\n\n但这里的问题是，craftbukkit并不使用MCP。cpw并不知道craftbukkit使用的那个net.minecraft.server里面装的代码是怎么来的。bukkit project有一个repo叫做mc-dev，里面装的是craftbukkit小组使用的经过反编译的服务器代码，但是这里的东西与MCP反编译结果并不一定一样。结果就是，每次minecraft更新版本，MCP和craftbukkit小组就会有不同版本的net.minecraft.server。如果forgebukkit要更新，就需要以下步骤：\n\n1、反编译mc-dev，手动合并得到mc-dev与MCP的对应表。\n2、使用这个对应表来反编译craftbukkit，得到craftbukkit与MCP的diff。\n3、将Forge和FML的diff与craftbukkit的diff文件合并，并且调试到能正常工作。\n4、设计制作一个coremod来把上诉diff文件实现到mod中。\n\n这里最大的问题是，每次minecraft更新之后，由于craftbukkit和forge小组的反编译手段不一样，cpw都需要重复进行步骤一，也就是说几百个小时。几百个小时的时间，仅仅是用来对比两种反编译手段的差别。这没有意义。\n\n除了1以外的步骤则几乎不需要太大的功夫，可以写脚本。也就是说如果有了那个cpw耿耿于怀的对应表，每当Mojang和/或craftbukkit出新版，cpw可以集中精力处理一下Forge和Craftbukkit的冲突和整合，然后就能发布。\n\n而之前昙花一现的Alphaest的mcpc，并没有试图完全得到mc-dev和MCP的对应。应该说他是在试图把forge和fml往craftbukkit的mc-dev上套。所以mod并不能直接工作而需要移植，否则Alpha基本上就是在试图在craftbukkit的net.minecraft.server上重写一个forge/fml。工作量太大了。\n\n五、以后，会有什么事情可能发生？\n\n所以说，cpw本人已经非常艰难地下了放弃forgebukkit的决定。但并不排除类似的东西出现的可能性。\n无论如何，比起有近两年历史的bukkit，forge以目前的形态存在也不过三四个月时间。以后出现基于forge的服务器安全保护、区块回滚、锁箱、多世界管理、权限系统mod，也不无可能。也就是说forge直接取代Bukkit.\n介于bukkit的开发者反mod的态度非常坚决，我们肯定不能期望bukkit小组能做什么。\n而官方的mod API虽然一拖再拖，但总有出的一天。到时候bukkit自然是肯定会支持的。并且官方肯定会考虑forge的地位，可以期望这个API至少会有能取代forge或者能兼容forge的功能。\n另外，hMod虽然被bukkit干死了，但Canary还活着。由于Canary是基于MCP的，所以我们可以期望forge与Canary的合并不存在什么人为的障碍。这也是twitter上给cpw提建议的人提得最多的一条。\n\n\n码完字望天，临帖涕零，不知所言。\n顺便宣传个人这两天做的mod（确实是两天……）\nhttp://www.mcbbs.net/thread-65888-1-1.html\n\n使用forge，我们可以让以前用bukkit做的事情变得更加直观与科学。比如锁箱锁地，bukkit的那些插件的做法是直接刷脸，人在锁开，人不在锁不开。这科技未免太高了一点。\n此仅为抛砖引玉，是为探讨服务器保护的更多可能方法。forge的确是缺少权限和管理类mod，但是我们在补这个空缺的时候，也不一定非要完全照搬bukkit。否则何必用forge呢。\n\n",
+    "replies": [
+        {
+            "author": "geludan",
+            "timestamp": 1353793020,
+            "txt_content": "感谢LZ认真码字"
+        },
+        {
+            "author": "zq549597479",
+            "timestamp": 1353796680,
+            "txt_content": "看不懂~~~~~~~~~~~~"
+        },
+        {
+            "author": "洛音",
+            "timestamp": 1353801960,
+            "txt_content": "LZ很辛苦啊{:10_517:}"
+        },
+        {
+            "author": "szszss",
+            "timestamp": 1353819180,
+            "txt_content": "谁都想独吞那一杯羹...\n一个月前的Forge601中的SidedProxy已经有未完成的bukkitSide了,估计那时cpw还在想着和bukkit合作吧,结果之后被射了一脸←_←"
+        },
+        {
+            "author": "szszss",
+            "timestamp": 1353819780,
+            "txt_content": "另外不要忘了Bukkit已经有Spout这个好基友了.\nSpout当年靠插件式Mod和大量API来虐ModLoader,但在新版的Forge面前这些优势就没了.如果Forge和Bukkit勾搭到一起的话那Spout就会陷入窘境.我很瞧不起Spout的那帮人...虽然他们的SpoutCraft确实屌到爆."
+        },
+        {
+            "author": "sjjklh",
+            "timestamp": 1353820020,
+            "txt_content": "我只看懂80%……"
+        },
+        {
+            "author": "hyperx",
+            "timestamp": 1353820920,
+            "txt_content": "szszss 发表于 2012-11-25 13:03 \n另外不要忘了Bukkit已经有Spout这个好基友了.\nSpout当年靠插件式Mod和大量API来虐ModLoader,但在新版的For ...\nSpout野心太大不知道能做出神马东西来= =b\n另外，Spout不支持盗版玩家是硬伤\n\n……虽然你其实拿MagicLauncher也能把Spout启动出来（我试过）"
+        },
+        {
+            "author": "hyperx",
+            "timestamp": 1353821040,
+            "txt_content": "sjjklh 发表于 2012-11-25 13:07 \n我只看懂80%……\n其实这篇算是读后感\ncpw的twitter发了个链接，是他们在bukkit论坛跟bukkit dev的战楼\n\n最后让炮姐给霸气锁楼了"
+        },
+        {
+            "author": "wormz",
+            "timestamp": 1353927660,
+            "txt_content": "抛开插件，原版服务器的运行效率也让人担忧啊\n还有spout似乎做到多核了？"
+        },
+        {
+            "author": "qqlaiyz",
+            "timestamp": 1353940740,
+            "txt_content": "苦逼的是玩家啊。\n\n要么选择没保护的，丰富内容的MOD；要么有保护，内容表现力欠佳的bukkit（插件再牛掰，玩家上手难，大部分靠输命令操作，谁受得了。）\n\nspout这玩意，目前盗版玩家很难玩上。"
+        },
+        {
+            "author": "hyperx",
+            "timestamp": 1353941100,
+            "txt_content": "qqlaiyz 发表于 2012-11-26 22:39 \n苦逼的是玩家啊。\n\n要么选择没保护的，丰富内容的MOD；要么有保护，内容表现力欠佳的bukkit（插件 ...\nspout启动器会下载游戏jar\n等他下完后用magiclauncher就能启动\n\n亲测靠谱哦亲"
+        },
+        {
+            "author": "wormz",
+            "timestamp": 1354192740,
+            "txt_content": "immibis似乎有个代替forgebukkit的新项目，观望中"
+        },
+        {
+            "author": "hyperx",
+            "timestamp": 1354196100,
+            "txt_content": "没有bukkit的insider支持确实没有办法，即使有人想做也只会是出一个版本就跑"
+        },
+        {
+            "author": "wormz",
+            "timestamp": 1354808880,
+            "txt_content": "貌似这几天群众都把注意力放到forgeessentials上了\n看目前的胃口是要吃下所有常用bukkit插件啊- -"
+        },
+        {
+            "author": "tony300300",
+            "timestamp": 1354837920,
+            "txt_content": "nice job! :P"
+        },
+        {
+            "author": "rainsillwood",
+            "timestamp": 1355205780,
+            "txt_content": "LZ可以继续介绍一下modloader和fml以及forge的关系，还有modloadermp的消亡原因，以及为何日本等几个国家的mod作者一开始都反对forge直到modloadermp的消亡，还有spoutcraft和bukkit的关系等等。"
+        },
+        {
+            "author": "S_M_Forever",
+            "timestamp": 1356431700,
+            "txt_content": "看完了……MC界的贵圈真乱、、、"
+        }
+    ]
+}

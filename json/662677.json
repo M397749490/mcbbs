@@ -1,0 +1,44 @@
+{
+    "title": "MCmod制作 1.11(4.用nbt玩耍)",
+    "author": "zkm00323",
+    "replyCount": 7,
+    "timestamp": 1484417940,
+    "txt_content": " 本帖最后由 zkm00323 于 2017-1-15 02:34 编辑 \n\n当我们要让不是一种.而是一个物品或是方块等等\n存放独有的属性数据时我们就需要nbt了\n\n还记得上次的新建的item我给的贴图吗\n其实他是一个瓶子上面有吸血牙\n我希望他的功能是\nshift+右键:扣自己血,并把血存到瓶子里\n右键:释放所有储存血量,并给自己回血\n\n呢么我们就需要给物品添加一个属性:血量\n呢么我们先开始第一步\n\n1.给单个物品添加独有属性\n现在回到之间的ItemBloodsave里\npublic class ItemBloodsave extends Item{\n        public ItemBloodsave(){\n                setUnlocalizedName(\"itembloodsave\");\n                setRegistryName(\"itembloodsave\");\n                setCreativeTab(CreativeTabs.MATERIALS);\n                setMaxStackSize(1);\n        }\n    @Override\n    public ActionResult<ItemStack> onItemRightClick(World world, EntityPlayer player, EnumHand hand) {\n                        return super.onItemRightClick(world, player, hand);\n    }\n}\n\n\n这里我们设置他的最大堆叠为1,否则之后数据改动是整个物品堆一起改的\n然后我们重写了 onItemRightClick 方法,这个方法会在玩家右键这个物品的时候被调用\n\n我们在onItemRightClick添加如下代码\n    @Override\n    public ActionResult<ItemStack> onItemRightClick(World world, EntityPlayer player, EnumHand hand) {\n          if(!world.isRemote){                                                                               //如果调用这个方法的为客户端则回传true,服务端则为false\n                ItemStack item = player.getHeldItemMainhand();                      //获取玩家主手中的物品,这里会回传:血瓶\n                    if(item.getTagCompound()==null){                                              //如果这个物品没有nbt包则继续执行\n                            item.setTagCompound(new NBTTagCompound());           //给物品设置一个nbt包栏位\n                            NBTTagCompound nbt = new NBTTagCompound();        //新建一个nbt包\n\n                            nbt.setInteger(\"bloodsave\", 0);                                           //给这个nbt包加入一个int属性\"bloodsave\",初始值为0\n                            item.getTagCompound().setTag(\"blood\", nbt);                //将刚刚新建的nbt包丢入刚创建的栏位,并将这个nbt包命名为\"blood\"\n                    }\n\n              }\n          return super.onItemRightClick(world, player, hand);\n    }\n\n\nif(!world.isRemote):如果调用这个方法的为客户端则回传true,服务端则为false\n之前讲过,运算类的方法要放在服务端执行,反正到最后客户端还是会同步服务端的数据\n\n好的既然已经有了属性,呢我们就可以开始把♂玩他了\n现在我们先想好逻辑,\"bloodsave\"最大血量为20不可以超过\nif(玩家潜行 and 物品的\"bloodsave\"属性<20){\n        玩家扣血\n        if(\"bloodsave\" 增加会>20){\n                  \"bloodsave\" = 20\n        }else{\n                  \"bloodsave\" 增加\n        }\n}else if(玩家不潜行 and  \"bloodsave\">0){\n        玩家补血\n        \"bloodsave\" = 0\n}\n\n接下来我们就把他给实现\n                        nbt.setInteger(\"bloodsave\", 0);\n                            item.getTagCompound().setTag(\"blood\", nbt);\n                    }\n\n                    if(player.isSneaking() && item.getTagCompound().getInteger(\"bloodsave\")<20){\n                        int damage = new Random().nextInt(10)+1;                      \n                        player.addChatMessage(new TextComponentString(\"damage:\"+damage));                        \n                        player.setHealth(player.getHealth()-damage);\n                        if(item.getTagCompound().getInteger(\"bloodsave\") + damage/2 > 20){\n                                item.getTagCompound().setInteger(\"bloodsave\", 20);                                \n                        player.addChatMessage(new TextComponentString(\"save:\"+item.getTagCompound().getInteger(\"bloodsave\")));\n                        }else{\n                                item.getTagCompound().setInteger(\"bloodsave\", (item.getTagCompound().getInteger(\"bloodsave\") + damage/2));                                \n                               player.addChatMessage(new TextComponentString(\"save:\"+item.getTagCompound().getInteger(\"bloodsave\")));\n                        }\n\n                    }else if(!player.isSneaking() && item.getTagCompound().getInteger(\"bloodsave\")>0){\n                            player.heal(item.getTagCompound().getInteger(\"bloodsave\"));                            \n                        player.addChatMessage(new TextComponentString(\"heal:\"+item.getTagCompound().getInteger(\"bloodsave\")));\n                            item.getTagCompound().setInteger(\"bloodsave\", 0);\n                    }\n\n            return super.onItemRightClick(world, player, hand);\n    }\n\n\n为了让他更有趣以及游戏平衡我增加了两条设定\n每次扣血量为10~1随机数\n并储存一半的血入血瓶\n\n由于我们现在还没做任何可视化的东西来知道属性\nplayer.addChatMessage可以发出讯息\n\n\n\n\n\nqq.jpg (67.49 KB, 下载次数: 36)\n\n下载附件\n\n2017-1-15 02:18 上传\n\n\n\n\n\n\n\n\n\nww.jpg (51.45 KB, 下载次数: 15)\n\n下载附件\n\n2017-1-15 02:32 上传\n\n\n\n\n\n\n呢么到这里就结束了,如果你想,我可以给你个任务\n右键不会过量摄取,若玩家14血,血包20血,玩家补满,血包变14血\n\n\n如果想不出来,可以看看我下面发的\n源文件里面我将会把这个设定加进去\n\n\n\nsrc 教程4.rar\n(5.64 KB, 下载次数: 87)\n\n\n\n2017-1-15 02:21 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "zkm00323",
+            "timestamp": 1484463420,
+            "txt_content": "上一篇:3.新建一个item"
+        },
+        {
+            "author": "反清富明",
+            "timestamp": 1486352460,
+            "txt_content": "不错的教程"
+        },
+        {
+            "author": "syn614211648",
+            "timestamp": 1487484000,
+            "txt_content": "已经收藏链接\n\n( 在4z佬的教程中还真没提到这些"
+        },
+        {
+            "author": "情已死",
+            "timestamp": 1491094440,
+            "txt_content": "膜拜大神"
+        },
+        {
+            "author": "yaximi2005",
+            "timestamp": 1491310920,
+            "txt_content": "确实很厉害！也想自己学着做mod"
+        },
+        {
+            "author": "myshirtis0",
+            "timestamp": 1514471760,
+            "txt_content": "貌似     addChatMessage()    方法变成了    sendMessage(),我的    addChatMessage()   他报错了，这两个方法意思是一样的吗？"
+        },
+        {
+            "author": "MikeWu597",
+            "timestamp": 1540124280,
+            "txt_content": "我成功了"
+        }
+    ]
+}

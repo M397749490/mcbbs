@@ -1,0 +1,79 @@
+{
+    "title": "【TCP】【1.13】获取面向方块坐标&几个黑科技",
+    "author": "skeleton小白",
+    "replyCount": 14,
+    "timestamp": 1514190000,
+    "txt_content": " 本帖最后由 skeleton小白 于 2017-12-25 16:20 编辑 \n\n      咸鱼了将近半年了，要不是学校又双叒叕因为流感听课了，也许我还要咸鱼到寒假...感谢流感为我们带来了圣诞假期！\n\n      1.13的指令更新带来了许多新的功能（虽然指令又双叒叕更新还要全部重学非常难受），断断续续大概用了一个星期总算了解了新指令的用法，顺便做了这个黑科技。\n\n\n      玩家面向方块的坐标，只要打开F3界面就能看到，但这只对很小的范围内有效，而且这个数值无法获取，也没有实际的用途。而通过1.13强大的局部坐标和递归函数可以获取这个数值并且可以将探测范围扩展到很大：\n\n\n\n\n\nget_coordinate.zip\n(2.23 KB, 下载次数: 19)\n\n\n\n2017-12-25 15:39 上传\n点击文件名下载附件\n\n\n\n\n\n（数据包使用说明见下）\n\n\n（关于新指令的用法这里不再详细说，看不懂的请自行找教程贴）\n原理讲解：\n      总的思想是在玩家眼睛处生成一个盔甲架，继承玩家的朝向，然后递归一路往前移，知道当前位置不是空气为止。\n      首先创建五个计分板：\n<div><font face=\"宋体\" size=\"2\"><span style=\"line-height: 24px;\">/scoreboard objectives add click minecraft.used:minecraft.carrot_on_a_stick</span></font></div><div><font face=\"宋体\" size=\"2\"><span style=\"line-height: 24px;\">/scoreboard objectives add distance dummy</span></font></div><div><font face=\"宋体\" size=\"2\"><span style=\"line-height: 24px;\">/scoreboard objectives add x dummy</span></font></div><div><font face=\"宋体\" size=\"2\"><span style=\"line-height: 24px;\">/scoreboard objectives add y dummy</span></font></div><div><font face=\"宋体\" size=\"2\"><span style=\"line-height: 24px;\">/scoreboard objectives add z dummy</span></font></div>复制代码      click是触发条件，图省事直接用萝卜钓竿了。\n      distance是记录递归函数中盔甲架的位移，下面会细讲。\n      x，y，z分别记录获取的坐标的x，y，z值。\n\n\n函数main：\nexecute as @a[scores={click=1}] at @s run summon armor_stand ~ ~1.62 ~ {NoGravity:1,CustomName:\"finder\",Invisible:1}复制代码      在玩家眼睛处生成一个隐形、无重力的盔甲架，名字为“finder”\nexecute as @a[scores={click=1}] at @s run tp @e[name=finder] ~ ~1.62 ~ ~ ~复制代码      让盔甲架继承玩家的朝向\nexecute as @e[limit=1,type=armor_stand,name=finder] run function get_coordinate:find复制代码      让盔甲架执行find函数\n\n\nfind函数部分：\nexecute as @s at @s run tp @s ^ ^ ^1复制代码      将盔甲架tp到眼睛前面一格的位置。\n\n\ntag @s add find复制代码      给盔甲架一个find标签，假定此刻已经找到玩家所面向的方块\n\n\nscoreboard players add @s distance 1复制代码      盔甲架的distance分数+1，为了防止玩家看着天上或者看着很远很远的地方而导致函数递归非常多次造成游戏卡顿，用distance来记录盔甲架当前的位移，限定递归次数\n\n\nexecute at @s if block ~ ~ ~ air run tag @s remove find复制代码      如果当前位置为空气，则之前的假定不成立，移除find标签\n\n\nexecute as @s[tag=!find,scores={distance=0..100}] run function get_coordinate:find复制代码      如果没有找到面向的方块（tag=find）或超过递归次数（distance>100），就跳出循环，否则进行下一次递归。当然这里的distance上限可以调的更大，这样可用的探测范围也会更大，不过可能会造成游戏卡顿。最好不要超过4位数\n\n\n回归main函数\n\n\n<div>execute as @a[scores={click=1}] store result score @a[scores={click=1}] x run data get entity @e[limit=1,type=armor_stand,name=finder] Pos[0]</div><div>execute as @a[scores={click=1}] store result score @a[scores={click=1}] y run data get entity @e[limit=1,type=armor_stand,name=finder] Pos[1]</div><div>execute as @a[scores={click=1}] store result score @a[scores={click=1}] z run data get entity @e[limit=1,type=armor_stand,name=finder] Pos[2]</div>复制代码      将盔甲架的x，y，z坐标分别存到玩家的x，y，z计分板内\n\n\n<div><font face=\"宋体\" size=\"2\">execute if entity @e[limit=1,type=armor_stand,name=finder,tag=find] run tellraw @a [\"\",{\"text\":\"you're looking at:\",\"color\":\"yellow\"},{\"score\":{\"name\":\"*\",\"objective\":\"x\"}},{\"text\":\",\"},{\"score\":{\"name\":\"*\",\"objective\":\"y\"}},{\"text\":\",\"},{\"score\":{\"name\":\"*\",\"objective\":\"z\"}}]</font></div>复制代码      递归函数的跳出分为两种情况，如果此时盔甲架带有find标签，则说明找到了面向的方块，tellraw说出玩家当前的x，y，z分数\n\n\nexecute if entity @e[limit=1,type=armor_stand,name=finder,tag=!find] run tellraw @a [\"\",{\"text\":\"too far!\",\"color\":\"red\",\"bold\":\"true\"}]复制代码      如果此时盔甲架不带有find标签，则说明是因为距离太远导致循环到了最大上限也没有找到方块，tellraw说出错误信息\n\n\n<div>kill @e[limit=1,type=armor_stand,name=finder]</div><div>scoreboard players set @a click 0</div>复制代码      初始化，清掉盔甲架，玩家的click分数清零\n\n\n最后把main函数丢个minecraft:tick标签加入高频就行了（感谢如花和chyx的帮助，wiki上关于数据包标签讲的实在看不懂...）\n\n然而你也许会问：说出面向方块的坐标有什么用呢？那么下面是基于这个方法基础上做的几个黑科技：\n\n\n爆炸魔法：\n\n指哪炸哪√\n（本来想做个雷鸣大法的，结果不知道为什么1.13死活认不出闪电的ID...也许是bug吧）\n\n\n\nexplosion_magic.zip\n(2.12 KB, 下载次数: 12)\n\n\n\n2017-12-25 16:10 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n末影人瞬移：\n\n\n\n\nenderman_teleport.zip\n(2.49 KB, 下载次数: 12)\n\n\n\n2017-12-25 16:10 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n这两个黑科技原理和上面的差不多，在这里就不作讲解了，想知道的翻翻数据包应该能懂了。\n\n\n\n\n关于数据包的用法：\n      把数据包丢进存档文件夹内的datapacks里，然后在游戏里添加那五个计分板（切记！），如果是后两个黑科技的话可以不用添加x，y，z计分板。\n\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "求插件怎么开服",
+            "timestamp": 1514190360,
+            "txt_content": "感觉好厉害！"
+        },
+        {
+            "author": "Duxtr",
+            "timestamp": 1514193240,
+            "txt_content": "非穷举的侦测简直太棒了！\n而且这个估计还可以进行跨版本的移植，感觉挺实用的"
+        },
+        {
+            "author": "怪诞骚杰",
+            "timestamp": 1514294220,
+            "txt_content": "学会了！感谢楼主！！！"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1514387700,
+            "txt_content": "巧了，我得了流感……"
+        },
+        {
+            "author": "Moledy",
+            "timestamp": 1514719200,
+            "txt_content": "666666666666666666666666666"
+        },
+        {
+            "author": "不动要塞",
+            "timestamp": 1514953440,
+            "txt_content": "擦，这么看还研究个鬼1.12，换1.13了"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1514954400,
+            "txt_content": "不动要塞 发表于 2018-1-3 12:24\n擦，这么看还研究个鬼1.12，换1.13了\n我也不知道你为啥还在研究1.12 \n哈哈\n赶快入xecute神教"
+        },
+        {
+            "author": "逆风的帆",
+            "timestamp": 1514976120,
+            "txt_content": "等放假有时间再深入理解，学习了"
+        },
+        {
+            "author": "2717083381",
+            "timestamp": 1572147420,
+            "txt_content": "真的就可以指哪儿,打哪儿了.这就是魔法师吗."
+        },
+        {
+            "author": "2717083381",
+            "timestamp": 1572147420,
+            "txt_content": " 本帖最后由 2717083381 于 2019-10-27 12:16 编辑 \n\n2017年的帖子,我19年才入的坑,感觉都跟不上了"
+        },
+        {
+            "author": "ei_bai",
+            "timestamp": 1572325320,
+            "txt_content": "666666666666666"
+        },
+        {
+            "author": "295735762",
+            "timestamp": 1572744120,
+            "txt_content": "实用就喜欢这样的"
+        },
+        {
+            "author": "Sticky_Piston",
+            "timestamp": 1572745140,
+            "txt_content": "基岩版没有这么多种/execute啊啊啊\n也只有dummy积分板。。。"
+        },
+        {
+            "author": "丶落尘丶",
+            "timestamp": 1572844140,
+            "txt_content": "厉害厉害,喜欢"
+        }
+    ]
+}

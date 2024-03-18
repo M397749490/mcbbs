@@ -1,0 +1,99 @@
+{
+    "title": "【1.13.2】子弹射击效果模拟|自定义射击特效",
+    "author": "Delamer",
+    "replyCount": 18,
+    "timestamp": 1571945100,
+    "txt_content": " 本帖最后由 Delamer 于 2019-10-25 04:21 编辑 \n\n\n\n射击效果模拟\n\n\n\n话不多说,直接上图.\n\n\n单体射击效果\n\n\n\n\nimg1.gif (890.99 KB, 下载次数: 5)\n\n下载附件\n\n2019-10-25 02:14 上传\n\n\n\n\n\n贯穿射击效果\n\n\n\n\nimg2.gif (677.06 KB, 下载次数: 2)\n\n下载附件\n\n2019-10-25 02:14 上传\n\n\n\n\n\n\n\n\n效果实现基于便利的工具人区域效果云(area_effect_cloud,以下简称AEC).\n设计思路:\n1.设置两个单位的AEC,分别生成在玩家位置(A)与目标位置(B).\n2.让A去找B玩.咳咳,对A高频执行TP,目的地为B.\n3.A与B交汇后,或是命中实体后,判定完成一次射击.\n原理不复杂,但是遇到了不少预想外的情况,着实费了一番功夫.\n由于不知名原因我发代码的时候总是被吞的只剩一行,这次就直接折叠不加代码格式了.\n下面上代码.\n\n预设计分板\nscoreboard objectives add shoot minecraft.used:minecraft.carrot_on_a_stick\nscoreboard objectives add time dummy\nscoreboard objectives add cd dummy\nscoreboard players set @p cd 20\n\n设置AEC\nexecute as @e[tag=!cd] at @s if score @s shoot matches 1 run summon minecraft:area_effect_cloud ^ ^1 ^15 {Duration:15,Tags:[\"b\"]}\nexecute as @e[tag=!cd] at @s if score @s shoot matches 1 run summon minecraft:area_effect_cloud ~ ~1 ~ {Duration:15,Tags:[\"a\"]}\nexecute as @e[tag=a] at @s run tp @s ^ ^ ^ facing entity @e[tag=b,sort=nearest,limit=1]\nexecute as @e[tag=!cd] at @s if score @s shoot matches 1 run tag @s add cd\n\nAEC的移动与轨迹可视化\nexecute as @e[tag=a] at @s run tp @s ^ ^ ^1 facing entity @e[tag=b,sort=nearest,limit=1]\nexecute as @e[tag=a] at @s run particle minecraft:firework ~ ~ ~ 0 0 0 0 1 normal\n\n射速限制\nexecute as @e[tag=cd] at @s run scoreboard players add @s time 1\nexecute as @e[tag=cd] at @s if score @s time >= score cd run tag @s remove cd\nexecute as @e[tag=!cd] at @s run scoreboard players reset @s time\nexecute as @e[tag=!cd] at @s run scoreboard players reset @s shoot\n\n单体攻击\nexecute as @e[tag=a] at @s positioned ^ ^ ^ run tag @e[type=wolf,limit=1,sort=nearest,distance=..1] add damage\nexecute as @e[tag=damage] at @s run kill @e[tag=a,limit=1,sort=nearest,distance=..1]\nexecute as @e[tag=damage] at @s run effect give @s instant_damage 1 2 true\nexecute as @e[tag=damage] at @s run tag @s remove damage\n\n贯穿攻击\nexecute as @e[tag=a] at @s positioned ^ ^ ^ run effect give @e[type=!player,distance=..1] instant_damage 1 2 true\n\n一个代码段就是一套连锁,将第一个设置成高频即可实现效果.\n除去不需占用方块的计分板预设,一共需要用到14(单体攻击)或11(贯穿攻击)个命令方块\n\n下面为不怎么熟悉指令的人补上话痨版,便于自行调整参数\n\n预设计分板\nscoreboard objectives add shoot minecraft.used:minecraft.carrot_on_a_stick\n设置胡萝卜钓竿为触发器,carrot_on_a_stick可以改为你想要做触发器的物品\nscoreboard objectives add time dummy\n设置计时器\nscoreboard objectives add cd dummy\n设置冷却时间\nscoreboard players set @p cd 20\n设置冷却时间为20\n\n设置AEC\nexecute as @e[tag=!cd] at @s \n当射击动作未处于冷却状态时\nif score @s shoot matches 1 \n如果执行了射击动作\nrun summon minecraft:area_effect_cloud ^ ^1 ^15 {Duration:15,Tags:[\"b\"]}\n设置AEC[B]\n此处 ^ ^1 ^15 中的数字15影响射程,数字越大射程越远\nDuration:15则是持续时间,建议与射程的数字同步\n\nexecute as @e[tag=!cd] at @s \nif score @s shoot matches 1 \nrun summon minecraft:area_effect_cloud ~ ~1 ~ {Duration:15,Tags:[\"a\"]}\n设置AEC[A]\nDuration需和B点同步\n\nexecute as @e[tag=a] at @s \nrun tp @s ^ ^ ^ facing entity @e[tag=b,sort=nearest,limit=1]\n调整AEC[A]的朝向,使其面向AEC[B]\n如果不加这一条,AEC[A]的第一次移动会朝实体生成时的默认朝向(南)进行\n\nexecute as @e[tag=!cd] at @s \n当射击动作未处于冷却状态时\nif score @s shoot matches 1 \n如果执行了射击动作\nrun tag @s add cd\n添加cd标签,让玩家进入射击冷却状态\n\n子弹的移动与轨迹\nexecute as @e[tag=a] at @s \nrun tp @s ^ ^ ^1 facing entity @e[tag=b,sort=nearest,limit=1]\n让AEC[A]朝着AEC[B]的方向移动\n此处 ^ ^ ^1 中的数字1影响弹速,虽然能够调整,但不建议调整\n因为弹速对射击的实际效果影响巨大,需要调整许多的数据,十分麻烦\n\nexecute as @e[tag=a] at @s \nrun particle minecraft:firework ~ ~ ~ 0 0 0 0 1 normal\n为AEC[A]添加粒子效果,使子弹轨迹可视化\n\n射击冷却\nexecute as @e[tag=cd] at @s \nrun scoreboard players add @s time 1\n当玩家处于射击冷却状态时,计时器运作\n\nexecute as @e[tag=cd] at @s \nif score @s time >= score cd \nrun tag @s remove cd\n计时器运作时长大于冷却时间后,移除玩家的冷却标签,退出冷却状态\n\nexecute as @e[tag=!cd] at @s \nrun scoreboard players reset @s time\n当玩家处于非冷却状态时,计时器清零\n\nexecute as @e[tag=!cd] at @s \nrun scoreboard players reset @s shoot\n当玩家处于非冷却状态时,射击动作值清零\n清零后,逻辑回到最上层,一次射击效果便完整的体现出来了\n\n单体攻击\n攻击判定上,这里只是简略的给出了两种,各位可以发挥自己的想象力实现各种各样的攻击效果,如爆破设计,buff子弹等等\nexecute as @e[tag=a] at @s positioned ^ ^ ^ \nrun tag @e[type=wolf,limit=1,sort=nearest,distance=..1] add damage\n选取距离子弹AEC[A]最近并且距离小于1的实体,添加伤害判定标签damage\n举例中使用了type=wolf使目标限定为狼,这里可以随意修改\n使用team操作来编队后再选择非友军也是可行的,只是实现组队对战时有很多细节需要修改\n万万不能不添加选择器,不然生存模式一枪射出来直接判定在自己胸口distance后的数字会影响子弹的碰撞范围,要实现精确打击的话可以把数字再小点,想玩轨道炮就调大点\n\nexecute as @e[tag=damage] at @s \nrun kill @e[tag=a,limit=1,sort=nearest,distance=..1]\n反向选取被添加了伤害判定的实体,检测距它最近的子弹AEC[A]并移除它\n\nexecute as @e[tag=damage] at @s \nrun effect give @s instant_damage 1 2 true\n执行伤害\n这里就是发挥想象力的地方了\n瞬移枪了解一下?浮空枪了解一下?\n\nexecute as @e[tag=damage] at @s \nrun tag @s remove damage\n清除伤害判定标签,避免实体没死亡的时候无限扣血\n\n贯穿攻击\nexecute as @e[tag=a] at @s positioned ^ ^ ^ \nrun effect give @e[type=!player,distance=..1] instant_damage 1 2 true\n对没错就是这么暴力,单体攻击需要截断子弹并移除,贯穿攻击就不需要考虑这么多了\n到射程极限前途经的所有满足命中判定的生物都会受到攻击判定\n详见效果图2,子弹过处寸草不生.\n\n\n呼,该摆上去的都摆完了,接下来说一些小细节.\n\n1.没有对墙体进行任何处理,所以这个子弹是能穿墙的\n思路写出来了,在子弹移动的时候判断它所处的位置是不是空气,如果不是,移除\n就当做课后题给大家吧.才不是我懒得做.\n\n2.上面的话痨版有提到,多人游戏的时候需要调整很多内容\n理论上来讲每个玩家都需要一套命令方块组,AEC与Damage等等标签的命名都需要独立才不会互相冲突.\n想知道冲突的时候会怎么样,请把CD设置为0,然后朝不同方向射击,观察弹道.\n\n3.这种攻击方式不吃仇恨,这点已经拿狼和僵尸猪人测试过了\n所以就算没有小伙伴我也不难推断这个东西是没有击杀归属的\n这也是要做多人对战的时候需要调整的东西之一\n\n4.粒子效果不是我的专长,如果有玩粒子的大佬能给出更好看的轨迹效果那就再好不过了,欢迎大佬晒粒子\n5.如果有使用这个思路做出什么好玩的东西,请务必通知我去围观\n\n好了,就是这样,收工.\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "xmdhs",
+            "timestamp": 1571975280,
+            "txt_content": "稍微改改，改成追踪要更有意思呢。\n\n另外为什么不用函数呢。"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1571976480,
+            "txt_content": "xmdhs 发表于 2019-10-25 11:48\n稍微改改，改成追踪要更有意思呢。\n\n另外为什么不用函数呢。\n\n函数啊...因为调整函数不是很熟练总是出现一些莫名其妙的现象所以干脆就没有封装..."
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1572002520,
+            "txt_content": "如果用函数的话\n让shoot=1的玩家执行函数 就可以避免多人游戏的冲突了"
+        },
+        {
+            "author": "8765432",
+            "timestamp": 1572002640,
+            "txt_content": "111111111111111111111"
+        },
+        {
+            "author": "8765432",
+            "timestamp": 1572002700,
+            "txt_content": "11111111111111111111111111111"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1572003420,
+            "txt_content": "kongbaiyo 发表于 2019-10-25 19:22\n如果用函数的话\n让shoot=1的玩家执行函数 就可以避免多人游戏的冲突了\n可是子弹路径终点如果还是用同一个标签,不同玩家同时进行射击的时候还是会互相干扰到,因为使用的是同一个标签选择器,所以得重新命名才行...\n或许换个思路来执行子弹的寻路会更好些?"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1572007980,
+            "txt_content": "Delamer 发表于 2019-10-25 19:37\n可是子弹路径终点如果还是用同一个标签,不同玩家同时进行射击的时候还是会互相干扰到,因为使用的 ...\n可以在一个函数里用完这个标签就删掉它，然后下一个玩家执行这个函数的时候就是不存在这个标签的世界了！就又可以新建一个b了，完全不冲突！"
+        },
+        {
+            "author": "燕子6",
+            "timestamp": 1572008280,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1572011580,
+            "txt_content": "突然发现原版枪械模组和\"hello world\"的共同点（\n问题来了：distance比较的是实体基点 而不是碰撞箱 我敢肯定你这枪不能爆头（\n关于碰撞箱问题和仇恨问题可以看看我这个帖子https://www.mcbbs.net/thread-913010-1-1.html\n还有 为什么不用1.14？"
+        },
+        {
+            "author": "a362564474a",
+            "timestamp": 1572012120,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1572012480,
+            "txt_content": "Jokey_钥匙 发表于 2019-10-25 21:53\n突然发现原版枪械模组和\"hello world\"的共同点（\n问题来了：distance比较的是实体基点 而不是碰撞箱 我敢肯 ...\n\n对的,这个伪伤害判定就象一个球状判定器一路莽过去,而不是检测碰撞箱.会这么折腾也是因为我不会玩碰撞箱..\n不过爆头的话其实也是能实现的啦,在damage添加完毕后用一个计分板比较两者的高度,然后决定伤害级数,再对子弹执行删除,就是操作忒复杂实在懒得折腾...\n\n至于使用1.13嘛...只是习惯问题,反正1.13能实现的搬到1.14都能实现..."
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1572015000,
+            "txt_content": " 本帖最后由 Jokey_钥匙 于 2019-10-25 22:51 编辑 \nDelamer 发表于 2019-10-25 22:08\n对的,这个伪伤害判定就象一个球状判定器一路莽过去,而不是检测碰撞箱.会这么折腾也是因为我不会 ...\n记分板比较高度…… \n\n1.14比1.13强大 真的（\n1.14主要是LT和datamodify 能做的事情太多了\n越早升版本越好 等你再写写你就会发现1.13的限制（\n而且现在可以开始学习数据包了"
+        },
+        {
+            "author": "Unlimited0519",
+            "timestamp": 1572087000,
+            "txt_content": " 让我先升到1级好吧，我很难受"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1585020360,
+            "txt_content": "tp ^ ^ ^1 有点难受\n用Motion做岂不是更好doge"
+        },
+        {
+            "author": "一只雕",
+            "timestamp": 1590199920,
+            "txt_content": "1.14.4能用吗？"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1590844140,
+            "txt_content": "一只雕 发表于 2020-5-23 10:12\n1.14.4能用吗？\n按理来讲1.13能用的，1.14和1.15都能用，不过咱没试过"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1590845400,
+            "txt_content": " 本帖最后由 (=°ω°)丿 于 2020-5-30 21:33 编辑 \n\n看看有谁知道到目前为止论坛里一共有多少个原版枪械模组（哦，原来这是 19 年的帖子啊，那没事了（"
+        },
+        {
+            "author": "Rukio",
+            "timestamp": 1590946500,
+            "txt_content": "666666666666666666666"
+        }
+    ]
+}

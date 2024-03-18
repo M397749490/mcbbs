@@ -1,0 +1,34 @@
+{
+    "title": "使用ProtocolLib给客户端发包被客户端断线",
+    "author": "轻光233",
+    "replyCount": 5,
+    "timestamp": 1566105420,
+    "txt_content": "如题，代码如下\n\n\n\n\nQ7DQ(J[8SS7XCVW](I}R4QL.png (65.85 KB, 下载次数: 0)\n\n下载附件\n\n2019-8-18 13:13 上传\n\n\n\n\n\nPlayerInteractManager的构造方法我传的参数是world\n参照(照抄)spigotmc论坛上的一位dalao的生成假人的方法(链接)，把用原生nms发包换成了ProtocolLib发(nms发包之前试过，客户端会断线)\n可我万万没想到，还是断线了\n\n\n\n\n[{`3O0Y}C13N(AVN]5V}1.png (36.86 KB, 下载次数: 0)\n\n下载附件\n\n2019-8-18 13:16 上传\n\n\n\n\n\n求dalao看看这是咋回事qwq\n",
+    "replies": [
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566112020,
+            "txt_content": " 本帖最后由 凋灵兔子 于 2019-8-18 15:58 编辑 \n\n经过一波操作, 没能解决, 版主扣分吧"
+        },
+        {
+            "author": "lgou2w",
+            "timestamp": 1566124980,
+            "txt_content": "看了一下代码，可以确定你的数据包实例没有修改正确的字段值。原帖是通过直接调用 NMS 实现的，而是你通过 ProtocolLib 方式，这种方式是创建无参构造实例然后反射修改字段值实现的。而 PacketPlayOutPlayerInfo 有 2 个字段，PacketPlayOutNamedEntitySpawn 有 9 个字段。详情可以通过反编译服务端查看。\nPlayer player = ...;\n  Location location = player.getLocation().clone();\n  MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();\n  WorldServer worldServer = ((CraftWorld) player.getWorld()).getHandle();\n  GameProfile gameProfile = new GameProfile(UUID.randomUUID(), \"FakePlayer\");\n  PlayerInteractManager interactManager = new PlayerInteractManager(worldServer);\n  EntityPlayer dummy = new EntityPlayer(server, worldServer, gameProfile, interactManager);\n  dummy.setLocation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());\n\n  List<PlayerInfoData> infoDataList = new ArrayList<>();\n  infoDataList.add(new PlayerInfoData(\n      new WrappedGameProfile(gameProfile.getId(), gameProfile.getName()),\n      0,\n      EnumWrappers.NativeGameMode.SURVIVAL,\n      WrappedChatComponent.fromText(gameProfile.getName())\n  ));\n\n  PacketContainer ppopi = new PacketContainer(PacketType.Play.Server.PLAYER_INFO);\n  PacketContainer ppones = new PacketContainer(PacketType.Play.Server.NAMED_ENTITY_SPAWN);\n\n  ppopi.getPlayerInfoAction().write(0, EnumWrappers.PlayerInfoAction.ADD_PLAYER);\n  ppopi.getPlayerInfoDataLists().write(0, infoDataList);\n\n  ppones.getIntegers().write(0, dummy.getId());\n  ppones.getUUIDs().write(0, gameProfile.getId());\n  ppones.getDoubles().write(0, dummy.locX);\n  ppones.getDoubles().write(1, dummy.locY);\n  ppones.getDoubles().write(2, dummy.locZ);\n  ppones.getBytes().write(0, (byte) (int) (dummy.yaw * 256f / 360f));\n  ppones.getBytes().write(1, (byte) (int) (dummy.pitch * 256f / 360f));\n  ppones.getDataWatcherModifier().write(0, new WrappedDataWatcher(dummy));\n\n  try {\n    ProtocolLibrary.getProtocolManager().sendServerPacket(player, ppopi);\n    ProtocolLibrary.getProtocolManager().sendServerPacket(player, ppones);\n  } catch (InvocationTargetException e) {\n    e.printStackTrace();\n  }复制代码"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1566126420,
+            "txt_content": " 本帖最后由 轻光233 于 2019-8-18 19:41 编辑 \nlgou2w 发表于 2019-8-18 18:43\n看了一下代码，可以确定你的数据包实例没有修改正确的字段值。原帖是通过直接调用 NMS 实现的，而是你通过  ...\n请问那个PlayerInfoData是nms包里的吗？"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1566126540,
+            "txt_content": "轻光233 发表于 2019-8-18 19:07\n那啥dalao\n这个PlayerInfoData是nms包里的吗？\n我导入之后参数类型和你的完全不一样... ...\nPlayerInfoData是ProtocolLib的,不是nms的"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1566128580,
+            "txt_content": " 本帖最后由 轻光233 于 2019-8-18 20:08 编辑 \nlgou2w 发表于 2019-8-18 18:43\n看了一下代码，可以确定你的数据包实例没有修改正确的字段值。原帖是通过直接调用 NMS 实现的，而是你通过  ...冒昧问下dalao的qq是啥"
+        }
+    ]
+}

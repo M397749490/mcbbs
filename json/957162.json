@@ -1,0 +1,34 @@
+{
+    "title": "关于将受击冷却直接关闭的方法",
+    "author": "轻光233",
+    "replyCount": 5,
+    "timestamp": 1581391680,
+    "txt_content": " 本帖最后由 轻光233 于 2020-2-11 11:31 编辑 \n\n我的方法是监听PacketPlayOutEntityStatus包，当status==2时设置LivingEntity的受击冷却为0\n这是我监听PlayOut的所有包，在僵尸攻击村民的时候监听到的特殊的包(同时监听到的还有PacketPlayOutAnimation和PacketPlayOutEntityMetadata,第一个是和攻击者的动作相关，第二个我没测)\n如果这种方法有遗漏或者会出bug的地方，或者有更好的办法实现这个功能的，请dalao将方法贴在回复区，万分感谢\n下面是我的整个PacketListener的代码(因为是在自己服务器上用所以没有管nms的版本号问题)\n(所有关于数据包的资料全部来源与idea反编译和wiki.vg/Protocol)\npackage com.qing_guang.DamageTickRemove.plugin.main;\n\nimport static com.comphenix.protocol.PacketType.Play.Server.*;\n\nimport java.lang.reflect.Field;\n\nimport org.bukkit.craftbukkit.v1_12_R1.CraftWorld;\nimport org.bukkit.entity.Entity;\nimport org.bukkit.entity.LivingEntity;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport com.comphenix.protocol.events.PacketAdapter;\nimport com.comphenix.protocol.events.PacketContainer;\nimport com.comphenix.protocol.events.PacketEvent;\n\nimport net.minecraft.server.v1_12_R1.PacketPlayOutEntityStatus;\nimport net.minecraft.server.v1_12_R1.WorldServer;\n\npublic class IPacketListener extends PacketAdapter{\n        \n        private PacketPlayOutEntityStatus packet = null;\n        private static Field aF = null;\n        private static Field bF = null;\n        \n        static {\n                try {\n                        aF = PacketPlayOutEntityStatus.class.getDeclaredField(\"a\");\n                        bF = PacketPlayOutEntityStatus.class.getDeclaredField(\"b\");\n                } catch (NoSuchFieldException | SecurityException e) {\n                        e.printStackTrace();\n                }\n                aF.setAccessible(true);\n                bF.setAccessible(true);\n        }\n        \n        public IPacketListener() {\n                super(PacketAdapter.params()\n                                                   .plugin(JavaPlugin.getPlugin(Main.class))\n                                                   .serverSide()\n                                                   .types(ENTITY_STATUS));\n        }\n\n        public void onPacketSending(PacketEvent event) {\n                PacketContainer container = event.getPacket();\n                PacketPlayOutEntityStatus packet = (PacketPlayOutEntityStatus) container.getHandle();\n                if(this.packet == packet) {\n                        return;\n                }else {\n                        this.packet = packet;\n                }\n                CraftWorld cWorld = (CraftWorld) event.getPlayer().getPlayer().getWorld();\n                WorldServer nmsWorld = cWorld.getHandle();\n                try {\n                        int entityID = (int) aF.get(packet);\n                        if(nmsWorld.getEntity(entityID) != null) {\n                                Entity damaged = nmsWorld.getEntity(entityID).getBukkitEntity();\n                                byte status = (byte) bF.get(packet);\n                                if(damaged instanceof LivingEntity && status == 2) {\n                                        ((LivingEntity)damaged).setNoDamageTicks(0);\n                                }\n                        }\n                } catch (Exception e) {\n                        e.printStackTrace();\n                }\n        }\n        \n}复制代码\n\n",
+    "replies": [
+        {
+            "author": "a8105",
+            "timestamp": 1581419100,
+            "txt_content": "emmmmmm......................\n监听Bukkit自带的EntityDamageEvent\n@EventHandler\npublic void clearDamageTick(EntityDamageEvent e){e.getEntity().setNoDamageTicks(0);}"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1581421440,
+            "txt_content": "a8105 发表于 2020-2-11 19:05\nemmmmmm......................\n监听Bukkit自带的EntityDamageEvent\n@EventHandler\n你好，监听过的\n这个事件可以被设置关闭，也就是调用在伤害真实发生之前\n所以这样没用，将要受伤的实体在这个监听器调用的时候getNoDamageTicks一定是0的"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1581431520,
+            "txt_content": "轻光233 发表于 2020-2-11 19:44\n你好，监听过的\n这个事件可以被设置关闭，也就是调用在伤害真实发生之前\n所以这样没用，将要受伤的实体在 ...\n建议了解一下bukkit自带的线程类,说白了监听这玩意就是先后顺序的问题,既然先后顺序无法解决就再来个线程"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1581438300,
+            "txt_content": "a8105 发表于 2020-2-11 22:32\n建议了解一下bukkit自带的线程类,说白了监听这玩意就是先后顺序的问题,既然先后顺序无法解决就再来个线程 ...\n使用多线程会有诸多的一些问题，并且貌似不能确保想达到的目标能够绝对的实现"
+        },
+        {
+            "author": "Glom_",
+            "timestamp": 1582432620,
+            "txt_content": "轻光233 发表于 2020-2-12 00:25\n使用多线程会有诸多的一些问题，并且貌似不能确保想达到的目标能够绝对的实现 ...\n在吗\n加我QQ 88595433 有事"
+        }
+    ]
+}

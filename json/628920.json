@@ -1,0 +1,414 @@
+{
+    "title": "[编程][上古之石] Scriptful —— 告别Java与IDE，用脚本语言写插件[1.8.x-1.9.4]",
+    "author": "青木源",
+    "replyCount": 81,
+    "timestamp": 1472473740,
+    "txt_content": "\n\n玩什么JAVA来玩C++",
+    "replies": [
+        {
+            "author": "Olurbo",
+            "timestamp": 1472473800,
+            "txt_content": "无比的强大！"
+        },
+        {
+            "author": "duang2333",
+            "timestamp": 1472473920,
+            "txt_content": "javascript?"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472474100,
+            "txt_content": "标题: [编程][上古之石] Scriptful —— 告别Java与IDE，用脚本语言写插件[1.8.x-1.9.4] 本帖最后由 1582952890 于 2017-9-16 18:58 编辑 \n\n0. 前言\n插件程序员想起了那些年被插件支配的恐怖。\n创建一个Java工程，多痛苦。\n添加依赖库，多痛苦。\n创建一个继承自JavaPlugin的类，多痛苦。\n写plugin.yml，多痛苦。\n导出一个jar，多痛苦。\n如果中间还要debug，更痛苦了。\n打开IDE，多痛苦。\n\n于是，脚本语言创造了懒惰。\n而一个号称最懒惰的程序员，创造这个插件。\n\n本插件开源（GPLv3）：https://github.com/aegistudio/Scriptful\n\n1. 程序员怎么使用？\n1.1. 一个最简单的插件\n如何安装插件就不说了，咱们来进入正题。\n打开Scriptful文件夹，下面空空如也，我们创建一个hello.js。里面写入\nprint(\"hello world\");复制代码保存，启动服务器。\n服务器控制台是不是输出了hello world？\n经过多年的编码已经成为老司机的你，是不是找到初次写代码的感觉？\n1.2 需要监听器？\n写插件没有监听器，怎么行？\n创建chat.js，里面写入self.registerListener({\n          event: \"PlayerChatEvent\",\n          priority: priority.normal,\n          handle: function(chatEvent) {\n                    print(\"Somebody chat!\");\n                    chatEvent.getPlayer().sendMessage(\"You speak!\");\n          }\n});复制代码于是你说的每一句，老大哥，啊不，插件，都在听。\n这里出现了“self”，这是一个非常重要的东西，有了它，我们可以做和java插件一样的事情，我们以后继续讨论。\n那个priority.normal其实是偷懒用的，一共有priority.lowest, priority.low, priority.normal, priority.high, priority.highest, priority.monitor。\n更懒的境界是不写priority项，默认normal。不过event和handle还是一定要写的。\n\n1.3 接受指令\n没有指令也不行，接下来接受指令。\n创建cmd.js，里面写入\nself.registerCommand({\n          name: \"testcmd\",\n          description: \"example for command.\",\n          usage: \"/testcmd [args]\",\n          permission: \"testcmd.use\",\n          executor: function(sender) {\n                    sender.sendMessage(\"Respond to you!\");\n                    return true;\n          }\n});复制代码你可能会问，为什么executor只有一个参数？\nok，那是因为我懒，executor有四个参数，并返回一个布尔值（和bukkit原来的一样）\n别的一看就懂了，懒人都是聪明人。\n其实除了name以外。。其他变量都可以不assign。。\n\n1.4 多个文件？\n有人可能觉得，把所有东西放一个文件里可能太降san值了，需要更多文件方便arrange代码。\n行，满足你这个愿望。通过观察，你可以发现，我们一个插件对应一个文件，脚本后缀决定类型，要怎么搞？\n\n我们知道，java文件编译得到一个class文件， 但我们可以把它们放进一个jar文件中。\n同理，我们把脚本放进压缩包里（目前支持.zip，.gzip，.gz）。\n\n比如，创建一个multiple.zip，先把1.2（chat.js）与1.3（cmd.js）的代码放进去。\n如果你Scriptful目录下没删除chat.js与cmd.js，那请先把他们删了，以免影响结果。\n现在multiple.zip里有两个js文件，但是如果我们这时运行，他们将不会被加载（你可以运行服务端试试）。\n\n为了让他们加载，你需要再往multiple.zip添加一个文件，名为main.js（或者multiple.js也可以），内容如下：\nself.include(\"chat.js\");\nself.include(\"cmd.js\");复制代码再运行看看？没错，self.include的作用就是加载包里其他脚本文件。\n注意self.include只有压缩包类插件可以调用，脚本文件类插件不行。\n\n1.5 支持其他脚本语言\n你认为只可以用js来写插件？当然不是！\n你可以用一切有java引擎支持的脚本语言来写，比如python。\n就拿python举例吧，首先我们需要一个叫jython的东西：https://sourceforge.net/projects/jython。\n把里面的jython.jar解压出来，然后你可以：\n把jar文件拖进<jre_home>/lib下。把jar文件解压，把里面内容拖进服务端jar。把jar文件拖进服务端根目录，运行参数加上-cp jython.jar。（比如java -cp jython.jar -jar spigot-1.8.7-R0.1-SNAPSHOT.jar）\n我知道你会嫌麻烦，其实把jar文件拖进Scriptful文件夹（插件目录）下就可以了，哈哈哈哈哈哈哈哈哈哈哈哈~\n\n运行服务端，你会看到本插件输出“Supported languages:”，比如“Supported languages: .lua, js, lua, py”\n输出内容为支持的脚本类型，比如上面输出代表支持lua，javascript与python。\n\n创建commandpy.py，里面写入：\nprint('Hello! Im py!');\n\nclass CommandSender(dict):\n          def __init__(this):\n                    this['name'] = \"testcmdpy\"\n                    this['description'] = 'example for command (python).'\n                    this['usage'] = \"/testcmdpy [args]\"\n                    this['executor'] = True\n\n          def executor(this, sender, cmd, label, args):\n                    sender.sendMessage(\"Py respond to you!\")\n                    return True\n\nself.registerCommand(CommandSender());复制代码你会发现，现在多了一条testcmdpy指令，更重要的是，你可以用python写插件啦！{:10_521:}\n\n1.6 Unload Hook\n写到现在，你一定有疑问，如果如果脚本内容为Java插件的onEnable方法的内容，那么onDisable的内容应该写到哪？\n\n1.7 Scheduler\n想必写插件的各位对Scheduler不会感到陌生。\n在Java插件中，我们getServer().getScheduler()并Scheduler用的方法注册任务。\n在脚本插件中，我们用self.schedule()注册任务。请看以下代码：\nself.schedule({\n          async: false,\n          period: 20, delay: 0,\n          counter: 0,\n          run: function() {\n                    print('Count: ' + this.counter);\n                    this.counter ++;\n          }\n});复制代码\n\n\n\n\n\n2. 服主怎么使用？\n寻找用脚本写的插件，拖进plugin/Scriptful文件夹下面，即可。\n\n3. 权限与指令\n/script: 列出所有script下的指令及用法。（执行script指令均需要script.command权限！）\n/script unload <name>: 卸载指定的插件（插件必须已经加载）。\n/script reload <name>: 重新加载指定的插件（插件必须已经加载）。\n/script load <name>: 加载指定的插件（插件刚被卸载，或刚被拖进Scriptful目录下）。\n/script exec <name> <code>: 在某一插件环境下执行语句（debug福利！）。\n\n4. 更新日志\nv0.04b (2016.12.11)\n指定事件时，支持用简名（PlayerChatEvent）代替全名（org.bukkit.event.player.PlayerChatEvent）修复onLoad未创建插件目录发生异常的bug修复监听器能听到父类事件的bug。\n\nv0.03b (2016.8.31)\n修复ignoreCancelled参数。支持热加载/热卸载/热重载。支持交互式执行。\n\nv0.02b (2016.8.30)\n支持直接将引擎jar文件放进插件文件夹修复一个指令相关的bug\n\nv0.01b (2016.8.29)\n支持脚本文件中的插件。 支持压缩包的插件。 支持卸载钩。 支持注册监听器。 支持注册命令的CommandExecutor与TabCompleter\n\n\n\n更新中！"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1472474280,
+            "txt_content": "这里应该有更详细的教材。。。\n感谢上古做的贡献。希望能更加完善"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472474460,
+            "txt_content": "XIAOMM 发表于 2016-8-29 20:29\n完全告别JAVA的前提，先告别JAVA版的MC。\n所以来玩C++的Win10版吧（滑稽）\n“告别Java与IDE，用脚本语言写插件”\n这句子断句是\n“告别Java与IDE写插件，用脚本语言写插件”"
+        },
+        {
+            "author": "凛",
+            "timestamp": 1472474580,
+            "txt_content": "新人都是怪物系列"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472474700,
+            "txt_content": "duang2333 发表于 2016-8-29 20:32\njavascript?\n不仅可以支持js，还可以支持比如lua等语言。。\n我教程还没写到。"
+        },
+        {
+            "author": "酷车手BB弹",
+            "timestamp": 1472475060,
+            "txt_content": "我去，这是2级所做的？\n新人都是怪物系列。"
+        },
+        {
+            "author": "yaojiajie",
+            "timestamp": 1472475480,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "914554688wyt",
+            "timestamp": 1472475660,
+            "txt_content": "姆书记又发插件 精华预备"
+        },
+        {
+            "author": "1344641274",
+            "timestamp": 1472476020,
+            "txt_content": "新人都进上古之石了！"
+        },
+        {
+            "author": "HotPe_e",
+            "timestamp": 1472476620,
+            "txt_content": "向dalao势力低头"
+        },
+        {
+            "author": "白色的奢华、",
+            "timestamp": 1472476620,
+            "txt_content": "还是不太懂。。。"
+        },
+        {
+            "author": "x240295600",
+            "timestamp": 1472476680,
+            "txt_content": "火钳刘明"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472477460,
+            "txt_content": "堕星辰 发表于 2016-8-29 21:35\n支持原创！\n不过冒昧问一句\n我想知道和Skript的差别是？\nhttp://njol.ch/projects/skript/ Skript is a plugin for Bukkit, a popular Minecraft server mod. It allows server admins to easily modify how Minecraft works without programming anything.\n\n也就是说，skript目标是不用编程，而我只是不用java编程罢了。"
+        },
+        {
+            "author": "堕星辰",
+            "timestamp": 1472477700,
+            "txt_content": "支持原创！\n不过冒昧问一句\n我想知道和Skript的差别是？"
+        },
+        {
+            "author": "冰封死灵",
+            "timestamp": 1472478420,
+            "txt_content": "完全看不懂的感觉"
+        },
+        {
+            "author": "堕星辰",
+            "timestamp": 1472483220,
+            "txt_content": "CustomStuff2 发表于 2016-8-29 14:31\nhttp://njol.ch/projects/skript/ Skript is a plugin for Bukkit, a popular Minecraft server mod. It  ...\n这样啊_(:з」∠)_"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1472484420,
+            "txt_content": "姆书记又来刷精华了_(:_」∠)_\n\n用这个插件写测试插件会方便非常多\n期待加入实时编译输出(聊天框)的功能(嗯就像py那样？能计算出结果的就输出){:10_512:}"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1472525760,
+            "txt_content": "我突然想到有没有可能把js代码转换为原生bukkit插件"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472532660,
+            "txt_content": "andylizi 发表于 2016-8-30 10:56\n我突然想到有没有可能把js代码转换为原生bukkit插件\n导出bytecode弄进jar里么233333"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1472532780,
+            "txt_content": "CustomStuff2 发表于 2016-8-30 12:51\n导出bytecode弄进jar里么233333\n。。我的意思是把js写法用程序转换为插件一般写法"
+        },
+        {
+            "author": "zyizhuo",
+            "timestamp": 1472534400,
+            "txt_content": " 本帖最后由 zyizhuo 于 2016-9-3 13:05 编辑 \n\n这是用js编的是吗"
+        },
+        {
+            "author": "Lam_h",
+            "timestamp": 1472536020,
+            "txt_content": "这个插件方便的地方就是可以将PvPin制作的插件丢进去运行...吧？（似乎用法与Pvpin不一样的说....）"
+        },
+        {
+            "author": "爱琴炫彩",
+            "timestamp": 1472538360,
+            "txt_content": " 本帖最后由 爱琴炫彩 于 2016-8-30 14:32 编辑 \n\n看起来很不错！ 那么效率如何呢？\n\n比如监听了比如ItemMove的事件，那么最终的调用过程会是怎样的？\n话说用脚本直接写的话，会少一样东西，那就是..代码提示...，不看代码提示直接写代码的大佬，估计用java写会更快...\n\n\n没代码提示我觉得还是比较难受的..."
+        },
+        {
+            "author": "980378314",
+            "timestamp": 1472541180,
+            "txt_content": "这个很棒简单省事"
+        },
+        {
+            "author": "翼LOVE·小爱",
+            "timestamp": 1472542260,
+            "txt_content": "直接放入插件源代码可以执行吗？(窝真的不会编程_(:з」∠)_)\n"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472542920,
+            "txt_content": "爱琴炫彩 发表于 2016-8-30 14:26\n看起来很不错！ 那么效率如何呢？\n\n比如监听了比如ItemMove的事件，那么最终的调用过程会是怎样的？\n效率不用问了，基本上你见到的脚本引擎都有JIT功能，java跑多快，你脚本就该跑多快。\n\n过程和一般插件一样吧，根据注册的优先级被调用。不会因为用js写而有功能上的损失。\n\n代码提示指哪种？语法检查的话，应该找有语法检查功能的文本编辑器。\n要用什么类这个应该看javadoc。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1472551740,
+            "txt_content": "诶等等我发现一件事诶\n监听器的定义里怎么没有ignoreCancelled"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472551800,
+            "txt_content": "更新\n\nv0.02b (2016.8.30)\n支持直接将引擎jar文件放进插件文件夹\n修复一个指令相关的bug"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472553180,
+            "txt_content": "andylizi 发表于 2016-8-30 18:09\n诶等等我发现一件事诶\n监听器的定义里怎么没有ignoreCancelled\n手残，下个版本加上"
+        },
+        {
+            "author": "ak1115284886",
+            "timestamp": 1472586720,
+            "txt_content": "简直一万个好评！\n作为超级懒的程序员感觉重新获得生活的希望"
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472703600,
+            "txt_content": "5级的有新人勋章的大神...\n我想静静"
+        },
+        {
+            "author": "罗海鸿",
+            "timestamp": 1472823660,
+            "txt_content": "感觉很那个啊……还有点看不懂……{:10_493:}"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1472856600,
+            "txt_content": "支持姆书记。\n使用前置呢？比如Vault PL...."
+        },
+        {
+            "author": "Green_stone",
+            "timestamp": 1472873280,
+            "txt_content": "话说这本身是插件还是什么？"
+        },
+        {
+            "author": "司马缸砸光",
+            "timestamp": 1472876760,
+            "txt_content": "开创插件开发新时代"
+        },
+        {
+            "author": "xiari_",
+            "timestamp": 1472877180,
+            "txt_content": "依旧看不懂233 我不会呀 dalao"
+        },
+        {
+            "author": "zyizhuo",
+            "timestamp": 1472878920,
+            "txt_content": "XIAOMM 发表于 2016-8-29 20:29\n玩什么JAVA来玩C++\n这个我支持。。问题是c++咋写mc插件啊？"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1472884260,
+            "txt_content": " 本帖最后由 CustomStuff2 于 2016-9-3 14:46 编辑 \njebme 发表于 2016-9-3 06:50\n支持姆书记。\n使用前置呢？比如Vault PL....\nself.getServer().getServicesManager().getRegistration(XXXXX.class)"
+        },
+        {
+            "author": "a66344512",
+            "timestamp": 1472953080,
+            "txt_content": "这不错可以拿来偷懒,方便很多.赞"
+        },
+        {
+            "author": "夜喵星球",
+            "timestamp": 1472985360,
+            "txt_content": "没看懂啊~但是好像很厉害的样子{:10_525:}"
+        },
+        {
+            "author": "Iratu",
+            "timestamp": 1473478020,
+            "txt_content": "1344641274 发表于 2016-8-29 21:07\n新人都进上古之石了！\n小号没人看出来系列"
+        },
+        {
+            "author": "qq245271830",
+            "timestamp": 1473480720,
+            "txt_content": "要是不会java是不是就不能用了啊"
+        },
+        {
+            "author": "CustomStuff",
+            "timestamp": 1473505260,
+            "txt_content": "qq245271830 发表于 2016-9-10 12:12\n要是不会java是不是就不能用了啊\n如果是程序员会js且会看javadoc即可，如果是服主两样都不用会"
+        },
+        {
+            "author": "qq245271830",
+            "timestamp": 1473526980,
+            "txt_content": "CustomStuff 发表于 2016-9-10 19:01\n如果是程序员会js且会看javadoc即可，如果是服主两样都不用会\n好吧  看来是无缘了   我想请问一下  如果想学写插件应该怎么学习java   有基础"
+        },
+        {
+            "author": "远古工作室",
+            "timestamp": 1473685620,
+            "txt_content": "C++不好么？"
+        },
+        {
+            "author": "TFPS·妖魅",
+            "timestamp": 1473897960,
+            "txt_content": "我还是不会"
+        },
+        {
+            "author": "qt819762430",
+            "timestamp": 1473946080,
+            "txt_content": "666  60个绿宝石亮了  大神啊"
+        },
+        {
+            "author": "Ant繁星飞跃",
+            "timestamp": 1474069620,
+            "txt_content": "支持上古之石  你们简直无敌了~"
+        },
+        {
+            "author": "Tao_qi~",
+            "timestamp": 1474173780,
+            "txt_content": "水一下。。。。。233333333333333"
+        },
+        {
+            "author": "边陲镇长",
+            "timestamp": 1474287300,
+            "txt_content": "加油～兄弟  看好"
+        },
+        {
+            "author": "___5",
+            "timestamp": 1474556160,
+            "txt_content": "能发个 加入游戏离开游戏，准备大厅，团队，队友无伤的语言吗（类似起床，饥饿游戏，起码让我参考，亲，谢谢拜托了）"
+        },
+        {
+            "author": "DGai",
+            "timestamp": 1474973460,
+            "txt_content": "新人表示茫然..."
+        },
+        {
+            "author": "1692236385",
+            "timestamp": 1474976280,
+            "txt_content": "不知道怎么用 不过看起来太6了"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1481427360,
+            "txt_content": " 本帖最后由 andylizi 于 2016-12-11 11:43 编辑 \n拖进plugin/Scriptful文件夹下面，即可。\n应为 plugins\n\n\npaperspig0t-1.8.8\nScriptful v0.03-beta\n插件第一次启动，还没有配置文件夹时\n重启一下就好了\n\n判断为你忘了getDataFolder().mkdirs()复制代码\n\n另外在主类第153行，应该指定加载js使用的编码，不然java自动使用系统默认编码，在不同系统环境下会不一样"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1481428380,
+            "txt_content": "还有一个极其严重的bug：假设你监听 EntityDamageByEntityEvent ，那么它的父类 EntityDamageEvent 也能触发这个监听器。\n\n还有一个极其严重的问题：这里面怎么使用JDK类库？import？"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1481457840,
+            "txt_content": "1.7MOD服确实不能用"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1481467560,
+            "txt_content": "andylizi 发表于 2016-12-11 11:53\n还有一个极其严重的bug：假设你监听 EntityDamageByEntityEvent ，那么它的父类 EntityDamageEvent 也能触 ...\n已修复（虽然群里已经说过了，我怕放在这里影响不好）"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1481467620,
+            "txt_content": "117779284 发表于 2016-12-11 20:04\n1.7MOD服确实不能用\n如何不能用法，至少要像楼上上的梨子一样，给个截图之类的。"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1481471940,
+            "txt_content": "CustomStuff2 发表于 2016-12-11 22:47\n如何不能用法，至少要像楼上上的梨子一样，给个截图之类的。\n[Scriptful] LoadFail\njava.lang.Exception: No engine for js\n        at net.aegistudio.scriptful.Scriptful.makeScript(Scriptful.java:168) ~[scriptful.jar:?]\n        at net.aegistudio.scriptful.Scriptful.loadFile(Scriptful.java:129) ~[scriptful.jar:?]\n        at net.aegistudio.scriptful.Scriptful.onEnable(Scriptful.java:100) [scriptful.jar:?]\n        at org.bukkit.plugin.java.JavaPlugin.setEnabled(JavaPlugin.java:316) [JavaPlugin.class:1.7.10-1614.46]\n        at org.bukkit.plugin.java.JavaPluginLoader.enablePlugin(JavaPluginLoader.java:368) [JavaPluginLoader.class:1.7.10-1614.46]\n        at org.bukkit.plugin.SimplePluginManager.enablePlugin(SimplePluginManager.java:410) [SimplePluginManager.class:1.7.10-1614.46]\n        at org.bukkit.craftbukkit.v1_7_R4.CraftServer.loadPlugin(CraftServer.java:415) [CraftServer.class:1.7.10-1614.46]\n        at org.bukkit.craftbukkit.v1_7_R4.CraftServer.enablePlugins(CraftServer.java:349) [CraftServer.class:1.7.10-1614.46]\n        at net.minecraft.server.MinecraftServer.func_71243_i(MinecraftServer.java:513) [MinecraftServer.class:?]\n        at net.minecraft.server.MinecraftServer.func_71222_d(MinecraftServer.java:487) [MinecraftServer.class:?]\n        at net.minecraft.server.MinecraftServer.func_71247_a(MinecraftServer.java:447) [MinecraftServer.class:?]\n        at net.minecraft.server.dedicated.DedicatedServer.func_71197_b(DedicatedServer.java:336) [lt.class:?]\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:633) [MinecraftServer.class:?]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_102]\n[23:56:25] [Server thread/INFO]: Server permissions file permissions.yml is empty, ignoring it"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1481473500,
+            "txt_content": "CustomStuff2 发表于 2016-12-12 00:32\n喔，你是梨子今天说的那个服主么。\n我猜这个可能和jre有关（没有js引擎），你可以尝试。\n1.10测试是正常的\n1.7.10不可以的·\n确实是不可以吧。。我也只是实验一下1.8以下是否支持。\n不管如何都试试嘛·"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1481473920,
+            "txt_content": "117779284 发表于 2016-12-11 23:59\n[Scriptful] LoadFail\njava.lang.Exception: No engine for js\n        at net.aegistudio.scriptful.Scriptful. ...\n喔，你是梨子今天说的那个服主么。\n我猜这个可能和jre有关（没有js引擎），你可以尝试。\n\n[del]1. 下个jdk并用jdk的java启动服务器。[/del]\n2. 下载Rhino（https://github.com/mozilla/rhino ... EASE/rhino1_7R5.zip），解压，把里面的两个jar（除了javadoc.jar以外的另外两个）放在%JAVA_HOME%\\lib（windows）或者$JAVA_HOME/lib下。\n\n后者可能相对可行，但我还没试过，毕竟我这没有出现过丢js引擎的情况。"
+        },
+        {
+            "author": "CustomStuff2",
+            "timestamp": 1481515020,
+            "txt_content": " 本帖最后由 CustomStuff2 于 2016-12-12 11:58 编辑 \n117779284 发表于 2016-12-12 00:25\n1.10测试是正常的\n1.7.10不可以的·\n确实是不可以吧。。我也只是实验一下1.8以下是否支持。\nwait!\n为啥1.10下能跑而1.7.10下不能，你运行两个服务器用的是同一个jre嘛？\n\n（这个现象有趣了，可以研究下）"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1481533980,
+            "txt_content": "CustomStuff2 发表于 2016-12-12 11:57\nwait!\n为啥1.10下能跑而1.7.10下不能，你运行两个服务器用的是同一个jre嘛？\n当然一个JAR啦。那里有个报错信息 给你发信息啦···"
+        },
+        {
+            "author": "wobo",
+            "timestamp": 1496849520,
+            "txt_content": "我是特意来点赞加收藏的，这是一个真心很好的插件，像我们这种半吊子JAVA的人，还是用Python比较顺手，哈哈~~~~~"
+        },
+        {
+            "author": "子德",
+            "timestamp": 1496932920,
+            "txt_content": "请问新人如果想通过这个方式入坑插件有什么办法？（懂得C++）"
+        },
+        {
+            "author": "婲样的女孩",
+            "timestamp": 1530010800,
+            "txt_content": "XIAOMM 发表于 2016-8-29 20:29\n玩什么JAVA来玩C++\n我觉得“易语言”不错"
+        },
+        {
+            "author": "1046402434",
+            "timestamp": 1535429940,
+            "txt_content": "MCBBS有你更精彩~~"
+        },
+        {
+            "author": "Reliable_han",
+            "timestamp": 1535445420,
+            "txt_content": "好高端 感谢发布"
+        },
+        {
+            "author": "deepdra",
+            "timestamp": 1535714640,
+            "txt_content": "sssssssssssssssssssssss"
+        },
+        {
+            "author": "粉云",
+            "timestamp": 1535719380,
+            "txt_content": "滋瓷原创, 什么时候能有依赖项之类的操作呢, 这样的话不就方便开发相关lib了吗"
+        },
+        {
+            "author": "萝卜石头",
+            "timestamp": 1566112980,
+            "txt_content": "能支持1.14.4吗？\n楼主啥时候更新啊？"
+        },
+        {
+            "author": "萝卜石头",
+            "timestamp": 1566117000,
+            "txt_content": "请问有脚本编写文档吗？"
+        },
+        {
+            "author": "萝卜石头",
+            "timestamp": 1572748260,
+            "txt_content": "所以，有文档吗？"
+        },
+        {
+            "author": "萝卜石头",
+            "timestamp": 1572748980,
+            "txt_content": "我要文档啊啊啊"
+        },
+        {
+            "author": "萝卜石头",
+            "timestamp": 1575771420,
+            "txt_content": "用python写聊天事件时，发生如下报错：\njavax.script.ScriptException: TypeError: 'NoneType' object is not callable in <script> at line number 9\nat org.python.jsr223.PyScriptEngine.scriptException(PyScriptEngine.java:222) ~[?:?]\nat org.python.jsr223.PyScriptEngine.eval(PyScriptEngine.java:59) ~[?:?]\nat org.python.jsr223.PyScriptEngine.eval(PyScriptEngine.java:64) ~[?:?]\nat javax.script.AbstractScriptEngine.eval(Unknown Source) ~[?:1.8.0_111]\nat net.aegistudio.scriptful.Scriptful.makeScript(Scriptful.java:173) ~[%5B脚本%5Dscriptful.jar:?]\nat net.aegistudio.scriptful.Scriptful.loadFile(Scriptful.java:129) ~[%5B脚本%5Dscriptful.jar:?]\nat net.aegistudio.scriptful.ScriptfulCommand$2.execute(ScriptfulCommand.java:56) [%5B脚本%5Dscriptful.jar:?]\nat net.aegistudio.scriptful.ScriptfulCommand.execute(ScriptfulCommand.java:161) [%5B脚本%5Dscriptful.jar:?]\nat net.aegistudio.scriptful.Scriptful.onCommand(Scriptful.java:199) [%5B脚本%5Dscriptful.jar:?]\nat org.bukkit.command.PluginCommand.execute(PluginCommand.java:45) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat org.bukkit.command.SimpleCommandMap.dispatch(SimpleCommandMap.java:149) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat org.bukkit.craftbukkit.v1_14_R1.CraftServer.dispatchCommand(CraftServer.java:710) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat org.bukkit.craftbukkit.v1_14_R1.CraftServer.dispatchServerCommand(CraftServer.java:695) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat net.minecraft.server.v1_14_R1.DedicatedServer.handleCommandQueue(DedicatedServer.java:433) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat net.minecraft.server.v1_14_R1.DedicatedServer.b(DedicatedServer.java:397) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat net.minecraft.server.v1_14_R1.MinecraftServer.a(MinecraftServer.java:971) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat net.minecraft.server.v1_14_R1.MinecraftServer.run(MinecraftServer.java:816) [spigot-1.14.4.jar:git-Spigot-9de398a-9c887d4]\nat java.lang.Thread.run(Unknown Source) [?:1.8.0_111]\nCaused by: org.python.core.PyException\nat org.python.core.Py.TypeError(Py.java:265) ~[?:?]\nat org.python.core.PyObject.__call__(PyObject.java:409) ~[?:?]\nat org.python.core.PyObject.__call__(PyObject.java:464) ~[?:?]\nat org.python.core.PyDictionaryDerived.hashCode(PyDictionaryDerived.java:810) ~[?:?]\nat net.aegistudio.scriptful.execution.MethodExecutor.compareTo(MethodExecutor.java:25) ~[?:?]\nat net.aegistudio.scriptful.execution.MethodExecutor.compareTo(MethodExecutor.java:1) ~[?:?]\nat net.aegistudio.scriptful.abstraction.ListenerAbstract.compareTo(ListenerAbstract.java:45) ~[?:?]\nat net.aegistudio.scriptful.abstraction.ListenerAbstract.compareTo(ListenerAbstract.java:1) ~[?:?]\nat java.util.TreeMap.compare(Unknown Source) ~[?:1.8.0_111]\nat java.util.TreeMap.put(Unknown Source) ~[?:1.8.0_111]\nat java.util.TreeSet.add(Unknown Source) ~[?:1.8.0_111]\nat net.aegistudio.scriptful.ScriptSurrogator.registerListener(ScriptSurrogator.java:112) ~[?:?]\nat net.aegistudio.scriptful.ScriptSurrogator.registerListener(ScriptSurrogator.java:137) ~[?:?]\nat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_111]\nat sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_111]\nat sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_111]\nat java.lang.reflect.Method.invoke(Unknown Source) ~[?:1.8.0_111]\nat org.python.core.PyReflectedFunction.__call__(PyReflectedFunction.java:188) ~[?:?]\nat org.python.core.PyReflectedFunction.__call__(PyReflectedFunction.java:206) ~[?:?]\nat org.python.core.PyObject.__call__(PyObject.java:497) ~[?:?]\nat org.python.core.PyObject.__call__(PyObject.java:501) ~[?:?]\nat org.python.core.PyMethod.__call__(PyMethod.java:141) ~[?:?]\nat org.python.pycode._pyx12.f$0(<script>:9) ~[?:?]\nat org.python.pycode._pyx12.call_function(<script>) ~[?:?]\nat org.python.core.PyTableCode.call(PyTableCode.java:171) ~[?:?]\nat org.python.core.PyCode.call(PyCode.java:18) ~[?:?]\nat org.python.core.Py.runCode(Py.java:1614) ~[?:?]\nat org.python.core.__builtin__.eval(__builtin__.java:497) ~[?:?]\nat org.python.core.__builtin__.eval(__builtin__.java:501) ~[?:?]\nat org.python.util.PythonInterpreter.eval(PythonInterpreter.java:259) ~[?:?]\nat org.python.jsr223.PyScriptEngine.eval(PyScriptEngine.java:57) ~[?:?]\n... 16 more\n\n代码如下：\nclass chatListener(dict):\n    def __init__(this):\n        this[\"event\"] = \"PlayerChatEvent\"\n        this[\"handle\"] = handle\n    def handle(this, chatEvent):\n        chatEvent.getPlayer().sendMessage(\"You speak!\")\n        return True\n        \nself.registerListener(chatListener())\n"
+        },
+        {
+            "author": "catserver",
+            "timestamp": 1576161120,
+            "txt_content": "貌似给新人福利，插件很友好呢"
+        },
+        {
+            "author": "a888kay",
+            "timestamp": 1586826840,
+            "txt_content": "刚好懂得JAVA感觉不难学习"
+        },
+        {
+            "author": "428751434",
+            "timestamp": 1588653300,
+            "txt_content": "mcbbs有你精彩"
+        },
+        {
+            "author": "老李小号",
+            "timestamp": 1600083540,
+            "txt_content": "HotPe_e 发表于 2016-8-29 21:17\n向dalao势力低头\n5级=大佬，9级=萌新"
+        }
+    ]
+}

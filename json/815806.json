@@ -1,0 +1,69 @@
+{
+    "title": "关于1.12.2的流体桶交互事件",
+    "author": "栗子.",
+    "replyCount": 12,
+    "timestamp": 1534728360,
+    "txt_content": "        就是有关流体桶的事件，看了一下土球的教程里面的流体桶交互，好像1.12.2没有流体容器注册？还是改名字了我不知道。总之就是土球的代码在1.12.2不适用。所以又自己弄了一个事件，代码如下\n@SubscribeEvent\n    public void onFillBucket(FillBucketEvent event)\n    {\n        BlockPos blockpos = event.getTarget().getBlockPos();\n        IBlockState blockState = event.getWorld().getBlockState(blockpos);\n        Fluid fluid = FluidRegistry.lookupFluidForBlock(blockState.getBlock());\n        if (fluid != null && new Integer(0).equals(blockState.getValue(BlockFluidBase.LEVEL)))\n        {\n                \n            FluidStack fluidStack = new FluidStack(FluidLoader.semisolidCrystalMagic,1);\n            event.getWorld().setBlockToAir(blockpos);\n            ItemStack item = new ItemStack(MHIR.crystalMagic, 1, 0);\n            ItemStack itemss = new ItemStack(Items.BUCKET, 1, 0);\n            event.getEntityPlayer().inventory.deleteStack(itemss);\n            event.getEntityPlayer().inventory.addItemStackToInventory(item);\n        }\n    }复制代码\n        但是好像....\n好像个事件不能删除玩家的桶，而且会把所有流体的盛装都变成了装上一桶MHIR.crystalMagic了....怎么改...问一下各位dalao\n",
+    "replies": [
+        {
+            "author": "极光限影",
+            "timestamp": 1534729800,
+            "txt_content": "if (fluid != null && new Integer(0).equals(blockState.getValue(BlockFluidBase.LEVEL)))中缺少一个判断该流体是否为MHIR.crystalMagic的过程，这导致了你用桶盛装所有的流体都能够触发这个事件，所以这就是原因所在。"
+        },
+        {
+            "author": "栗子.",
+            "timestamp": 1534731000,
+            "txt_content": " 本帖最后由 cyciling 于 2018-8-20 10:35 编辑 \n极光限影 发表于 2018-8-20 09:50\nif (fluid != null && new Integer(0).equals(blockState.getValue(BlockFluidBase.LEVEL)))中缺少一个判断 ...\n怎么判断MHIR.crystalMagic...............（不愿意动脑子了）具体怎么改判断，嘤嘤嘤"
+        },
+        {
+            "author": "1742986756",
+            "timestamp": 1534735080,
+            "txt_content": "@SubscribeEvent\n    public void onFillBucket(FillBucketEvent event)\n    {\n        BlockPos blockpos = event.getTarget().getBlockPos();\n        IBlockState blockState = event.getWorld().getBlockState(blockpos);\n        Fluid fluid = FluidRegistry.lookupFluidForBlock(blockState.getBlock());\n        if (fluid != null && new Integer(0).equals(blockState.getValue(BlockFluidBase.LEVEL)))\n        {\n                if(fluid == FluidLoader.semisolidCrystalMagic)\n                {\n                        event.getWorld().setBlockToAir(blockpos);\n                event.getEmptyBucket().shrink(1);\n                ItemStack item = new ItemStack(MHIR.crystalMagic, 1, 0);\n                event.getEntityPlayer().inventory.addItemStackToInventory(item);\n                event.setResult(Result.ALLOW);\n                }\n        }\n    }复制代码"
+        },
+        {
+            "author": "1742986756",
+            "timestamp": 1534735140,
+            "txt_content": "ItemStack itemss = new ItemStack(Items.BUCKET, 1, 0);\n            event.getEntityPlayer().inventory.deleteStack(itemss);复制代码\n这个东西问题也太大了吧。"
+        },
+        {
+            "author": "栗子.",
+            "timestamp": 1534735320,
+            "txt_content": "1742986756 发表于 2018-8-20 11:19\n这个东西问题也太大了吧。\n那个删除的代码我alt+/找到的 /笑哭"
+        },
+        {
+            "author": "1742986756",
+            "timestamp": 1534735560,
+            "txt_content": "cyciling 发表于 2018-8-20 11:22\n那个删除的代码我alt+/找到的 /笑哭\n多去翻翻源代码，里面有好东西的"
+        },
+        {
+            "author": "栗子.",
+            "timestamp": 1534736160,
+            "txt_content": " 本帖最后由 cyciling 于 2018-8-20 11:44 编辑 \n1742986756 发表于 2018-8-20 11:18\n不知什么原因，代码替换后 空桶装MHIR.crystalMagic崩溃，java171，jdk1711，forge2710\n\n而且奇怪的是创造不会崩，生存一装就会崩溃，（forge背锅？）"
+        },
+        {
+            "author": "1742986756",
+            "timestamp": 1534736340,
+            "txt_content": "错误报告发一发，"
+        },
+        {
+            "author": "1742986756",
+            "timestamp": 1534736400,
+            "txt_content": "1742986756 发表于 2018-8-20 11:39\n错误报告发一发，\n要不加我QQ3027781362，我看看你源码"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1534739760,
+            "txt_content": "为什么还在自己写桶？\n\nFluidRegistry.addBucketForFluid(FluidLoader.semisolidCrystalMagic);复制代码\n\n该功能需要在 PreInit 之前显式启用。在 Mod 主类构造器里写：\n\nFluidRegistry.enableUniversalBucket();复制代码"
+        },
+        {
+            "author": "栗子.",
+            "timestamp": 1534848780,
+            "txt_content": "u.s.knowledge 发表于 2018-8-20 12:36\n为什么还在自己写桶？\n打错字233，是万能桶，不过好像这个桶的汉化文件诡异的很，是流体文件+桶的英文"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1535019840,
+            "txt_content": "cyciling 发表于 2018-8-21 18:53\n打错字233，是万能桶，不过好像这个桶的汉化文件诡异的很，是流体文件+桶的英文 ...\n开发环境下只有 en_us，没有别的任何语言，倒是流体的语言可能存在，所以会这样。你去找个整合试试就知道了。\n之前我以为是 bug 来着... 差点就发 issue ticket 了。"
+        }
+    ]
+}

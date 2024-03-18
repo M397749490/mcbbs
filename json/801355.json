@@ -1,0 +1,174 @@
+{
+    "title": "【TCP|Ms】1.13-pre 轨道炮卖萌+追踪弹道修正系统",
+    "author": "MsYqgzt",
+    "replyCount": 33,
+    "timestamp": 1530008400,
+    "txt_content": " 本帖最后由 MsYqgzt 于 2018-6-26 23:19 编辑 \n\n大家好呀，这里是诈尸高考完的Ms，\n虽然沉迷摸鱼到现在，不过多少也做了点东西出来，于是来跟大家分享分享。\n\n跳过剩余的开场白，这次分享一个轨道炮的实现方法。\n不过轨道炮的子弹只是来卖萌的而已，呈现的核心部分在于实装在其之上的 追踪弹道修正系统\n\n此追踪并非百发百中的必中，而是根据追踪目标的位置 对自身的弹道进行偏移修正，\n通俗的说就是子弹的前进方向随着目标移动慢慢偏向目标位置，可实现更加真实的特效。\n\n此模块可自定义 追踪的目标点 ——追踪目标的头部或脚部，也可自定义 追踪时的偏移速度 和 追踪角度范围\n\n效果图：\n\n追踪范围内——追踪成功效果\n\n\n目标超出追踪范围——追踪失败效果\n\n\n那么进入讲解环节\n本次讲解涉及1.13的指令，如果对指令不了解的同学请自行转到指令讲解贴内学习\n重点讲解追踪部分的运算，子弹的移动效果实现不做讲解。\n\n追踪模块代码：\n#子弹追踪曲线修正\n#Usage: execute as @e[tag=bullet,...] at @s run function pack:(...)/bullet_tracking\n\n#Scoreboard\nscoreboard objectives add Bullet_RotX dummy\nscoreboard objectives add Bullet_RotY dummy\n\nscoreboard objectives add ToTarget_RotX dummy\nscoreboard objectives add ToTarget_RotY dummy\n\nscoreboard objectives add Math dummy\n\n#Get_Data\nexecute store result score @s Bullet_RotX run data get entity @s Rotation[0] 1000000\nexecute store result score @s Bullet_RotY run data get entity @s Rotation[1] 1000000\n\n#Get_ToTarget_Data\nexecute as @s at @s anchored feet run tp @s ~ ~ ~ facing entity @e[type=!player,tag=!bullet,distance=..20,limit=1] feet\n#瞄准位置(eyes/feet)\n\nexecute store result score @s ToTarget_RotX run data get entity @s Rotation[0] 1000000\nexecute store result score @s ToTarget_RotY run data get entity @s Rotation[1] 1000000\n\nexecute store result entity @s Rotation[0] float 0.000001 run scoreboard players get @s Bullet_RotX\nexecute store result entity @s Rotation[1] float 0.000001 run scoreboard players get @s Bullet_RotY\n\n#-----水平偏移-----\n#Offset_Calculation\nscoreboard players operation @s Math = @s ToTarget_RotX\nscoreboard players operation @s Math -= @s Bullet_RotX\n\n#                                         偏移探测范围↓          偏移角度参数↓\nexecute as @s at @s if score @s Math matches -90000000..0 run tp @s ~ ~ ~ ~-2 ~\nexecute as @s at @s if score @s Math matches 0..90000000 run tp @s ~ ~ ~ ~2 ~\n\n#-----竖直偏移-----\n#Offset_Calculation\nscoreboard players operation @s Math = @s ToTarget_RotY\nscoreboard players operation @s Math -= @s Bullet_RotY\n\n#                                        偏移探测范围↓            偏移角度参数↓\nexecute as @s at @s if score @s Math matches -90000000..0 run tp @s ~ ~ ~ ~ ~-2\nexecute as @s at @s if score @s Math matches 0..90000000 run tp @s ~ ~ ~ ~ ~2\n复制代码\n\n此代码附件内同样也有，需要的同学可自行搬用\n\n\n核心思路:\n1.13指令系统中，记分板能够读取实体的NBT数据，并存储为整形（integer），因此可以将实体的Rotation存储到记分板内。\n但实际的情况中，实体的Rotation是浮点数（float），为了使追踪系统尽量精确，需要将存储到记分板的 小数 数值进行放大，\n把小数的数值转换成整数存储进记分板，在数据回调至实体NBT时再缩小存入。\n\n简单介绍记分板的作用：\nBullet_RotX、Bullet_RotY —— 分别存储 子弹实体 实时的Rotation X、Y的数值\nToTarget_RotX、ToTarget_RotY —— 分别存储 子弹实体 基于面向追踪目标状态 的实时 Rotation X、Y 的数值\nMath —— 对以上四个记分板数值的运算结果存储\n\n每部分算法分析：\nGet_Data —— 将子弹的Rotation放大1000000倍，存入Bullet_RotX、Bullet_RotY记分板中\n\nGet_ToTarget_Data —— 以子弹面向目标时的Rotation放大1000000倍，存入ToTarget_RotX、ToTarget_RotY记分板中\n再将子弹原先的朝向数据，通过Bullet_RotX、Bullet_RotY的值 缩小1000000倍 赋值回去\n*注意，这里可以修改追踪目标的追踪位点——头部或脚部\n\n接下来的运算就不必多说，将ToTarget_Rot 数据减去 Bullet_Rot ，对应结果存入Math记分板中 ，对Math的值进行判定，执行对应的朝向tp旋转\n*注：在这里可以同时调整旋转的程度 ，以及Math的范围判定调整(甚至可以..0 , 0..这么玩)。\n\n\n当然，这个追踪系统只包含水平和竖直方向上的追踪，没有实现任意弧度的追踪，\n但可在此基础上做 朝向分段判定拓展，实现不同偏移加速度。\n\n召唤共同讨论此模块的朋友们\n@玄素  @acordome  \n\n\n那么，感谢阅读。\n\n\n\n\n\n[groupid=1009]The Command's Power[/groupid]\n\n\n\n\n\n\n\nrail_bullet.zip\n\n\n2018-6-26 17:29 上传\n点击文件名下载附件\n\n\n\n\n1.85 KB, 下载次数: 89\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1530009600,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2018-6-27 09:23 编辑 \n\n做什么朝向分段啊，锥形区域选择了解下……\nhttp://www.mcbbs.net/thread-796669-1-1.html\n\n改用在子弹前方100处的100内实体加tag sth\nexecute positioned ^ ^ ^100 run tag @e[type=!player,distance=..99.9999] add pseduo_target\ntag @e[tag=pseduo_target,distance=..20,sort=nearest,limit=1] add target复制代码\n来选择目标，以避免判断rotation\n\n最后你可以这样，在前方1米放置a，然后a facing目标并向前0.0349米，将bullet设置为facing a\nsummon aec ^ ^ ^1 {Tags:[\"a\"]}\nexecute as @e[type=aec,tag=a,limit=1] at @s facing entity @e[tag=target,limit=1] run tp @s ^ ^ ^0.0349\ntp @s ~ ~ ~ facing @e[type=aec,tag=a,limit=1]复制代码\n这样无论目标在何处，都能使弹道向其偏移2°左右\n\n说错了，这个偏移角度不是2°，而是约等于目标偏移度的正弦除以45，不过也是逐渐向目标偏移的……\n\n大概是这样，具体你再测试看看\n\n\n"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1530024660,
+            "txt_content": "跟不上\n/summon Creeper ~ ~ ~ {Fuse:0s}\n真·丢脸"
+        },
+        {
+            "author": "qq8252811",
+            "timestamp": 1530027120,
+            "txt_content": "还在玩1.7.10呢"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1530373860,
+            "txt_content": "导弹军工厂后继有人了"
+        },
+        {
+            "author": "yq123456",
+            "timestamp": 1531034640,
+            "txt_content": "好厉害 学习学习 水一波~~~"
+        },
+        {
+            "author": "uhuichongfu",
+            "timestamp": 1531041900,
+            "txt_content": "我特别讨厌楼主这种大佬，搞得我觉得自己根本不好意思讲自己会玩mc。"
+        },
+        {
+            "author": "qq1597325628",
+            "timestamp": 1531152000,
+            "txt_content": "厉害厉害学习学习"
+        },
+        {
+            "author": "SteveJobshjc",
+            "timestamp": 1531204740,
+            "txt_content": "6666666666666666666666666666666666666666666"
+        },
+        {
+            "author": "SteveJobshjc",
+            "timestamp": 1531204800,
+            "txt_content": "64464535353"
+        },
+        {
+            "author": "SteveJobshjc",
+            "timestamp": 1531204800,
+            "txt_content": "大炮貌似……"
+        },
+        {
+            "author": "SteveJobshjc",
+            "timestamp": 1531204860,
+            "txt_content": "很6的样子6"
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1531336200,
+            "txt_content": "苦力怕炸死了苦力怕"
+        },
+        {
+            "author": "SCAME233",
+            "timestamp": 1531477380,
+            "txt_content": "那怎么做枪械啊，一秒3发都行，求采纳。"
+        },
+        {
+            "author": "SCAME233",
+            "timestamp": 1531564920,
+            "txt_content": "我的目标是成为18级大神。假如你每天签到拿4经验，18级300000/4=75000天， 如果从1岁开始签到，那100年=36500天，你差不多要 活200年保持每天签到（谁知道200年后还有没有签到 这玩意），如果你每天再水4经验，时间减半，但考虑 现实，你不可能再活100年，取50年吧，你就要每天水 16经验，可能你是个勤快的人，每天水32经验，那就 需要25年！！！再如果你是个大水怪，每天水64经验 ，那就只要12.5年！！！还如果你个心急的人，每天水 128经验，你只要6.25年！！！！假如你已经急不可耐 了，每天水256经验，那你碉堡了，只要3.125年！！！ 当然，你会觉得3年还是太远了，每天你闲的蛋疼，忙 忙碌碌的水512经验，碉堡了，你只需要1.5625年，只 比1年半多一点！！！什么！！你还不满意，那你觉得 你可能一天水1024经验吗，可能吗！！可能吗！！！据 说回复100字或者一百字以上可以得到11~30经验，那么，按照队形，点击复制吧！！！ ... ... ... ... ... . ... ... .. ... ... ... ... ... ..."
+        },
+        {
+            "author": "m050131",
+            "timestamp": 1531571640,
+            "txt_content": "粘兽sama 发表于 2018-7-12 03:10\n苦力怕炸死了苦力怕\n本是同根生，生煎打太极？？？"
+        },
+        {
+            "author": "hjcdmmwy",
+            "timestamp": 1531661580,
+            "txt_content": "好巧瞧瞧去爱蕲艾"
+        },
+        {
+            "author": "轩少Amor",
+            "timestamp": 1531733880,
+            "txt_content": "膜拜大佬 大佬幸苦了"
+        },
+        {
+            "author": "Sky_dream",
+            "timestamp": 1531799160,
+            "txt_content": "不明觉厉....玩得很欢快啊"
+        },
+        {
+            "author": "Jon·Snow",
+            "timestamp": 1531850400,
+            "txt_content": "这个感觉挺不错，只是为什么没打到也会有苦力怕影子炸飞的样子出来"
+        },
+        {
+            "author": "uhuichongfu",
+            "timestamp": 1531873140,
+            "txt_content": "Jon·Snow 发表于 2018-7-18 02:00\n这个感觉挺不错，只是为什么没打到也会有苦力怕影子炸飞的样子出来\n因为“炮弹”就是苦力怕……"
+        },
+        {
+            "author": "夏逆520",
+            "timestamp": 1532231340,
+            "txt_content": "看不懂2332"
+        },
+        {
+            "author": "1746080459",
+            "timestamp": 1532676180,
+            "txt_content": "我来坐个任务"
+        },
+        {
+            "author": "jiehua666",
+            "timestamp": 1532961360,
+            "txt_content": "又学到东西了"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1533189060,
+            "txt_content": "现在不学好数学真的不好意思说自己会命令"
+        },
+        {
+            "author": "KODOLY",
+            "timestamp": 1533299400,
+            "txt_content": "很棒的教程，感觉全tcp就我不是大佬了"
+        },
+        {
+            "author": "44964884",
+            "timestamp": 1533540540,
+            "txt_content": "看不懂都是大佬"
+        },
+        {
+            "author": "26号猪肉",
+            "timestamp": 1533849720,
+            "txt_content": "我感觉玩了个假的mc 我现在感到莫名的恐慌"
+        },
+        {
+            "author": "xuan_heng",
+            "timestamp": 1533968820,
+            "txt_content": "来自，熊OP的来访，学习一下"
+        },
+        {
+            "author": "MR爱MC",
+            "timestamp": 1534313280,
+            "txt_content": " 本帖最后由 MR爱MC 于 2018-8-15 14:10 编辑 \n\n这个帅！我喜欢！！还有没有其他动感光波之类的！"
+        },
+        {
+            "author": "MR爱MC",
+            "timestamp": 1534313340,
+            "txt_content": "可以用在战争服了吧？？导弹追踪！！！"
+        },
+        {
+            "author": "sky~飞鱼",
+            "timestamp": 1535803860,
+            "txt_content": "不错的作品，给楼主赞一个，尤其是弹道修正的部分"
+        },
+        {
+            "author": "2185982997",
+            "timestamp": 1536895020,
+            "txt_content": "学到了，嘿嘿嘿~"
+        },
+        {
+            "author": "QWQQWQTAT",
+            "timestamp": 1544878380,
+            "txt_content": "好炫的特效！学到了！收藏必须的"
+        }
+    ]
+}

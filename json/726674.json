@@ -1,0 +1,39 @@
+{
+    "title": "BUKKIT插件连接mysql的问题",
+    "author": "player927",
+    "replyCount": 6,
+    "timestamp": 1504343400,
+    "txt_content": "萌新第一次写插件，目标是一个Discuz积分转换iConomy的游戏币的，我先写了一个单体转换的命令，涉及4次连接mysql。初始化程序还没做，但是已经有思路了。\n但是现在问题是每次都是在导出discuz积分到bal变量的时候就MysqlException跳出了，提示错误了\n主文件代码如下：\npackage org.ucraft;\n\n/*\n * To change this license header, choose License Headers in Project Properties.\n * To change this template file, choose Tools | Templates\n * and open the template in the editor.\n */\n\n\nimport java.sql.Connection;\nimport java.sql.DriverManager;\nimport java.sql.PreparedStatement;\nimport java.sql.ResultSet;\nimport java.sql.SQLException;\nimport java.sql.Statement;\nimport org.bukkit.plugin.java.JavaPlugin;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.configuration.file.FileConfiguration;\n\n\n/**\n *\n * @author S.N.Mendelev\n */ \npublic class main extends JavaPlugin {\n FileConfiguration config = getConfig();\n    int c=0;\npublic static void main(String[] ag)\n{\n}\n@Override\npublic void onEnable(){\ngetServer().getPluginManager().registerEvents(new MyListener(), this);\nconfig.addDefault(\"url\", \"jdbc:mysql://localhost:3306/ultrax\");\nconfig.addDefault(\"prefix\", \"pre\");\nconfig.addDefault(\"icotab\", \"iconomy\");\nconfig.addDefault(\"unm\", \"root\");\nconfig.addDefault(\"password\", \"root\");\nconfig.addDefault(\"extcredit\", \"2\");\nconfig.options().copyDefaults(true);\nsaveConfig();\ngetLogger().info(\"优快工作室荣誉出品 www.ucraft.org，唯一正版mcbbs账号：player927\");\ngetLogger().info(\"DirectX积分对iConomy兑换插件已成功加载\");\n}\n@Override\n    public void onDisable(){\ngetLogger().info(\"积分兑换插件已被卸载。\");\n}\n    @Override\npublic boolean onCommand(CommandSender sender, Command cmd, String label, String[] args){\nif(cmd.getName().equalsIgnoreCase(\"xu\")){\nsender.sendMessage(\"你的生命中的一秒已经转移给长者！\");\nc=c+1;\nsender.sendMessage(\"从服务器启动至今，已经有\"+String.valueOf(c)+\"秒转移给长者\");\nreturn true;\n} \nif(cmd.getName().equalsIgnoreCase(\"dxico\")){\n    if (args.length<1){\n        sender.sendMessage(\"错误：没有指定玩家\");\n        sender.sendMessage(\"用法：/dxico <你的用户名>\");\n        return false;\n    }\n    int uid=-1,row=1+config.getInt(\"extcredit\"),bal=0;\n            try{\n            Class.forName(\"com.mysql.jdbc.Driver\");\n            sender.sendMessage(\"成功加载MySQL驱动！\");\n        }catch(ClassNotFoundException e1){\n            sender.sendMessage(\"找不到MySQL驱动!\");\n        }\n        String url;\n    url = config.getString(\"url\");\n     Connection conn;\n     try {\n     conn = DriverManager.getConnection(url,  config.getString(\"unm\"),config.getString(\"password\"));\n     Statement stmt = conn.createStatement();\n     sender.sendMessage(\"已连接到数据库，准备进行同步...\");\n     sender.sendMessage(\"正在匹配你的用户名和uid...\");\n        String sql = \"select * from \"+config.getString(\"prefix\")+\"_common_member\";    \n        ResultSet rs = stmt.executeQuery(sql);\n            while (rs.next()){\n                if(rs.getString(3) == null ? args[0] == null : rs.getString(3).equals(args[0])){\n                    uid=rs.getInt(1);\n                    break;\n                }\n            }\n            if(uid==-1){\n                sender.sendMessage(\"错误：未找到指定用户\");\n                return false;\n            }\n            rs.close();\n            stmt.close();\n            conn.close();            \n     conn = DriverManager.getConnection(url,  config.getString(\"unm\"),config.getString(\"password\"));\n     Statement stmta = conn.createStatement();\n        String sqln = \"select * from \"+config.getString(\"prefix\")+\"_common_member_count\";    \n        sender.sendMessage(\"正在导出你的论坛积分...\");\n        ResultSet rs1 = stmta.executeQuery(sqln);\n            while (rs1.next()){\n                if(uid==rs1.getInt(1)){\n                    bal=rs1.getInt(row);\n                    break;\n                }\n            }\n            rs1.close();\n            stmta.close();\n            conn.close();   \n     conn = DriverManager.getConnection(url,  config.getString(\"unm\"),config.getString(\"password\"));\n     Statement stmtb = conn.createStatement();\n        String sqlm = \"select * from \"+config.getString(\"icotab\");    \n        ResultSet rs2 = stmta.executeQuery(sqlm);\n        sender.sendMessage(\"正在将论坛积分导入游戏币...\");\n        String sql2 = \"update \"+config.getString(\"icotab\")+\" set balance=? where username=?\";\n            PreparedStatement pst = conn.prepareStatement(sql2);\n            pst.setString(1,String.valueOf(bal)+\".00\");\n            pst.setString(2,args[0]);\n            pst.executeUpdate();        \n            rs2.close();\n            stmtb.close();\n            conn.close();   \n     conn = DriverManager.getConnection(url,  config.getString(\"unm\"),config.getString(\"password\"));    \n        Statement stmtc = conn.createStatement();\n        String sqlp = \"select * from \"+config.getString(\"prefix\")+\"_common_member_count\";\n        ResultSet rs3 = stmta.executeQuery(sqlp);\n        sender.sendMessage(\"正在将游戏币回导至论坛积分...\");\n        String sql3 = \"update \"+config.getString(\"prefix\")+\"_common_member_count set extcredits\"+config.getInt(\"extcredit\")+\"=? where uid=?\";\n            PreparedStatement pst1 = conn.prepareStatement(sql3);\n            pst1.setString(1,String.valueOf(bal));\n            pst1.setString(2,String.valueOf(uid));\n            pst1.executeUpdate();        \n            rs3.close();\n            stmtc.close();\n            conn.close();   \n        sender.sendMessage(\"转换完成！\");\n        return true;\n     }catch(SQLException e){\n         sender.sendMessage(\"[错误]：与数据库连接异常，请联系服主或技术OP！\");\n         return false;\n     }\n}\nreturn false;\n}\n}现在是“正在导出你的论坛积分...”显示之后就Exception报错了，(\"[错误]：与数据库连接异常，请联系服主或技术OP！\")，请问这个代码哪里有问题\n这是config.yml:\n## YAML Template.\n---\n##你数据库的地址，格式为：\"jdbc:mysql://\"+你数据库的IP地址+\":\"+端口号+\"/\"+数据库名称；\n##默认IP为localhost（本机），端口号3306，数据库名称ultrax。\nurl: jdbc:mysql://localhost:3306/ultrax\n##你Discuz的数据表名称前缀，一般为pre，如果同一个数据库中运行了多个论坛，请修改\nprefix: pre\n##你iconomy插件的表名称，默认是iconomy，参见iconomy的config.yml\nicotab: iconomy\n##你MySQL数据库的用户名和密码\nunm: root\npassword: root\n##你discuz对应游戏币的积分编号，默认为2，extcredit几就是几\nextcredit: 2复制代码\n\n",
+    "replies": [
+        {
+            "author": "player927",
+            "timestamp": 1504434780,
+            "txt_content": " 本帖最后由 player927 于 2017-9-3 18:35 编辑 \n\n20查看0回复惨案，求人回答。。。帮我解决问题我立马给2人气+20金粒，决不食言"
+        },
+        {
+            "author": "JackC92",
+            "timestamp": 1504459200,
+            "txt_content": "你这个代码有点长= =不太好看（懒），你可以试试先自己进行调试，一部分一部分的执行，看看哪里出了问题。"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1504536180,
+            "txt_content": "完整贴出报错\n以及你需要复习下如何查看报错"
+        },
+        {
+            "author": "wt6654499",
+            "timestamp": 1504666140,
+            "txt_content": "那我消灭一下零回复吧。。。。。"
+        },
+        {
+            "author": "ddyy163",
+            "timestamp": 1505286240,
+            "txt_content": " 本帖最后由 ddyy163 于 2017-9-13 15:07 编辑 \n\npublic class main extends JavaPlugin throws SQLException{\n……\n}\n\n然后去掉  有SQLException的代码块的trycatch\n让服务器自己打印报错，不然你都不知道到底哪里有问题\n\n要学会调试"
+        },
+        {
+            "author": "魁魅",
+            "timestamp": 1506914220,
+            "txt_content": "你你为何不试试sqlibrary呢。。"
+        }
+    ]
+}

@@ -1,0 +1,109 @@
+{
+    "title": "【CBL|SF】1.13 快速求取两点距离",
+    "author": "switefaster",
+    "replyCount": 20,
+    "timestamp": 1532516460,
+    "txt_content": " 本帖最后由 switefaster 于 2018-7-25 21:12 编辑 \n\n  在用指令做系统的时候，可能会需要求取两点之间的距离。在之前，人们大多数使用 √x^2+y^2+z^2 来获得距离。然而这个方法需要开平方，在MC中，利用指令开方是一个十分耗费时间的操作。那么，有没有办法不开平方，而只用四则运算获得两点之间的距离呢？\n当然有啦！注意：以下所有坐标皆以求取位置的其中一点为原点考虑。如果应用到系统中，可能需要做一个减法\n让我们先接受降维打击考虑二维的情况，看图\n如图，P为要求距离的点，x'为其x坐标（以下将直线x=x'与x轴交点称为X'）。黑色的块状物体（雾，以下简称点N）为在原点（以下简称O）到P的直线（以下简称OP）上长度为1的位置，x为其x坐标（以下将直线x=x与x轴交点称为X）。∵△ONX∽△OPX\n∴OP/1=x'/x，即OP=x'/x\n至此，我们已经得到了用除法得到长度的方法。在游戏中，只要facing目标点，并且使用本地坐标^ ^ ^1来获取N的位置即可\n进阶，三维空间！前面我们已经讲述了如何在平面空间内用除法得到距离。但是游戏内接触的大多是立体空间，所以我们需要考虑如何在立体空间内更简便地得到距离。事实上也并不比平面复杂多少，如法炮制而已。看图\n\n有点乱……\n图中，P为求距离的点，蓝色的线（以下简称OP'）为线段OP在xz平面上的正投影，P'为P在xz平面的正投影，N'为N在xz平面的正投影。OP'上的黑点为从原点出发在蓝线上长度为1的位置，其x坐标为x''。其他都和二维的情况相同。\n为了得到OP，我们可以将二维求距离法应用到△OPP'，但是我们缺少ON'的长度和OP'的长度。所以我们先在△OX'P'上使用二维距离法得到OP'=x'/x''，在△ON'X内得到ON'=x/x''。得到△OPP'中，OP=OP'/ON'=(x'/x'')/(x/x'')=x'/x\n所以三维内的距离求法依然是x'/x，即目标x坐标除以到目标直线上单位长度点的x坐标\n然而你以为这就结束了么？\n——不！\n我们还有一个很严重的问题需要考虑——如果目标和我都在同一个x坐标上怎么办？这将会导致算出来的结果永远都是0，因为x'永远都是0！\n聪明的读者可能已经想到了，可以用其他轴求取。没错！但是其他轴也面临着距离是0的问题，还需要做判断，非常之麻烦……\n所以，我们将其整合起来，化为如下的公式\nx'/x=y'/y=z'/z=(|x'|+|y'|+|z'|)/(|x|+|y|+|z|)\n※ 式中带 ' 项均表示目标的坐标分项，而不带 ' 则表示与目标之间直线上长度为1的点的坐标分项\n我们推荐使用等式最后一项，即(|x'|+|y'|+|z'|)/(|x|+|y|+|z|)。这个公式只会在x'=y'=z'=0的时候才会得到距离为0的结果，而此时距离确实是0！\n\n在这里给出计算玩家眼睛和最近的具有target标签的实体距离的函数记分板：\n#距离\nscoreboard objectives add dist dummy\n#x y z\nscoreboard objectives add x dummy\nscoreboard objectives add y dummy\nscoreboard objectives add z dummy\n#x' y' z'\nscoreboard objectives add xd dummy\nscoreboard objectives add yd dummy\nscoreboard objectives add zd dummy\n#玩家坐标\nscoreboard objectives add xp dummy\nscoreboard objectives add yp dummy\nscoreboard objectives add zp dummy\n#|x|+|y|+|z|\nscoreboard objectives add bsum dummy\n#-1\nscoreboard players set minus dist -1复制代码计算部分：\nscoreboard players set @s dist 0\nscoreboard players set @s bsum 0\nexecute as @e[tag=target,limit=1,sort=nearest] store result score @s xd run data get entity @s Pos[0] 10000\nexecute as @e[tag=target,limit=1,sort=nearest] store result score @s yd run data get entity @s Pos[1] 10000\nexecute as @e[tag=target,limit=1,sort=nearest] store result score @s zd run data get entity @s Pos[2] 10000\nexecute store result score @s xp run data get entity @s Pos[0] 10000\nexecute store result score @s yp run data get entity @s Pos[1] 10000\nexecute store result score @s zp run data get entity @s Pos[2] 10000\nscoreboard players operation @e[tag=target,limit=1,sort=nearest] xd -= @s xp\nscoreboard players operation @e[tag=target,limit=1,sort=nearest] yd -= @s yp\nscoreboard players operation @e[tag=target,limit=1,sort=nearest] zd -= @s zp\nexecute facing entity @e[tag=target,limit=1,sort=nearest] eyes run summon minecraft:area_effect_cloud ^ ^ ^1 {\"Tags\":[\"marker\"]}\nexecute as @e[tag=marker,limit=1,sort=nearest] store result score @s x run data get entity @s Pos[0] 10000\nexecute as @e[tag=marker,limit=1,sort=nearest] store result score @s y run data get entity @s Pos[1] 10000\nexecute as @e[tag=marker,limit=1,sort=nearest] store result score @s z run data get entity @s Pos[2] 10000\nexecute as @e[tag=target,limit=1,sort=nearest] if score @s xd matches ..-1 run scoreboard players operation @s xd *= minus dist\nexecute as @e[tag=target,limit=1,sort=nearest] if score @s yd matches ..-1 run scoreboard players operation @s yd *= minus dist\nexecute as @e[tag=target,limit=1,sort=nearest] if score @s zd matches ..-1 run scoreboard players operation @s zd *= minus dist\nexecute as @e[tag=marker,limit=1,sort=nearest] if score @s x matches ..-1 run scoreboard players operation @s x *= minus dist\nexecute as @e[tag=marker,limit=1,sort=nearest] if score @s y matches ..-1 run scoreboard players operation @s y *= minus dist\nexecute as @e[tag=marker,limit=1,sort=nearest] if score @s z matches ..-1 run scoreboard players operation @s z *= minus dist\nscoreboard players operation @s dist += @e[tag=target,limit=1,sort=nearest] xd\nscoreboard players operation @s dist += @e[tag=target,limit=1,sort=nearest] yd\nscoreboard players operation @s dist += @e[tag=target,limit=1,sort=nearest] zd\nscoreboard players operation @s bsum += @s x\nscoreboard players operation @s bsum += @s y\nscoreboard players operation @s bsum += @s z\nscoreboard players operation @s dist /= @s bsum复制代码※精度为0.0001\n\n结语:1.13带来的技术更新让之前许多麻烦的操作变得简单，但是很多可以简化的操作我们并没有想到。我们需要开动脑筋，做一个聪明的CBer!\n鸣谢:\n感谢 @ruhuasiyu 提供的思路\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1532516640,
+            "txt_content": "所以你干嘛不写个函数呢？"
+        },
+        {
+            "author": "egg_apple",
+            "timestamp": 1532518260,
+            "txt_content": "可以，以后不用一个个数格子了，强迫症福利"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1532523660,
+            "txt_content": "ruhuasiyu 发表于 2018-7-25 19:04\n所以你干嘛不写个函数呢？\n已添加。效果很不错啊！！"
+        },
+        {
+            "author": "火星浮云",
+            "timestamp": 1532523960,
+            "txt_content": "前排混脸熟（你们下午讨论得真激烈）"
+        },
+        {
+            "author": "白色的麋鹿",
+            "timestamp": 1532524140,
+            "txt_content": "这。。我不信只有我看不懂"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1532524260,
+            "txt_content": "这张三维坐标图略费眼 为什么要用神奇的画图呢"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1532524800,
+            "txt_content": "贰逼 发表于 2018-7-25 21:11\n这张三维坐标图略费眼 为什么要用神奇的画图呢\n没有查到合适的工具嘤嘤嘤"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1532527740,
+            "txt_content": "其实我觉得不需要弄那么多计分版，弄几个变量会不会更好点呢？反正我个人习惯用一个计分版完事"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1532561940,
+            "txt_content": "那个三维图真感动\n考虑一下简史里面的画图方法"
+        },
+        {
+            "author": "因特",
+            "timestamp": 1532616720,
+            "txt_content": "好用 不错 贼好三连击"
+        },
+        {
+            "author": "滑稽岁月",
+            "timestamp": 1532658240,
+            "txt_content": "不明觉厉"
+        },
+        {
+            "author": "Minecraft408",
+            "timestamp": 1533030960,
+            "txt_content": "还是看不懂的说QwwwwQ"
+        },
+        {
+            "author": "2201883423",
+            "timestamp": 1533210360,
+            "txt_content": "漂亮，理科生的世界"
+        },
+        {
+            "author": "1204942617",
+            "timestamp": 1533654840,
+            "txt_content": "原版创世神2333"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1542093720,
+            "txt_content": "你这好像target和玩家位置没有相减吧？最后的结果也少了×10000"
+        },
+        {
+            "author": "GF009",
+            "timestamp": 1607158020,
+            "txt_content": "这错了吧，玩家根本没有xyz的分数，这最后operation @s bsum += @s x/y/z加了个寂寞，最后的结果不是玩家和目标的三个坐标轴差值的和么，应该是marker的xyz才对吧这里写的@s x/y/z，或者是填的玩家自己的xp/yp/zp"
+        },
+        {
+            "author": "2781212775",
+            "timestamp": 1607746800,
+            "txt_content": "用直接用一个向量乘以他的单位向量 岂不是不用这么麻烦"
+        },
+        {
+            "author": "加藤惠吖",
+            "timestamp": 1607756640,
+            "txt_content": "mama我在学数学！ 我在学数学啊 我没有在玩游戏qwq"
+        },
+        {
+            "author": "枕头CBer",
+            "timestamp": 1610116320,
+            "txt_content": " 本帖最后由 枕头CBer 于 2021-1-8 22:33 编辑 \n\n楼主的思路是对的,但是给出的代码稍有错误,以下是简化和修正的代码:\n#初始化:\nscoreboard objectives add dist dummy\nscoreboard players set 1000 dist 1000\n复制代码注意:执行者是第一个点,执行坐标是第二个点,最终结果读取dist计分板中markerX这一项,放大1000倍!\n#调用方式:execute as @a at @e[tag=target] run function 函数的相对路径(你的函数名)\nsummon minecraft:area_effect_cloud ~ ~ ~ {Tags:[\"dist0\"]}\nexecute as @e[tag=dist0] store result score targetX dist run data get entity @s Pos[0] 1000\nexecute as @e[tag=dist0] store result score targetY dist run data get entity @s Pos[1] 1000\nexecute as @e[tag=dist0] store result score targetZ dist run data get entity @s Pos[2] 1000\nexecute store result score markerX dist run data get entity @s Pos[0] 1000\nexecute store result score markerY dist run data get entity @s Pos[1] 1000\nexecute store result score markerZ dist run data get entity @s Pos[2] 1000\nscoreboard players operation targetX dist -= markerX dist\nscoreboard players operation targetY dist -= markerY dist\nscoreboard players operation targetZ dist -= markerZ dist\nexecute as @s at @s facing entity @e[tag=dist0] feet run summon minecraft:area_effect_cloud ^ ^ ^1 {\"Tags\":[\"distTemp\"]}\nexecute as @e[tag=distTemp] store result score distTempX dist run data get entity @s Pos[0] 1000\nexecute as @e[tag=distTemp] store result score distTempY dist run data get entity @s Pos[1] 1000\nexecute as @e[tag=distTemp] store result score distTempZ dist run data get entity @s Pos[2] 1000\nscoreboard players operation distTempX dist -= markerX dist\nscoreboard players operation distTempY dist -= markerY dist\nscoreboard players operation distTempZ dist -= markerZ dist\nscoreboard players operation targetX dist += targetY dist\nscoreboard players operation targetX dist += targetZ dist\nscoreboard players operation distTempX dist += distTempY dist\nscoreboard players operation distTempX dist += distTempZ dist\nscoreboard players operation targetX dist *= 1000 dist\nscoreboard players operation targetX dist /= distTempX dist\nkill @e[tag=dist0]\nkill @e[tag=distTemp]\n复制代码最后说一句,其实是不需要算绝对值的,因为如果target-marker的X轴距离是负的,那么小三角形的X轴减marker的距离也一定是负的,所以两个负号一比就消掉了.\n另说一点1.16有更精确的方法来计算两点距离."
+        },
+        {
+            "author": "镀银小友",
+            "timestamp": 1610116920,
+            "txt_content": "switefaster 发表于 2018-7-25 21:20\n没有查到合适的工具嘤嘤嘤\n建议几何画板（+3D工具）"
+        }
+    ]
+}

@@ -1,0 +1,94 @@
+{
+    "title": "[15w31c][2b]ShulkerBullet 抛射型实体NBT分析",
+    "author": "⭐✔️",
+    "replyCount": 17,
+    "timestamp": 1438392240,
+    "txt_content": " 本帖最后由 乙烯_中国 于 2015-8-1 13:38 编辑 \n\n本人通过无数次尝试，终于得出了ShulkerBullet眼花缭乱的NBT。\n\n\n\n\n\n2015-08-01_08.37.32.png (34.52 KB, 下载次数: 10)\n\n下载附件\n\n2015-8-1 08:39 上传\n\n\n\n\n\nShulkerBullet 就是 Shulker 射出来的类似追踪导弹的玩意儿。\n在官方还没放快照的时候，就对这个东西的运动轨迹十分感兴趣，也很想知道其运动方式。\n\n\n\nNBT标签\n\n\n\n\n\n2015-08-01_08.36.49.png (58.79 KB, 下载次数: 8)\n\n下载附件\n\n2015-8-1 08:38 上传\n\n\n\n\n\n\n在经历无数entitydata @e[type=ShulkerBullet] {}后，\n终于找到了每个独有NBT的特性：\n{Steps:23,Motion:[0:0.13379264233465568d,1:-5.376542536792173E-4d,2:0.04663407279080639d],TXD:0.17830286305023177d,UUIDLeast:-7941149489731700122L,Invulnerable:0b,Air:0s,OnGround:0b,Dimension:0,PortalCooldown:0,Dir:5,Rotation:[0:117.04212f,1:0.29282433f],FallDistance:0.0f,Target:{X:10,Y:4,Z:10,L:1L,M:1L,Owner:{X:10,Y:1,Z:13,L:10L,M:10L,UUIDMost:7538791305186001617L,Pos:[0:-4.874753184279115d,1:18.57465950922877d,2:-9.759045183377285d],Fire:0s,TYD:0.0d,TZD:0.0d}复制代码其中，除了Motion、UUIDLeast、UUIDMost、Fire、Pos、Air、Invulnerable、OnGround、Dimension、Rotation、FallDistance这些实体通用标签外，\n可以注意到一些独有的标签：\nSteps:\nTXD:\nTYD:\nTZD:\nDir:\nOwner:\nTarget:\n\n\n这些标签究竟是什么意思，经过本人尝试，得出以下结论：\nSteps:（整型）\n到达目的地总共需要多少步。可以理解为总共转折几次（因为Shulker的运动轨迹几乎都是旋转直角的）。值越大，转折次数越多，到达目的地行进的路程也就越远。如果为0，那么无Motion（悬空）。\n\nTXD: TYD: TZD:（双精度浮点型）\n分别向X轴，Y轴，Z轴的偏轴。规定了一个方向。如果Steps>0则不需要限定，自动得出；如果Steps=0，那么需要手动规定，接着ShulkerBullet就会像Fireball一样直线运动了（不受重力）。这个标签前提是Target被定义。\n\nDir:（整型）\n目前他面对的方向。\n\nOwner:（组）\n是ShulkerBullet的所有者。包含了X: Y: Z: L: M:五个子标签。X: Y: Z:是所有者的坐标。L: M:是所有者的UUIDLeast和UUIDMost。这个所有者不需要定义，因为指令刷出的ShulkerBullet不需要所有者。\n\n\nTarget:（组）\n是ShulkerBullet的目标。同样包含了X: Y: Z: L: M:五个子标签。X: Y: Z:是目标的坐标。L: M:是目标的UUIDLeast和UUIDMost。（注意这个目标是实体）这个标签运作的前提是Step>0。（最重要的标签，如果ShulkerBullet要按照轨道运动这个标签必须定义）\n\n\n需要注意不管是L M UUIDLeast UUIDMost，现在都属于long型，要添加l的后缀才有效。\n\n\n运动\n那么其实它的运动总的来说分为两种：\n一种是直线运动\n\n\n那么需要使Steps:0；TXD TYD TZD自己调整；Target必须填写正确的对应实体。\n\n\n\n\n\n2015-08-01_09.07.36.png (106.5 KB, 下载次数: 12)\n\n下载附件\n\n2015-8-1 09:08 上传\n\n\n\n\n\n\n/summon ShulkerBullet ~ ~5 ~ {Steps:0,TXD:1.0,TYD:-1.0,TZD:1.0,Target:{X:10,Y:10,Z:10,L:1l,M:1l}}复制代码\n\n\n\n\n2015-08-01_09.07.52.png (48.02 KB, 下载次数: 15)\n\n下载附件\n\n2015-8-1 09:08 上传\n\n\n\n\n\n\n/summon ShulkerBullet ~ ~5 ~ {Steps:0,TXD:1.0,TYD:1.0,TZD:1.0,Target:{X:10,Y:10,Z:10,L:1l,M:1l}}复制代码（可以得知这种运动方式会一直直线运动，图中TYD效果不同）\n\n\n在生成ShulkerBullet之前，需要在10 10 10生成一个UUIDLeast为1，UUIDMost为1的实体：\n\n\n\n\n\n2015-08-01_09.10.09.png (122 KB, 下载次数: 12)\n\n下载附件\n\n2015-8-1 09:12 上传\n\n\n\n\n\n\n/summon VillagerGolem 10 10 10 {UUIDLeast:1l,UUIDMost:1l,NoAI:1}复制代码\n\n\n第二种是运动到指定位置\n\n\n达到这需要让Steps>0，Target设定目标（目标的实体必须存在）\n\n\n\n\n\n2015-08-01_09.14.19.png (37.19 KB, 下载次数: 8)\n\n下载附件\n\n2015-8-1 09:14 上传\n\n\n\n\n\n\n/summon ShulkerBullet ~ ~5 ~ {Steps:1,Target:{X:10,Y:10,Z:10,L:1l,M:1l}}复制代码Steps:1就代表运动最短路径。如果按照NBT意思是转折一步。但是显然到达目的地不止一步。不过只要规定为1，那么实体自己会计算转折的最短路径（直角）。\n\n\n\n\n\n\n2015-08-01_09.16.14.png (53.78 KB, 下载次数: 8)\n\n下载附件\n\n2015-8-1 09:15 上传\n\n\n\n\n\n\n/summon ShulkerBullet ~ ~5 ~ {Steps:100,Target:{X:10,Y:10,Z:10,L:1l,M:1l}}复制代码Steps:100超出了范围，会有类似Steps:0的效果。\n\n\n\n\n\n\n2015-08-01_09.17.44.png (50.19 KB, 下载次数: 8)\n\n下载附件\n\n2015-8-1 09:17 上传\n\n\n\n\n\n\n/summon ShulkerBullet ~ ~5 ~ {Steps:20,Target:{X:10,Y:10,Z:10,L:1l,M:1l}}复制代码Steps:20就是转折20次，那么ShulkerBullet会尽可能完成20次转折。\n\n同样Target需要有存在的目标：\n\n\n/summon VillagerGolem 10 10 10 {UUIDLeast:1l,UUIDMost:1l,NoAI:1}复制代码需要10 10 10生成一个UUIDLeast为1，UUIDMost为1的实体。\n\n关注贰逼，关注1.9指令方块相关更新追踪！\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "呵呵呵呵呵123",
+            "timestamp": 1438393080,
+            "txt_content": "为什么我想到了没有受到力的作用而一直做匀速直线运动……"
+        },
+        {
+            "author": "Noble_yT",
+            "timestamp": 1438393260,
+            "txt_content": "看起来好复杂的说。"
+        },
+        {
+            "author": "kuangwenxin",
+            "timestamp": 1438393320,
+            "txt_content": "虽然看不懂\n但是佩服"
+        },
+        {
+            "author": "Ianyx",
+            "timestamp": 1438393380,
+            "txt_content": "我看不懂啊，这有什么用呢，追踪导弹吗，能有伤害吗？"
+        },
+        {
+            "author": "Ianyx",
+            "timestamp": 1438393440,
+            "txt_content": "Ianyx 发表于 2015-8-1 09:43\n我看不懂啊，这有什么用呢，追踪导弹吗，能有伤害吗？\nShulkerBullet是什么"
+        },
+        {
+            "author": "Ianyx",
+            "timestamp": 1438393440,
+            "txt_content": "Ianyx 发表于 2015-8-1 09:44\nShulkerBullet是什么\nShulker 又是什么"
+        },
+        {
+            "author": "Ianyx",
+            "timestamp": 1438393560,
+            "txt_content": "Ianyx 发表于 2015-8-1 09:44\nShulker 又是什么\n为什么是1.9啊"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1438393560,
+            "txt_content": "2b辛苦，然而我并没有下载1.9快照\n太多NBT太难写……"
+        },
+        {
+            "author": "咕噜and呼噜",
+            "timestamp": 1438393740,
+            "txt_content": "我们需要一个中二的名字\n\n什么螺旋什么什么式什么的"
+        },
+        {
+            "author": "江米条",
+            "timestamp": 1438395000,
+            "txt_content": "目测响尾蛇导弹什么的要出来了_(:зゝ∠)_\n\n\n顺便第一句话里面有错别字辣"
+        },
+        {
+            "author": "Оil",
+            "timestamp": 1438395000,
+            "txt_content": "有种AGM的感觉……与枪械MOD配合做一个现代战争的地图应该会很不错。"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1438395180,
+            "txt_content": "江米条 发表于 2015-8-1 10:10\n目测响尾蛇导弹什么的要出来了_(:зゝ∠)_\nwin10自带的输入法确实有点问题"
+        },
+        {
+            "author": "dpy0428",
+            "timestamp": 1438397760,
+            "txt_content": "能不能做出追踪箭和追踪TNT出来?"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1438407540,
+            "txt_content": "修改一处别字\n修改一处格式错误"
+        },
+        {
+            "author": "2362577123",
+            "timestamp": 1438407840,
+            "txt_content": "然而我只注意到了贰逼鬼畜的新头像......"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1438409640,
+            "txt_content": "好评 wiki都没这么全"
+        },
+        {
+            "author": "theEinstein",
+            "timestamp": 1438481640,
+            "txt_content": "\\(≧▽≦)/我可以用这东西做香蒲了"
+        }
+    ]
+}

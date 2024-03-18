@@ -1,0 +1,44 @@
+{
+    "title": "如何根据坐标算出视角的横角度和纵角度",
+    "author": "微醉的阳光",
+    "replyCount": 7,
+    "timestamp": 1593173580,
+    "txt_content": "如何根据坐标算出视角的横角度和纵角度",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593175620,
+            "txt_content": "location.getYew()还是啥的  获取角度"
+        },
+        {
+            "author": "微醉的阳光",
+            "timestamp": 1593176280,
+            "txt_content": "南柯郡守 发表于 2020-6-26 20:47\nlocation.getYew()还是啥的  获取角度\n想要算出来的qwq"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593176400,
+            "txt_content": "可以\n去翻mc底层代码 翻你要的那个生物的源码 看他的视角是哪个变量\n然后映射"
+        },
+        {
+            "author": "微醉的阳光",
+            "timestamp": 1593190920,
+            "txt_content": "南柯郡守 发表于 2020-6-26 21:00\n可以\n去翻mc底层代码 翻你要的那个生物的源码 看他的视角是哪个变量\n然后映射 ...\n但我不是用的java代码鸭"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593191100,
+            "txt_content": "微醉的阳光 发表于 2020-6-27 01:02\n但我不是用的java代码鸭\n建议放弃\n无法实现\n参考 C如何调用java\n\n基岩版编程没了解过 给不出建议"
+        },
+        {
+            "author": "微醉的阳光",
+            "timestamp": 1593191400,
+            "txt_content": "南柯郡守 发表于 2020-6-27 01:05\n建议放弃\n无法实现\n参考 C如何调用java\natan2这个函数怎么样"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1593220140,
+            "txt_content": "你好\nmc里面的z轴和y轴跟数学里面常用的是反过来的，y轴正方向也不一样\n正方向不需要管，只要把z轴和y轴变换一下就可以了\n这里是我之前写的工具类\npublic class MathHelperLocation {\n\n    public enum Mode{\n        VERTEX,BALL\n    }\n\n    //所有关于角度的储存和计算都是弧度制,仅toString和某些方法的参数可以是角度制\n    //VERTEX: x,BALL: 点到原点的距离\n    double v1;\n    //VERTEX: y,BALL: 偏航角\n    double v2;\n    //VERTEX: z,BALL: 俯角\n    double v3;\n    //mode==VERTEX时为笛卡尔坐标系\n    private Mode mode;\n\n    //toRadians为true并且mode==BALL时,会将v2,v3自动转换成弧度制\n    public MathHelperLocation(double v1, double v2, double v3, Mode mode, boolean toRadians) {\n        this.v1 = v1;\n        this.v2 = toRadians && (mode == Mode.BALL) ? Math.toRadians(v2) : v2;\n        this.v3 = toRadians && (mode == Mode.BALL) ? Math.toRadians(v3) : v3;\n        this.mode = mode;\n    }\n\n    public MathHelperLocation(Vector vector){\n        this(vector.getX(),vector.getZ(),vector.getY(),Mode.VERTEX,false);\n    }\n\n    public Vector toBukkitVector(){\n        if(mode != Mode.VERTEX){\n            change();\n        }\n        return new Vector(v1,v3,v2);\n    }\n\n    //变换一次坐标系\n    public void change(){\n\n        if(mode == Mode.VERTEX){\n\n            double x = v1;\n            double y = v2;\n            double z = v3;\n            v1 = Math.sqrt(x*x + y*y + z*z);\n            v2 = x == 0.0 ? (y > 0.0 ? PI / 2 : -PI / 2) : (Math.atan2(y,x));\n            v3 = Math.acos(z / v1);\n\n        }else{\n\n            double r = v1;\n            double theta1 = v2;\n            double theta2 = v3;\n            v1 = r * Math.sin(theta2) * Math.cos(theta1);\n            v2 = r * Math.sin(theta2) * Math.sin(theta1);\n            v3 = r * Math.cos(theta2);\n\n        }\n\n        mode = mode == Mode.BALL ? Mode.VERTEX : Mode.BALL;\n\n    }\n\n    //BALL only\n    //通过传入的弧度与此坐标的偏航角计算从原来的偏航角向传入的弧度靠拢需要加还是减\n    //比如若v2为PI/6,radius为PI/2,返回1,之后和你想要的角度相乘传入theta1Addition就可以了\n    public int directionTheta1(double radius){\n\n        if(mode != Mode.BALL)\n            return 0;\n\n        radius %= (2*PI);\n        if(radius == v2){\n            return 0;\n        }else if(Math.abs(v2 - radius) == PI){\n            return 1;\n        }else if(radius > 0 && v2 > 0){\n            return (v2 - radius) < 0 ? 1 : -1;\n        }else if(radius < 0 && v2 < 0){\n            return (radius - v2) > 0 ? 1 : -1;\n        }else if(radius < 0 && v2 > 0){\n            return (v2 - radius) > PI ? 1 : -1;\n        }else{\n            return (radius- v2) < PI ? 1 : -1;\n        }\n\n    }\n\n    //BALL only\n    //通过传入的弧度与此坐标的俯角计算原来的俯角向传入的弧度靠拢需要加还是减\n    //比如若v3为PI/6,radius为PI/2,返回1,之后和你想要的角度相乘传入theta2Addition就可以了\n    public int directionTheta2(double radius){\n\n        if(mode != Mode.BALL)\n            return 0;\n\n        radius %= (2*PI);\n        if(radius == v2){\n            return 0;\n        }\n        return (v3 - radius) < 0 ? 1 : -1;\n\n    }\n\n    //BALL only\n    //修正theta1\n    public void correctTheta1(){\n\n        if(mode != Mode.BALL)\n            return;\n\n        v2 %= (2*PI);\n        if(v2 > PI){\n            v2 -= (2*PI);\n        }else if(v2 < -PI){\n            v2 += (2*PI);\n        }\n\n    }\n\n    //BALL only\n    //将偏航角增加指定的度数\n    public void theta1Addition(double degree){\n\n        if(mode != Mode.BALL)\n            return;\n\n        double addition = Math.toRadians(degree);\n        v2 += addition;\n        correctTheta1();\n\n    }\n\n    //BALL only\n    //将俯角增加指定的度数\n    public void theta2Addition(double degree){\n\n        if(mode != Mode.BALL)\n            return;\n\n        double addition = Math.toRadians(degree);\n        v3 += addition;\n        if(v3 > PI){\n            v3 %= (2*PI);\n            if(v3 > PI){\n                v3 = 2*PI - v3;\n                v2 += PI;\n                correctTheta1();\n            }\n        }else if(v3 < 0){\n            v3 %= (2*PI);\n            if(v3 < -PI){\n                v3 += 2*PI;\n            }else{\n                v3 = -v3;\n                v2 += PI;\n                correctTheta1();\n            }\n        }\n\n    }\n\n    @Override\n    public String toString() {\n        return \"Location{\" +\n                (mode == Mode.BALL ? \"r=\" : \"x=\") + v1 +\n                (mode == Mode.BALL ? \", theta1=\" : \", y=\") + (mode == Mode.BALL ? Math.toDegrees(v2) : v2) +\n                (mode == Mode.BALL ? \", theta2=\" : \", z=\") + (mode == Mode.BALL ? Math.toDegrees(v3) : v3) +\n                \", mode=\" + mode +\n                '}';\n    }\n\n}复制代码"
+        }
+    ]
+}

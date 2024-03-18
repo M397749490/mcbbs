@@ -1,0 +1,24 @@
+{
+    "title": "关于自定义的类加载器",
+    "author": "轻光233",
+    "replyCount": 3,
+    "timestamp": 1582713180,
+    "txt_content": " 本帖最后由 轻光233 于 2020-2-27 10:23 编辑 \n\n我想自己写一个jar文件载入外部扩展的插件\n自定义类继承于URLClassLoader\nfindClass如下\nprotected Class<?> findClass(String name) throws ClassNotFoundException{\n    Class<?> c;\n    try{\n        c = pluginCL.loadClass(name);\n    }catch (ClassNotFoundException e){\n        c = findLoadedClass(name);\n        if(c == null){\n            c = super.findClass(name);\n        }\n    }\n    return c;\n}复制代码pluginCL是我主类的getClassLoader()\n但当jar文件内的类的载入函数执行时，Bukkit.getPluginManager()抛了NullPointerException\n我在主类的onEnable输出了一下的Bukkit.class.hashCode()，并在jar文件内的类的载入函数也输出了一下Bukkit.class.hashCode()\n发现两个输出不一致，说明有两个不同的类加载器加载了Bukkit\n但我在上面的findClass输出name时，没有看到Bukkit有被载入\n在载入函数内输出Bukkit.class.getClassLoader()时发现是AppClassLoader加载了这个类\n但在onEnable里输出是net.minecraft.launchwrapper.LaunchClassLoader(CatServer)\n请问这到底是怎么回事，是我的代码逻辑有问题还是自定义类加载器出现了问题？\n\n",
+    "replies": [
+        {
+            "author": "RE_OVO",
+            "timestamp": 1582727940,
+            "txt_content": "为啥要自己写一个自定义加载器, 我记得PlaceholderAPI还是什么插件用的是插件自己的ClassLoader去加载的，可以去看看咋写的\n\n你可以获取插件的ClassLoader, 然后反射它，调用里面的addURL方法把jar文件添加到加载器的path里面\n这是我以前写的代码= =\npublic class ExtensionLoader {\n    public Map<MatrixExtension, URLClassLoader> load() {\n        File file = new File(Matrix.getInstance().getDataFolder(), \"extensions\");\n        if (!file.exists()) {\n            file.mkdirs();\n        }\n        Map<MatrixExtension, URLClassLoader> extensions = new HashMap<>();\n        // search jar files to load\n        for (File extensionFile : file.listFiles()) {\n            if (extensionFile.getName().endsWith(\".jar\")) {\n                try {\n                    //System.out.println(\"path->\"+extensionFile.toURI().toURL());\n                    if(!(Matrix.CLASS_LOADER instanceof URLClassLoader)){\n                        Matrix.log(\"Error: Illegal Class Loader\");\n                        break;\n                    }\n                    URLClassLoader urlClassLoader = (URLClassLoader) Matrix.CLASS_LOADER;\n\n                    Class<URLClassLoader> classLoaderClass = URLClassLoader.class;\n                    Method method = classLoaderClass.getDeclaredMethod(\"addURL\", URL.class);\n                    method.setAccessible(true);\n                    method.invoke(urlClassLoader,extensionFile.toURI().toURL());\n\n                    JarFile jarFile = new JarFile(extensionFile);\n                    Enumeration<JarEntry> es = jarFile.entries();\n                    while (es.hasMoreElements()) {\n                        JarEntry jarEntry = es.nextElement();\n                        String name = jarEntry.getName();\n                        if (name != null && name.endsWith(\".class\")) {\n                            Class<?> clz = urlClassLoader.loadClass(name.replaceAll(\"/\",\".\").substring(0,name.length() - 6));\n                            if (clz.isAnnotationPresent(ExtensionInfo.class) && MatrixExtension.class.isAssignableFrom(clz)) {\n                                MatrixExtension extension = (MatrixExtension) clz.newInstance();\n                                extensions.put(extension, urlClassLoader);\n                            }\n                        }\n                    }\n                } catch (IOException | ClassNotFoundException | IllegalAccessException | InstantiationException | NoSuchMethodException | InvocationTargetException e) {\n                    e.printStackTrace();\n                }\n            }\n        }\n        return extensions;\n    }\n}\n复制代码"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1582770180,
+            "txt_content": "jebme 发表于 2020-2-26 22:39\n为啥要自己写一个自定义加载器, 我记得PlaceholderAPI还是什么插件用的是插件自己的ClassLoader去加载的， ...\n自己写加载器主要是为了支持热加载和卸载\naddURL估计就没法实现了\n刚刚输出了一下线程上下文的ClassLoader，也是LaunchClassLoader，可为什么在载入函数里加载就会是AppClassLoader呢？"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1584252180,
+            "txt_content": "jebme 发表于 2020-2-26 22:39\n为啥要自己写一个自定义加载器, 我记得PlaceholderAPI还是什么插件用的是插件自己的ClassLoader去加载的， ...\n问题已经解决，感谢大佬的帮助\n这边将自定义类加载器的父加载器设置成插件主类的类加载器就可以了"
+        }
+    ]
+}

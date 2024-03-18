@@ -1,0 +1,304 @@
+{
+    "title": "[1.14+ 数据包][选择性死亡不掉落]让死亡不掉落不再是全局设定",
+    "author": "Chelover_C60",
+    "replyCount": 59,
+    "timestamp": 1564668300,
+    "txt_content": " 本帖最后由 Chelover_C60 于 2021-1-11 14:50 编辑 \n\n注意：在使用本数据包后会自动开启游戏规则keepInventory，为确保正常使用，请不要自行关闭\n使用本数据包后会使玩家经验保留，目前暂无较为理想的解决方案\n选择性死亡不掉落\n       大家好，我是C60。今天给大家带来了一个辅助型数据包。其实这个数据包源于我在问答版回答的一个问题，感觉比较有意思，于是准备整合成一个数据包。通过这个数据包，可以让死亡不掉落不再是全局设定（即你可以让一个人死亡掉落，另一个人死亡不掉落）。当然，常规生存可能很少或者根本用不到这个数据包，但是如果你在做PvP、PvE或者RPG地图时，或许可以考虑把它作为一个道具使用，可能会有一些独特的效果哦。\n       注：不同版本之间的操作略有差别，本帖只给出最新版操作方法，较旧版本操作方法以包内附带的说明为准。\n\n\n\n安装方法\n①将压缩包直接放入存档目录下的datapacks文件夹内；\n②进入游戏，输入/reload后，即可正常使用。\n\n\n\n使用方法\n使用tag命令，给指定玩家添加标签。根据模式的不同，会有不同的效果。\ntag命令语法：tag <玩家> <add|remove> <标签>\n示例：tag Chelover_C60 add keep\n①默认模式：所有拥有“keep”标签的玩家死亡时不掉落物品，其他玩家在死亡时掉落所有物品；\n②反转模式：所有拥有“loot” 标签的玩家死亡时掉落所有物品，其他玩家在死亡时不掉落物品。\n\n\n\n模式切换\n输入“/scoreboard players set mode cki_info 0”即可切换为默认模式\n输入“/scoreboard players set mode cki_info 1”即可切换为反转模式\n\n\n\n命令接口\n最新版数据包内置了两个函数接口，可在其他数据包内编写函数，并将函数加入指定标签内即可让系统在指定时期执行函数。\n接口标签1\"cki:before_loot\"：在选中死亡玩家后，进行掉落判定前执行函数\n接口标签2\"cki:after_loot\"：完成模拟掉落并清空背包后执行函数\n所有标签的执行者均为玩家\n使用示例：\n目的：让玩家死亡时可以通过消耗1个绿宝石来保存物品栏\n在添加本数据包，并选择为默认模式后，额外添加一个数据包并调用以上接口，写入如下函数与标签\n函数：\nnamespace:before_loot\nexecute if data entity @s Inventory[{id:\"minecraft:emerald\"}] run tag @s add keep\n#当玩家背包内有绿宝石时，为玩家添加keep标签复制代码\nnamespafe:after_loot\nclear @s emerald 1\ntag @s remove keep\n#扣除一个绿宝石，并移除keep标签复制代码\n函数标签\ncki:before_loot.json\n{\n    \"replace\": false,\n    \"values\": [\n        \"namespace:before_loot\"\n    ]\n}复制代码\ncki:after_loot.json\n{\n    \"replace\": false,\n    \"values\": [\n        \"namespace:after_loot\"\n    ]\n}复制代码\n完成后输入/reload，即可在玩家死亡时消耗一个绿宝石来获得一次物品免掉落的机会\n\n\n\n全部代码\ncki:tick.mcfunction 游戏内每刻执行的命令\nexecute as @a[scores={cki_death=1..}] at @s run function cki:detect\n#检测到玩家死亡后，对其进行判断\nscoreboard players reset @a[scores={cki_death=1..}] cki_death复制代码\n\ncki:detect.mcfunction 检测模式与玩家情况，并在情况符合时执行掉落模块\nfunction #cki:before_loot\n#执行命令接口\"#cki:before_loot\"的命令（若有）\nexecute if score mode cki_info matches 0 if entity @s[tag=!keep] run function cki:loot\n#默认模式\nexecute if score mode cki_info matches 1 if entity @s[tag=loot] run function cki:loot\n#反转模式\nfunction #cki:after_loot\n#执行命令接口\"#cki:after_loot\"的命令（若有）复制代码\n\ncki:loot.mcfunction 主要函数，用于掉落物品\ndata modify storage cki:inventory item prepend from entity @s Inventory[]\ndata remove storage cki:inventory item[{tag:{Enchantments:[{id:\"minecraft:vanishing_curse\"}]}}]\n#将玩家的物品栏信息存储进cki:inventory这个storage中并删去拥有消失诅咒的物品\n\nexecute if data storage cki:inventory item[0] run function cki:loot_once\n#检查是否有物品，如果有物品，则执行一次掉落函数\n\nclear @s\n#清空背包复制代码\n\ncki:loot_once.mcfunction 掉落一个物品\nloot spawn ~ ~ ~ loot cki:item\n#模拟掉落一个物品\n\ndata modify entity @e[type=item,nbt={Item:{tag:{cki_looteditem:1b}}},distance=..5,sort=nearest,limit=1] Item set from storage cki:inventory item[0]\ndata remove storage cki:inventory item[0]\n#修改模拟掉落的物品为玩家物品栏里的一个物品，并在玩家物品栏里删去该物品\n\nexecute if data storage cki:inventory item[0] run function cki:loot_once\n#如果玩家背包里仍然有物品，则继续掉落复制代码\n\ncki:load.mcfunction 用于建立必要计分板，并开启keepInventory\nscoreboard objectives add cki_death deathCount\nscoreboard objectives add cki_info dummy\nscoreboard players set mode cki_info 0\ngamerule keepInventory true复制代码\n\ncki:item.json 战利品表文件，用于掉落一个物品\n{\n    \"type\": \"minecraft:generic\",\n    \"pools\": [\n        {\n            \"rolls\": 1,\n            \"entries\": [\n                {\n                    \"type\": \"minecraft:item\",\n                    \"name\": \"minecraft:stone\",\n                    \"functions\": [\n                        {\n                            \"function\": \"minecraft:set_nbt\",\n                            \"tag\": \"{cki_looteditem:1b}\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}复制代码\n\nminecraft命名空间下的tick、load标签，以及cki命名空间下的空标签不再展示。\n\n\n\n下载链接\n最新版（仅支持1.15+）：\n\n\n\n[选择性死亡不掉落]no-global keepinventory v1.1.2.zip\n(6.18 KB, 下载次数: 122)\n\n\n\n2020-6-15 11:44 上传\n点击文件名下载附件\n最新版本（仅支持v1.15+版本）\n\n\n\n\n\n1.14可用版本：（该版本不会自动开启keepInventory规则，需要手动开启。）\n\n\n\n[选择性死亡不掉落]choosable keepinventory v1.0.5.zip\n(4.56 KB, 下载次数: 142)\n\n\n\n2019-11-22 20:17 上传\n点击文件名下载附件\n1.14可用版本\n\n\n\n\n\n历史版本：\nhttps://pan.baidu.com/s/1bnA689tH-ybzAst9mdjaOg 提取码: t481\n转载请注明出处！！！\n如需使用本数据包源码，请遵守MIT协议。\n\n\n\n更新记录\n\nv 1.1.2\n\n● 添加两个命令接口，可在执行模拟掉落模块前后执行命令\n● 添加用于模式转换的游戏内切换方法\n● 英文名更名为\"no-global keepInventory\"\n\n\nv 1.1.1 更新于2019-11-24\n\n● 使用 Jokey_钥匙 的思路，不再使用cki_count计分板，不再使用矿车，使用战利品表来模拟掉落，带来极大的性能提升\n\n\nv 1.1  更新于2019-11-22\n\n● 使用data storage，避免了使用额外的物品实体\n● 现在数据包加载后自动开启规则keepInventory，无需再手动开启\n● 部分细节优化\n\n\nv 1.0.5  更新于2019-10-1\n\n● 修复了上个版本中对消失诅咒处理的严重错误\n● 删除了包内多余的、莫名其妙的进度文件\n\n\nv 1.0.4  更新于2019-9-23\n\n● 优化了对消失诅咒的处理\n\n\nv 1.0.3  更新于2019-8-17\n\n● 修复了在较高的位置时，矿车无法正常被kill的bug\n● 调整了压缩包的结构，现在无需解压，将压缩包直接拖动至datapacks文件夹后即可使用\n\n\nv 1.0.2  更新于2019-8-8\n\n● 优化了命令结构\n\n\nv 1.0.1   更新于2019-8-3\n\n● 修复了拥有“消失诅咒”附魔的物品在玩家死亡时仍然掉落的bug\n● 调整了矿车生成的位置，玩家死亡后不再会出现一闪而过的矿车\n● 优化了部分命令的结构\n\n\nv 1.0  更新于2019-8-1\n\n●完成作品\n\n\n\n\n已知bug\n序号内容存在版本修复版本1拥有消失诅咒的物品在玩家死亡时仍然掉落1.01.0.12在y>15左右时，矿车无法被kill，导致无法掉落物品1.0.1~1.0.21.0.33消失诅咒附魔没能被正确处理1.0.41.0.5\n\n\n感谢\nxmdhs 提供创意\nJokey_钥匙 提供全新的思路，带来极大的性能提升\n\n\n最后，希望大家能提出一些宝贵的意见了~~~",
+    "replies": [
+        {
+            "author": "索菲缇娅",
+            "timestamp": 1564669560,
+            "txt_content": "沙发 可以收下了 \n可以加一些截图"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1564670280,
+            "txt_content": "yjl222 发表于 2019-8-1 22:26\n沙发 可以收下了 \n可以加一些截图\n我该加什么截图呢？\nkill @s的截图？"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1564672320,
+            "txt_content": "还行，有点意思。看看能不能再写简单点"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1564672980,
+            "txt_content": "ruhuasiyu 发表于 2019-8-1 23:12\n还行，有点意思。看看能不能再写简单点\n写简单点估计有压力不过目前发现一个bug，我没考虑到消失诅咒的影响。\n这个改回复弄的我的评分好违和"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564678860,
+            "txt_content": "攒够 27 个再掉落确实挺省性能的，不过在性能溢出的情况下为什么省性能（草姐姐腔）！\n\n所以其实可以一次转移一个到运输矿车中，然后干掉运输矿车，递归，大概命令能少点（跑"
+        },
+        {
+            "author": "空門蒼",
+            "timestamp": 1564679400,
+            "txt_content": "还用到了递归\n妙啊！喵啊！"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1564704540,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-8-2 08:12 编辑 \n\n看来你知道怎么改 Slot 了……\n一个矿车不够，就来两个！（跑"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1564714080,
+            "txt_content": "梓榆 发表于 2019-8-2 01:01\n攒够 27 个再掉落确实挺省性能的，不过在性能溢出的情况下为什么省性能（草姐姐腔）！\n\n所以其实可以一次转 ...\n这样就使用了过多实体，反而不怎么省性能"
+        },
+        {
+            "author": "Y制杖杖",
+            "timestamp": 1582416720,
+            "txt_content": "如果两个人同时死怎么办"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1582417740,
+            "txt_content": "Y制杖杖 发表于 2020-2-23 08:12\n如果两个人同时死怎么办\n两个人同时掉物品"
+        },
+        {
+            "author": "江南凯",
+            "timestamp": 1582553340,
+            "txt_content": "这个强啊，不怕死了"
+        },
+        {
+            "author": "3180292399",
+            "timestamp": 1582690260,
+            "txt_content": "不！白嫖从我做起"
+        },
+        {
+            "author": "784793867",
+            "timestamp": 1582699500,
+            "txt_content": "感觉全局死亡不掉落好"
+        },
+        {
+            "author": "Deftercanda",
+            "timestamp": 1587817320,
+            "txt_content": "请问作者，spigot服务端生成的存档将主世界/地狱/末地分为三个存档，插件该如何安装？"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1587820140,
+            "txt_content": "Deftercanda 发表于 2020-4-25 20:22\n请问作者，spigot服务端生成的存档将主世界/地狱/末地分为三个存档，插件该如何安装？ ...\nemmmm我不懂spigot。。。\n而且这是数据包，不是插件，服务器一般会优先考虑使用插件而不是数据包\n总之这个问题我觉得你可以去联机问答版咨询一下"
+        },
+        {
+            "author": "Deftercanda",
+            "timestamp": 1587828840,
+            "txt_content": "Chelover_C60 发表于 2020-4-25 21:09\nemmmm我不懂spigot。。。\n而且这是数据包，不是插件，服务器一般会优先考虑使用插件而不是数据包\n总之这 ...\n感谢回复，问题已经解决，我试出来的，只要放在主世界存档就生效"
+        },
+        {
+            "author": "hongjr03",
+            "timestamp": 1588927500,
+            "txt_content": "小白问个问题 要怎么改才能改成 背包里有特定物品、消耗一个该物品才能死亡不掉落呢？"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1588928100,
+            "txt_content": " 本帖最后由 Chelover_C60 于 2020-5-8 16:59 编辑 \nhongjr03 发表于 2020-5-8 16:45\n小白问个问题 要怎么改才能改成 背包里有特定物品、消耗一个该物品才能死亡不掉落呢？ ...\n如果你希望配合这个数据包使用的话，先明白这个数据包的工作原理，即开启死亡不掉落，然后选定所有没有keep标签的死亡玩家，并让其掉落物品\n那么思路就有了，在进行这个判定之前，检查玩家背包是否有物品，如果有物品，就为玩家添加keep标签，如果无物品，就移除keep标签，然后就是数据包正常工作的部分了。\n最后记得clear一个物品就行了以复活所需物品为纸为例\ncki:tick\nexecute as @a[scores={cki_death=1..}] if data entity @s Inventory[{id:\"minecraft:paper\"}] run tag @s add keep\nexecute as @a[scores={cki_death=1..}] unless data entity @s Inventory[{id:\"minecraft:paper\"}] run tag @s remove keep\nexecute as @a[tag=!keep,scores={cki_death=1..}] at @s run function cki:loot\nclear @a[scores={cki_death=1..}] paper 1\nscoreboard players reset @a[scores={cki_death=1..}] cki_death复制代码"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589713320,
+            "txt_content": "额，你这搞得太复杂了，我把我打出的字总和起来都没那么多。"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589713980,
+            "txt_content": "12tianxun 发表于 2020-5-17 19:02\n额，你这搞得太复杂了，我把我打出的字总和起来都没那么多。init:/summon armor_stand ~ ~ ~ {CustomName:\"itemuid\",CustomNameVisible:1b,NoGravity:1,Invisible:1}init:/scoreboard objectives add xp levelinit:/scoreboard objectives add xp2 dummyinit:/scoreboard objectives add itemuid dummyinit:/scoreboard objectives add itemuid2 dummyinit:/scoreboard objectives add death deathCountinit:/scoreboard objectives add inrange dummyrcb:/execute @a[tag=!death,score_death=0,tag=!raise,tag=!xp,tag=inrange] ~ ~ ~ scoreboard players operation @p xp2 = @p xp/execute @p[tag=!haveitemuid] ~ ~ ~ scoreboard players add @e[type=armor_stand,name=itemuid] itemuid 1/scoreboard players operation @p itemuid = @e[type=armor_stand,name=itemuid] itemuid/scoreboard players tag @p[tag=!haveitemuid] add haveitemuid/execute @a[score_death_min=1,tag=inrange] ~ ~ ~ summon minecraft:item ~ ~ ~ {CustomName:\"itemmarker\",Item:{id:\"minecraft:barrier\",Count:1b,Damage:0s,tag:{marker:1}},PickupDelay:32767s,Age:-32768s}/execute @a[score_death_min=1,tag=inrange] ~ ~ ~ scoreboard players operation @e[type=item,r=2,tag=!fallen] itemuid = @a[score_death_min=1] itemuid/entitydata @e[type=item,score_itemuid_min=1] {Health:32767s,Age:-32768s,PickupDelay:32767s}/execute @a[score_death_min=1,tag=inrange] ~ ~ ~ execute @e[name=itemuid,type=armor_stand] ~ ~ ~ spreadplayers ~ ~ 1 10 false @e[type=item,score_itemuid_min=1]/scoreboard players tag @a[score_death_min=1,tag=inrange] add death/execute @a[tag=inrange] ~ ~ ~ scoreboard players tag @e[type=item,r=5] add fallen/scoreboard players set @a[score_death_min=1] death 0/scoreboard players tag @a[tag=death] add raise {DeathTime:0s}/scoreboard players tag @a[tag=raise] remove death/execute @e[type=item,score_itemuid_min=1] ~ ~ ~ scoreboard players operation @e[type=item,r=0] itemuid2 = @e[type=item,r=0,c=1] itemuid/execute @a[tag=raise] ~ ~ ~ scoreboard players operation @e[type=item,score_itemuid2_min=1] itemuid2 -= @p itemuid/tp @e[type=item,score_itemuid2=0,score_itemuid_min=1] @p[tag=raise]/execute @e[type=item,name=itemmarker] ~ ~ ~ scoreboard players tag @p[r=2,tag=raise] add xp/execute @e[type=item,score_itemuid2=0,score_itemuid_min=1] ~ ~ ~ scoreboard players tag @a[tag=raise,r=1] remove raise/entitydata @e[type=item,score_itemuid2=0,score_itemuid_min=1] {PickupDelay:0s}/clear @a barrier 0 1 {marker:1}/xp 10l @a[tag=xp,score_xp2_min=10]/scoreboard players remove @a[tag=xp,score_xp2_min=10] xp2 10/xp 1l @a[tag=xp,score_xp2_min=1,score_xp2=9]/scoreboard players remove @a[tag=xp,score_xp2_min=1,score_xp2=9] xp2 1/scoreboard players tag @a[score_xp2=0] remove xp\n"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589714040,
+            "txt_content": "12tianxun 发表于 2020-5-17 19:13init:/summon armor_stand ~ ~ ~ {CustomName:\"itemuid\",CustomNameVisible:1b,NoGravity:1,Invisible: ...\n这是别人做得"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589714340,
+            "txt_content": "12tianxun 发表于 2020-5-17 19:14\n这是别人做得\n不需要套娃"
+        },
+        {
+            "author": "雪月风花l",
+            "timestamp": 1589714580,
+            "txt_content": "引导的非常全面呀，点个赞"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1589716140,
+            "txt_content": " 本帖最后由 Chelover_C60 于 2020-5-17 19:50 编辑 \n12tianxun 发表于 2020-5-17 19:13init:/summon armor_stand ~ ~ ~ {CustomName:\"itemuid\",CustomNameVisible:1b,NoGravity:1,Invisible: ...\n看明白原理了\n不过这样的话玩家背包就会被打乱，装备什么的需要重新穿\n另外多人情况下如果有两名玩家同时复活就会有bug\n不过感谢建议\n\n\n虽然我也是以所有玩家不掉落经验为代价的吧"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589717760,
+            "txt_content": "Chelover_C60 发表于 2020-5-17 19:49\n看明白原理了\n不过这样的话玩家背包就会被打乱，装备什么的需要重新穿\n另外多人情况下如果有两名玩家同时 ...\n欸欸，看清楚最后几行，这是经验保存"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589717820,
+            "txt_content": "雪月风花l 发表于 2020-5-17 19:23\n引导的非常全面呀，点个赞\n别人做的"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589717880,
+            "txt_content": "12tianxun 发表于 2020-5-17 19:14\n这是别人做得\n别的论坛的人做的"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1589718120,
+            "txt_content": "12tianxun 发表于 2020-5-17 20:16\n欸欸，看清楚最后几行，这是经验保存\nsorry，看漏个字"
+        },
+        {
+            "author": "MC～蛟龙",
+            "timestamp": 1591139940,
+            "txt_content": "有1.12.2的吗"
+        },
+        {
+            "author": "VOLRIS",
+            "timestamp": 1591975740,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "WYL0zhu",
+            "timestamp": 1592117280,
+            "txt_content": "请问如何切换默认模式或者反转模式。"
+        },
+        {
+            "author": "米添Mi_Tian",
+            "timestamp": 1592118240,
+            "txt_content": "挺方便的"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1592121360,
+            "txt_content": "WYL0zhu 发表于 2020-6-14 14:48\n请问如何切换默认模式或者反转模式。\n解压压缩包，然后依次打开data\\cki\\functions，用记事本或其他文本编辑器打开tick.mcfunction，在第1行开头加上“#”并删去第2行的“#”，保存并重新打包即可改为反转模式（当然如果你的压缩包支持免解压编辑文件就不需要解压了）\n如果要切换回默认模式，以相同方式在第二行开头添加“#”并将第一行的“#”删去即可"
+        },
+        {
+            "author": "mr_black_cat",
+            "timestamp": 1592125260,
+            "txt_content": "有点意思（话说如果直接死亡不掉落不就更好了吗？何必复杂化）[bushi]\n总体还是不错的，相信你能够制作出更好的作品"
+        },
+        {
+            "author": "WYL0zhu",
+            "timestamp": 1592129580,
+            "txt_content": "Chelover_C60 发表于 2020-6-14 15:56\n解压压缩包，然后依次打开data\\cki\\functions，用记事本或其他文本编辑器打开tick.mcfunction，在第1行开 ...\n这么麻烦，还要手动修改。\n建议添加一个trigger型的记分板，用于保存模式。\n这样就不用用户手动修改了。只要输入对应的/trigger命令就可以改变模式。\n"
+        },
+        {
+            "author": "liangcha2009",
+            "timestamp": 1592701140,
+            "txt_content": "Deftercanda 发表于 2020-4-25 20:22\n请问作者，spigot服务端生成的存档将主世界/地狱/末地分为三个存档，插件该如何安装？ ...\n我试过，只要装在world/datapacks里就可以"
+        },
+        {
+            "author": "liangcha2009",
+            "timestamp": 1592701140,
+            "txt_content": "谢谢楼主的分享"
+        },
+        {
+            "author": "Deftercanda",
+            "timestamp": 1593142860,
+            "txt_content": "liangcha2009 发表于 2020-6-21 08:59\n我试过，只要装在world/datapacks里就可以\n谢谢，问题已解决"
+        },
+        {
+            "author": "glf_Xiao_Fei",
+            "timestamp": 1593533760,
+            "txt_content": "唔，，非常有用  感谢！"
+        },
+        {
+            "author": "qq435979344",
+            "timestamp": 1597463220,
+            "txt_content": "这是服务端吗，也好像不是，我刚刚放进恶魔果实的存档直接崩溃了"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1597465140,
+            "txt_content": " 本帖最后由 Chelover_C60 于 2020-8-15 12:22 编辑 \nqq435979344 发表于 2020-8-15 11:47\n这是服务端吗，也好像不是，我刚刚放进恶魔果实的存档直接崩溃了\n这哪里看起来像服务端了\n这是数据包，类似命令，能在不改变游戏的前提下修改一些规则\n不过按理来说数据包应该不会导致崩溃，你把压缩包放到哪了？是存档下的datapacks文件夹吗？是在进入游戏时还是进入存档时崩溃的？\n以及你的版本？"
+        },
+        {
+            "author": "caoken",
+            "timestamp": 1597479300,
+            "txt_content": "用了的都说好QAQ"
+        },
+        {
+            "author": "jiaweijin270",
+            "timestamp": 1597480860,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "LINE2DTDOG",
+            "timestamp": 1597487700,
+            "txt_content": "消失诅咒会不会有bug"
+        },
+        {
+            "author": "qq435979344",
+            "timestamp": 1597653300,
+            "txt_content": "Chelover_C60 发表于 2020-8-15 12:19\n这哪里看起来像服务端了\n这是数据包，类似命令，能在不改变游戏的前提下修改一些规则\n不过按理来说 ...\n是放在存档下datapacks文件夹没错的，核实了，是进入游戏主界面后，选定进入存档然后游戏就崩溃了，我的版本是1.14.4，国际版，装了forge"
+        },
+        {
+            "author": "永爱不忘",
+            "timestamp": 1597766820,
+            "txt_content": "终于找到我需要的了谢谢大佬"
+        },
+        {
+            "author": "--清晨",
+            "timestamp": 1598014200,
+            "txt_content": "装了这个我就可以随便去浪了都不带怕死了"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1598014560,
+            "txt_content": "--清晨 发表于 2020-8-21 20:50\n装了这个我就可以随便去浪了都不带怕死了\n这个不是死亡不掉落模组，是对原版死亡不掉落的修饰。。。\n你要死亡不掉落的话直接一个/gamerule keepInventory true复制代码就行了"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1601879040,
+            "txt_content": "解决了我经常和朋友们玩的时候，一个说开死亡不掉落，一个说不开加挑战性的问题，靴靴楼主！"
+        },
+        {
+            "author": "Ainscel",
+            "timestamp": 1610334660,
+            "txt_content": "跪求1.16版"
+        },
+        {
+            "author": "GuShiUik",
+            "timestamp": 1610349900,
+            "txt_content": "学到了学到了"
+        },
+        {
+            "author": "dainuofei",
+            "timestamp": 1611479220,
+            "txt_content": "楼主真厉害，还可以这样，算是派上用场了"
+        },
+        {
+            "author": "兔叽667",
+            "timestamp": 1611482520,
+            "txt_content": "感觉全局死亡不掉落好"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1611487140,
+            "txt_content": "做一个选择性掉落特殊物品的？"
+        },
+        {
+            "author": "I小陈同学I",
+            "timestamp": 1611495420,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "殇晨",
+            "timestamp": 1611550140,
+            "txt_content": "有没有办法实现某一个物品死亡不掉落\n\n或者身上的装备不掉落，背包掉落也行"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1611557820,
+            "txt_content": "殇晨 发表于 2021-1-25 12:49\n有没有办法实现某一个物品死亡不掉落\n\n或者身上的装备不掉落，背包掉落也行 ...\n思路比较类似\n\n如果是特定物品不掉落的话\n框架大概还是我这个框架，就是模拟掉落的时候，复制完背包nbt后删除掉这个特殊物品的数据，这样东西就不会掉落出来。然后清除背包物品的时候不能直接clear，要用execute unless + replaceitem一个个穷举，如果是某一个特殊的物品就不清除，否则就清除。\n装备栏物品不掉落的话\n复制nbt后删去盔甲栏物品的nbt信息，这样盔甲就不会掉出。清除背包时要replaceitem穷举背包单元格成air，保证盔甲栏不受影响。\n\n话说装备物品不掉落有人做过类似的，可以参考一下\nhttps://www.mcbbs.net/thread-920942-1-1.html"
+        },
+        {
+            "author": "96794658",
+            "timestamp": 1611578400,
+            "txt_content": "可以可以"
+        },
+        {
+            "author": "风炎辉",
+            "timestamp": 1611588720,
+            "txt_content": "\n请问作者，spigot服务端生成的存档将主世界/地狱/末地分为三个存档，插件该如何安装"
+        }
+    ]
+}

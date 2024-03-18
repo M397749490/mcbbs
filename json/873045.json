@@ -1,0 +1,144 @@
+{
+    "title": "【CBL|00ll00】[1.14数据包]tellraw俄罗斯方块以及部分原理的详解",
+    "author": "00ll00",
+    "replyCount": 27,
+    "timestamp": 1560570000,
+    "txt_content": " 本帖最后由 00ll00 于 2019-8-4 21:44 编辑 \n\n几个月前做的东西，发论坛试试水\n送给俄罗斯方块爱好者以及穷举爱好者\n\n■■■■\n\n简介：\ntellraw俄罗斯方块就是tellraw俄罗斯方块啊，没啥好介的...先上视频吧\n\nhttps://www.bilibili.com/video/av48896911/\n总之是仿照着比较经典的俄罗斯方块来做的。\n旋转规则是参照TGM（俄罗斯方块大师）做的。\n实现了踢墙旋转。\n一次性消掉多行的话会有额外的分数奖励。\n同时游戏难度会随着分数的增加而增大。\n难度主要体现在方块的下落速度上。次要是体现在燃烧的CPU上\n若方块堆到了天上，不能放置出新的方块，则游戏结束。\n\n■■■■\n\n玩法：\n正确安装好数据包并reload好你的地图后，输入\n/function tetris:load复制代码\n就能加载并显示界面\n\n\n\n\n9d7c07e00.gif (804.83 KB, 下载次数: 5)\n\n下载附件\n\n2019-6-15 00:40 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n点击[Start]就能愉快地玩俄罗斯方块了\n\n三列操作按钮对应[左移][旋转][右移]（每个按钮有三行是为了在电脑卡顿，聊天栏刷新发生抖动时也能点到）\n\n\n\n\nac33ce6900.gif (78.82 KB, 下载次数: 5)\n\n下载附件\n\n2019-6-15 00:33 上传\n\n\n\n\n\n\n\n知道了这些，你就可以打开MC放好数据包开始玩了\n如果你的电脑完全带不动这个配置的俄罗斯方块的话，见第二页\n[后排度盘链接]密码为ul44\n第二页  附件py脚本的说明第三页  部分原理的详解\n第四页  调试时的实用命令\n\n\n\n\n附件py脚本：\n\n你会发现链接里还有一个py脚本\n这个脚本就是万恶之源，所有的function文件都是这个脚本生成的你可以在py脚本的前几行修改一些基本的游戏参数\n\n\n如果电脑带不动经典配置的话可以把w值改小，然后运行脚本并reload\n（卡顿的主要原因是使用了巨量的穷举，穷举的量与w呈指数关系，所以一般来说将w改小一丢丢就能正常运行了）\n\n\n\n部分原理：\n\n0.开始前的说明\n\n由于function文件中充满了穷举的气息，直接查看不方便\n建议打开链接中附赠的py脚本对照着理解\n下文中蓝色粗体代表的是函数名称，后面方括号中的为py脚本对应行号\n\n1.方块移动、旋转\n\n下落中的方块由如下计分项控制：\n\nx：下落方块的中心横坐标\ny：下落方块的中心纵坐标\nt：下落方块的类型\nr：下落方块的旋转\n\n注意到每种形状的方块都是由4个小块（以下称为点）构成，于是对每个点有：\n\npnx：点的横坐标\npny：点的纵坐标\n\n其中n为点编号,1~4\n\n在方块运动的操作过程中，直接改变的变量为x、y、r，在每次刷新显示之前通过函数draw[299]计算出每个点的坐标\n计算流程为先将pnx,pny赋值为x,y，然后通过穷举t,r对每个点进行偏移\n\n以画T型块未旋转的样子（r=1）为例，function为\nexecute if score @p r matches 1 run scoreboard players remove @p p1x 1\nexecute if score @p r matches 1 run scoreboard players add @p p3y 1\nexecute if score @p r matches 1 run scoreboard players add @p p4x 1\n复制代码p2的位置正好在中心点上，所以没有进行偏移，此时p1~4均在中心点上：\n\n\np1向左偏移一格：\n\n\np3向下偏移一格：\n\n\np4向右偏移一格：\n\n\n\n于是一个T型块就画出来了\n\n\n\n2.碰撞判定、方块落地、满行消行\n\n在上述操作后，我们已经得到了每个点的位置，但是这仅仅是下落中的方块的位置，进行碰撞判定我们还需要知道已落地的方块和边界墙的位置\n\n引入新的变量：\nln1~20：行储存变量\n\n行储存变量储存着每一行的落地方块数据。\n由于在碰撞判定上墙与落地方块的表现是一样的，所以储存方式相同。\n（区别在于墙是固定存在的，不在穷举范围内，墙的样式不同是在之后的print函数内单独处理）\n\n储存变量数据的含义：\n举个例子，如果ln1的值为1025，则代表第一行为\n■□□□□□□□□□■  就是两个边界墙\n不难理解，1025[sub](10)[/sub]=100 0000 0001[sub]?(2)[/sub]，将每一行有方块的地方视为1，反之则反之，就得到了相应的ln的值\n再次强调下落中的方块并不在这里储存\n\n现在可以进行碰撞判断了\n\n如图，现在有一个T型块正准备下落\n\n\n在下移函数moved[614]进行y--操作之前会调用函数testd[543]，即测试下方的函数进行阻力的计算\n这个函数会对每个点所在行的下一行的对应位置进行取位运算getbit[268]，然后把所有的取位结果相加\n就上图中的T块，他最下方的点的下一行数据为4095[sub](10)[/sub]=1111[ruby=↓]1[/ruby]1111111[sub](2)[/sub]，取出第5位为\"1\"；其余的三个点均进行这番操作，不过他们下面并没有阻碍，所以阻力为\"0\"；于是整个方块向下的阻力为\"1\"    这里的二进制高低位好像是反过来的，不过有什么关系呢\n阻力不为0，所以不允许下移，并且放置当前方块setb[627]，即把当前的下落中的方块的数据算出2次幂后加和到相应的ln中，成为落地方块此时调用clr[660]消行函数对每一行进行检测，若有某一行已堆满，则消除该行（依次将上面行的值赋与本行，首行置为空）\n然后再调用newb[643]生成一个新的下落方块\n\n左右移动、旋转的原理类似左移movl[594]，右移movr[603]，旋转rot[559]\n\n注：旋转中为了实现踢墙旋转稍微做了些手脚\n\n3.tellraw显示\n\ntellraw显示的核心原理为穷举   不穷举你会变得更强吗\n\n对每一行（底部的墙除外）的所有可能全部列出，什么分值就输出什么图像\n\n为了使下落中的方块与已落地的方块同时显示，引入变量：\ndln1~20：行显示变量，数据含义与ln相同\n\n\n在显示函数print[148]执行中会先计算出每一行的dln，然后再穷举\n\n为了实现下一块的预告，同时不增加穷举的负担，预告的信息使用了指向一个实体名字的nbt组件，这样在tellraw的JSON文本中他就固定了，只需要在tellraw的前一刻summon出相应的实体，tellraw出的文本就是那个实体的名字。举个例子：\n\n先召唤一个测试用的盔甲架\n/summon minecraft:armor_stand ~ ~ ~ {CustomName:'{\"text\":\"123\",\"color\":\"red\"}',CustomNameVisible:1,Tags:[\"nbttest\"]}复制代码然后用以下命令tellraw盔甲架的名字    注：此处一定要有\"interpret\":\"true\"，不然tellraw不会解析JSON的内容而视为文本进行输出\n/tellraw @p {\"nbt\": \"CustomName\", \"entity\":\"@e[tag=nbttest,limit=1]\",\"interpret\":\"true\"}复制代码\n\n然后修改一下盔甲架的名字\n/data merge entity @e[tag=nbttest,limit=1] {CustomName:'{\"text\":\"456\",\"color\":\"green\"}'}复制代码用第二个命令再次进行tellraw\n\n\n理论上是可以用这个方法来实现彩色俄罗斯方块的，但是本人没有想出处理速度较快的方法。\n（测试时几乎以肉眼可辨的速度输出的每一行，完全不能接受）\n\n\n\n\n调试时的一些实用命令：\n\n加载：load/function tetris:load复制代码加载各种变量并显示界面卸载：unload/function tetris:unload复制代码卸载掉所有本数据包使用的变量，清除本数据包添加的实体标记重载：reload/function tetris:reload复制代码重载（先卸载，再加载）清屏：clrall/function tetris:clrall复制代码清空所有ln的数据，即清除所有记录的已落地方块左移块：movl/function tetris:movl复制代码使当前操作的方块左移一格（会进行碰撞判断），与界面按钮操作效果相同右移块：movr/function tetris:movr复制代码使当前操作的方块右移一格（会进行碰撞判断），与界面按钮操作效果相同下移块：movd/function tetris:movd复制代码使当前操作的方块下移一格（会进行碰撞判断）旋转块：rot/function tetris:rot复制代码顺时针旋转当前操作的方块（会进行碰撞判断），与界面按钮操作效果相同显示：print/function tetris:print复制代码“渲染”画面并tellraw输出 修改块类型\n（值为1~7）/scoreboard players set @p t 值复制代码修改下落中的方块的类型 修改行储存数据\n（ln有ln1~20，值的范围由游戏区域宽带决定）/scoreboard players set @p ln1 值复制代码直接修改某一行储存的已落地方块的数据（若修改的值不在穷举范围内，该行原地爆炸）结束游戏：gg/function tetris:gg复制代码直接结束游戏更改游戏状态\n（值为0/1）/scoreboard players set @p g 值复制代码用于暂停timer，实现咋瓦鲁多与时间开始流动（雾）\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "00ll00",
+            "timestamp": 1560596280,
+            "txt_content": "才发现B站视频引用到论坛了看不到简介，，，\n这里补充一下视频中提到的帖子：http://www.mcbbs.net/thread-825458-1-1.html\n我也不知道为什么要@SPGoding，但就是忍不住 \n\n感谢大佬们的捧场\n"
+        },
+        {
+            "author": "Renhr",
+            "timestamp": 1560649800,
+            "txt_content": "羡慕命令方块大佬"
+        },
+        {
+            "author": "Renhr",
+            "timestamp": 1560649860,
+            "txt_content": "厉害qwq羡慕"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1560653700,
+            "txt_content": "感觉又有一个cb新星要出来了\n穷举一点也不丢人"
+        },
+        {
+            "author": "老油人",
+            "timestamp": 1560696960,
+            "txt_content": "大佬np......"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1560748260,
+            "txt_content": "很不错的一个数据包！\n穷举大法好"
+        },
+        {
+            "author": "kingle",
+            "timestamp": 1560748440,
+            "txt_content": "感谢你的分享谢谢"
+        },
+        {
+            "author": "梅露露Cieum",
+            "timestamp": 1560780960,
+            "txt_content": "我的妈。。这就是大佬吗"
+        },
+        {
+            "author": "此名无义",
+            "timestamp": 1560781560,
+            "txt_content": "感谢分享，以后我的地图里一定要采用类似的东西"
+        },
+        {
+            "author": "米莫owo",
+            "timestamp": 1560849840,
+            "txt_content": "3333333333333333333333333333"
+        },
+        {
+            "author": "hawdsf.",
+            "timestamp": 1560868620,
+            "txt_content": "厉害想学怎么学qwq"
+        },
+        {
+            "author": "00ll00",
+            "timestamp": 1560875400,
+            "txt_content": "hawdsf. 发表于 2019-6-18 22:37\n厉害想学怎么学qwq\n是准备学命令吗\n\n那就啃wiki，看教程\n豁出一头秀发（不是\n\n推荐教程：@pca006132的命令方块教程\n推荐群聊：cbl新手交流群 861334080"
+        },
+        {
+            "author": "小矿工ing",
+            "timestamp": 1560901860,
+            "txt_content": "大佬接受我正义的围观"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1560902220,
+            "txt_content": "乙烯：不穷举你怎么变强\n（大佬太强了）"
+        },
+        {
+            "author": "RiceC",
+            "timestamp": 1560963300,
+            "txt_content": "强啊，跪着看完的"
+        },
+        {
+            "author": "燕子666",
+            "timestamp": 1561036020,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "成交额多人",
+            "timestamp": 1561086660,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "LEOdada",
+            "timestamp": 1561123560,
+            "txt_content": "好厉害呀，要是有直接用方块操作的就好了"
+        },
+        {
+            "author": "8755656",
+            "timestamp": 1561171860,
+            "txt_content": "\n666日常水评论233"
+        },
+        {
+            "author": "DE_SHARK",
+            "timestamp": 1561213740,
+            "txt_content": "第一次看见这种玩意儿"
+        },
+        {
+            "author": "q3076734184",
+            "timestamp": 1561235100,
+            "txt_content": "例害，大佬吸痰，大佬喝酒????"
+        },
+        {
+            "author": "羽在墨海中",
+            "timestamp": 1561249320,
+            "txt_content": "666简直了666"
+        },
+        {
+            "author": "contionability",
+            "timestamp": 1565057340,
+            "txt_content": "@00ll00\n\n我想说\nLog文件会炸啊，小心日志文件有几GB\n好像也没什么问题\n按理说方块型的俄罗斯方块也大有人在，但是这个聊天栏tellraw的我还是第一次见\n"
+        },
+        {
+            "author": "zjqing",
+            "timestamp": 1566899400,
+            "txt_content": "没颜色，差评"
+        },
+        {
+            "author": "金色的柠檬",
+            "timestamp": 1578918960,
+            "txt_content": "我感觉这个好"
+        },
+        {
+            "author": "1163297829",
+            "timestamp": 1579000200,
+            "txt_content": "实用6666666666"
+        },
+        {
+            "author": "ALONE[][",
+            "timestamp": 1579565760,
+            "txt_content": "神乎其技！6的飞起！"
+        }
+    ]
+}

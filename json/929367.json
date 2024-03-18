@@ -1,0 +1,69 @@
+{
+    "title": "关于entitydata实现移动",
+    "author": "wocaocaocaocao",
+    "replyCount": 12,
+    "timestamp": 1575042300,
+    "txt_content": " 本帖最后由 wocaocaocaocao 于 2019-11-29 23:46 编辑 \n\n本人在尝试着 利用entitydata指令 来设计指定实体在水中追踪玩家的移动，\n然后向输入了以下命令：\n/execute @a ~ ~ ~ entitydata @e[tag=a,x=~-20,y=~1,z=~-20,dx=40,dy=20,dz=40] {Motion:0.0d,-0.2d,0.0d}\n以上指令用来 令实体可以向下潜水 以达到玩家所在高度。\n以此类推，我又用来编辑了其他命令。\n/execute @a ~ ~ ~ entitydata @e[tag=a,x=~,y=~-20,z=~-20,dx=20,dy=20,dz=40] {Motion:-0.2d,0.0d,0.0d}\n/execute @a ~ ~~ entitydata @e[tag=a,x=~-20,y=~-20,z=~-20,dx=20,dy=20,dz=40] {Motion:0.2d,0.0d,0.0d}\n/execute @a ~ ~ ~ entitydata @e[tag=a,x=~-20,y=~-20,z=~,dx=40,dy=20,dz=20] {Motion:0.0d,0.0d,-0.2d}\n/execute @a ~ ~ ~ entitydata @e[tag=a,x=~-20,y=~-20,z=~-20,dx=40,dy=20,dz=20] {Motion:0.0d,0.0d,0.2d}\n\n然而启动之后，对应实体只往一个方向移动。\n想了想应该是 {红字部分} 造成的,把实体本来正常的移动给清零了，最后只剩下 {蓝字部分} 生效。\n\n可是我纳闷了——\n如何单独修改Motion中的其中1个数值？\n比如只修改Z方向上的数值，只修改Y方向上的数值，而不对其他方向的数值造成影响。\n(或者如果做不到的话，有没有其他办法能达到同样的效果{绿字部分}？)\n\n（版本1.12.2）\n\n\n",
+    "replies": [
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1575042720,
+            "txt_content": "用tp不要用Motion"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575045900,
+            "txt_content": "爱心魔王FHC 发表于 2019-11-29 23:52\n用tp不要用Motion\ntp...可tp无视方块阻挡，我先前也有用过这个方法，还得设几十个Tag来判定周围方块，卡的一笔"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1575048480,
+            "txt_content": "wocaocaocaocao 发表于 2019-11-30 00:45\ntp...可tp无视方块阻挡，我先前也有用过这个方法，还得设几十个Tag来判定周围方块，卡的一笔 ...\n那就，召唤一个隐形的守卫者（设置和玩家一个队伍，关闭友伤），tp你要的实体到守卫者那边"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575074220,
+            "txt_content": " 本帖最后由 wocaocaocaocao 于 2019-11-30 08:39 编辑 \n爱心魔王FHC 发表于 2019-11-30 01:28\n那就，召唤一个隐形的守卫者（设置和玩家一个队伍，关闭友伤），tp你要的实体到守卫者那边 ...\n能保证守卫者不会攻击鱿鱼吗，攻击的时候激光还是会暴露的，还是说让守卫者与全体鱿鱼设置同一队伍？\n而且好像守卫者本身的行为也不属于那种容易靠近玩家（类似苦力怕）的近战行为"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575093660,
+            "txt_content": " 本帖最后由 skyliye 于 2019-12-1 12:36 编辑 \n爱心魔王FHC 发表于 2019-11-29 23:52\n用tp不要用Motion\n我大概摸出方法了，需要分别判定26类相对位置，且单坐标优先级高于双坐标，双坐标高于三坐标。\n另外，就特定实体是否在水中也需要判定。\n\n/scoreboard players tag @e remove onwater\n/execute @a ~ ~ ~ execute @e[x=~,y=~,z=~,r=32] ~ ~ ~ detect ~ ~ ~ minecraft:water * scoreboard players tag @s add onwater\n/execute @a ~ ~ ~ execute @e[x=~,y=~,z=~,r=32] ~ ~ ~ detect ~ ~1 ~ minecraft:water * scoreboard players tag @s add onwater\n\n/scoreboard players tag @e[tag=a] remove behave_approach\n/execute @e[tag=a] ~ ~ ~ scoreboard players tag @s[tag=onwater] add behave_approach\n\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,-0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=-20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,-0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=-20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=20,-dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,-0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=-20,-dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=20,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,-0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=-20,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,-0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=-20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,-0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=-20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,-0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=-20,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,0.3d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=20,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,-0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=-20,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,0.3d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=0,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.0d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=0,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.0d,0.3d]}\n（以下连锁方块省略）\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=0,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.0d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=0,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.0d,0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=20,dy=0,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[-0.3d,0.0d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=-20,dy=0,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.3d,0.0d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,-0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=-20,dz=0] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,0.3d,0.0d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=0,dz=20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,0.0d,-0.3d]}\n/execute @a ~ ~ ~ execute @e[tag=a,x=~,y=~,z=~,dx=0,dy=0,dz=-20] ~ ~ ~ entitydata @s[tag=behave_approach] {Motion:[0.0d,0.0d,0.3d]}"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1575095040,
+            "txt_content": "我建议用1.14，不仅可以修改实体特定方向的motion而且可以直接根据和玩家位置来让实体移动"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1575100680,
+            "txt_content": " 本帖最后由 chyx 于 2019-11-30 16:37 编辑 \n\n\n\n用1.14就没这么多烦恼了\n\n"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575106260,
+            "txt_content": "ruhuasiyu 发表于 2019-11-30 14:24\n我建议用1.14，不仅可以修改实体特定方向的motion而且可以直接根据和玩家位置来让实体移动 ...\nemmmmm如果配置允许的话当然会用1.14啦（ORZ），那个就是以后的事情了"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575106800,
+            "txt_content": " 本帖最后由 wocaocaocaocao 于 2019-11-30 18:13 编辑 \nchyx 发表于 2019-11-30 15:58\n用1.14就没这么多烦恼了\n硬件配置跟不上最多只能勉强玩得起1.12，然后就开始动工新地图了\n到时候如果要换版本估计比较难整"
+        },
+        {
+            "author": "wocaocaocaocao",
+            "timestamp": 1575108900,
+            "txt_content": "ruhuasiyu 发表于 2019-11-30 14:24\n我建议用1.14，不仅可以修改实体特定方向的motion而且可以直接根据和玩家位置来让实体移动 ...\n啊对了。。。我在6L已经自己摸出一个办法出来了，那这个帖怎么处理"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1575110520,
+            "txt_content": "wocaocaocaocao 发表于 2019-11-30 18:15\n啊对了。。。我在6L已经自己摸出一个办法出来了，那这个帖怎么处理 ...\n去申请关闭 https://www.mcbbs.net/thread-256348-1-1.html"
+        },
+        {
+            "author": "孤独の狼",
+            "timestamp": 1575112080,
+            "txt_content": "TP会好实现点"
+        }
+    ]
+}

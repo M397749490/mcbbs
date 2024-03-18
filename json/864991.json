@@ -1,0 +1,44 @@
+{
+    "title": "forge画线问题",
+    "author": "CCxia",
+    "replyCount": 7,
+    "timestamp": 1557637920,
+    "txt_content": "forge1.12.2，看到一些mod里有对某个区域画特定颜色的直线或者圆圈，想知道这种在mc里进行线条绘图是用什么方法实现的？",
+    "replies": [
+        {
+            "author": "roj234",
+            "timestamp": 1557638760,
+            "txt_content": " 本帖最后由 roj234 于 2019-5-12 13:32 编辑 \n\nTESR(net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer)或GUIRENDER(RenderGameOverlayEvent.Pre)\n反正最后都是直接操作GLPIPE(GL11.xxxxx)\nTESR:\n泛型抽象类需要实现render方法\npublic void render(TE tile, double relativeX,\n        double relativeY, double relativeZ, float partialTicks,\n        int blockDamageProgress, float alpha)复制代码\n然后再ClientRegistry绑定\n    private <T extends TileEntity> void registerTESR(Class<T> TEClazz, TileEntitySpecialRenderer<? super T> tesr){\n        ClientRegistry.bindTileEntitySpecialRenderer(TEClazz, tesr);\n    }复制代码\n\nRenderGUIEvent:    @SideOnly(Side.CLIENT)\n    @SubscribeEvent(receiveCanceled = true)\n    public void onEvent(RenderGameOverlayEvent.Pre event) {\n        EntityPlayerSP entityPlayerSP = Minecraft.getMinecraft().player;\n\n        if (entityPlayerSP == null) {\n            return;\n        }\n\n        ItemStack foundStack = null;\n        final int FIRST_HOTBAR_SLOT = 0;\n        final int LAST_HOTBAR_SLOT_PLUS_ONE = FIRST_HOTBAR_SLOT +\n            entityPlayerSP.inventory.getHotbarSize();//快捷栏\n\n        for (int i = FIRST_HOTBAR_SLOT; i < LAST_HOTBAR_SLOT_PLUS_ONE; ++i) {\n            ItemStack slotItemStack = entityPlayerSP.inventory.getStackInSlot(i);\n\n            if (slotItemStack.getItem() == 某个物品) {\n                foundStack = slotItemStack;\n\n                break;\n            }\n        }\n\n        if (foundStack == null) {\n            return;\n        }\n\n        switch (event.getType()) {\n        case HEALTH: //生命\n            某个函数(\n                event.getResolution().getScaledWidth(),\n                event.getResolution().getScaledHeight()); //参数：宽度，高度\n            event.setCanceled(true);\n\n            break;\n\n        case ARMOR: //盔甲值\n            break;\n\n        default:\n            break;\n        }\n    }\n\n"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1557646560,
+            "txt_content": "Gui.drawRect()；"
+        },
+        {
+            "author": "CCxia",
+            "timestamp": 1557654960,
+            "txt_content": "roj234 发表于 2019-5-12 13:26\nTESR(net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer)或GUIRENDER(RenderGameOverla ...\n谢谢大佬帮助，我看了下好像是先创建一个BufferBuilder对象，然后里面设置begin方法，我想知道里面传入的glMode和vertexformat都是什么意思啊？"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557655020,
+            "txt_content": " 本帖最后由 roj234 于 2019-5-12 18:18 编辑 \nCCxia 发表于 2019-5-12 17:56\n谢谢大佬帮助，我看了下好像是先创建一个BufferBuilder对象，然后里面设置begin方法，我想知道里面传入的 ...\n首先：不是创建，是从镶嵌器里面获取本帧的缓冲\nbegin的两个参数第一个是GL的绘画模式(三角形四边形等)\n第二个是每个顶点要用到的参数（要求顺序）（可以不用满）\n举例\n可以只按顺序给前面的参数然后用endVertex结束\n    public static final VertexFormat vex = new VertexFormat();\n    static {\n        vex.addElement(new VertexFormatElement(0, VertexFormatElement.EnumType.BYTE, VertexFormatElement.EnumUsage.NORMAL, 3));\n        vex.addElement(new VertexFormatElement(0, VertexFormatElement.EnumType.FLOAT, VertexFormatElement.EnumUsage.POSITION, 3));\n        vex.addElement(new VertexFormatElement(0, VertexFormatElement.EnumType.UBYTE, VertexFormatElement.EnumUsage.COLOR, 4));\n        vex.addElement(new VertexFormatElement(0, VertexFormatElement.EnumType.FLOAT, VertexFormatElement.EnumUsage.UV, 2));\n    }复制代码\n\n这里设定了四个参数\nbyte型的Normal\nFLOAT的位置等等\n可以这样用:\nbuffer.normal(faceNormal.x, faceNormal.y, faceNormal.z).pos(vertices<i>.x, vertices<i>.y, vertices<i>.z).color(0xFF, 0xFF, 0xFF, 0xFF).tex(texturePoss<i>.u + offsetU, texturePoss<i>.v + offsetV).endVertex();</i></i></i></i></i>复制代码\nPS tex就是UV\n\n等缓冲写完了就用\ndraw()方法\nPS forge有个FASTTESR\n\n\n我感觉你就是看完了也不懂。。。\n听不懂也没事，Normal、UV、Pos等参数是要用软件计算的，其实就是建了膜把参数填进去就好了\n\n比如这个：你看得懂吗？我也看不懂\n按照标准配置参数塞进去就可以了\n# Blender v2.69 (sub 0) OBJ File: 'transmitter_small.blend'\n# <a href=\"http://www.blender.org\" target=\"_blank\">www.blender.org</a>\ng downNONE\nv -0.187500 -0.187500 0.187500\nv 0.187500 -0.187500 0.187500\nv -0.187500 -0.187500 -0.187500\nv 0.187500 -0.187500 -0.187500\nvt 1.000000 0.000000\nvt 1.000000 1.000000\nvt 0.000000 1.000000\nvt 0.000000 0.000000\nvn 0.000000 -1.000000 0.000000\ns off\nf 1/1/1 3/2/1 4/3/1 2/4/1复制代码\n\n附件：TYPE和USAGE的类型\n enum EnumType{\n    FLOAT(4, \"Float\", 5126),  UBYTE(1, \"Unsigned Byte\", 5121),  BYTE(1, \"Byte\", 5120),  USHORT(2, \"Unsigned Short\", 5123),  SHORT(2, \"Short\", 5122),  UINT(4, \"Unsigned Int\", 5125),  INT(4, \"Int\", 5124);\n  }\n\n  enum EnumUsage{\n    POSITION(\"Position\"),  NORMAL(\"Normal\"),  COLOR(\"Vertex Color\"),  UV(\"UV\"),  MATRIX(\"Bone Matrix\"),  BLEND_WEIGHT(\"Blend Weight\"),  PADDING(\"Padding\"),  GENERIC(\"Generic\");\n  }复制代码\nPS就是画点连到一起\n\n\n\n\n然后是关键部分：如果你只是画线完全也要这么麻烦因为TESR是用来给方块特殊效果的比如附魔台或者在上面显示物品\n不过 DefaultVertexFormats里有现成的第二个参数\n首先\nGL11.glPushMatrix();\n然后位置平移到方块中间（之前是边上）\nPS relative是参数里的\nGlStateManager.translate(relativeX + 0.5,\n                relativeY + 0.5, relativeZ + 0.5);\n\n可以旋转\nGlStateManager.rotate((float) angularPositionInDegrees, 0, 1, 0);\n\n该模式\nGL11.glDisable(GL11.GL_BLEND);\n\n改颜色\nGlStateManager.color(red, green, blue); // float参数\n\n缩放\nGlStateManager.scale(SCALE_FACTOR, SCALE_FACTOR, SCALE_FACTOR);\n\n\n最后弄好了绑定材质\nthis.bindTexture(ResourceLocation resloc);\n            Tessellator tessellator = Tessellator.getInstance();\n            BufferBuilder bufferBuilder = tessellator.getBuffer();\n\n\nbufferBuilder.begin(GL11.GL_**S, //三角形，这里是画水晶就是6个三角形\n                DefaultVertexFormats.POSITION_TEX);//默认中的位置+UV\n\n然后\nGL11.glPopMatrix();\n"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557656460,
+            "txt_content": "CCxia 发表于 2019-5-12 17:56\n谢谢大佬帮助，我看了下好像是先创建一个BufferBuilder对象，然后里面设置begin方法，我想知道里面传入的 ...\n如果真的只画线可以给一些建议：\n1 GUIRENDER可以在玩家GUI上划线\n2 如果你说的是职务魔法的盖亚的那个圈可以用粒子效果\n3 如果是在GUI里不如弄一张图片而不是别的什么\n而且问题不清晰\n是眼前一条线（生命值）、空中一条线（一个方块或者IE线缆）、还是GUI上的（物品栏里的物品）"
+        },
+        {
+            "author": "CCxia",
+            "timestamp": 1557660780,
+            "txt_content": "roj234 发表于 2019-5-12 18:21\n如果真的只画线可以给一些建议：\n1 GUIRENDER可以在玩家GUI上划线\n2 如果你说的是职务魔法的盖亚的那个圈 ...\n太感谢了，麻烦大佬写那么多了，我好好再看看。画直线我是想实现在世界中画线，就像结构方块储存模式那个显示区域范围的线框。"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557668520,
+            "txt_content": " 本帖最后由 roj234 于 2019-5-12 21:54 编辑 \nCCxia 发表于 2019-5-12 19:33\n太感谢了，麻烦大佬写那么多了，我好好再看看。画直线我是想实现在世界中画线，就像结构方块储存模式那个 ...\n你这个需求用TESR就好了\n代码： 复制代码代码\n参数复制代码GlStateManager.glLineWidth(浮点 宽度);\n    buffer.begin(3, DefaultVertexFormats.POSITION_COLOR);\n\n    buffer.pos(逗逼 xyz位置).color(整数rgb,浮点 不透明度).endVertex();\n代码\n    md这里的字为什么就显示不了复制代码完整代码\n    public void render(TileEnergyTube energyTube, double relativeX,\n        double relativeY, double relativeZ, float partialTicks,\n        int blockDamageProgress, float alpha) {\n            Tessellator tessellator = Tessellator.getInstance();\n    BufferBuilder buffer = tessellator.getBuffer();\n\n    GlStateManager.disableFog();\n\n    GlStateManager.disableLighting();\n    GlStateManager.disableTexture2D();\n    GlStateManager.enableBlend();\n    GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);\n\n    setLightmapDisabled(true);\n\n    GlStateManager.glLineWidth(2.0F);\n    buffer.begin(3, DefaultVertexFormats.POSITION_COLOR);\n\n    buffer.pos(double x,y,z).color(int r,g,b,float 0.0F).endVertex();\n\n    tessellator.draw();\n\n    setLightmapDisabled(false);\n\n    GlStateManager.glLineWidth(1.0F);\n    GlStateManager.enableLighting();\n    GlStateManager.enableTexture2D();\n    GlStateManager.enableDepth();\n\n    GlStateManager.depthMask(true);\n\n    GlStateManager.enableFog();\n    }复制代码\n\n\n\n\n"
+        }
+    ]
+}

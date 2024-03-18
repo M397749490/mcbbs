@@ -1,0 +1,34 @@
+{
+    "title": "MC1.9：自定义延迟的CB脉冲",
+    "author": "PotatoMaster101",
+    "replyCount": 5,
+    "timestamp": 1459069440,
+    "txt_content": " 本帖最后由 PotatoMaster101 于 2016-3-28 10:32 编辑 \n\n大家好。今天来讲解一下一种可以自定义延迟CB脉冲的方法。大家知道，1.9的RCB（Repeating Command Block）开启后会以20Hz的速度激活。在一些电路中这个速度可能会太快，所以需要一些又不用中继器而又可以自定义延迟的CB脉冲。这个设计的核心电路来自lorgon111的这个u2b视频。\n\n首先这种设计的原理是使用1.9最新的AEC实体。有些人可能会问什么是AEC，AEC就是1.9中lingering药水扔出去后在地面产生的一个药水覆盖区域。它时间一到后会自己删除自己，所以不需要任何清空系统。AEC含有一个{Age}，它会以每tick +1的速度上升，所以这个机器的核心就是使用{Age}来记时。这个系统不需要任何积分板变量，只需要积分板的tag即可完成。\n\n首先我们需要做准备工作，完成脉冲需要激活的系统。这里本人直接使用/say 1这条指令。将/say 1输入到一个普通CB中，然后在其后面放一个Chain Command Block，如下图：\n\n\n注意，后面的Chain CB要被调成Always Active，这样子它就可以无需红石而自己激活。之后这个CCB内的指令是在它后面的CB位置内刷出一个AEC。这个很简单，指令格式是：\n/summon AreaEffectCloud <x> <y> <z> \n{CustomName:\"Delay\",Tags:[\"DelayStart\"],Age:-3}复制代码这里的xyz大家自己填写，比如如果这个CCB在往它后面的ICB的x+1的地方，那么坐标就是 ~-1 ~ ~ 。由于本人不知大家再往什么方位建造，所以无法完善指令中xyz坐标。效果是每次激活这个机器，第一个CB就会执行“/say 1”，然后第二个CCB就会在第一个CB的位置刷出一个AEC。这个AEC就是那个CB的定时器。大家看见本人这里的Age写的是-3，但是大家可以写任何一个数字都没关系。数字越小（比如-100）延迟的时间就越长。效果图如下：\n\n\n大家看见第一个CB成功执行了/say 1，然后后面的CCB成功的在第一个CB那里刷出了一个AEC（因为有黑色颗粒效果）。\n\n在刷出AEC的指令中还有{Tags}这一项，这个是来将刷出的AEC自动加入到名叫“DelayStart”的这个积分板tag中。由于积分板的tag系统不需要像objective那样一开始就要定义，所以这个{Tags}不需要任何积分板的准备工作。\n\n之后我们要做的就是，每次这个AEC的{Age}变成-1的时候，我们就要重新并且自动的激活一下第一个CB，之后第一个CB又会输出1，然后第二个CB又会刷出一个AEC，然后无限循环下去。所以我们需要另外一个系统来完成这个效果。首先我们需要一个Repeating CB，里面输入以下指令：\n/scoreboard players tag @e[tag=DelayStart,type=AreaEffectCloud,name=Delay] add DelayDone \n{Age:-1}复制代码这条指令的意思是，将所有Age是-1，并且名字叫“Delay”而且在“DelayStart”这个tag内的AEC，加入到一个叫“DelayDone”的积分板tag中。由于刚才刷出AEC指令中的项目都符合以上选择器的项目，所以这条指令就会不停地探测刚才刷出的AEC，然后它的Age一到-1就会给它加上“DelayDone”这个tag。之后才是真正的循环系统。在Repeat CB后面再放2个Chain CB，如下图：\n\n\n之后在中间的那个CCB中输入：\n/execute @e[tag=DelayDone,type=AreaEffectCloud,name=Delay] ~ ~ ~ /blockdata ~ ~ ~ \n{auto:1b}复制代码这条指令的意思就是将刚才已经添加到“DelayDone”的AEC实体的所在位置的CB调成{auto:1b}。这个意思是CB自己自动激活。然后在最后一个CCB中输入：\n/execute @e[tag=DelayDone,type=AreaEffectCloud,name=Delay] ~ ~ ~ /blockdata ~ ~ ~ \n{auto:0b}复制代码这条指令和刚才一样，只不过是重新把那个CB调成了{auto:0b}，也就是不会自动激活。所以最终效果是，只要脉冲的那个CB中一有AEC，他就会自动激活一次然后又关闭自己。但是它后面的CCB会又刷出这个AEC实体。到最就成了一个自定义延迟的脉冲。所以现在只要开启这个RCB就可以了，然后给脉冲的CB输入很短一tick的红石信号，如下图：\n\n\n这样子这个自定义脉冲就完成了。之后如果大家要改变速度的话，就直接调节刷出AEC的那条指令中的{Age}。调成越小延迟就越大。有些玩家会问有什么要给开始的CB一个很短的的输入，而不能直接按按钮。这是因为如果脉冲速度很快的话，直接按按钮会导致那个CB强行卡在激活状态，从而导致那个CB失效。所以我们必须要给它一个很短tick的红石输入。之后要关闭这个脉冲的话直接停止激活那个RCB就行了。当然不光只是只能激活一个CB，可以同时激活好几个，比如这里本人同时激活了5个CB，执行从/say 1到/say 5：\n要同时多个CB的话，只需要把刷出AEC的CCB放在最后面就可以了。然后把坐标改成第一个CB就行。\n\n============END=============\nSpecial thanks to lorgon111\n",
+    "replies": [
+        {
+            "author": "矿工鼹鼠",
+            "timestamp": 1459071360,
+            "txt_content": "虽然我看不懂，但是觉得很厉害（壮哉我大CB）！"
+        },
+        {
+            "author": "我chao爱MC",
+            "timestamp": 1459073640,
+            "txt_content": "太赞了！没想到药水云实体有这用处"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1459132140,
+            "txt_content": "我都是clonemove红石块的"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1459137780,
+            "txt_content": "终于不用计分板多成山了，现在就回去该指令\n\nAEC不放一个RCB进行更新Age感觉不靠谱，错觉吧"
+        },
+        {
+            "author": "zzzzzzzabczz",
+            "timestamp": 1459142220,
+            "txt_content": "看完之后我觉得我应该继续用红石中继器"
+        }
+    ]
+}

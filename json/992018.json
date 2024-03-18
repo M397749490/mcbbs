@@ -1,0 +1,94 @@
+{
+    "title": "判断粒子特效是否触碰到生物问题",
+    "author": "east丶东",
+    "replyCount": 17,
+    "timestamp": 1584701700,
+    "txt_content": "假如前面有一个生物，释放的粒子特效如何判断是否与生物坐标重叠\n",
+    "replies": [
+        {
+            "author": "William_Shi",
+            "timestamp": 1584703020,
+            "txt_content": "粒子没办法直接判断其是否与实体接触\n你只能通过已有的粒子坐标再计算距离"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584705540,
+            "txt_content": "William_Shi 发表于 2020-3-20 19:17\n粒子没办法直接判断其是否与实体接触\n你只能通过已有的粒子坐标再计算距离\n ...\n哦，那有没有办法获取周围生物的坐标呢？"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584711000,
+            "txt_content": "east丶东 发表于 2020-3-20 19:59\n哦，那有没有办法获取周围生物的坐标呢？\nworld.getNearbyEntities\n可自行查看API\nhttps://bukkit.windit.net/javadoc/org/bukkit/World.html"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584754200,
+            "txt_content": "William_Shi 发表于 2020-3-20 21:30\nworld.getNearbyEntities\n可自行查看API\nhttps://bukkit.windit.net/javadoc/org/bukkit/World.html ...\n行，谢谢"
+        },
+        {
+            "author": "602723113",
+            "timestamp": 1584760080,
+            "txt_content": "你可以试试1.13.2以上的BukkitAPI所提供的BoundingBox的API，这个类也就是我们速成的碰撞箱，我们来看看下面链接\nhttps://hub.spigotmc.org/javadoc ... il/BoundingBox.html\n\nAPI commit记录：https://hub.spigotmc.org/stash/p ... il/BoundingBox.java\n\n\n通过上面的两个链接我们可以发现，BoundingBox可以有下面的方法来判断一个x, y, z是否存在于这个BoundingBox当中\nhttps://hub.spigotmc.org/javadoc ... uble-double-double-\n\n而获取实体的BoundingBox可以通过，Entity#getBoundingBox 方法获得\nhttps://hub.spigotmc.org/javadoc ... ml#getBoundingBox--\n\n所以具体思路就是，配合 World#getNearbyEntities 方法，来获取实体，遍历实体，获取BoundingBox，并且每次在你要spawnParticle时进行BoundingBox.contains的判定，如果要伤害实体的话可以使用, damage() 方法\n\n1.13.2以下版本\n那么.....如果不是1.13.2的版本应该怎么做呢？ 答案当然是NMS了，在NMS当中 BoundingBox 被命名为 AxisAlignedBB，并且在 AxisAlignedBB 当中有一个方法，这里我截取出来，\n\npublic boolean a(final double n, final double n2, final double n3, final double n4, final double n5, final double n6) {\n    return this.a < n4 && this.d > n && this.b < n5 && this.e > n2 && this.c < n6 && this.f > n3;\n}\n复制代码\n看不懂上面的代码？我们把a b c都换一下\n\npublic boolean a(final double n, final double n2, final double n3, final double n4, final double n5, final double n6) {\n    return this.minX < n4 && this.maxX > n && this.minY < n5 && this.maxY > n2 && this. minZ < n6 && this.maxZ > n3;\n}\n复制代码\n其实在这里我们已经不难看出，这里的n n2 n3对应的就是minX Y Z；n4 n5 n6对应的就是maxX Y Z，如果我们令 \nn = n4;\nn2 = n5;\nn3 = n6;\n自然而然的就可以达到跟BoundingBox#contains方法一样的效果\n\n那么我们继续来思考一下为什么AABB这个类的a方法要给我们填6个参数呢？？\n在我看来其实是这样的，因为如果是一个点的话，那么有可能这个点会从碰撞箱中擦过，或者并未碰到碰撞箱\n\n那么这个涉及到一个未来预期的内容，如果我们想让这个判断范围扩大，那么我们就可以自己填入不一样的参数，来扩大判断范围，使其符合我们对其的未来预期"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584780960,
+            "txt_content": "602723113 发表于 2020-3-21 11:08\n你可以试试1.13.2以上的BukkitAPI所提供的BoundingBox的API，这个类也就是我们速成的碰撞箱，我们来看看下 ...\n莫老，请问这个#号指的是啥"
+        },
+        {
+            "author": "602723113",
+            "timestamp": 1584782220,
+            "txt_content": "east丶东 发表于 2020-3-21 16:56\n莫老，请问这个#号指的是啥\n跟  BoundingBox.contains 一样的意思\n但是拿#来写的话，是单指这个方法\n"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584854820,
+            "txt_content": "William_Shi 发表于 2020-3-20 21:30\nworld.getNearbyEntities\n可自行查看API\nhttps://bukkit.windit.net/javadoc/org/bukkit/World.html ...\n\n\n\n\n9HFTLL9ZB]4GI7M2R[SE(G1.png (37.09 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-22 13:27 上传\n\n\n\n\n请问这四个用那个？\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584858180,
+            "txt_content": "east丶东 发表于 2020-3-22 13:27\n请问这四个用那个？\n莫老讲的很详细了啊\n就用适合碰撞箱的啊"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584861540,
+            "txt_content": "William_Shi 发表于 2020-3-22 14:23\n莫老讲的很详细了啊\n就用适合碰撞箱的啊\n\n\n\n\n6]]W%$T{_PR5H)@5CSMUBG6.png (6.32 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-22 15:18 上传\n\n\n\n\n可他一直报错，完全搞不清状况\n\n\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584863580,
+            "txt_content": "east丶东 发表于 2020-3-22 15:19\n可他一直报错，完全搞不清状况\n别放静态方法里面\n无法从静态上下文中引用此方法"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584865800,
+            "txt_content": "William_Shi 发表于 2020-3-22 15:53\n别放静态方法里面\n无法从静态上下文中引用此方法\n\n\n\n\nR~59OFB$_1]3A2C~~JF(7HK.png (23.41 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-22 16:29 上传\n\n\n\n\n从动态里写的，还是报错，是不是我参数不对\n\n\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584867060,
+            "txt_content": "east丶东 发表于 2020-3-22 16:30\n从动态里写的，还是报错，是不是我参数不对\n为什么要new 碰撞箱\n《庄子·秋水》记载濠梁之辩，庄子云请循其本\n你一开始的问题就是假设前面有一个生物，判断其坐标是不是与粒子坐标重叠\n回答是你可以通过getBoundingBox方法获取实体碰撞箱\n然后contains方法来判断粒子的坐标是不是包含在碰撞箱里面\n那么在已知粒子坐标的情况下\n为什么不用粒子坐标去替代掉碰撞箱呢？\n有一个同名方法啊\n"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584879780,
+            "txt_content": "William_Shi 发表于 2020-3-22 16:51\n为什么要new 碰撞箱\n《庄子·秋水》记载濠梁之辩，庄子云请循其本\n你一开始的问题就是假设前面有一个生物 ...\ngetBoundingBox获取的生物坐标\nBoundingBox.contains()获取粒子坐标\n然后if（getBoundingBox==BoundingBox.contains()）\n是这意思吗？"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584880080,
+            "txt_content": "east丶东 发表于 2020-3-22 20:23\ngetBoundingBox获取的生物坐标\nBoundingBox.contains()获取粒子坐标\n然后if（getBoundingBox==BoundingBo ...\ncontains返回的是Boolean，不是BoundingBox"
+        },
+        {
+            "author": "east丶东",
+            "timestamp": 1584880800,
+            "txt_content": "William_Shi 发表于 2020-3-22 20:28\ncontains返回的是Boolean，不是BoundingBox\n我觉得，我没搞懂的地方，可能就是他怎么判断的BoundingBox.contains()"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584882360,
+            "txt_content": " 本帖最后由 William_Shi 于 2020-3-22 21:11 编辑 \neast丶东 发表于 2020-3-22 20:40\n我觉得，我没搞懂的地方，可能就是他怎么判断的BoundingBox.contains()\n之前因为有一个地方中文API翻译出了问题（编者自己加上了错的注解\n我直接贴英语\nA mutable axis aligned bounding box (AABB).\nThis basically represents a rectangular box (specified by minimum and maximum corners) that can for example be used to describe the position and extents of an object (such as an entity, block, or rectangular region) in 3D space. Its edges and faces are parallel to the axes of the cartesian coordinate system.\n\nThe bounding box may be degenerate (one or more sides having the length 0).\n\nBecause bounding boxes are mutable, storing them long term may be dangerous if they get modified later. If you want to keep around a bounding box, it may be wise to call clone() in order to get a copy.\n你可以把碰撞箱简单的理解成一个长方体\n确定了两个顶点就可以确定一个长方体\n这和领地插件选定两个点可以确定一个区域是一样的\n然后长方体内是否包含某一个点就是坐标的计算这里我给一个简单容易理解的例子\n比如说第一个点x=100，第二个点x=300，那么如果某一个点x=200，他的x轴就在长方体区域内\n比如说第一个点y=100，第二个点y=300，那么如果某一个点x=200，他的y轴就在长方体区域内\n比如说第一个点y=100，第二个点z=300，那么如果某一个点x=200，他的z轴就在长方体区域内综合起来，如果x、y、z都在长方体区域内\n那么就可以看作是点在长方体区域内\n【群主】群资本家|群马斯洛|群凯恩斯|群亚当斯密 21:01:25\n建议不要教了\n\n【群主】群资本家|群马斯洛|群凯恩斯|群亚当斯密 21:01:33（擦汗表情）教不会\n莫老已经说了教不会，那我就拿最简单的方法说吧\n你就直接调用莫老告诉你的方法去判断是不是包含\n具体怎么实现没必要理解它\n或许bukkit有很高效的算法\n但是你只需要调用就好了\n\n\n\n"
+        }
+    ]
+}

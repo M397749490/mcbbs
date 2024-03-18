@@ -1,0 +1,504 @@
+{
+    "title": "[安全|管理|修正]MCProtect Rebuild —— 反各种压测,封禁机器码,反后门[全版本]",
+    "author": "coderzeng",
+    "replyCount": 99,
+    "timestamp": 1472739600,
+    "txt_content": " 本帖最后由 1582952890 于 2017-9-16 19:23 编辑 \n[MCProtect Rebuild] \n\n保护服务器？一个插件就够了！\n\n这是一个ALL IN ONE 的插件\n\n强大的[?]功能却有更低的占用\n\n前排感谢\n\n[排名不分先后]\n\nsplt 大大\n这个系列就是在和他的讨论中诞生的23333\n\nandylizi 大大\n从开始开发就一直帮我检查漏洞\n并且给了无数优化建议\n\n各位使用者\n看到下载数很高兴啊[然而一定有人骂我：啥JB插件这么难用]\n\n@splt @andylizi \n\n\n关于说有报毒的同学...\n请参考以下在线检测报告\nhttp://r.virscan.org/report/0f2377c7049a3a97e5b3000d634f9b8f\n\n更新:独立反压侧看这里\nhttp://www.mcbbs.net/thread-654167-1-1.html\n兼容所有核心\n\n一些废话\n\n一转眼又更新了这么多版本了\n然而并没有收到啥反馈啊...\n到底大家觉得好不好用说一声啊\n我内心好慌啊\n\n\n简介&详细原理\n \nMCPRB和其他的反压测插件有什么不同？\n\n其他插件：客户端发送数据包->服务端接收->插件过滤\nMCPRB：客户端发送数据包->MCPRB过滤->服务端接收\n\n更加直观的说，如果被MCPRB拦截，不会出现提示，只会...\n\n\n\n\n\n2016-09-01_185711.png (7.4 KB, 下载次数: 23)\n\n下载附件\n\n2016-9-1 22:19 上传\n\n\n\n\n\n\nMCProtect对资源占用是同类工具中最低的，没有之一\n\n其他的插件使用MC内置的Event或者PL监听\n但是这里有个很严重的问题：\n当服务器向插件抛出这个消息的时候，实际上已经进行了许多工作\n(比如验证用户，读取握手包，创建配置等等)\n虽然此时中断了后续操作(也就是踢出用户)，但是为时已晚\n\nMCP要求使用javaagent进行挂载，这意味着在服务器启动前就已经加载了插件\n所以就可以监视服务器每个类的加载并且进行修改\n是不是听着很耳熟？没错和我们常用的Forge是一个原理\nMCP和Forge相同，通过修改类，插入自身的代码，在事件发生之前就可以捕获，并且取消\n这就是为什么MCP可以对TAB穿透进行防御，其他的同类插件不可以\n\n其他的插件被攻击时后台会显示类似\n[22:08:21 INFO]: com.mojang.authlib.GameProfile@db5e086[id=ecce068f-4a5e-332f-a70f-6a9ad59cdc52,name=God218965812,properties={},legacy=false] (/127.0.0.1:24655) lost connection:提示消息\n这就意味着其实服务器握手环节已经完成\n而MCP修改了服务器核心的代码，使服务器在真正接受链接前就进行判断\n如果判断为攻击，就将这个链接进行闲置\n[关闭了反而攻击器会尝试再次连接，闲置的话攻击器会陷入无限等待]\n也就是说，服务器压根没接受链接请求！\n\n\n\n使用方法 - 概述\n\nMCProtect Rebuild 一共分为三部分\n服务端内核补丁-MCPRBAPI.jar\n- 用来提供攻击过滤，后门过滤功能\n\n服务端插件-MCPRBPlugin.jar\n- 用来提供设置及搭配Mod提供封禁机器码的功能\n\n客户端Mod-MCPRBClientMod.jar\n- 用来搭配插件封禁机器码的功能\n\n其中内核补丁可以独立于其他部分使用\n\n插件既可以给内核补丁提供自定义设置功能\n也可以搭配Mod封禁机器码\n也可以同时提供这两个功能\n但是只安装插件什么用都没有\n\n客户端Mod仅用于搭配插件提供封禁机器码的功能\n\n\n使用方法 - 内核补丁部分\n\n把下载下来的MCPRBAPI.jar和mc核心放到一起，之后在命令行添加\n-javaagent:MCPRBAPI.jar复制代码\n完成后看起来应该是这样的：\n\njava -javaagent:MCPRBAPI.jar -jar sever-core.jar复制代码\n现在就可以开服了，只不过一切都是默认滴\n\n如果需要进行配置，请下载插件并将它放到plugins目录\n\n\n使用方法 - 插件部分\n\n\n命令：\n/MCPRB Ban [玩家名] 封禁一名玩家\n复制代码\n权限\nMCPRB 所有命令只能由OP或者后台执行\n复制代码\n配置文件\n\n# MCProtect Rebuild 配置文件\n\n#=====================================\n#以下为MCPRB API功能选项\nConnectInterval: 30000\n#每两次连接到服务器之间的间隔[毫秒]，如果设置了下面的选项可以设置的比较大，默认30秒\nConnectAllowedRetriesTime: 10\n#前N次的链接将不进行计时，默认10次，设为小于等于0的值禁用改选项\n#注意，正常情况下MC将通过几次链接获得服务器信息，具体数字取决于不同客户端\nTabInterval: 1000\n#每两次Tab补全之间的间隔[毫秒]，默认为1秒\nEnableOPFliter: true\n#是否启用插件设置OP过滤\n#此功能可以预防部分后门插件进行非法OP设置\n#但是与部分插件的【以OP身份执行命令】功能冲突\nCommandRegexRules:\n- ^/?op\\b.*\n- ^/?deop\\b.*\n- ^/?give\\b.*\n- ^/?reload$\n- ^/?restart$\n- ^/?ban$\n- ^/?banip$\n- ^/?stop$\n#插件调用命令过滤规则\n#此功能预防恶意插件以玩家/控制台身份调用命令\n#使用Java正则过滤,命令会转换为小写\n\n\n#=====================================\nTimeout: 10000\n#在玩家登陆多久后没有收到机器码则踢出玩家，默认10秒，请根据服务器状况与客户端状况进行调整\n#设为0禁用机器码验证\nMessaagePass: \"[MCProtect Rebuild]\\u6210\\u529f\\u901a\\u8fc7\\u673a\\u5668\\u7801\\u6821\\\n  \\u9a8c\"\n#玩家通过验证时发送的消息\nMessaageBAN: \"[MCProtect Rebuild]\\u5bf9\\u4e0d\\u8d77\\uff0c\\u8be5\\u673a\\u5668\\u7801\\u5df2\\\n  \\u88ab\\u5c01\\u7981\"\n#玩家被Ban时发出的消息\nMessaageTimeout: \"[MCProtect Rebuild]\\u5bf9\\u4e0d\\u8d77\\uff0c\\u54cd\\u5e94\\u8d85\\u65f6\"\n#玩家验证超时时发送的消息\n\n#=====================================\n#以下列表为MCPRB自行维护，请勿修改\nBannedPlayerPCIDs: []复制代码\n\n\n使用方法 - 客户端MOD\n\n\n注意，这个MOD只能安装部署在Win的客户端，服务器请不要安装\n\n第一步\n下载MCPRBLibs.zip，解压出其中的两个dll文件，放到Minecraft的运行路径中\n运行路径是啥？看你的启动器里就有，默认是.minecraft\n版本独立的情况下是.minecraft/versions/<版本名>/\n\n第二步\n将下载的Mod放到Mods文件夹里,收工\n\n额外的大坑\n这个Mod是在1.8.8的环境中编写的\n本来打算在不同环境里编译一遍\n但是1.7.10和1.8的MDK死活没办法构建环境\n理论上支持1.8+之后的版本\n然而如果遇到部分时候抽风，附件里有源码下载，可以自行编译\n另外希望有朋友可以帮忙编译之后发到帖子里\n\n\n\n截图展示 & 测试视频\n\n防TAB穿透功能\n\n\n\n\n2016-09-02_045653.png (17.31 KB, 下载次数: 15)\n\n下载附件\n\n2016-9-2 04:50 上传\n\n\n\n\n\n\n封禁机器码\n\n\n\n\nban.png (23.96 KB, 下载次数: 7)\n\n下载附件\n\n2016-9-6 01:59 上传\n\n\n\n\n\n\n\n抵御攻击测试视频\nhttp://player.youku.com/player.php/sid/XMTcwOTUwNTAzNg==/v.swf\n\n\n\n已有功能\n\n\n防压测，防各种压测，包括Ping压测，Motd压测，假人压测，TAB穿透压测\n拦截来自插件的添加OP的请求\n拦截来自插件的危险指令[restart,stop之类]\n封禁机器码\n受到压测时不会疯狂刷后台了\n\n\n已知问题\n\n客户端在不重新打开的情况下二次进入MCP保护的服务器有可能导致崩溃\n其实是触发了保护= =\n解决方法:关了客户端再打开一次......\n正在赶制补丁ing...\n\n\n下载地址\n\n服务端内核补丁\n\n\n\n\nMCPRBAPI.jar\n(722.16 KB, 下载次数: 1144)\n\n\n\n2016-9-6 02:47 上传\n点击文件名下载附件\n\n\n\n\n\n\n如新版无法使用，请选择旧版\n\n\n\nMCPRBAPI-OLD.jar\n(720.3 KB, 下载次数: 229)\n\n\n\n2016-9-1 22:09 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n服务端插件\n\n\n\n\nMCPRBPlugin.jar\n(15.96 KB, 下载次数: 1650)\n\n\n\n2016-9-6 02:47 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n客户端Mod[两部分]\n超过大小 = = 放外链\nOneDriver下载\nX度盘\n\n客户端Mod源码[直接编译就OK]\n\n\n\nMCProtectRebuildClientMod-Sources.rar\n(863.64 KB, 下载次数: 256)\n\n\n\n2016-9-6 02:18 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n更新记录\n\n2016-9-1 [原版本更新] 更新了拦截方法\n2016-9-2 [v 0.0.2] 添加防TAB穿透功能\n2016-9-2 [v 0.0.2] 移除了测试代码\n2016-9-3 [v 0.0.2] 添加插件\n2016-9-6 [v 0.0.3] 添加机器码封禁，优化防止报错刷屏，添加客户端MOD\n\n\n",
+    "replies": [
+        {
+            "author": "xuelang123",
+            "timestamp": 1472743800,
+            "txt_content": "嘿嘿更新了正要此类插件..."
+        },
+        {
+            "author": "星光灬羽神",
+            "timestamp": 1472744040,
+            "txt_content": "几个小时前好像才发过？"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472744760,
+            "txt_content": "星光灬羽神 发表于 2016-9-1 23:34\n几个小时前好像才发过？\n刚才呢个用错模板了。。。。于是把原来的内容清空了"
+        },
+        {
+            "author": "六月奈",
+            "timestamp": 1472745240,
+            "txt_content": "正需此类插件√"
+        },
+        {
+            "author": "Ayamuta",
+            "timestamp": 1472774220,
+            "txt_content": "最近出了好多反测压的插件啊"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472775180,
+            "txt_content": "d_amask 发表于 2016-9-2 07:57\n最近出了好多反测压的插件啊\n我大概半年前就发过，因为最近有好几个小伙伴吐槽反压测插件安了还会卡才重写一遍"
+        },
+        {
+            "author": "long321",
+            "timestamp": 1472784060,
+            "txt_content": "paper 1710 测试无法使用"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472806980,
+            "txt_content": "long321 发表于 2016-9-2 10:41\npaper 1710 测试无法使用\n请问可以提供下错误日志么？传附件就好"
+        },
+        {
+            "author": "hejingye",
+            "timestamp": 1472831760,
+            "txt_content": "能设置一下登陆次数的检测和屏蔽的时间吗"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472832900,
+            "txt_content": "hejingye 发表于 2016-9-2 23:56\n能设置一下登陆次数的检测和屏蔽的时间吗\n好的，今晚添加"
+        },
+        {
+            "author": "hejingye",
+            "timestamp": 1472833680,
+            "txt_content": "coderzeng 发表于 2016-9-3 00:15\n好的，今晚添加\n嗯嗯，加油，玩家刷新多几次就被禁止了，有点不太好"
+        },
+        {
+            "author": "sd_leilei@163.c",
+            "timestamp": 1472861940,
+            "txt_content": "bc服的话，只要在登录服用就行了是吧"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472864820,
+            "txt_content": "sd_leilei@163.c 发表于 2016-9-3 08:19\nbc服的话，只要在登录服用就行了是吧\nbc暂时没有测试过，但是估计不行。。。bc的核心应该结构和bukkit不同"
+        },
+        {
+            "author": "xiaodobi2333",
+            "timestamp": 1472875920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "酷车手BB弹",
+            "timestamp": 1472876100,
+            "txt_content": "梨子：你还太嫩了@andylizi \n\n{:10_532:}"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1472877120,
+            "txt_content": "唔。\n每次检测到压测都System.out.println(\"[MCProtect Rebuild API] Tab too frequently,cancelled.\");复制代码执行一下，那后台刷屏不就轻而易举了？这种提示信息还不如没提示呢。。\n\nmethod.insertBefore(\"{if(com.verofess.mcprb.api.MCPBRBAPIFliter#FliterSetOP($1) == false){return;}}\");复制代码== false？！"
+        },
+        {
+            "author": "Mr_black",
+            "timestamp": 1472877300,
+            "txt_content": "mc核心指的是..?"
+        },
+        {
+            "author": "long321",
+            "timestamp": 1472878260,
+            "txt_content": "coderzeng 发表于 2016-9-2 17:03\n请问可以提供下错误日志么？传附件就好\n使用你最新发的就没问题了。"
+        },
+        {
+            "author": "574885378",
+            "timestamp": 1472879160,
+            "txt_content": "看不懂啊，怎么弄，搞详细点"
+        },
+        {
+            "author": "hejingye",
+            "timestamp": 1472883060,
+            "txt_content": "判定好像有点问题，玩家有时网络问题掉几次线就被屏蔽了，求修复"
+        },
+        {
+            "author": "Yu_Jie_Kong",
+            "timestamp": 1472896080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472918220,
+            "txt_content": "xiaodobi2333 发表于 2016-9-3 12:12\n是即装即用吗 什么的哦不用动的 \n懒癌患者-\n是的，完全不用配置"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472918280,
+            "txt_content": "andylizi 发表于 2016-9-3 12:32\n唔。\n每次检测到压测都执行一下，那后台刷屏不就轻而易举了？这种提示信息还不如没提示呢。。\n好的，刷屏问题马上解决\n另外false没问题啊【大雾"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472918520,
+            "txt_content": "574885378 发表于 2016-9-3 13:06\n看不懂啊，怎么弄，搞详细点\n额。。好。。。我努力修正下语文问题"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472918820,
+            "txt_content": "hejingye 发表于 2016-9-3 14:11\n判定好像有点问题，玩家有时网络问题掉几次线就被屏蔽了，求修复\n请修改配置文件，将ConnectInterval的值调小"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472918880,
+            "txt_content": "Mr_black 发表于 2016-9-3 12:35\nmc核心指的是..?\n额。。。可以参考你的服务器启动脚本"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1472919000,
+            "txt_content": "Yu_Jie_Kong 发表于 2016-9-3 17:48\n弱弱的问一句，如果是面板服呢\n面板服请联系供应商或者在允许自定义核心的情况下手动patch【具体的我写份教程"
+        },
+        {
+            "author": "Yu_Jie_Kong",
+            "timestamp": 1472955840,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "小烦",
+            "timestamp": 1472976000,
+            "txt_content": "插件可以的 不过好像不算插件挨"
+        },
+        {
+            "author": "362904066",
+            "timestamp": 1473085140,
+            "txt_content": "急需此类插件。。{:10_512:}"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473103200,
+            "txt_content": "574885378 发表于 2016-9-3 13:06\n看不懂啊，怎么弄，搞详细点\nok重写了一下教程部分"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473128460,
+            "txt_content": "qiu1995 发表于 2016-9-6 10:23\n测试了一下，只要是装了ProtocolSupport的端，都没用，还是一样被压测\n唉…我去试试…谢谢反馈"
+        },
+        {
+            "author": "qiu1995",
+            "timestamp": 1473128580,
+            "txt_content": "测试了一下，只要是装了ProtocolSupport的端，都没用，还是一样被压测"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473129480,
+            "txt_content": "qiu1995 发表于 2016-9-6 10:23\n测试了一下，只要是装了ProtocolSupport的端，都没用，还是一样被压测\n这里测试没有问题…请问有报错或者提示么？另外请问是怎么配置的呢？"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473129540,
+            "txt_content": "a2292163858a 发表于 2016-9-6 10:46\n如何方法不装插件机器码客户端, 会不会封禁吗？？？\n\n其他客户端没mod的机器码  会不会封禁吗？？？ ...\n插件没有收到客户端的反馈的话会被踢出，详细看设置文件"
+        },
+        {
+            "author": "a2292163858a",
+            "timestamp": 1473129840,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "a2292163858a",
+            "timestamp": 1473129960,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473130620,
+            "txt_content": "a2292163858a 发表于 2016-9-6 10:44\n如何呢,他不加mod,进不去服务器？\n是的，不加Mod在开始了机器码验证的情况下不让进，没开机器码验证功能不影响"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473130800,
+            "txt_content": "a2292163858a 发表于 2016-9-6 11:06\n哎,你这个机器码mod 没办法了.\n\n很多人都是纯净客户端  他不想下载无所谓= = ...\n单独从客户端是没办法获取机器码的…这点是没有办法逾越的障碍"
+        },
+        {
+            "author": "a2292163858a",
+            "timestamp": 1473131160,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qiu1995",
+            "timestamp": 1473132840,
+            "txt_content": "coderzeng 发表于 2016-9-6 10:38\n这里测试没有问题…请问有报错或者提示么？另外请问是怎么配置的呢？\n不是报错，而是似乎无效，大概可以理解为，装了ProtocolSupport之后，压测依然有效果，tps是没什么影响的，但是可以明显看到CPU占用变高了，详情我们可以加QQ聊一下"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473211560,
+            "txt_content": "qiu1995 发表于 2016-9-6 11:34\n不是报错，而是似乎无效，大概可以理解为，装了ProtocolSupport之后，压测依然有效果，tps是没什么影响的 ...\n昨天逆了一下ProtocolSupport的源码。。。他和我修改了核心的同一处位置，所以现在正在添加对ProtocolSupport的支持"
+        },
+        {
+            "author": "1963623498",
+            "timestamp": 1473222120,
+            "txt_content": "玩家多刷新几下会被屏蔽？  看了这个我有点怕 我是Spigot 面板服"
+        },
+        {
+            "author": "栀栀太坏了",
+            "timestamp": 1473245280,
+            "txt_content": "我靠、、、、、加50绿宝石。。。 膜拜dalao~~·"
+        },
+        {
+            "author": "5igm1",
+            "timestamp": 1473777120,
+            "txt_content": "楼主=-=\n我可以不安装这个文件吗\n\n\n\n\nQQ截图20160913223921.png (41.96 KB, 下载次数: 3)\n\n下载附件\n\n2016-9-13 22:41 上传\n\n\n\n\n"
+        },
+        {
+            "author": "不死之躯",
+            "timestamp": 1473825660,
+            "txt_content": "好牛逼，50个路宝石                 "
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1473826200,
+            "txt_content": "看起来BC端不能使用？"
+        },
+        {
+            "author": "莲华酱",
+            "timestamp": 1473842280,
+            "txt_content": " 本帖最后由 619815617 于 2018-11-30 19:41 编辑 \n\n1111111111111111111"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473855240,
+            "txt_content": "619815617 发表于 2016-9-14 16:38\n客户端mod支持1.9.4么？\n理论上支持"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473855720,
+            "txt_content": "5igm1 发表于 2016-9-13 22:32\n楼主=-=\n我可以不安装这个文件吗\nhttp://r.virscan.org/report/0f2377c7049a3a97e5b3000d634f9b8f\n不解释"
+        },
+        {
+            "author": "5igm1",
+            "timestamp": 1473860040,
+            "txt_content": "coderzeng 发表于 2016-9-14 20:22\nhttp://r.virscan.org/report/0f2377c7049a3a97e5b3000d634f9b8f\n不解释\n表示就是我用的诺顿（也就是赛门铁克）报的毒。而且玩家说360也有报毒。没有别的意思，我只是说建议楼主做下软件误报的反馈。。"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1473930180,
+            "txt_content": "5igm1 发表于 2016-9-14 21:34\n表示就是我用的诺顿（也就是赛门铁克）报的毒。而且玩家说360也有报毒。没有别的意思，我只是说建议楼主 ...\n用了VMP = =，用不用还是看个人吧"
+        },
+        {
+            "author": "5igm1",
+            "timestamp": 1473991440,
+            "txt_content": " 本帖最后由 5igm1 于 2016-9-16 10:05 编辑 \n\n有一个问题。有时候在进入不了服务器。虽然在多人游戏能刷出motd界面，但是一登陆就显示连接超时。而且后台没有显示连接申请。应该是mcprotect阻止的吧？已经重开过客户端了。然后过一会儿再点击服，又能进去了。"
+        },
+        {
+            "author": "a1250447239",
+            "timestamp": 1474070220,
+            "txt_content": "水龙头是不是只用装一个插件？"
+        },
+        {
+            "author": "love猫妖",
+            "timestamp": 1474126080,
+            "txt_content": "插件不错看起来"
+        },
+        {
+            "author": "coderzeng",
+            "timestamp": 1474181220,
+            "txt_content": "5igm1 发表于 2016-9-16 10:04\n有一个问题。有时候在进入不了服务器。虽然在多人游戏能刷出motd界面，但是一登陆就显示连接超时。而且后台 ...\nMCP阻止会有提示"
+        },
+        {
+            "author": "love猫妖",
+            "timestamp": 1474355640,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "EONIAN",
+            "timestamp": 1475412600,
+            "txt_content": "那么1.7.10现在可以正常使用吗？"
+        },
+        {
+            "author": "f840728401f",
+            "timestamp": 1475472120,
+            "txt_content": "服务器天天被压测就是需要这种插件"
+        },
+        {
+            "author": "1784234383",
+            "timestamp": 1475478540,
+            "txt_content": "建议给BC添加个MCPRB插件，要不然这锅全都给登录服，然后BC就吃瓜去了？............"
+        },
+        {
+            "author": "张满月",
+            "timestamp": 1479270480,
+            "txt_content": "这贴怎么都一个月没人回复了，这么好的插件\n话说开服的时候提示一堆java.lang Throwable是不是开启失败了，不能用\n表示核心是Thermos57，mod服"
+        },
+        {
+            "author": "SX_MC",
+            "timestamp": 1479302940,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "laofan",
+            "timestamp": 1479309660,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1284641389",
+            "timestamp": 1479355860,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "qq1649523582",
+            "timestamp": 1479372480,
+            "txt_content": "请问哪个命令行添加是什么意思！ＬＺ能不能留下ＱＱ我加你咨询一下！"
+        },
+        {
+            "author": "帅比小樊",
+            "timestamp": 1479376200,
+            "txt_content": "楼主，请问那个mc核心在那里，这个面板服能加吗"
+        },
+        {
+            "author": "SX_MC",
+            "timestamp": 1479382500,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1137305770",
+            "timestamp": 1479386400,
+            "txt_content": "很好的插件啊！"
+        },
+        {
+            "author": "落魄的旋律",
+            "timestamp": 1496824380,
+            "txt_content": "好插件，支持楼主，加油！"
+        },
+        {
+            "author": "Korea",
+            "timestamp": 1500278280,
+            "txt_content": "请问支持J7吗，因为版本有点低所以挺麻烦的，我这里加了核心辅助和插件之后，客户端不带检测mod还是能进，进去之后会发送一大堆字码给客户端，然后后台开服的时候有一个报错，希望能够处理一下，这是一个很好的作品感谢楼主的贡献！\n服务器版本是1.64MCPC\n\n\n\n\n报错.png (35.72 KB, 下载次数: 2)\n\n下载附件\n\n2017-7-17 15:58 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "huanyueqiji",
+            "timestamp": 1501382700,
+            "txt_content": "楼主你这插件还在更新么，想问一下是否兼容1.12"
+        },
+        {
+            "author": "jwx233",
+            "timestamp": 1501498320,
+            "txt_content": "看起来很厉害的样子，支持楼主！！！！"
+        },
+        {
+            "author": "jwx233",
+            "timestamp": 1501498380,
+            "txt_content": "看起来很厉害的样子，支持楼主了哦！！！"
+        },
+        {
+            "author": "alexon",
+            "timestamp": 1501507500,
+            "txt_content": "面板如何加核心补丁？"
+        },
+        {
+            "author": "alexon",
+            "timestamp": 1501507800,
+            "txt_content": "面板如何加核心补丁？"
+        },
+        {
+            "author": "凯撒丶",
+            "timestamp": 1501639620,
+            "txt_content": "好是好，表示复杂不会搞"
+        },
+        {
+            "author": "HoldTime",
+            "timestamp": 1502810940,
+            "txt_content": "希望楼主继续优化！！！！！"
+        },
+        {
+            "author": "哇啊啊啊啊啊",
+            "timestamp": 1503714420,
+            "txt_content": "一直显示连接超时咋破"
+        },
+        {
+            "author": "etapcv",
+            "timestamp": 1503796380,
+            "txt_content": "xuelang123 发表于 2016-9-1 23:30\n嘿嘿更新了正要此类插件...\n发现不是全版本！不能用的版本:1.9~1.12其他准备测试~~"
+        },
+        {
+            "author": "etapcv",
+            "timestamp": 1503797280,
+            "txt_content": "betapcv 发表于 2017-8-27 09:13\n发现不是全版本！不能用的版本:1.9~1.12其他准备测试~~\n不是全版本！测试出1.6以下都不能用.1.8可以正常使用 核心TorchSpigot"
+        },
+        {
+            "author": "Ghostxy",
+            "timestamp": 1504019700,
+            "txt_content": "这个插件可以封禁，那么可以解封吗"
+        },
+        {
+            "author": "sunrun",
+            "timestamp": 1504939440,
+            "txt_content": "感谢分享！"
+        },
+        {
+            "author": "a65w46a",
+            "timestamp": 1506832140,
+            "txt_content": "命令行是啥qwq"
+        },
+        {
+            "author": "Ghostxy",
+            "timestamp": 1506872280,
+            "txt_content": "补丁不会放"
+        },
+        {
+            "author": "tjx65448479",
+            "timestamp": 1515840600,
+            "txt_content": "会出现无法检测机器码导致玩家一直无法进入服务器嘛，就像NAban一样误判太厉害，有时候根本检测不到"
+        },
+        {
+            "author": "tjx65448479",
+            "timestamp": 1515907620,
+            "txt_content": "0.0.4机器码检测无用，检测失败"
+        },
+        {
+            "author": "1425115471",
+            "timestamp": 1517055120,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "向文",
+            "timestamp": 1517734860,
+            "txt_content": "为什么把timeout设1000会响应超时封机器码时为何player 玩家名 is not verify\n"
+        },
+        {
+            "author": "jwx233",
+            "timestamp": 1518339480,
+            "txt_content": "支持BC端吗！"
+        },
+        {
+            "author": "Maple_Lemon",
+            "timestamp": 1518542580,
+            "txt_content": "请问安装以后客户端玩家连不上怎么办 后台提示 无法创建什么文件？"
+        },
+        {
+            "author": "yuan_kun",
+            "timestamp": 1532092560,
+            "txt_content": "请问模组服能够使用吗？1.7.10版本"
+        },
+        {
+            "author": "白可乐",
+            "timestamp": 1533836580,
+            "txt_content": "请问，现在群组服可以使用么？我测试了，貌似不可以用"
+        },
+        {
+            "author": "2544673738",
+            "timestamp": 1534690500,
+            "txt_content": "很棒的插件！希望作者能更新bc兼容!!"
+        },
+        {
+            "author": "残缺的al灬",
+            "timestamp": 1534874460,
+            "txt_content": "插件是弃坑了吗？一年前编辑的了"
+        },
+        {
+            "author": "q1935454147",
+            "timestamp": 1535517180,
+            "txt_content": "作者这个怎么给某个插件OP指令白名单"
+        },
+        {
+            "author": "晴天娃娃_",
+            "timestamp": 1563207060,
+            "txt_content": "设置为0之后没有任何效果，mod验证还在"
+        },
+        {
+            "author": "a3095272833",
+            "timestamp": 1563282300,
+            "txt_content": "玩家如果把mod删了的话那么封禁机器码是不是就没用了"
+        },
+        {
+            "author": "神~阿尔法",
+            "timestamp": 1564032120,
+            "txt_content": "感谢分享插件不错"
+        },
+        {
+            "author": "liaojinmin",
+            "timestamp": 1566484980,
+            "txt_content": "不知为何。加了这个之后客户端显示无效会话。我机器码哪里改成0不用了。客户端也没装"
+        }
+    ]
+}

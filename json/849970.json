@@ -1,0 +1,89 @@
+{
+    "title": "俩车的 Coremod 介绍",
+    "author": "liach",
+    "replyCount": 16,
+    "timestamp": 1552225440,
+    "txt_content": " 本帖最后由 liach 于 2019-3-11 07:26 编辑 \n导言\n\nCoremod 是 Forge 的一种机制，也是模组的一种。与其它模组相比，它们有在 Minecraft 正常启动、Minecraft 和普通模组代码被加载前提前被加载的特权。\n它并不等同于修改字节码、ASM 或者 Mixin；这只是它的一种用途。\n\n目的\n\nCoremod 的目的多种多样：\n实现对 Minecraft 以及模组源代码的修改；提取前置模组；在 Minecraft 加载前对环境进行预处理；等等。\n\n虽然列表中的第一项是最常用的，但这并不代表第一项是 coremod 唯一的目的。\n在 1.7.10 左右，神秘时代和工业 2 实验版都有过 coremod 提取前置。神秘时代用 coremod 提取 codechickenlib （还是 baubles，我忘了），而工业 2 提取前置数学库 ejml。\n在 1.9 以前几乎是 Minecraft 中文玩家必备的 InputFix 则同时使用 coremod 检测操作系统。\nSpongeForge 的 coremod 会初始化 mixin 系统，以准备马上对 Minecraft 源码的修改。\n\n使用\n\nForge coremod 系统有几个主要的类：IFMLLoadingPlugin、IFMLCallHook 和 IClassTransformer。大致骨干如下：\npublic interface IFMLLoadingPlugin {\n  @Nullable String[] getASMTransformerClass(); // 返回一个数组，包含本 coremod 的所有实现 IClassTransformer（字节码修改器）的类全名，可返回空数组或者 null\n  @Nullable String getModContainerClass(); // 返回一个实现 IModContainer 的类的全名，可返回 null\n  @Nullable String getSetupClass(); // 返回一个实现 IFMLCallHook 的类的全名，可返回 null\n  void injectData(Map<String, Object> data); // Forge 提供接口，可获得 mcLocation、coremodList、runtimeDeobfuscationEnabled、coremodLocation 几个信息，分别是 File 类型的游戏路径、List<FMLPluginWrapper> 类型的封装后的 coremod 列表、Boolean 类型的是否会在运行时反混淆 Minecraft 本身、File 类型的 coremod 自身路径。\n  @Nullable String getAccessTransformerClass(); // 推荐不要使用，用 FMLAT 这个 jar 属性替代。返回一个 AccessTransformer 子类的全名，可返回 null。\n}\n\npublic interface IFMLCallHook extends Callable<Void> {\n  @Override @Nullable Void call() throws Exception; // 执行这个呼叫器的实际逻辑，必须返回 null\n  void injectData(Map<String, Object> data); // 同 IFMLLoadingPlugin 的 injectData\n}\n\npublic interface IClassTransformer {\n  byte[] transform(String name, String transformedName, byte[] basicClass); // 在此方法中对 Minecraft 的字节码进行修改，可原封不动返回\n}\n复制代码看见 IFMLLoadingPlugin 里面的几个方法都返回字符串了吗？这是为了避免意外加载类导致错误。\ninjectData 的实际数据可以在这里找到。\n\n\n稍安勿躁！请至少看完注意事项后再开始尝试实战！\n\n\n注意事项\n\nCoremod 作为一种缺少介绍的东西，本身（不包括 asm 或者修改字节码）使用起来实际上有很多危险和注意事项。\n\nCoremod 不应该加载正常模组的类或者 Minecraft 的类，甚至包括自己的 mod container 类。（特别容易犯的错误，且后果很严重）Coremod 构建出来的 jar 需要额外的属性。Coremod 除了实现接口方法以外，最好添加一些注解信息。Coremod 相关的类都要有一个没有参数的构建器。\n\n暂时想到这么多。会看反馈添加。\n\n一、加载代码隔离\nCoremod 不应该加载正常模组的类或者 Minecraft 的类，甚至包括自己的 mod container 类。\n加载正常模组以及 minecraft 代码会导致任何 coremod 无法对其进行修改，从而导致游戏崩溃。\n注意： 一个 coremod 的 mod container 类是在 Minecraft 正常启动之后才被创建实例的，所以也属于正常模组类而不是 coremod 类！\n具体会有什么影响呢？\n\n例一：臭名朝著的 Sponge 与 AE 2 的冲突。\n\n罪魁祸首：（IFMLLoadingPlugin coremod 类直接实现 mod container）\nhttps://github.com/AppliedEnergistics/Applied-Energistics-2/blob/e3bf52ff7b027d9f00d23db860040f7f6cf9af38/src/main/java/appeng/coremod/AppEngCore.java#L73\n导致问题：\nhttps://github.com/AppliedEnergistics/Applied-Energistics-2/issues/2482\n因为 IModContainer 类被 AE 2 的 coremod 提前读取，导致 Sponge 无法修改 IModContainer 从而崩溃。AE 在拖了很久以后才修复。\n\n顺便一提，给 coremod 类实现 IFMLLoadingPlugin 的同时实现 IModContainer 并无任何优点。详见底下的第四小段。\n\n例二、MicdooodleCore（星系 mod 前置）的 coremod 加载 Forge 处理模组版本信息的 VersionRange 类\n\n罪魁祸首：\nMicdoodleCore 加载了正常 Forge 代码中用来检测软件版本的类，而这个软件版本检测类用到 Minecraft 实现翻译功能的正常代码。\n\n导致问题和 u.s.knowledge 给出的合理解释：\n\nhttps://github.com/micdoodle8/MicdoodleCore/issues/10#issuecomment-342400911\n用来检测软件版本的类被提前加载，所以里面对被混淆的 Minecraft 代码的引用没被修改，导致游戏崩溃。\n\n\n如何避免这类问题呢？一般大家就把 coremod 内容和普通 mod 的内容放到不同的包下；然而，还是不能避免不小心跨包 import 等现象。\n\n这里就举个自己想到的解决方案作为正面教材：利用 Gradle 构建系统提供的 source set 进行将 coremod 和普通 mod 代码隔离，避免互相引用。\n\nhttps://github.com/liachmodded/datapacks/blob/e835ee7a3ef2e8492e56ebadef5a59be2c5d7c6e/build.gradle#L73-L80\n上面 coremod 的定义采用了 main source set 的编译依赖从而可以使用 forge 的 coremod 接口代码；main 在运行的时候同时运行 coremod 的代码，这样测试运行时 coremod 也会被测试。\n然而，这只能隔离普通 mod 的代码。要避免误用 Minecraft 代码，还需要编写者的细心。\n\n二、jar 属性\nForge 识别的模组 jar 属性中有四个跟 coremod 相关，如下。\nhttps://github.com/AlmuraDev/Almura/blob/36866cdcd7bb0722aa8276d8e1ed96559fbb67f9/build.gradle#L190-L193\n\n有 FMLAT、FMLCorePlugin、FMLCorePluginContainsFMLMod、ForceLoadAsMod 这四个属性。\n\nFMLAT 代替了一部分 coremod 功能，能够让模组自定义 access transformer 修改原版代码中方法和字段的可见性而不需从 coremod 中定义。Access transformer 作为源代码的一种修改，本身和 coremod 联系不大，所以这里不会多讲。\n\nFMLCorePlugin 是必备的；它是 Forge 检测 coremod 的唯一途径。这里指向的类用 . 而不是 / 分隔包，同时这个类必须实现 IFMLLoadingPlugin 接口（并且要有一个没有参数的构建器）。\n\nFMLCorePluginContainsFMLMod 设为 true 是表示一个 jar 内除了 coremod 外有普通的用 Mod 注解的模组。\nForceLoadAsMod 一般和 FMLCorePluginContainsFMLMod 同时设为 true 以保证 jar 中的普通模组被正常读取，虽然实际用途我未能询证到（GitHub 默认分支改变，1.12 的老内容无法查询了）。\n\n这些 jar 属性最重要的是在编译环境运行时如果有错完全不会显现；只有将构建的 jar 测试后才能确定到底有没有问题。\n\n三、注解信息\n\nForge 给 coremod 提供了五个可选的注解。\nhttps://github.com/MinecraftForge/MinecraftForge/blob/e6fbf39591b920532ea464d36dad24671c6d08fd/src/main/java/net/minecraftforge/fml/relauncher/IFMLLoadingPlugin.java#L83-L144\n这五个分别是 TransformerExclusions、MCVersion、Name、DependsOn、SortingIndex，都是 IFMLLoadingPlugin 的子类。这几个注解都是针对类的，只要直接放在你的 coremod 类上就行。\n\nTransformerExclusions：推荐添加。给 coremod 加载器（实际上是背后的 LaunchWrapper）提供一个包名单，避免这些包里面的内容被其他 coremod 修改。可以避免其他 coremod 误改你的 coremod 内容。\n\nMCVersion：推荐添加。指定针对的 Minecraft 版本。用来保证 coremod 安全性，因为不同版本的 Minecraft 代码一般相差很大。\n\nName：推荐添加。给这个 coremod 起个名字，到时候崩溃报告里面就会用这个自定义的名字表示你的 coremod。\n\nDependsOn：直接忽略。理论上是让 coremod 在前置存在的时候才加载，但是实际上这个功能从来没有实现过。\n\nSortingIndex：按需添加。定义了 coremod 的读取顺序；越小优先级越高。未定义则默认为 0。\n\n\n四、无参构建器\n\nForge coremod 系统中，实现 IFMLLoadingPlugin 的类和其接口实现中返回名称的实例类都需要有无参数公开构建器。\nForge 在实际使用中，会直接通过反射创建这些类的一个实例，然后在创建的实例上呼叫接口方法。\n\n\n这些被实现的接口有 IFMLLoadingPlugin、IFMLCallHook、IClassTransformer 和 IModContainer。\n\n顺便一提，给 coremod 类实现 IFMLLoadingPlugin 的同时实现 IModContainer 并无任何优点\n原理就是这个 coremod 类如此以来就会有两个实例，一个会被当做 IFMLLoadingPlugin 保存，另一个会被当做 IModContainer 保存。\n刚刚 AE 2 负面教材中的 coremod 的 log 就会录两次，metadata 也会被准备两次，得不偿失。\n\n\n\n\n结语\n\n\n这篇文章旨在给大家介绍一下 coremod 的本身，打破大家认为 coremod 等同于修改字节码的成见等。\n很抱歉，本帖并不介绍 ASM、Access transformer 或者 mixin 等字节码修改工具，为的是能让大家更好理清这两种不同的概念。\n\n\n友链\n感谢 @森林蝙蝠 和 @u.s.knowledge 与我探讨 coremod 话题。\n\n另外森林蝙蝠有篇介绍 coremod 但是跑题了的文章。虽然没有很多关于 coremod 本质的内容，但是大篇幅介绍了字节码的修改。http://www.mcbbs.net/thread-822754-1-2.html\n",
+    "replies": [
+        {
+            "author": "gooding300",
+            "timestamp": 1552225920,
+            "txt_content": "liach牛逼（破音）\n怕被打死还是不安利自己的了"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1552226400,
+            "txt_content": "gooding300 发表于 2019-3-10 21:52\nliach牛逼（破音）\n怕被打死还是不安利自己的了\nxfl03 写过那么厉害的 custom skin loader ，做多版本开发，对 coremod 等了解很深，还是铁路 mod 重要贡献者，是大佬一枚！\n\n实际上我写这个文章是为了调和最后提到的两位大佬在 coremod 上的不同观念。"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1552260420,
+            "txt_content": "感谢 us knowledge 提供 micdoodlecore 的例子！"
+        },
+        {
+            "author": "lq2007",
+            "timestamp": 1571282940,
+            "txt_content": " 本帖最后由 lq2007 于 2019-10-17 11:30 编辑 \n\n这用的是啥背景？\n我用 Dark Reader 看，眼花；正常没事\n别的页面没事\n\n\n\n\n\n\nimage.png\n(245.34 KB, 下载次数: 9)\n\n\n\n\n下载附件\n\n\n2019-10-17 11:28 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nimage.png\n(170.58 KB, 下载次数: 6)\n\n\n\n\n下载附件\n\n\n2019-10-17 11:29 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nimage.png\n(228.6 KB, 下载次数: 8)\n\n\n\n\n下载附件\n\n\n2019-10-17 11:30 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1571339940,
+            "txt_content": "lq2007 发表于 2019-10-17 11:29\n这用的是啥背景？\n我用 Dark Reader 看，眼花；正常没事\n别的页面没事\n背景用的是自带中的bg2.png"
+        },
+        {
+            "author": "caizhong3",
+            "timestamp": 1571361180,
+            "txt_content": "liach有空介绍下新更新的mixin呗"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1571373600,
+            "txt_content": "caizhong3 发表于 2019-10-18 09:13\nliach有空介绍下新更新的mixin呗\n你说mixin 0.8还是原来（0.7）/fabric的mixin？"
+        },
+        {
+            "author": "caizhong3",
+            "timestamp": 1571377920,
+            "txt_content": "liach 发表于 2019-10-18 12:40\n你说mixin 0.8还是原来（0.7）/fabric的mixin？\nmixin 0.8  用在高版本ModLauncher 上"
+        },
+        {
+            "author": "caizhong3",
+            "timestamp": 1571621220,
+            "txt_content": "liach 发表于 2019-10-18 12:40\n你说mixin 0.8还是原来（0.7）/fabric的mixin？\n mixin 0.8     欸... 我发现论坛的帖子顺序好像有丶问题"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1571624340,
+            "txt_content": "caizhong3 发表于 2019-10-21 09:27\nmixin 0.8     欸... 我发现论坛的帖子顺序好像有丶问题\n很抱歉我1.12后就弃forge了，不想在modlauncher上用mixin\n\n现在新的mixin都不在maven上，推荐正式0.8出了后再用。\n\n如果你实在要用的话要把mixin modlauncher支持部分加annotation processor上才能正确生成refmap，具体compileJava要什么参数我就不细究了（https://github.com/SpongePowered ... tionServiceFG3.java）\n在build.gradle里面设置参数可以参考这个（具体参数内容是针对fabric的，对fg3不适用） https://github.com/liachmodded/c ... uild.gradle#L62-L75\n\n注：这个帖子我设置新回复优先，不然每次翻回复太麻烦"
+        },
+        {
+            "author": "hinata_love",
+            "timestamp": 1579528380,
+            "txt_content": "你好我需要coremod来驱动我的mixin  我能在哪里下载coremod"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1579666440,
+            "txt_content": "hinata_love 发表于 2020-1-20 21:53\n你好我需要coremod来驱动我的mixin  我能在哪里下载coremod\n你自己写个coremod就行，在实现IFMLLoadingPlugin的类的constructor里面写个Mixins.addConfiguration(你的mixin config json路径)"
+        },
+        {
+            "author": "hinata_love",
+            "timestamp": 1579684800,
+            "txt_content": "有编译好的1.8.9可用的mixin吗"
+        },
+        {
+            "author": "hinata_love",
+            "timestamp": 1579765620,
+            "txt_content": "你好我挂了sstap节点 配置mdk的环境 遇到了问题\n\nDownload https://jcenter.bintray.com/org/ ... debug-all-5.0.3.pom\n\nFAILURE: Build failed with an exception.\n\n* What went wrong:\nA problem occurred configuring root project 'ClientBase'.\n> Could not resolve all artifacts for configuration ':classpath'.\n   > Could not resolve org.spongepowered:mixingradle:0.6-SNAPSHOT.\n     Required by:\n         project :\n      > Could not resolve org.spongepowered:mixingradle:0.6-SNAPSHOT.\n         > Unable to load Maven meta-data from https://repo.maven.apache.org/ma ... maven-metadata.xml.\n            > Could not get resource 'https://repo.maven.apache.org/maven2/org/spongepowered/mixingradle/0.6-SNAPSHOT/maven-metadata.xml'.\n               > Could not GET 'https://repo.maven.apache.org/maven2/org/spongepowered/mixingradle/0.6-SNAPSHOT/maven-metadata.xml'.\n                  > Connect to repo.maven.apache.org:443 [repo.maven.apache.org/151.101.40.215] failed: Read timed out\n\n* Try:\nRun with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output. Run with --scan to get full insights.\n\n* Get more help at https://help.gradle.org\n\nBUILD FAILED in 1m 3s\n\n\n这种问题怎么解决。"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1579852140,
+            "txt_content": "hinata_love 发表于 2020-1-23 15:47\n你好我挂了sstap节点 配置mdk的环境 遇到了问题\n\nDownload https://jcenter.bintray.com/org/ow2/asm/asm-d ...\n在build.gradle开头的buildscript里面的repositories定义sponge maven (https://repo.spongepowered.org/maven) 才能使用mixingradle"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1579852260,
+            "txt_content": "hinata_love 发表于 2020-1-22 17:20\n有编译好的1.8.9可用的mixin吗\nmixin的话直接下载sponge maven最新的，mixin版本和minecraft版本脱钩(无关)\nhttps://repo.spongepowered.org/maven/org/spongepowered/mixin/"
+        }
+    ]
+}

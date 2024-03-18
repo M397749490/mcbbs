@@ -1,0 +1,274 @@
+{
+    "title": "【外置登录】利用 Blessing Skin 皮肤站的 Yggdrasil API 插件实现外置登录功能",
+    "author": "ーのものー",
+    "replyCount": 53,
+    "timestamp": 1502354340,
+    "txt_content": " 本帖最后由 ーのものー 于 2018-2-22 00:23 编辑 \n本文已于 2018-2-22 更新，添加了对 authlib-injector 的支持。\n\n具体请查阅：https://github.com/printempw/yggdrasil-api/wiki\n不知道诸君对 Minecraft 的正版登录系统（Yggdrasil API）有多少了解呢？\n\n现在国内绝大多数运作于离线模式（online_mdoe=false）下的服务器都是使用的 Authme、CrazyLogin 等登录插件，也就是进入服务器之后再进行认证（e.g. /login <password>）的内置登录系统。虽然这样进入了服务器再登录的机制在小型服务器上没什么问题，但是服务器人一多，就容易出现各种各样的隐患了（假人、未登录也能发送指令 etc.），相信这方面各位腐竹都比较了解。\n\n用过 Minecraft 正版登录的同学应该都知道，正版 Minecraft 是在进入游戏之前就要在【启动器】中进行登录操作的，而且只有登录之后你才能进入开了正版验证的服务器（online_mode=true）中游玩，否则是连服务器都进不去的。\n\n目前也有很多第三方开发的【外置登录系统】都在尝试实现 Minecraft 正版登录的这一效果，这些软件无不都是将【登陆鉴权】这一操作从【进入服务器后】提到了【启动游戏前】来，配合服务端插件使用，在启动器中就是用账号密码登录后，启动游戏就可以直接进入服务器开玩了，比起 Authme 那样进入服务器还要输入指令登录不知道高到哪里去了。\n\n这也是为什么软件开发版中那些「外置登录系统」很受欢迎的原因（包括不限于 MadAuth、WebLogin、BeeLogin、WebRegister、冰棂登陆系统），这样不仅提升了玩家的游戏体验以及服务器的安全性，还顺带能有一个「服务器专用启动器」，逼格不是高了一点半点（笑）\n\n其实这些软件的原理就是将原本的登录鉴权这一步骤从游戏里抽出来了，将其放到启动器 or 网页上去，而服务端插件的功能就只剩下「查询数据库中用户的登录状态，决定是否放行」：\n\n\n\n\n这样也没什么不好的，不是吗？那我今天要介绍的这种方法和那些「外置登录系统」有什么差别呢？\n\n======== 神秘的分鸽线 ===========\n\n★ 实现原理\n\n其实说到底，那些「外置登录系统」都是致力于实现和 Mojang 官方的正版登录类似的体验（启动器中登录，启动游戏后直接就能进入服务器）。那么我们为何不来个大胆的想法，让 Mojang 那套正版登录的鉴权系统为我们所用？\n\n这里必须要感谢 @yushijinhun 开发的 authlib-injector，正是因为有了这个开源项目，本帖所描述的方案才得以实现。\n\nauthlib-injector 是啥呢？简单来说，用了这玩意就可以把 Minecraft 内部写死的 Mojang 官方正版登录 API（也就是 Yggdrasil API）的地址给替换成自定义的地址（ASM 字节码替换），从而实现了和正版登录一样的功能：\n\n游戏外登录验证；对皮肤及披风的支持；对绝大多数客户端，服务端，启动器的支持（要求 JVM 语言编写，MC 1.7+）；跨平台；\n\n\n是不是很屌呢？如果你还是没听懂上面我讲的是什么鬼，那我就说得更通俗一些：\n\n我们可以把 Mojang 官方正版登录的 API 【劫持】成我们自己的啦！\n\n那么劫持之后能实现什么效果呢？\n\n可以实现几乎和 Mojang 官方正版登录一样的效果。可以说，官方的正版登录有什么功能，使用 authlib-injector 后就能实现什么功能，甚至比 Mojang 官方的功能更多（e.g. 单用户多角色）。\n\n不过这个方法只有唯一的一个弊端：\n\n我们【劫持】了 Mojang 官方的 API，那也就意味着我们必须要实现一个和官方 Yggdrasil API 功能一模一样的 API。因为 authlib-injector 能做的只有替换掉 API 地址，至于我们的第三方 API，那就得靠我们自己去写代码实现了。\n\n我相信，这对于绝大多数的同学都是非常痛苦的，你又要去查阅 Yggdrasil API 的文档（还没有提到很多自己实现时可能遇到的坑），还要从头开始写一个用户管理系统、角色系统、皮肤系统（上传管理、皮肤广场 etc.）、管理后台……天哪，这太可怕了！\n\n虽然 @yushijinhun 同时也提供了一套他自己开发的 Yggdrasil API 后端实现，但是说实话那个太 简 陋 了，远远达不到实际生产应用的标准（只有一套 RESTful API，没有前端界面，也只有基础功能），所以我相信大部分同学想要在服务器上部署 authlib-injector 的时候还是有些顾虑的。\n\n那么现在，终于到了我发这个帖子的目的所在了。\n\n\n====== 又是一个神秘的分鸽线 ========\n\n★ 实现效果\n\n不知道现在正在阅读此贴的各位有没有听说过 Blessing Skin 这个皮肤站程序呢？\n\n如果有，那事情就好说了。虽然重头开发一套 Yggdrasil API 的杂七杂八系统很够呛，但是幸运的是，我之前一直有在维护 Blessing Skin 这个皮肤站程序，并且在 v3 版本后，皮肤站全面支持的「单用户多角色」功能，再加上皮肤站本身就很完善的角色管理、皮肤上传与分享、后台管理等等功能，这也就意味着，我们可以直接使用皮肤站的用户系统，在此基础上实现一个第三方的 Yggdrasil API。\n\n更幸运的是，今年初的时候我给 Blessing Skin 加上了【插件系统】（v3.2+），这也就意味着，我可以在完全不修改皮肤站现有源代码的情况下，以【插件】的形式提供一个 Yggdrasil API 服务。\n\n废话不多说，先看效果：\n\n\n\n▲在皮肤站「角色管理」中可添加多个角色\n\n\n\n▲使用皮肤站的邮箱与密码登录后，配合 HMCL 实现多角色选择\n\n\n\n▲游戏内的显示效果，无需皮肤 Mod 即可加载皮肤站中设定好的皮肤 & 披风，甚至能够实现原本只有正版登录才能实现的 TAB 栏头像显示哦\n\n\n====== 双是一个神秘的分鸽线 ========\n\n★ 部署方法\n\n看到上面的截图有没有心动呢？\n\n这里是具体部署方法（打不开的话还请自行解决）：\n\nhttps://github.com/printempw/yggdrasil-api/wiki\n\n看起来很麻烦，是吗？\n\n但是如果你耐心部署完后，你就能得到以下功能：\n\n一个完善的账号系统（配合数据对接插件还能与 Discuz 等论坛账号互通），包括友好的注册、登录网页界面以及强大的管理员面板，在管理后台中封禁用户后，该用户也将无法登录游戏；一个皮肤管理系统，自带皮肤库功能，在皮肤站中应用的皮肤，玩家无需安装任何皮肤 Mod，进入游戏即可看到自己设置的皮肤（支持双层皮肤、支持 Alex 模型，由于游戏本身限制不支持高清皮肤）；单账户多角色功能，玩家可以像登录正版那样用「邮箱」和「密码」登录游戏，而且如果你在皮肤站中添加了多个角色的话，还可以在启动页面选择要用哪个角色进入游戏（Yggdrasil API 实现了这个功能，但是 Mojang 的正版登录服务器并未实现该功能），HMCL 等启动器都实现了本功能；你还可以修改那些流行的开源启动器源码（大牌启动器一般都支持这种方法），搞一个「xx 服务器专属启动器」;)\n\n\n你觉得如何呢？\n\n\n====== 叒是一个神秘的分鸽线 ========\n\n★ 一些技术细节的小提示\n\n因为这是直接替换 Mojang 官方的 Yggdrasil API 地址，所以某些自己写启动器的仁兄，直接把那些 https://authserver.mojang.com 开头的那些 API 地址替换成 {你的皮肤站地址}/api/yggdrasil/authserver 就 OK 了；不是自己写启动器的同学，可以写一个 BAT 批处理，里面写上 java -javaagent:<path>={api_root} -jar HMCL.jar，就可以直接一键 hook 并打开 HMCL 这类基于 JVM 的启动器了（前提是你要在客户端里打包一个跨平台版的 HMCL.jar）；\n\n\n如果你也想自己实现一个 Yggdrasil API，我写了一篇 博客文章，记录了一下自己实现 Yggdrasil API 时可能遇到的坑，希望会对你有所帮助。\n\n\n====== 叕是一个神秘的分鸽线 ========\n\n★ 后记\n\n这种解决方案还是比较高端的，部署起来也比较复杂，比较适合中大型服务器使用，十几个人玩玩的服务器还是不要折腾了（当然，你愿意折腾我也是很高兴的）。\n\n因此，我希望你决定部署这套系统之前有一定的问题解决能力。我是不会回答任何「怎么安装」、「怎么部署」之类笼统的问题的，毕竟我的时间也不多，见谅 ;)\n\n如果关于本帖中描述的方案有什么想要探讨的，可以发送邮件至 <h#prinzeugen.net>，或者加入 QQ 群 <573741451> 讨论，我是不经常看 MCBBS 的回复的。\n\n最后，再次感谢 @yushijinhun，正是他的 authlib-injector 项目让这一切成为可能，鼓掌！\n\n\n[groupid=1451]Blessing Skin[/groupid]",
+    "replies": [
+        {
+            "author": "a1527019700",
+            "timestamp": 1502374020,
+            "txt_content": "很棒的一个作品"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1502374140,
+            "txt_content": "支持楼主的分享！太感谢了！"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1502422080,
+            "txt_content": "楼主我是本地配置的那个API地址我改的是本地，本地访问一切都OK放在HMCL的启动器上cmd输出的也ok，但是点启动游戏出现无法连接认证服务器"
+        },
+        {
+            "author": "l89669",
+            "timestamp": 1502439660,
+            "txt_content": " 本帖最后由 l89669 于 2017-8-11 16:29 编辑 \n\n嘿嘿嘿，这套系统已经在本萌新的服务器应用上了，效果很好\n顺便一说，这个想法是我跟621sama提的（https://github.com/printempw/blessing-skin-server/issues/65）\n并且协助完成了项目的上线测试和排错=。=\n"
+        },
+        {
+            "author": "2692611232",
+            "timestamp": 1502454600,
+            "txt_content": "都来支持一下"
+        },
+        {
+            "author": "深海鲸鱼座",
+            "timestamp": 1502676420,
+            "txt_content": "BeeLogin被点名了稍微有点慌233\n老早就抛弃自己的BeeLogin以后跑去试着搭建@yushijinhun的后端的时候就被坑着了，有别的后端着实是方便不少。\n向大佬势力低头233\n顺便，BeeLogin这个**项目是哪个逗比写的，欸，那个逗比好像就是蓝鲸啊233"
+        },
+        {
+            "author": "wwwer",
+            "timestamp": 1504004640,
+            "txt_content": "哇,我看到超级管理员的头像居然是我改的那个爬行娘皮肤"
+        },
+        {
+            "author": "橐驼",
+            "timestamp": 1511100180,
+            "txt_content": "遇到一个很棘手的问题想请教一下楼主，按照上面的方式实现了外置登录，但现在服务器里只能存在一名玩家在线，即只要一个玩家一登录，在游戏中的玩家就会掉线。请问这是什么原因造成的呢？"
+        },
+        {
+            "author": "chenyiii",
+            "timestamp": 1511412180,
+            "txt_content": "感谢楼主分享 已经下载咯"
+        },
+        {
+            "author": "默默、无闻",
+            "timestamp": 1511639100,
+            "txt_content": " 本帖最后由 默默、无闻 于 2017-11-26 03:46 编辑 \n\n超赞, 不过貌似 authlib-agent 已被弃坑. 倒是希望后端能兼容新坑 authlib-injector"
+        },
+        {
+            "author": "122474363",
+            "timestamp": 1511808300,
+            "txt_content": "为什么服务器有一个玩家，在登录另一个玩家的时候都会掉线。不会超过3个玩家。。因为2个玩家都全部掉线了。\n\n\n\n\nQQ截图20171128024459.jpg (31.39 KB, 下载次数: 39)\n\n下载附件\n\n2017-11-28 02:45 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1514027460,
+            "txt_content": "默默、无闻 发表于 2017-11-26 03:45\n超赞, 不过貌似 authlib-agent 已被弃坑. 倒是希望后端能兼容新坑 authlib-injector ...\n是啊，之前就想把这篇文章回炉重造了，奈何最近都没有时间。估计这个月底可以搞定（flag"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1514027520,
+            "txt_content": "122474363 发表于 2017-11-28 02:45\n为什么服务器有一个玩家，在登录另一个玩家的时候都会掉线。不会超过3个玩家。。因为2个玩家都全部掉线了。 ...\n请尝试添加「材质签名」（就是把 authlib-agent 编译生成的那个 key.pem 文件放到皮肤站 yggdrasil-api 插件的根目录下）。具体可以加帖子里那个 QQ 群询问，之前也有人遇到过同样的问题。"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1514028360,
+            "txt_content": "z1252583957 发表于 2017-11-19 22:03\n遇到一个很棘手的问题想请教一下楼主，按照上面的方式实现了外置登录，但现在服务器里只能存在一名玩家在线 ...\n请尝试添加「材质签名」（就是把 authlib-agent 编译生成的那个 key.pem 文件放到皮肤站 yggdrasil-api 插件的根目录下）。具体可以加帖子里那个 QQ 群询问，之前也有人遇到过同样的问题。"
+        },
+        {
+            "author": "Lsmmy_",
+            "timestamp": 1514379360,
+            "txt_content": "支持楼主的分享！太感谢了！"
+        },
+        {
+            "author": "xingyu",
+            "timestamp": 1516701480,
+            "txt_content": "不得不说，写的比原版还清楚... 建议楼主可以出一个更详细的介绍"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1516711860,
+            "txt_content": "xingyu 发表于 2018-1-23 17:58\n不得不说，写的比原版还清楚... 建议楼主可以出一个更详细的介绍\n接下来有时间我会把这篇文章翻新一遍的 :)"
+        },
+        {
+            "author": "MengWenBohh",
+            "timestamp": 1523144820,
+            "txt_content": "支持楼主一波"
+        },
+        {
+            "author": "Spartan859",
+            "timestamp": 1525144680,
+            "txt_content": "这个使用了就不需要authme了吧"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1525158960,
+            "txt_content": "Spartan859 发表于 2018-5-1 11:18\n这个使用了就不需要authme了吧\n没错\n\n（凑字数）"
+        },
+        {
+            "author": "dongyun9881",
+            "timestamp": 1526206200,
+            "txt_content": "为什么我登录提示无法连接到服务器？  "
+        },
+        {
+            "author": "a1771336151",
+            "timestamp": 1526573760,
+            "txt_content": "早就搭建好了 很好用哦"
+        },
+        {
+            "author": "LoeGamingJoker",
+            "timestamp": 1535033400,
+            "txt_content": "很详细的教程"
+        },
+        {
+            "author": "@TGL",
+            "timestamp": 1541324280,
+            "txt_content": "站点配置里的强制SSL开启后网站进不去了怎么办。。"
+        },
+        {
+            "author": "ーのものー",
+            "timestamp": 1541338620,
+            "txt_content": "@TGL 发表于 2018-11-4 17:38\n站点配置里的强制SSL开启后网站进不去了怎么办。。\n去皮肤站数据库的 options 表，手动将 force_ssl 配置项的值修改为 false 即可。"
+        },
+        {
+            "author": "s1s2ss3456",
+            "timestamp": 1541407140,
+            "txt_content": "看不懂。。有点"
+        },
+        {
+            "author": "zycdojar",
+            "timestamp": 1551620400,
+            "txt_content": "可是在低版本貌似没实现加载皮肤\n我在高版本看到了皮肤，可低版本没有"
+        },
+        {
+            "author": "djjawdjawhd",
+            "timestamp": 1557153060,
+            "txt_content": "z1252583957 发表于 2017-11-19 22:03\n遇到一个很棘手的问题想请教一下楼主，按照上面的方式实现了外置登录，但现在服务器里只能存在一名玩家在线 ...\n你是不是用的Sakura_frp映射软件或其他映射软件开的服 才会的把"
+        },
+        {
+            "author": "2425701120",
+            "timestamp": 1557309960,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "TheOldDown",
+            "timestamp": 1580093640,
+            "txt_content": "很好啊，是个好主意诶"
+        },
+        {
+            "author": "晓夜Port",
+            "timestamp": 1580519040,
+            "txt_content": "online_mdoe=false复制代码\n\n应是 online_mode=false"
+        },
+        {
+            "author": "m00nfly",
+            "timestamp": 1580526420,
+            "txt_content": "我一直在寻找的解决方案，终于找到了，GitHub 立即关注一波"
+        },
+        {
+            "author": "失心疯.",
+            "timestamp": 1581233280,
+            "txt_content": "千言万语汇成牛逼两字"
+        },
+        {
+            "author": "wenzihe",
+            "timestamp": 1582613640,
+            "txt_content": "能进hypixel吗？"
+        },
+        {
+            "author": "kkll6",
+            "timestamp": 1582645140,
+            "txt_content": " 本帖最后由 kkll6 于 2020-2-26 16:44 编辑 \n\n赞美大佬，我成功用这个进入了ATLauncher玩到了TNFC\n2020.2.26更新: 成功通过控制台启动ATLuancher，添加皮肤站账号也成功了，但是有报错日志启动命令：\njava -javaagent:authlib-injector-1.1.26-41a7a47.jar=https://skin.prinzeugen.net/api/yggdrasil -jar ATLauncher.exe\n\n\n\n\n\n\n\n控制台启动ATLauncher日志.txt\n\n\n2020-2-26 16:31 上传\n点击文件名下载附件\n\n\n\n\n3.39 KB, 下载次数: 1\n\n\n\n\n"
+        },
+        {
+            "author": "h'y'x",
+            "timestamp": 1586233980,
+            "txt_content": "楼主这个是你发的吗 还是被盗了https://www.svlik.com/675.html"
+        },
+        {
+            "author": "Deftercanda",
+            "timestamp": 1586403480,
+            "txt_content": "顶一下，确实好用"
+        },
+        {
+            "author": "幻灭c",
+            "timestamp": 1586438340,
+            "txt_content": "这个帖子太有用了哈哈哈"
+        },
+        {
+            "author": "幻灭c",
+            "timestamp": 1586438400,
+            "txt_content": "这个帖子太有用了哈哈哈"
+        },
+        {
+            "author": "graywolf",
+            "timestamp": 1586919540,
+            "txt_content": "这个对正版账号不友好  正版账号要是能直接登陆就好了"
+        },
+        {
+            "author": "fdhh_dada",
+            "timestamp": 1589596320,
+            "txt_content": " 本帖最后由 fdhh_dada 于 2020-5-16 10:37 编辑 \n\n插件市场显示：严重错误（提问前请先查阅 常见问题）\n无法连接至插件市场源（更换市场源请参考：http:// t.cn /Rk6X37l），错误信息：Client error: `GET https://example.com/plugins.json` resulted in a `404 Not Found` response: <!doctype html> <html> <head> <title>Example Domain</title> <meta charset=\"utf-8\" /> <meta http-equiv=\"Cont (truncated...)"
+        },
+        {
+            "author": "fdhh_dada",
+            "timestamp": 1589596440,
+            "txt_content": "fdhh_dada 发表于 2020-5-16 10:32\n插件市场显示：严重错误（提问前请先查阅 常见问题）\n无法连接至插件市场源（更换市场源请参考：**/Rk6X37l ...\n在.env换了市场源为PLUGINS_REGISTRY = https://example.com/plugins.json还是不行"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589633940,
+            "txt_content": "tallmoon 发表于 2017-8-10 22:09\n支持楼主的分享！太感谢了！\n312313131"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634000,
+            "txt_content": "131313131131"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634060,
+            "txt_content": "tallmoon 发表于 2017-8-10 22:09\n支持楼主的分享！太感谢了！\n11111111111111111"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634120,
+            "txt_content": "2381974953 发表于 2020-5-16 21:01\n11111111111111111\n111111111111111111111111"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634120,
+            "txt_content": "2381974953 发表于 2020-5-16 21:02\n111111111111111111111111\n111111111111111"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634120,
+            "txt_content": "2381974953 发表于 2020-5-16 21:02\n111111111111111\n1111111111"
+        },
+        {
+            "author": "2381974953",
+            "timestamp": 1589634180,
+            "txt_content": "2381974953 发表于 2020-5-16 21:02\n1111111111\n111111111111"
+        },
+        {
+            "author": "麟幻天",
+            "timestamp": 1589682840,
+            "txt_content": "哇看起来很好玩的样子"
+        },
+        {
+            "author": "xyq680303",
+            "timestamp": 1590891300,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Zachery_Liu",
+            "timestamp": 1598256060,
+            "txt_content": "厉害，去试试"
+        },
+        {
+            "author": "无为之才",
+            "timestamp": 1602993000,
+            "txt_content": "想知道，在启动服务端的时候，出现的\nFailed to fetch metadata: java.net.ConnectException: 拒绝连接 (Connection refused)\n咋解决呢\n"
+        }
+    ]
+}

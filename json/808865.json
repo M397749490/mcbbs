@@ -1,0 +1,34 @@
+{
+    "title": "关于方块掉落物问题",
+    "author": "STIM0v0",
+    "replyCount": 5,
+    "timestamp": 1532503560,
+    "txt_content": "以下是命令问题:\n1.如题，请问，怎么设置方块被破坏的掉落物？例如:石头被破坏后有几率掉落铁矿树叶被破坏后或自行掉落有几率掉落矿物或果蔬\n周围的石头有几率缓慢变为矿物\n树叶掉落的物品例如矿物方块和果蔬物品落到地上会成头颅一样的小方块(皮肤是矿物或果蔬)。当玩家靠近小方块按SHIFT就会捡起来物品，物品被捡起后，小方块会消失。\n\n额，我的文笔不好，不能理解的话不要介意=-=\n我就只有这个问题，感谢各位！\n\n\n\n  \n\n",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1532503560,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-7-27 01:26 编辑 \n\n写一下版本又不会怀孕\n第一个问题：\nspg 转化了你的需求：树叶掉落物上有几率出现矿石掉落物。\n不知看到这个需求你是否有了思路。\n当然，玩家扔出的掉落物按下面做法也会有矿石，你可以在掉落物出现的第一刻检测 PickupDelay 来确保那个掉落物是自然产生的。\n首先\n1.12 scoreboard players tag @e[type=item] add leave {Item:{id:\"minecraft:叶子的id\"}}\nexecute @e[tag=leave] ~ ~ ~ execute @s[tag=!executed] ~ ~ ~ (然后分别执行接下来那一大串命令)复制代码\n1.13execute as @e[tag=!executed,nbt={Item:{id:\"minecraft:叶子的id\"}}] at @s run (然后分别执行接下来那一大串命令)复制代码\n我们需要一个随机数生成器。我就使用最简单易懂的 @r 随机数生成器。\n准备阶段。根据需求自己加命令。下面这个是 铁 金 没有 的比例为 1:1:1summom armor_stand ~ ~ ~ {Tags:[\"random\",\"iron\"]}\nsummom armor_stand ~ ~ ~ {Tags:[\"random\",\"gold\"]}\nsummom armor_stand ~ ~ ~ {Tags:[\"random\"]}复制代码\n选择阶段。你看你们就不写版本，就喜欢欺负 spg 玩。我是会生气的好吗！\n1.12scoreboard players tag @e[tag=random] add selected复制代码\n1.13tag @e[tag=random] add selected复制代码\n然后，根据选择结果穷举即可\n1.12execute @e[tag=selected] ~ ~ ~ execute @s[tag=iron] ~ ~ ~ summon item ~ ~ ~ {Item:{id:\"iron_block\"}}\n行了剩下的自己列，爱啥啥复制代码\n1.13算了反正你们也不用 1.13，写它干嘛复制代码\n最后的最后，让那个执行者给自己加个 tag，免得重复执行。\n1.12 scoreboard players tag add @s executed复制代码\n1.13tag @s add executed复制代码\n再重申一遍，从随机数开始一直到前面的命令，全部依次加到最开始的那个 execute 的后面。\n最后杀死生成随机数的东西\nkill @e[tag=random]\n\n\n第二个问题。\n把地上的掉落物变成头颅。\n1.12\n> scoreboard players tag @e[tag=leave] add OnGround {OnGround:1b}\n> execute @e[tag=OnGround] ~ ~ ~ setblock (放置头颅，合适的id你自己找吧)\n> kill @e[tag=OnGround]\n1.13\n> execute as @e[tag=leave,nbt={OnGround:1b}] at @s run setblock (头颅)\n> kill @e[tag=leave,nbt={OnGround:1b}]\n\n玩家按 shift 捡起物品，\n\n建立统计 sneakTime 的计分版。\n1.12> scoreboard objective add shift stat.sneakTime\n1.13> scoreboard objective add shift minecraft.custom:minecraft.sneakTime\n一旦该计分版值增加，则穷举玩家脚下头颅的 nbt，根据不同 nbt 给予不同物品，最后将玩家脚下方块setblock ~ ~ ~ air\n对了，别忘了恢复计分版的值，scoreboard players set @a shift 0\n\n我都瞎答了些什么。你问下面的似玉吧…"
+        },
+        {
+            "author": "Sssss...",
+            "timestamp": 1532586420,
+            "txt_content": " 本帖最后由 Sssss... 于 2018-7-26 16:06 编辑 \n\n抱歉，第一个问题无法回答，难度过大\n树叶掉落的物品例如矿物方块和果蔬物品落到地上会成头颅一样的小方块(皮肤是矿物或果蔬)。当玩家靠近小方块就会捡起来物品，物品被捡起后，小方块会消失。\n方法：探测到地上的物品时创建一个探测器，探测到玩家后give物品并清除探测器和头颅\n以煤矿石为例 需要穷举需要探测的所有物品，请注意tag不得相同 下面的{Item:{id:\"minecraft:coal_ore\"}}可以改为是其他物品穷举其他物品时下面的[tag=coal_ore]都要改为其他Tag\n为以下所有命令做准备：高频scoreboard players tag @e[type=item] add coal_ore {Item:{id:\"minecraft:coal_ore\"}}\n\n备用图：\n\n\n红色染色玻璃（探测物品是否掉落在地面）（从左上至右下）\n\n  testfor @e[type=item,tag=coal_ore]（探测物品）\n  execute @e[type=item,tag=coal_ore] ~ ~ ~ testforblock ~ ~-1 ~ air（探测物品下方是否为空气）\n\n黄色染色玻璃（将物品替换为探测器，放置头颅，头颅的NBT请自行填写）（从上至下）\n  execute @e[type=item,tag=coal_ore] ~ ~ ~ setblock ~ ~ ~ skull\n  execute @e[type=item] ~ ~ ~ summon armor_stand ~ ~ ~ {Invulnerable:1,Invisible:1,DisabledSlots:1}（NBT:隐身，不可破坏，禁止摆放盔甲）\n  kill @e[type=item,tag=coal_ore]\n\n蓝色染色玻璃（探测玩家并给予物品）（从上至下）\n  execute @e[type=armor_stand] ~ ~ ~ execute @a[r=3] ~ ~ ~ scoreboard players tag @e[type=armor_stand,r=3] add a（\n为下面的命令做准备）\n  execute @e[type=armor_stand,tag=a] ~ ~ ~ give @p coal_ore（给予最近的玩家煤矿石）\n  execute @e[type=armor_stand,tag=a] ~ ~ ~ setblock ~ ~ ~ air（清除头颅）\n  kill @e[type=armor_stand,tag=a]（清除探测器）\n\n绿色染色玻璃（由于头颅的特性：setblock为空气后会掉落为物品 还需要清除头颅）（从上至下）\n  scoreboard players tag @e[type=item] add skull {Item:{id:\"minecraft:skull\"}}（所有头颅物品给予tag）\n  kill @e[type=item,tag=skull]（清除头颅物品）\n\n\n（我的Minecraft出了点小问题 使用的时候可以把所有红石块拆了，把所有高频命令方块换成始终活动）\n缺点：所有数量的物品最后捡起只能得到一个修复方法：在上面穷举物品的地方加一个Count:1b/2b/3b/.../64b，下面的give后面加上物品数量 这样很麻烦但是可以覆盖所有可能性（Tag也要改，不能重复）ps.本模块发现物品后4t执行/kill，Minecraft中不作弊同种物品在4t内最多生成20个左右（时运III挖掘青金石矿石，玩家丢弃物品除外）\nTag名称（不是一定要这样，只是这样不会乱）：物品id_物品数量周围的石头有几率缓慢变为矿物方法:使用长时脉冲+结构不完整的结构方块+远程clone+fill replace\n暂无思路，待编辑\n\n"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1532610840,
+            "txt_content": "SPGoding 发表于 2018-7-26 21:06\n写一下版本又不会怀孕。需求这么多，又不写版本，让 spg 怎么认真答。\nspg 转化了你的需求：非玩家扔出的树 ...\n你不说不想回答的吗233\n\n如果是1.13，那么首先需要破坏方块的判据的计分版，计分版有分数时，清除附近age为0s的石头，然后用随机数给予相应物品掉落物\n\n树叶自然掉落是很难做到的，但是可以自己定义树苗，种树然后长出水果，然后直接破坏头颅就好了么何必用shift\n\n恰好你说的这些内容我最近都有写，你可以去下个我写的模组来看看，明天我会上新版本，你可以在里面找到相应内容。用手机回复比较麻烦"
+        },
+        {
+            "author": "STIM0v0",
+            "timestamp": 1532657340,
+            "txt_content": "ruhuasiyu 发表于 2018-7-26 21:14\n你不说不想回答的吗233\n\n如果是1.13，那么首先需要破坏方块的判据的计分版，计分版有分数时，清除附近age ...\n大佬，你的原版模组地址可以发下吗=-="
+        },
+        {
+            "author": "STIM0v0",
+            "timestamp": 1532657400,
+            "txt_content": "SPGoding 发表于 2018-7-25 15:26\n写一下版本又不会怀孕\n第一个问题：\nspg 转化了你的需求：树叶掉落物上有几率出现矿石掉落物。\n谢谢大佬的回答！"
+        }
+    ]
+}

@@ -1,0 +1,54 @@
+{
+    "title": "（已经解决） 使用protocolLib收包得到空的Values",
+    "author": "William_Shi",
+    "replyCount": 9,
+    "timestamp": 1589636700,
+    "txt_content": " 本帖最后由 William_Shi 于 2020-5-16 22:15 编辑 \n\n我的代码如下，目标是收到客户端发的Chat数据包\n\n\n\n        Set<PacketType> packetTypes = new HashSet<>();\n        packetTypes.add(PacketType.Play.Client.CHAT);\n\n        AdapterParameteters params = new AdapterParameteters();\n        params.plugin(Bukkit.getPluginManager().getPlugin(\"MinerTribeChat\"));\n        params.clientSide();\n        params.listenerPriority(ListenerPriority.LOWEST);\n        params.gamePhase(GamePhase.PLAYING);\n        params.optionAsync();\n        params.types(packetTypes);\n\n        staticAdapter_2 = new PacketAdapter(params) {\n            @Override\n            public void onPacketReceiving(PacketEvent event) {\n                PacketContainer container = event.getPacket();\n                System.out.println(container);\n                System.out.println(container.getStrings());\n                System.out.println(container.getChatComponents());\n                System.out.println(container.getChatComponents().getValues());\n                System.out.println(container.getChatComponentArrays().getValues());\n                for (int i = 0; i < container.getChatComponents().size(); i++) {\n                    WrappedChatComponent component = container.getChatComponents().getValues().get(i);\n                    String json = component.getJson();\n                    System.out.println(json);\n                }\n            }\n        };复制代码\n\n\n其中，staticAdapter_2是我的PacketAdapter\n我的目标是收到客户端发给服务端的聊天数据包\n但是，输出的ChatComponents是空的\n完整输出如下\n\n[21:44:21] [Netty Server IO #1/INFO]: PacketContainer[type=CHAT[class=PacketPlayInChat, id=3], structureModifier=StructureModifier[fieldType=class java.lang.Object, data=[private java.lang.String net.minecraft.server.v1_15_R1.PacketPlayInChat.a]]]\n[21:44:21] [Netty Server IO #1/INFO]: StructureModifier[fieldType=class java.lang.String, data=[private java.lang.String net.minecraft.server.v1_15_R1.PacketPlayInChat.a]]\n[21:44:21] [Netty Server IO #1/INFO]: StructureModifier[fieldType=interface net.minecraft.server.v1_15_R1.IChatBaseComponent, data=[]]\n[21:44:21] [Netty Server IO #1/INFO]: []\n[21:44:21] [Netty Server IO #1/INFO]: []\n[21:44:21] [Async Chat Thread - #0/INFO]: <William_Shi> hi\n复制代码\n\n可以看到，\nSystem.out.println(container.getChatComponents());\nSystem.out.println(container.getChatComponents().getValues());\n这两项是空的\n\n希望大佬能教教我怎么实现我需要的功能，感激不尽！\n\n感谢@TheRam_ \n问题解决了，因为这是NMS中PacketPlayInChat的代码\n\npackage net.minecraft.server.v1_15_R1;\n\nimport com.google.common.util.concurrent.ThreadFactoryBuilder;\nimport java.io.IOException;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n\npublic class PacketPlayInChat implements Packet<PacketListenerPlayIn> {\n  private String a;\n  \n  public PacketPlayInChat() {}\n  \n  public PacketPlayInChat(String s) {\n    if (s.length() > 256)\n      s = s.substring(0, 256); \n    this.a = s;\n  }\n  \n  public void a(PacketDataSerializer packetdataserializer) throws IOException {\n    this.a = packetdataserializer.e(256);\n  }\n  \n  public void b(PacketDataSerializer packetdataserializer) throws IOException {\n    packetdataserializer.a(this.a);\n  }\n  \n  private static final ExecutorService executors = Executors.newCachedThreadPool((\n      new ThreadFactoryBuilder()).setDaemon(true).setNameFormat(\"Async Chat Thread - #%d\").build());\n  \n  public void a(final PacketListenerPlayIn packetlistenerplayin) {\n    if (!this.a.startsWith(\"/\")) {\n      executors.submit(new Runnable() {\n            public void run() {\n              packetlistenerplayin.a(PacketPlayInChat.this);\n            }\n          });\n      return;\n    } \n    packetlistenerplayin.a(this);\n  }\n  \n  public String b() {\n    return this.a;\n  }\n}复制代码\n\n没有ChatComponent，只有String字段\n\n非常抱歉占用各位的时间，下次我一定仔细先看一遍SDK中的NMS再来询问\n",
+    "replies": [
+        {
+            "author": "TheRam_",
+            "timestamp": 1589637360,
+            "txt_content": "ProtocolLibrary.getProtocolManager().addPacketListener(new PacketAdapter(Main.getInstance(), PacketType.Play.Server.CHAT) {\n                                public void onPacketSending(PacketEvent e) {\n                                        Player player = e.getPlayer();\n                                        PacketContainer packet = e.getPacket();\n                                        WrappedChatComponent wrapped = packet.getChatComponents().read(0);\n                                }\n});复制代码用我的方法试试呢"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1589637420,
+            "txt_content": "TheRam_ 发表于 2020-5-16 21:56\n用我的方法试试呢\nPacketType.Client\n应该是收客户端发来的数据包吧\n是我理解反了么？"
+        },
+        {
+            "author": "TheRam_",
+            "timestamp": 1589637780,
+            "txt_content": "William_Shi 发表于 2020-5-16 21:57\nPacketType.Client\n应该是收客户端发来的数据包吧\n是我理解反了么？\n客户端发送的数据包，当然是PacketType.Client"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1589637780,
+            "txt_content": "TheRam_ 发表于 2020-5-16 22:03\n客户端发送的数据包，当然是PacketType.Client\n我的需求是收到玩家发来的，你的代码是服务端发送给玩家的"
+        },
+        {
+            "author": "TheRam_",
+            "timestamp": 1589637900,
+            "txt_content": "William_Shi 发表于 2020-5-16 22:03\n我的需求是收到玩家发来的，你的代码是服务端发送给玩家的\n内啥，看错了...\n\n\n                        ProtocolLibrary.getProtocolManager().addPacketListener(new PacketAdapter(Main.getInstance(), ListenerPriority.HIGHEST, PacketType.Play.Client.CHAT) {\n                    public void onPacketReceiving(PacketEvent e) {\n                            Player player = e.getPlayer();\n                            PacketContainer packet = e.getPacket();\n                            String message = packet.getStrings().read(0);\n                    }\n                        });;复制代码\n获取String就行了"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1589638020,
+            "txt_content": "TheRam_ 发表于 2020-5-16 22:05\n内啥，看错了...\n是Strings，而不是chatcomponent是么"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1589638020,
+            "txt_content": "TheRam_ 发表于 2020-5-16 22:05\n内啥，看错了...\n抱歉浪费您的时间了，下次我一定仔细先看一遍sdk中的nms"
+        },
+        {
+            "author": "TheRam_",
+            "timestamp": 1589638140,
+            "txt_content": "William_Shi 发表于 2020-5-16 22:07\n是Strings，而不是chatcomponent是么\n\n你说的是聊天信息的WrappedChatComponent吗？\n\n如果是，可以有下面的方法转换\n\nWrappedChatComponent[] wrappeds = WrappedChatComponent.fromChatMessage(message);复制代码"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1589638200,
+            "txt_content": "TheRam_ 发表于 2020-5-16 22:09\n你说的是聊天信息的WrappedChatComponent吗？\n\n如果是，可以有下面的方法转换\n感谢大佬，问题解决了，我并不是不会使用一些相关于操作消息的内容，只是获取了空的values"
+        }
+    ]
+}

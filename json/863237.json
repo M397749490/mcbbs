@@ -1,0 +1,34 @@
+{
+    "title": "(Forge) GUI与TileEntity中的数值资料并不同步",
+    "author": "清华儒墨",
+    "replyCount": 5,
+    "timestamp": 1556973120,
+    "txt_content": "我知道由于Client与Server的关系，所以TileEntity的数值需要更新至Client\n可是就算我在每次tick的时候更新一次，还是没有效果。\n示例:\n\n\n\n\n2019-05-04_20.21.48.png (259.05 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-4 20:22 上传\n\n\n\n\n\n(那条进度条不用理 未实作)\n从上图可见，Stored: 是直接从TileEntity取出的数值，\n红色进度条上显示的则是gui取得的数值\n当我把TileEntity中的能量抽走，gui不会更新。\n\n\n\n\n2019-05-04_20.24.26.png (260.78 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-4 20:24 上传\n\n\n\n\n\n\n甚么都不做就会出现上图的结果\n那么，我尝试在TileEntity(implements ITickable)中的update()加上这行:if(world.isRemote) world.notifyBlockUpdate(pos, getState(), getState(), 3);复制代码还是同样的结果\n\n还是我省略了一些重要的步骤? \n我参考这个Furnace源代码的时候发现他也是用这行用作更新。\n\n\n\n",
+    "replies": [
+        {
+            "author": "xz2311196368",
+            "timestamp": 1556974200,
+            "txt_content": "注意 这一段，这才是与客户端同步TE数据调用的方法。\n如果不重写这些方法，那么  world.notifyBlockUpdate 只会更新 BlockState，不会同步TE数据。"
+        },
+        {
+            "author": "清华儒墨",
+            "timestamp": 1556979300,
+            "txt_content": " 本帖最后由 s091424 于 2019-5-4 22:18 编辑 \nbxz2311196368 发表于 2019-5-4 20:50\n注意 这一段，这才是与客户端同步TE数据调用的方法。\n如果不重写这些方法，那么  world.notifyBlockUpdate  ...\n已经重写了这些方法，但是问题还在\n附上write与readNBT的method\n@Override\n    public NBTTagCompound writeToNBT(NBTTagCompound compound) {\n\n        super.writeToNBT(compound);\n\n        compound.setTag(\"inventory\", inventory.serializeNBT());\n        compound.setInteger(\"generateTick\", generateTick);\n        storage.writeToNBT(compound);\n        return compound;\n    }\n\n    @Override\n    public void readFromNBT(NBTTagCompound compound) {\n        super.readFromNBT(compound);\n\n        inventory.deserializeNBT(compound.getCompoundTag(\"inventory\"));\n        generateTick = compound.getInteger(\"generateTick\");\n        storage.readFromNBT(compound);\n\n    }复制代码    @Override\n    @Nullable\n    public SPacketUpdateTileEntity getUpdatePacket() {\n        NBTTagCompound updateTagDescribingTileEntityState = getUpdateTag();\n        final int METADATA = 0;\n        return new SPacketUpdateTileEntity(this.pos, METADATA, updateTagDescribingTileEntityState);\n    }\n\n    @Override\n    public void onDataPacket(NetworkManager net, SPacketUpdateTileEntity pkt) {\n        NBTTagCompound updateTagDescribingTileEntityState = pkt.getNbtCompound();\n        handleUpdateTag(updateTagDescribingTileEntityState);\n    }\n\n    @Override\n    public NBTTagCompound getUpdateTag() {\n        NBTTagCompound nbtTagCompound = new NBTTagCompound();\n        return writeToNBT(nbtTagCompound);\n    }\n\n    @Override\n    public void handleUpdateTag(NBTTagCompound tag) {\n        this.readFromNBT(tag);\n    }复制代码"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1556980080,
+            "txt_content": "在GUI中进行同步需要重写 这一部分 （注意看注释）。"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1556980500,
+            "txt_content": "以上，TE中的4个方法在区块加载阶段触发。GUI的方法只在GUI打开阶段循环触发。\n如果需要全程进行同步，那么需要手动发送数据包参照 4z教程 。\n"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1557262800,
+            "txt_content": "bxz2311196368 发表于 2019-5-4 22:35\n以上，TE中的4个方法在区块加载阶段触发。GUI的方法只在GUI打开阶段循环触发。\n如果需要全程进行同步，那么 ...\n补一句，getUpdatePacket() 和 onDataPacket() 只会在 setBlockState()/notifyBlockUpdate 的时候触发，getUpdateTag()/handleUpdateTag() 只在区块加载时触发。"
+        }
+    ]
+}

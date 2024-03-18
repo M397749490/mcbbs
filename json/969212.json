@@ -1,0 +1,44 @@
+{
+    "title": "Addon行为包实战笔记",
+    "author": "LackieXH",
+    "replyCount": 7,
+    "timestamp": 1582649760,
+    "txt_content": " 本帖最后由 LackieXH 于 2020-2-26 12:23 编辑 \n\n写在前面\n\n仅用此帖记录我在 Addon 开发过程中的所学所得，以文档结合实战的方式，逐步探索 Addon 的开发技巧。\n以下将是我写作此帖的主要内容，包括：官方文档阅读笔记、实战案例开发过程、他人作品代码分析笔记等。\n在此过程中，当然也欢迎各位与我进行友好的交流，无论你是 Addon 爱好者，亦或是一位普通玩家。\n我相信此帖将产生一些有价值的内容，希望这部分内容可以对后来者有所启发。\n\n起步\n\n行为包是应用于实体的、用于改变实体各种行为的附加插件（add-ons）。目前仅支持通过添加、删除和修改现有行为的方式，以改变现有实体的行为。在本教程中，我们给猪（Pig）添加上爬行者（creeper）的爆炸行为。在这之前，我们需要创建一个包。—— 阅读至官方文档\n在这部分内容中，我会跟随官方文档的节奏，了解行为包如何创建，如何给生物添加行为等知识。\n注：实际上目前已经支持通过 Addon 自定义生物实体，但这些内容我会放到后面再进行学习。\n\n创建行为包\n\n跟着文档的指引，我找到用于放置行为包文件夹的目录，它位于：\n%userprofile%\\AppData\\Local\\Packages\\Microsoft.MinecraftUWP_8wekyb3d8bbwe\\LocalState\\games\\com.mojang\\development_behavior_packs\n我在这里创建一个名为 study_behavior_pack 的文件夹（以下称作根目录），这里将记录我学习 Addon 的起点。\n\n跟着文档的指引，我在根目录下创建一个名为 manifest.json 的文件，并写上以下内容：\n{\n        \"format_version\": 2,\n        \"header\": {\n                \"name\": \"学习包\",\n                \"uuid\": \"f46a9a0a-a8e8-4f1e-9ef0-d29bd2c10a91\",\n                \"description\": \"记录 Addon 学习历程\",\n                \"version\": [1, 0, 0],\n                \"min_engine_version\": [1, 14, 0]\n        },\n        \"modules\": [\n                {\n                        \"type\": \"data\",\n                        \"uuid\": \"ae27bc41-4232-417a-9129-2a7ab14fa855\",\n                        \"description\": \"行为包\",\n                        \"version\": [1, 0, 0]\n                }\n        ]\n}复制代码这段代码中有三个主要元素（实际上还有更多的可定义项）是：format_version、header 和 modules。其中 header 定义了包信息，modules 定义了包的模块信息。\n关于format_version ，我暂时未在官方文档中找到关于这一项的说明，根据字面猜测，它可能影响着游戏对 Add-on 采取不同的解析方案。在 Win10 基岩版本中，该字段似乎应始终定义为 2，具体的将不再作更多叙述。\n关于 uuid ，该字段定义了一个通用唯一标识符，有特殊格式要求，建议使用 uuid 生成工具进行生成。需要注意的是，在这段代码中的两处 uuid 是不同的值，如果这个包存在更多的模块（modules），其 uuid 也应该保证是唯一的。\n关于模块的 type 字段，它用于定义模块类型，可选值包括但不限于：data、resources、client_data、interface。\n\n我准备先验证一下这个行为包能否被游戏正确加载。我启动游戏，接着创建世界，在创建交互界面的左侧有附加件/行为包选项，在这里可以看到这个行为包可以被正确加载。\n\n\n\n添加图标\n\n可以看到我的行为包已经被加载到了，并且应用了默认的图标。\n跟着文档的指引，我需要在根目录下创建一个图片文件，命名为 pack_icon.png。\n然后我打开了我常用的图片编辑工具，并随意的进行了一番创作。\n\n\n\n然后重启游戏，可以看到这个包已经应用了我刚才画的图标了。\n\n\n\n实体概述\n\n根据文档的指引，定义实体的 JSON 文件应存放在根目录下的 entities 文件夹下。\n在官方文档里可以获取到官方提供的行为包制作案例（以下称作案例包），里面有大量在学习时可以参考的内容。也可以点击此处获取。\n我在案例包中找到了关于猪实体的定义文件（entities/pig.json），并将它拷贝到我的项目中。\n在编辑器中打开 pig.json，可以观察到该文件的结构大概是这样的：\n\n{\n  \"format_version\": \"1.13.0\",\n  \"minecraft:entity\": {\n    \"description\": {\n      \"identifier\": \"minecraft:pig\",\n      \"is_spawnable\": true,\n      \"is_summonable\": true,\n      \"is_experimental\": false\n    },\n    \"component_groups\": {},\n    \"components\": {},\n    \"events\": {}\n  }\n}复制代码\n所有的实体定义文件都具有如上所述的、相同的大致结构。\n\n其中，format_version 用于告诉 Minecraft 应该采取哪种方案用以解析这个 JSON 文件；\nidentifier，用以声明该实体的ID，通常需要加上前缀：minecraft，例如上述中的 minecraft:pig；\nis_summonable：影响该实体能否通过命令进行生成；\nis_experimental：声明该实体是否需要开启实验性玩法；\nis_spawnable：从字面理解似乎影响该实体是否会在游戏中自然生成。从非官方渠道了解到的是，此字段可能影响该实体是否存在其对应的生物蛋。遗憾的是目前暂未从官方文档中阅读到关于此字段的解释，我将在后续内容中验证，此处暂不作详细叙述；\ncomponent_group：定义一组行为，但这里定义的行为并不会一开始就被应用在该实体上。通常在一些事件被触发时，从实体上移除或添加这些行为，以达到该实体从一种状态过渡到另一种状态的效果，例如猪从幼体猪成长为成年猪；\ncomponents：定义该实体具有的一些行为，通常用于定义该实体无论在哪种状态下都共有的行为。\nevents：定义该实体将会响应的事件。\n\n(未完待更)\n\n",
+    "replies": [
+        {
+            "author": "theredcap",
+            "timestamp": 1583309700,
+            "txt_content": "快更啊啊啊啊我等不急了！"
+        },
+        {
+            "author": "纯粹404",
+            "timestamp": 1583677920,
+            "txt_content": "我其实蛮看好addon的希望官方不要把它鸽了"
+        },
+        {
+            "author": "深绿世界",
+            "timestamp": 1586072400,
+            "txt_content": "纯粹404 发表于 2020-3-8 22:32\n我其实蛮看好addon的希望官方不要把它鸽了\n已经鸽了很久了"
+        },
+        {
+            "author": "深绿世界",
+            "timestamp": 1586072460,
+            "txt_content": "Format Version这一项真的很迷\n作者大大咕咕咕"
+        },
+        {
+            "author": "mistydawn",
+            "timestamp": 1594646640,
+            "txt_content": "快更！！！书签已经加上了"
+        },
+        {
+            "author": "咳咳太难热",
+            "timestamp": 1594881180,
+            "txt_content": "果然，还是有人和我抢饭碗的\n\nhttps://www.mcbbs.net/thread-1074820-1-1.html"
+        },
+        {
+            "author": "Yolkcookie",
+            "timestamp": 1595581620,
+            "txt_content": "咳咳太难热 发表于 2020-7-16 14:33\n果然，还是有人和我抢饭碗的\n\nhttps://www.mcbbs.net/thread-1074820-1-1.html\n饭碗消失术"
+        }
+    ]
+}

@@ -1,0 +1,84 @@
+{
+    "title": "【绿宝石农场】袭击中心nbt数据实时更新显示教程&袭击转移详细机制补充讨论",
+    "author": "Air_Z",
+    "replyCount": 15,
+    "timestamp": 1575391440,
+    "txt_content": " 本帖最后由 Air_Z 于 2019-12-4 01:02 编辑 \n\n        万恶之源：https://www.bilibili.com/read/cv2817629\n        本来看着GP大佬的详解，我本想把绿宝石农场从todolist上划去的，但是直到服务器里面朋友的绿宝石农场出现了反常，我从朋友的绿宝石农场的小异常出发，发现了许多有趣事情。在这过程中想把把一些经验分享出来，主要就是袭击中心实时更新显示教程和袭击转移详细机制补充讨论。创作匆忙，不当之处，请多指正。正文如下：\n\n0.异常\n\n        异常如下，朋友在服务器里面原版复现了ccs的绿宝石农场（肾雄肝帝的朋友），然后发现无法工作，我两一起排查下来，发现是袭击中心异常偏移。朋友一模一样按照css的绿宝石农场做，袭击中心相对工作方块的偏移却不一样，排查了其他一切你能想出的原因之后，我把异常定位在了“区块边缘的职业方块”这个异常上面，如下图\n\n\n1.袭击中心实时更新显示教程\n我在单机里面复现了这个异常，发现不是服务器的问题，原版单机里面也有这个异常。但是实验过程中袭击中心总是需要我人肉探测袭击进度条确定。\n        工欲善其事，必先利其器，我用一些辅助工具实现了袭击中心迁移在对话框的实时显示，而且能实时检测袭击中心的变化，效果如下\n\n        翻看存档可以确定袭击的NBT数据在raids.dat，其中有CX,CY,CZ三个TAG表示袭击中心，起初我想边触发袭击边用NBTExplorer刷新查看袭击的NBT数据，然而由于单机模式下存档不是实时保存的，会造成数据延迟，有时还会造成数据丢失，而且切窗口点击及其麻烦。我懒，我就想让袭击中心实时显示在游戏内对话框。于是去各处寻找有没有像village marker的mod来显示袭击的显示数据，我没查到（找到的朋友分享下）。\n        于是我打算用服务端的save-all命令来解决实时更新存档数据，在服务端用python（人生苦短，我用python）和linux screen软件来实现实时解析NBT并打印在游戏内窗口。相信大佬可能已经知道下面怎么做了，我就简单说说流程。\n\na.用python解析NBT\n        这里可以用到nbt库（万能的python库）NBT,python 文件格式的解析器/编写器，它是RegionFile的容器,下载NBT的源码_GitHub_HELPLIB，\n        这篇github有许多不适合我的地方（异常），我分享两个地方的解决方案（也许不适合你）\npip install nbt        //更简易的安装\n复制代码from nbt import *   //可行的引用\n复制代码       其他的异常，自行研读库源码，服务端python插件的编写需要用到以下个功能\n>>> from nbt import *\n>>> raidNbt = nbt.NBTFile(\"raids.dat\",\"rb\")\n>>> print(raidNbt.pretty_tree())\nNBTFile: {2 Entries}\n{\n        TAG_Compound('data'): {3 Entries}\n        {\n                TAG_List('Raids'): [0 _TAG_End(s)]\n                TAG_Int('NextAvailableID'): 22\n                TAG_Int('Tick'): 112713\n        }\n        TAG_Int('DataVersion'): 1976\n}复制代码下图直接引用未安装的nbt.py\n\n\n\n        我懒得找这个库用TAG定位数据的方法，就直接用处理nbt标签树展开的字符串数据的。\n\nb.服务端的搭建\n        这个我用的是ubuntu18.04在vbox上搭建的服务端，这里注意网络的桥接问题。\n        在本地或者在云端搭建服务端，教程很多，我推荐用linux搭建，简单的多。\n\nc.python与screen让服务端获得op权限并管理服务器\n        服务端文件文件夹如下\n\n        其中nbt.py是前面库文件中的nbt.py,其他的如chunk.py我没有用到，有兴趣的同学可以去研究下。m.zip无关紧要，可以没有。其他的大家都很熟悉吧。\n        raidnbt.py源码如下，转义斜杠丢失（编写匆忙，渣码见谅）：\nimport time\nimport os\nimport nbt\n\nraidNbtFilepath = \"world/data/raids.dat\"\nlastCenterStrList = []\ncenterStrList = []\nnbtStr = ''\n\nwhile True:\n    os.system('screen -S mc1.14.4 -p 0 -X stuff \"save-all\"')\n    os.system('screen -S mc1.14.4 -p 0 -X stuff \"\\\\n\"')\n    time.sleep(0.5)\n    nbtStr = nbt.NBTFile(raidNbtFilepath,\"rb\").pretty_tree()\n    if 'TAG_Int(\\'CX\\'):' in nbtStr:\n        centerStrList = nbtStr[nbtStr.index('TAG_Int(\\'CX\\'):'):nbtStr.index('TAG_Int(\\'Id\\'):')].replace('\\t','').split('\\n')[:-1]\n        centerStrList.pop(2)\n        centerStrList=[int(i[14:]) for i in centerStrList]\n    else:\n        centerStrList=['NO RAID!']\n    if lastCenterStrList != centerStrList:\n        os.system('screen -S mc1.14.4 -p 0 -X stuff \"say RAID CENTER: \"')\n        os.system('screen -S mc1.14.4 -p 0 -X stuff \"'+str(centerStrList)+'\"')\n        os.system('screen -S mc1.14.4 -p 0 -X stuff \"\\\\n\"')\n        print('RAID AT '+str(centerStrList))\n    lastCenterStrList = centerStrList\n    time.sleep(0.1)  复制代码\n\nmcbbs代码转义斜杠丢失，转义字符见下图\n\n\n\n，然后，\nscreen -S mc1.14.4\njava -Xms2G -Xmx2G -jar sever.jar -nogui复制代码挂起mc1.14.4后，在主窗口运行raidnbt.py即可连接进服务器进行测试了。\n最好在游戏内屏蔽下指令反馈\n/gamerule sendCommandFeedback false复制代码\n\n\n2.袭击中心迁移机制\n\n        我用上述办法进行了测试，对GP的迁移机制进行补充如下：\n        1.在工作方块未在区块的西北边缘时，袭击发生迁移时中心坐标即为16*16*16的中心subchunk的正中点，初始的中心subchunk为初始袭击的职业方块所在子区块，而中心subchunk的迁移按照GP大佬的“5*5*5的3*3*3”机制迁移。\n        2.当工作方块在区块的西北边缘，初始的中心subchunk位置如下图\n\n\nN边缘的初始中心subchunk为N面相邻subchunk。\nW边缘的初始中心subchunk为W面相邻subchunk。\nWN顶点的初始中心subchunk为以WN点中心对称的subchunk。\n\n简单测试图如下\n\n\n初始工作方块坐标0，2，0（subchunk[0,0,0]）；迁移工作方块坐标0，49，0(subchunk[0,3,0])；\n服务器的朋友预想中应该迁移到8 40 8（subchunk[0,2,0]的中心坐标）；然而迁移到了WN对角区块的坐标-8 40 -8（subchunk[-1,2-1]）符合预期。\n\n还有许多测试懒得发了，有兴趣慢慢交流。\n\n3.未填鸽子坑\n\n· 村民状态的详细测试\n\n· “5*5*5的3*3*3”转移机制的检测顺序\n· 上下边缘职业方块的subchunk判断\n\n· 全天候变效率挂机绿宝石农场理论设计\n...\n\n最后，有没有小伙伴有反编译好的1.14.4项目文件，朝闻道，夕睡可矣。\nps.不知可不可复现测试，仅供参考，欢迎讨论\n\n",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1575431820,
+            "txt_content": "所以你的结论就是是袭击中心3*3*3区段没没有占据的工作方块，但5*5*5范围有时，袭击中心转移为占据的工作方块坐标偏移(-1,0,-1)所在区段的中心吗？"
+        },
+        {
+            "author": "Air_Z",
+            "timestamp": 1575436200,
+            "txt_content": " 本帖最后由 Air_Z 于 2019-12-4 13:20 编辑 \nruhuasiyu 发表于 2019-12-4 11:57\n所以你的结论就是是袭击中心3*3*3区段没没有占据的工作方块，但5*5*5范围有时，袭击中心转移为占据的工作方 ...\n不是，参见GP的B站专栏：\n袭击转移机制：袭击每gt均会检测其周围的3x3x3区块，若均不存在被占据的村民方块，则会转移其中心点。袭击将会检测其周围的5x5x5区块，并选择一个满足周围3x3x3区块存在被占据的村民方块条件的最近一个区块。若检测不到，则直接结束袭击。\n我测试过这个结论，理论与实践基本符合。\n\n当游戏检测到，以袭击中心坐标所在区段A为中心的3*3*3区段没有被占据的村民方块，则轮询此中心区段周围的5*5*5区段，暂称B，若B满足条件“其周围3*3*3区段存在被占据的村民方块”，则中心区段转移至B。\n\n而我的补充结论是，当袭击中心坐标在区段西北边界时，会出现检测职业方块所在区段的3*3*3，但是转移时以边缘职业方块相邻的区段为中心区段。这可能和坐标与区段的归属关系有关\n\n昨晚困的不行，没有详细分享我验证GP转移机制的经验，比如“袭击中心转移时坐标与职业方块坐标平均值没有关系”，有时间详细分享。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1575440100,
+            "txt_content": "Air_Z 发表于 2019-12-4 13:10\n不是，参见GP的B站专栏：\n\n我测试过这个结论，理论与实践基本符合。\n你说的和我说的有差别吗？"
+        },
+        {
+            "author": "Air_Z",
+            "timestamp": 1575444780,
+            "txt_content": " 本帖最后由 Air_Z 于 2019-12-4 15:36 编辑 \nruhuasiyu 发表于 2019-12-4 14:15\n你说的和我说的有差别吗？\nen...差别很大，可能你还没理解我的意思；5*5*5范围内有会转移，但不是全部条件；是5*5*5的每一个区段的3*3*3范围内有就会转移。\n用轮询数组解释可能更清晰些，伪代码：\n\nsubchunk A[125][27]\nnextSubchunk=-1\nfor(i=0;i<125;i++){\nfor(j=0;j<27;j++){\nif activeJobBlock in A[i][j]{\nnextSubchhunk=i\nreturn 0\n}\n}\n}复制代码事实上在检测过程中7*7*7区段内有职业方块也会转移，我下图测试的是-3--0--3的0--3一端\n"
+        },
+        {
+            "author": "qwer925009155",
+            "timestamp": 1575644400,
+            "txt_content": "惨         "
+        },
+        {
+            "author": "leiting2000",
+            "timestamp": 1576494360,
+            "txt_content": "虽然没怎么看懂，但是大概知道打袭击不好自动化。\n等大佬完成。"
+        },
+        {
+            "author": "3447256593",
+            "timestamp": 1576913100,
+            "txt_content": "谢谢楼主"
+        },
+        {
+            "author": "kaici_baby",
+            "timestamp": 1588489920,
+            "txt_content": " 本帖最后由 kaici_baby 于 2020-5-3 15:22 编辑 \n\n可以在略夺塔区块中做一个全自动的袭击装置嘛，我做过但是不是全自动的，效率也很低,就是把区块从16*16*4挖到22*22*3，然后掠夺刷在旁边,因为距离不够所以你要勾引他，还有就是掠夺兽改怎么处理，求大佬做个全自动的视频（我1.15.2的纯生存的一个服务器）"
+        },
+        {
+            "author": "念爻安",
+            "timestamp": 1589173080,
+            "txt_content": "666666666666666666666666666"
+        },
+        {
+            "author": "念爻安",
+            "timestamp": 1589173140,
+            "txt_content": "666666666666666666666666666666666"
+        },
+        {
+            "author": "念爻安",
+            "timestamp": 1589173200,
+            "txt_content": "念爻安 发表于 2020-5-11 12:58\n666666666666666666666666666\n66666666666大佬牛批"
+        },
+        {
+            "author": "念爻安",
+            "timestamp": 1589173260,
+            "txt_content": "Air_Z 发表于 2019-12-4 15:33\nen...差别很大，可能你还没理解我的意思；5*5*5范围内有会转移，但不是全部条件；是5*5*5的每一个区段的3* ...\n厉害厉害"
+        },
+        {
+            "author": "qq3065392345",
+            "timestamp": 1591974180,
+            "txt_content": "6666666666666666666666666666"
+        },
+        {
+            "author": "破碎の琉璃",
+            "timestamp": 1594283820,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "若梦丶浮生",
+            "timestamp": 1607772420,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

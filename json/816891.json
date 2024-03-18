@@ -1,0 +1,504 @@
+{
+    "title": "地图种子逆向工程技巧:分区暴力搜索",
+    "author": "microwaver",
+    "replyCount": 99,
+    "timestamp": 1535098380,
+    "txt_content": " 本帖最后由 microwaver 于 2018-8-24 16:16 编辑 \n\n前置研究:地图种子的逆向研究(2)——结构与群系分布\n感谢@Vinogradov 提供的思路\n\n由于本文内容疑似涉及作弊,在此我不会给出与实际计算地图种子相关的代码,仅解释技术原理\n\n前人成就回顾:\n2^64的搜索空间对一般民用计算设备太大了。由于村庄坐标只与世界种子的前48位相关,我们可以搜索2^48的范围使搜索时间落入合理区间.村庄坐标计算规则:以下代码源自\\net\\minecraft\\world\\gen\\structure\\MapGenVillage.java\nprotected boolean canSpawnStructureAtCoords(int chunkX, int chunkZ)\n    {\n        int i = chunkX;\n        int j = chunkZ;\n\n        if (chunkX < 0)\n        {\n            chunkX -= this.distance - 1;                                                 <font color=\"#ff0000\">//this.distance在主世界(Overworld)而且不是超平坦的情况下是32</font>\n        }\n\n        if (chunkZ < 0)\n        {\n            chunkZ -= this.distance - 1;\n        }\n\n        int k = chunkX / this.distance;\n        int l = chunkZ / this.distance;\n        Random random = this.world.setRandomSeed(k, l, 10387312);//LINE_1\n        k = k * this.distance;\n        l = l * this.distance;\n        k = k + random.nextInt(this.distance - 8);\n        l = l + random.nextInt(this.distance - 8);\n\n        if (i == k && j == l)\n        {\n            boolean flag = this.world.getBiomeProvider().areBiomesViable(i * 16 + 8, j * 16 + 8, 0, VILLAGE_SPAWN_BIOMES);//LINE_2\n\n            if (flag)\n            {\n                return true;\n            }\n        }\n\n        return false;\n    }复制代码\n\n\n如果我们可以进一步缩小搜索空间,那么计算种子的速度将会很乐观.\n\n进入正题\n一、区块生成算法的研究\n    通过研究村庄生成的代码,我们可以发现,如果把地图分为32区块*32区块的片段,每个片段之内执行村庄生成检查时计算得到的k和l都相等.这一对k和l就表示该片段内的一个区块,这个区块就是@Vinogradov 所说的拟村庄区块.\n\n\n\n\n\n2018-08-24_141239.png (102.61 KB, 下载次数: 204)\n\n下载附件\n\n2018-8-24 16:04 上传\n\n\n\n\n\n    而取得随机数的范围是[0,24),因此所有拟村庄区块都在24区块*24区块的黄框内.\n\n\n二、随机数生成器的研究\n    我们研究java.util.Ramdom类,发现以下代码:\n    protected int next(int bits) {\nlong oldseed, nextseed;\nAtomicLong seed = this.seed;\ndo {\noldseed = seed.get();\nnextseed = (oldseed * multiplier + addend) & mask;          <font color=\"#ff0000\">//mask=0xFFFFFFFFFFFFL</font>\n} while (!seed.compareAndSet(oldseed, nextseed));\nreturn (int)(nextseed >>> (48 - bits));\n}\n...\n...\n...\npublic int nextInt(int bound) {\n    if (bound <= 0)\n        throw new IllegalArgumentException(BadBound);\n\n    int r = next(31);\n    int m = bound - 1;\n    if ((bound & m) == 0)  // i.e., bound is a power of 2\n        r = (int)((bound * (long)r) >> 31);\n    else {\n        for (int u = r;\n             u - (r = u % bound) + m < 0;                                 <font color=\"#ff0000\">//实际只会执行一次</font>\n             u = next(31))\n            ;\n    }\n    return r;\n}复制代码\n    分析上述代码可知,生成一个新的随机数时,Java会把当前种子乘以一个常数multiplier,再加上一个常数addend,得到的结果取低48位.这样得到一个新的种子.取这个新种子较高的31bit,然后返回这个数据除以bound得到的余数.由于当两个数相乘时,较高位的乘数不会影响较低位的积,只要我们知道种子的低48位,我们就可以确定得出的随机数.反之,只要我们遍历2^48范围,我们就能通过随机数计算种子的低48位.但是遍历48位太长了,能不能再给力点?\n    如果能让新的的随机数只依赖于这31bit当中的较低几个bit,那么我们就能只考虑这较低的几个bit+后面的17个bit.我们已知生成的随机数是新种子较高的31bit除以bound(值为24)的余数,而我们想要的是31bit中较低的几个bit,也就是31bit数除以2的整数次幂所得的余数.那么已知一个数除以24得到的余数,能够计算这个数除以多少得到的余数呢?答案就是24的因数: 2,3,4,6,8,12.因此,我们计算生成的随机数除以8的余数,并根据它遍历2^(3+17)的范围.\n\n\n    太长不看版:一个简单的示例可以用来说明,使用Random.nextInt(24)获取随机数时,取得的随机数仅与随机数种子的低20位相关.\nimport java.util.Random;\n\npublic class Test {\n    public static void main(String[] args){\n        int fullseed = 0x11de784a;\n        int shortseed = 0xe784a;\n        Random rand = new Random(fullseed);\n        Random rand2 = new Random(shortseed);\n        for(int i=0;i<10;i++){\n            System.out.println(\"rand: \"+String.valueOf(rand.nextInt(24)%8));\n            System.out.println(\"rand2: \"+String.valueOf(rand2.nextInt(24)%8));\n        }\n    }\n}复制代码\n以上代码的输出为:\nrand: 4\nrand2: 4\nrand: 7\nrand2: 7\nrand: 2\nrand2: 2\nrand: 2\nrand2: 2\nrand: 4\nrand2: 4\nrand: 7\nrand2: 7\nrand: 0\nrand2: 0\nrand: 7\nrand2: 7\nrand: 2\nrand2: 2\nrand: 4\nrand2: 4复制代码\n结论:通过利用java.util.Random类的缺陷,我们可以将首次搜索的范围降低到低20位,这几乎相当于立即完成了.通过使用@Vinogradov 提出的方法进行第二次搜索,我们可以很快地获取地图种子.\n\n预防和修复:这个方法的预防仍然需要修改村庄生成的源码或随机数生成器,比如把random.nextInt(this.distance - 8)改成random.nextInt(this.distance - 7)就不能用了\n\n其实我原来只想做一个实现来着的...然后不会写GPU计算就开始找简易算法233",
+    "replies": [
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1535102100,
+            "txt_content": "这操作太真实了\n神乎其技，不服不行。"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1535116080,
+            "txt_content": " 本帖最后由 Vinogradov 于 2018-8-24 21:30 编辑 \n\n这个思路太棒了！我完全没想到用2的幂次继续简化的事情。\n以下是我的理解，如果有错请不吝赐教：\n我想你得到的结论是，把每个拟村庄区块对应的k和l模8以后，得到的结果只和种子的低20位有关对吧？\n这样确实变得快很多，但是你获得的信息也从48位减少到了20位。\n或许可以用你的方法过滤一遍获得低20位以后，再用我原来的那个粗的办法再穷举低第21位-低第48位，这样还是能获得低48位。（或许你就是这个意思我没理解？）。这种组合的办法比我帖子里那个要好很多了。\n\n至于高16位就很简单，不提了。"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1535539140,
+            "txt_content": "毫无疑问，精华。"
+        },
+        {
+            "author": "anjiayi123",
+            "timestamp": 1535554320,
+            "txt_content": "哇楼主真厉害啊"
+        },
+        {
+            "author": "Robert_Liang",
+            "timestamp": 1535591520,
+            "txt_content": "就只有我每个字都认识 拼到一起就听不懂了吗"
+        },
+        {
+            "author": "夕颜初夏",
+            "timestamp": 1535605920,
+            "txt_content": "楼主好厉害啊，根本学不会"
+        },
+        {
+            "author": "逸之夏",
+            "timestamp": 1535610420,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "淡然，流逝",
+            "timestamp": 1535679060,
+            "txt_content": "哇！楼主真NB"
+        },
+        {
+            "author": "沫雨丶",
+            "timestamp": 1535698020,
+            "txt_content": "哇，挺厉害的"
+        },
+        {
+            "author": "Alyxiao",
+            "timestamp": 1535699100,
+            "txt_content": "我要顶帖.............."
+        },
+        {
+            "author": "风扇滑翔翼",
+            "timestamp": 1535712300,
+            "txt_content": "所以我们需要一个修改世界产卵器的插件"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1535731380,
+            "txt_content": "不会写GPU计算……\n\n同求GPU的操作接口文档"
+        },
+        {
+            "author": "Sakur9",
+            "timestamp": 1535783340,
+            "txt_content": "厉害啦"
+        },
+        {
+            "author": "Nu_ta",
+            "timestamp": 1535925960,
+            "txt_content": "给楼主大大的赞，很棒"
+        },
+        {
+            "author": "缤纷的烟火",
+            "timestamp": 1536058140,
+            "txt_content": "很详细的了"
+        },
+        {
+            "author": "musama",
+            "timestamp": 1536067920,
+            "txt_content": "哇！楼主真NB"
+        },
+        {
+            "author": "hahahaadouawgds",
+            "timestamp": 1536159000,
+            "txt_content": "这又一个恶魔。。。\n完全看不懂啊\n逆向工程算出种子这个这辈子懂不了了天哪"
+        },
+        {
+            "author": "hello25",
+            "timestamp": 1536205980,
+            "txt_content": "新手就看看...."
+        },
+        {
+            "author": "c2410664841",
+            "timestamp": 1536643020,
+            "txt_content": "这辈子都不会懂这些东西"
+        },
+        {
+            "author": "2185982997",
+            "timestamp": 1536894900,
+            "txt_content": "强啊！大佬大佬~"
+        },
+        {
+            "author": "liujinpeng740",
+            "timestamp": 1537233960,
+            "txt_content": "雾 那我可能谁都不认识，也没人认识我"
+        },
+        {
+            "author": "ZB笑熊",
+            "timestamp": 1537427640,
+            "txt_content": "进入不懂装懂模式"
+        },
+        {
+            "author": "皇殇之神",
+            "timestamp": 1537430280,
+            "txt_content": "感谢楼主分享怎么弄，我会了"
+        },
+        {
+            "author": "皇殇之神",
+            "timestamp": 1537593480,
+            "txt_content": "神乎其技，不服不行"
+        },
+        {
+            "author": "3467693803",
+            "timestamp": 1537650420,
+            "txt_content": "不错不错[装作看懂了]"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1537763340,
+            "txt_content": "Vinogradov 发表于 2018-8-24 21:08\n这个思路太棒了！我完全没想到用2的幂次继续简化的事情。\n以下是我的理解，如果有错请不吝赐教：\n我想你得 ...\n有点像meet in the middle\n不过我还是想试试数论方法\n用同余方程之类的方法快速求解\n\n不过服务器里预防实际很好办\n一般都是spigot端，配置里改个数就完事了"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1537782840,
+            "txt_content": "为什么我的代码算出的拟村庄区块位置与ChunkBase算出的村庄区块位置有时会偏8或16区块？\n我用的C++"
+        },
+        {
+            "author": "Mortimer_G",
+            "timestamp": 1537837440,
+            "txt_content": "居然还有这种操作，膜拜"
+        },
+        {
+            "author": "w137905281",
+            "timestamp": 1538066460,
+            "txt_content": "目瞪口呆  别人的世界............"
+        },
+        {
+            "author": "Small_Rampant",
+            "timestamp": 1538134260,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1538273700,
+            "txt_content": " 本帖最后由 afjl 于 2018-9-30 10:22 编辑 \n\n看了一下代码，发现似乎除了生物群系和地形，其它东西都只与种子低48位有关\n验证了一下，确实是这样\n（用超平坦验证的）所以只找低48位足以找到要塞和废矿"
+        },
+        {
+            "author": "舞血大大",
+            "timestamp": 1538281140,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1538473020,
+            "txt_content": "但是群系生成代码在哪找？"
+        },
+        {
+            "author": "microwaver",
+            "timestamp": 1538473920,
+            "txt_content": " 本帖最后由 microwaver 于 2018-10-2 17:55 编辑 \nafjl 发表于 2018-10-2 17:37\n但是群系生成代码在哪找？\n翻mcp吧，minecraftforge.net我看过感觉好复杂就没写下去了。。。"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1538733180,
+            "txt_content": "microwaver 发表于 2018-10-2 17:52\n翻mcp吧，minecraftforge.net我看过感觉好复杂就没写下去了。。。\n生物群系列表好麻烦，java的枚举类太坑了，估计弄这个就需要一个小时\n所以多数人应该没这个耐心，然后放弃了"
+        },
+        {
+            "author": "朗_C",
+            "timestamp": 1538881320,
+            "txt_content": "大佬啊666666666666"
+        },
+        {
+            "author": "Creeper_banner",
+            "timestamp": 1539586020,
+            "txt_content": "6666666666\n不过这是啥意思?"
+        },
+        {
+            "author": "aaa1006633",
+            "timestamp": 1539825120,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "chenwei2098",
+            "timestamp": 1540119360,
+            "txt_content": "        神乎其技，不服不行！"
+        },
+        {
+            "author": "灰常利害",
+            "timestamp": 1540872780,
+            "txt_content": "萌新的我 完全不知道你们在讲什么"
+        },
+        {
+            "author": "1780448408",
+            "timestamp": 1541212260,
+            "txt_content": "水经验23333"
+        },
+        {
+            "author": "周雯强",
+            "timestamp": 1541661480,
+            "txt_content": "666666666666666666666666666666666"
+        },
+        {
+            "author": "小天使him",
+            "timestamp": 1542029760,
+            "txt_content": "路过，打酱油qwq"
+        },
+        {
+            "author": "小新23333",
+            "timestamp": 1542634020,
+            "txt_content": "看起来很厉害的样子"
+        },
+        {
+            "author": "游戏游玩者",
+            "timestamp": 1542804780,
+            "txt_content": "操作技术牛逼了"
+        },
+        {
+            "author": "meifanguo",
+            "timestamp": 1543040820,
+            "txt_content": "神乎其技一脸蒙蔽"
+        },
+        {
+            "author": "非道",
+            "timestamp": 1543042920,
+            "txt_content": "真特么的优秀"
+        },
+        {
+            "author": "盛世大陆",
+            "timestamp": 1543062120,
+            "txt_content": "废啊发发我发违法awful  "
+        },
+        {
+            "author": "langwanmc",
+            "timestamp": 1543305660,
+            "txt_content": "\n这操作太真实了"
+        },
+        {
+            "author": "15035597518",
+            "timestamp": 1543583820,
+            "txt_content": "我一个学C++的看代码看的云里雾里的......"
+        },
+        {
+            "author": "020528",
+            "timestamp": 1543764720,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "haoran550",
+            "timestamp": 1544025780,
+            "txt_content": "我要顶帖.............."
+        },
+        {
+            "author": "Thpc凡星",
+            "timestamp": 1544598420,
+            "txt_content": "吃瓜中，貌似很高端啊"
+        },
+        {
+            "author": "et741",
+            "timestamp": 1546350120,
+            "txt_content": "能不能通过地图逆向计算种子呢？"
+        },
+        {
+            "author": "805647438",
+            "timestamp": 1546656840,
+            "txt_content": "谢谢楼主大大哦 给楼主大大个赞 继续加油"
+        },
+        {
+            "author": "wqbnb23",
+            "timestamp": 1547303520,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "呵呵啊哈额",
+            "timestamp": 1547348940,
+            "txt_content": "高科技要利用起来哈"
+        },
+        {
+            "author": "六亲不认",
+            "timestamp": 1547428200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "轨迹消失",
+            "timestamp": 1547428380,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "love百里",
+            "timestamp": 1547432820,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "a3277989",
+            "timestamp": 1547495700,
+            "txt_content": "这个是真的厉害了，插眼"
+        },
+        {
+            "author": "轨迹消失",
+            "timestamp": 1547514060,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1012213705",
+            "timestamp": 1547738640,
+            "txt_content": "Orz 太强啦！！"
+        },
+        {
+            "author": "timeset1800",
+            "timestamp": 1548069900,
+            "txt_content": "虽然看不懂还是给个赞....."
+        },
+        {
+            "author": "风筱墨",
+            "timestamp": 1548238860,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "528906075",
+            "timestamp": 1548249900,
+            "txt_content": "楼主大佬"
+        },
+        {
+            "author": "Foggy01",
+            "timestamp": 1548427680,
+            "txt_content": "虽然看不懂，但是顶就对了~"
+        },
+        {
+            "author": "呵呵啊哈额",
+            "timestamp": 1548735060,
+            "txt_content": "感谢分享，我还是比较喜欢红石的，学到不少"
+        },
+        {
+            "author": "呵呵啊哈额",
+            "timestamp": 1548748740,
+            "txt_content": "大佬操作，对服务器有好处啊"
+        },
+        {
+            "author": "PiのPiのliang",
+            "timestamp": 1548819600,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "刘尼玛third",
+            "timestamp": 1548934740,
+            "txt_content": "你们都从哪学到这么多硬核的知识的\n教练，我也想学！"
+        },
+        {
+            "author": "nilin233",
+            "timestamp": 1549001460,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "anuct",
+            "timestamp": 1549165080,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "monseasd",
+            "timestamp": 1549183620,
+            "txt_content": "感谢楼主分享！"
+        },
+        {
+            "author": "我是欧酋",
+            "timestamp": 1549186200,
+            "txt_content": ".............................................................................................................."
+        },
+        {
+            "author": "2207075991",
+            "timestamp": 1549527240,
+            "txt_content": "佩服，膜拜大佬"
+        },
+        {
+            "author": "闪电大魔王",
+            "timestamp": 1549958520,
+            "txt_content": "红石大佬真是厉害啊"
+        },
+        {
+            "author": "YuanCH.",
+            "timestamp": 1549962840,
+            "txt_content": "不错不错不错不错不错不错不错不错不错不错"
+        },
+        {
+            "author": "2431885381",
+            "timestamp": 1549966440,
+            "txt_content": "同样是学Java的，我现在连代码混淆这关都过不去呢。。。"
+        },
+        {
+            "author": "$南萧$",
+            "timestamp": 1550022660,
+            "txt_content": "很优秀，但全是数字有点看不懂"
+        },
+        {
+            "author": "虎水小骥",
+            "timestamp": 1550143140,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Zhaozy666",
+            "timestamp": 1550224500,
+            "txt_content": "够暴力 真不知道咋想出来的"
+        },
+        {
+            "author": "FASnight",
+            "timestamp": 1550246280,
+            "txt_content": "刚接触这行，感觉眼睛变差了许多，"
+        },
+        {
+            "author": "奇迹丶凌冰",
+            "timestamp": 1550291520,
+            "txt_content": "它能干吗？我有点没听懂...是搜索种子吗？"
+        },
+        {
+            "author": "此吧一游",
+            "timestamp": 1550376480,
+            "txt_content": "                                                支持"
+        },
+        {
+            "author": "LHYKGR",
+            "timestamp": 1550393580,
+            "txt_content": "其实我是来水任务的"
+        },
+        {
+            "author": "奥利奥草莓",
+            "timestamp": 1550425080,
+            "txt_content": "厉害啊我喜欢"
+        },
+        {
+            "author": "cooocooo",
+            "timestamp": 1550591640,
+            "txt_content": "可以可以，自动鼠标就变成全自动了吧"
+        },
+        {
+            "author": "liu1375442778",
+            "timestamp": 1550598000,
+            "txt_content": "为啥我看不懂（＃－.－）"
+        },
+        {
+            "author": "皇明天子",
+            "timestamp": 1550833500,
+            "txt_content": "技术渣表示一脸懵逼"
+        },
+        {
+            "author": "喵喵喵°",
+            "timestamp": 1550911320,
+            "txt_content": "春.....春节十二响？你是李长条？"
+        },
+        {
+            "author": "1328994559",
+            "timestamp": 1551084240,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Zhaozy666",
+            "timestamp": 1551148860,
+            "txt_content": "一个暴力足以说明很多"
+        },
+        {
+            "author": "jerry6310",
+            "timestamp": 1551696000,
+            "txt_content": "楼主强大！"
+        },
+        {
+            "author": "一只可爱狸",
+            "timestamp": 1551933360,
+            "txt_content": "6666666666666666666666666666"
+        },
+        {
+            "author": "a1016746326",
+            "timestamp": 1552006620,
+            "txt_content": "现在已经连村庄都可以计算出来位置了吗。。。"
+        },
+        {
+            "author": "MC服务器我",
+            "timestamp": 1552185480,
+            "txt_content": "听不懂0.0"
+        },
+        {
+            "author": "皇明天子",
+            "timestamp": 1552272120,
+            "txt_content": "非常支持"
+        },
+        {
+            "author": "2849125885",
+            "timestamp": 1552636800,
+            "txt_content": "给楼主大大的赞，很棒"
+        }
+    ]
+}

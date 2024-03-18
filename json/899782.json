@@ -1,0 +1,69 @@
+{
+    "title": "如何实现按键打开GUI",
+    "author": "Row0",
+    "replyCount": 12,
+    "timestamp": 1565362440,
+    "txt_content": " 本帖最后由 Row0 于 2019-8-9 23:17 编辑 \n\nForge mod开发，1.12\n自己新建的GUI，想实现当玩家键盘按下Z键时打开这个GUI，就像按E打开物品栏一样\n\nContainer和GuiContainer都写好了，就是键盘的部分十分有问题\n\n我是注册了KeyBinding并监听了InputEvent.KeyInputEvent事件，关键是在openGui()方法中不知如何传入EntityPlayer参数\n\nInputEvent.KeyInputEvent下并没有player的field或是getPlayer()，于是无奈用了Minecraft.getMinecraft().player\n但是使用这个player会在打开的GUI物品槽中出现十分混乱的情况，具体不好描述，图片我可以再上传（但觉得不需要...\n\n测试过了，应该就是openGui()方法player或world传入的参数问题（World我传入了Minecraft.getMinecraft().world）\n但是实在不知道该从哪里拉过来一个EntityPlayer和World传进去啊！！！！！\n\n困扰太久，只好来这里求助，谢谢！\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1565365020,
+            "txt_content": "传入KeyBoardInputEvent，然后event.getGui().mc.player即可。"
+        },
+        {
+            "author": "Row0",
+            "timestamp": 1565366400,
+            "txt_content": "森林蝙蝠 发表于 2019-8-9 23:37\n传入KeyBoardInputEvent，然后event.getGui().mc.player即可。\n呃，不太明白，可否详细一些？\n谢谢！"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1565370660,
+            "txt_content": "Row0 发表于 2019-8-10 00:00\n呃，不太明白，可否详细一些？\n谢谢！\n你不是要player吗？不要监听KeyInputEvent，而是KeyBoardInputEvent，然后如上获取player。"
+        },
+        {
+            "author": "Row0",
+            "timestamp": 1565402220,
+            "txt_content": "森林蝙蝠 发表于 2019-8-10 01:11\n你不是要player吗？不要监听KeyInputEvent，而是KeyBoardInputEvent，然后如上获取player。 ...\n这样做了后按下按键就没反应了...\n不太明白，是GuiScreenEvent.KeyBoardInputEvent吗\n但是GuiScreenEvent是什么意思呢，是打开某个GUI后的键盘鼠标输入事件吗\n那如果在没有打开一个GUI时的键盘按键事件呢"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1565405160,
+            "txt_content": " 本帖最后由 森林蝙蝠 于 2019-8-10 11:56 编辑 \nRow0 发表于 2019-8-10 09:57\n这样做了后按下按键就没反应了...\n不太明白，是GuiScreenEvent.KeyBoardInputEvent吗\n但是GuiScreenEvent ...\n不好意思搞错了，要重写一下GuiContainer的keyTyped()方法。\npublic class YourGuiContainer extends GuiContainer{\n     @Override\n     public void keyTyped(char typedChar,int keyCode){\n            //keyCode是什么可以在org.lwjgl.input.KeyBoard查询到对应表\n            drawScreen(yourMouseX,yourMouseY,0);\n     }\n}\n监听玩家按键在桌面打开gui只在客户端发生，而不在服务器发生，和玩家本身没什么关系。"
+        },
+        {
+            "author": "Row0",
+            "timestamp": 1565408340,
+            "txt_content": "森林蝙蝠 发表于 2019-8-10 10:46\n不好意思搞错了，要重写一下GuiContainer的keyTyped()方法。\npublic class YourGuiContainer{\n     @Overr ...\n还是不太...明白\n这个keyTyped()方法是在GUI打开时按下按键触发吗？\n那还需要监听KeyBoardInputEvent吗\n我覆写后还是啥反应也没有"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1565413980,
+            "txt_content": "https://harbinger.covertdragon.team/chapter-14/"
+        },
+        {
+            "author": "Row0",
+            "timestamp": 1565414700,
+            "txt_content": "森林蝙蝠 发表于 2019-8-10 13:13\nhttps://harbinger.covertdragon.team/chapter-14/\n就是在openGui时不知player如何获取，使用Minecraft.getMinecraft().player的话只是一个客户端上的EntityPlayerSP"
+        },
+        {
+            "author": "清晨w",
+            "timestamp": 1565518140,
+            "txt_content": "openGui的第一个参数传入Mod的实例，第二个参数传入我们想要打开的硬编码的ID，第三个参数至第六个参数传入一个World实例，和打开GUI所在的位置，后面四个参数都会传入IGuiHandler的两个方法中。\n\n如果在客户端调用这个方法，则只会在客户端生成一个GuiContainer的实例，如果在服务端调用这个方法，则不仅会在服务端生成一个Container的实例，还会通知客户端生成一个GuiContainer的实例，所以一般情况下，应该总是在服务端调用这个方法，这里通过检查worldIn.isRemote以确保这一点。引用自https://fmltutor.ustc-zzzz.net/3 ... 95%8C%E9%9D%A2.html\n所以我采取的办法是监听按键事件,用SimpleImpl向服务端发包打开GuiContainer.\nhttps://github.com/Dawncraft/Dawncraft-Mod/tree/mc-1.8.9/src/main/java/io/github/dawncraft/client/event第64行\nhttps://github.com/Dawncraft/Dawncraft-Mod/blob/mc-1.8.9/src/main/java/io/github/dawncraft/network/MessageOpenSkillInventory.java第31行的serverPlayer即为服务端玩家"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1565522640,
+            "txt_content": "https://paste.ubuntu.com/p/6jp3rzyjSj/\npackage info.tritusk.test;\n\nimport io.netty.buffer.ByteBuf;\nimport net.minecraft.client.Minecraft;\nimport net.minecraft.client.settings.KeyBinding;\nimport net.minecraft.entity.player.EntityPlayerMP;\nimport net.minecraft.network.INetHandler;\nimport net.minecraft.network.NetHandlerPlayServer;\nimport net.minecraftforge.client.settings.KeyConflictContext;\nimport net.minecraftforge.client.settings.KeyModifier;\nimport net.minecraftforge.fml.client.registry.ClientRegistry;\nimport net.minecraftforge.fml.common.Mod;\nimport net.minecraftforge.fml.common.SidedProxy;\nimport net.minecraftforge.fml.common.event.FMLInitializationEvent;\nimport net.minecraftforge.fml.common.eventhandler.SubscribeEvent;\nimport net.minecraftforge.fml.common.gameevent.InputEvent;\nimport net.minecraftforge.fml.common.network.NetworkRegistry;\nimport net.minecraftforge.fml.common.network.simpleimpl.IMessage;\nimport net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;\nimport net.minecraftforge.fml.common.network.simpleimpl.MessageContext;\nimport net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;\nimport net.minecraftforge.fml.relauncher.Side;\nimport org.lwjgl.input.Keyboard;\n\n@Mod(modid = \"quick_viewer\")\npublic final class Test {\n\n    static SimpleNetworkWrapper channel;\n\n    @SidedProxy(clientSide = \"info.tritusk.test.Test$SideDelegate$Client\", serverSide = \"info.tritusk.test.Test$SideDelegate$Server\")\n    public static SideDelegate delegate;\n\n    @Mod.EventHandler\n    public void onInit(FMLInitializationEvent event) {\n        (channel = NetworkRegistry.INSTANCE.newSimpleChannel(\"quick_viewer\"))\n                .registerMessage(new KeyPressPacket.Handler(), KeyPressPacket.class, 0, Side.SERVER);\n        delegate.initKeyBinding();\n    }\n\n    public static final class KeyPressPacket implements IMessage {\n        @Override\n        public void fromBytes(ByteBuf buf) {}\n\n        @Override\n        public void toBytes(ByteBuf buf) {}\n\n        static final class Handler implements IMessageHandler<KeyPressPacket, IMessage> {\n\n            @Override\n            public IMessage onMessage(KeyPressPacket message, MessageContext ctx) {\n                INetHandler handler = ctx.netHandler;\n                if (handler instanceof NetHandlerPlayServer) {\n                    EntityPlayerMP player = ((NetHandlerPlayServer) handler).player;\n                    player.displayGUIChest(player.getInventoryEnderChest());\n                }\n                return null;\n            }\n        }\n    }\n\n    interface SideDelegate {\n        void initKeyBinding();\n        final class Server implements SideDelegate {\n            @Override\n            public void initKeyBinding() {}\n        }\n        @Mod.EventBusSubscriber(modid = \"quick_viewer\", value = Side.CLIENT)\n        final class Client implements SideDelegate {\n\n            static KeyBinding displayEndChest;\n\n            @Override\n            public void initKeyBinding() {\n                ClientRegistry.registerKeyBinding(displayEndChest = new KeyBinding(\n                        \"key.quick_viewer.display\",\n                        KeyConflictContext.IN_GAME,\n                        KeyModifier.SHIFT, Keyboard.KEY_E,\n                        \"key.quick_viewer\"\n                ));\n            }\n\n            @SubscribeEvent\n            public static void onKeyHit(InputEvent.KeyInputEvent event) {\n                if (displayEndChest.isPressed()) {\n                    Minecraft mc = Minecraft.getMinecraft();\n                    if (mc.currentScreen == null) {\n                        channel.sendToServer(new KeyPressPacket());\n                    }\n                }\n            }\n        }\n    }\n}复制代码"
+        },
+        {
+            "author": "yzhyzh520",
+            "timestamp": 1565616660,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Row0",
+            "timestamp": 1565707200,
+            "txt_content": "清晨w 发表于 2019-8-11 18:09\n所以我采取的办法是监听按键事件,用SimpleImpl向服务端发包打开GuiContainer.\nhttps://github.com/Dawncra ...\n谢谢谢谢，我已经解决啦，就是使用同样的方法"
+        }
+    ]
+}

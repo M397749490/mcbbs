@@ -1,0 +1,24 @@
+{
+    "title": "[CB]如何解决小游戏地图问题？",
+    "author": "442118371",
+    "replyCount": 3,
+    "timestamp": 1419689760,
+    "txt_content": "如何解决小游戏地图问题？如空岛，竞技场之类的。\n\nCraftBukkit 1.7.2\n",
+    "replies": [
+        {
+            "author": "Hineven",
+            "timestamp": 1419904620,
+            "txt_content": "可以专门弄个监听器，在游戏时记录改变的方块数据，\n重置时弄个线程来一一还原？"
+        },
+        {
+            "author": "442118371",
+            "timestamp": 1420035060,
+            "txt_content": "胡晨晓 发表于 2014-12-30 09:57\n可以专门弄个监听器，在游戏时记录改变的方块数据，\n重置时弄个线程来一一还原？ ...\n主要是生成地图的问题吧。\n游戏应该分多个房间，每个房间都应该有一样的地图。\n保存方块数据也不算简单吧，箱子之类的应该有点麻烦"
+        },
+        {
+            "author": "Hineven",
+            "timestamp": 1420434720,
+            "txt_content": " 本帖最后由 胡晨晓 于 2015-1-5 13:30 编辑 \n442118371 发表于 2014-12-31 22:11\n主要是生成地图的问题吧。\n游戏应该分多个房间，每个房间都应该有一样的地图。\n保存方块数据也不算简单吧 ...\n保存应该可以保存方块对象的引用（箱子应该也没问题）\n\n生成地图要看实际情况写了。。\n可以弄个命令，在op做完地图后调用把地图的边界保存在文件里，一样的地图在新建地图时op选一个点，然后从文件里读取样例竞技场的边界，遍历游戏地图所有方块来放置到新竞技场里？（这样只用保存2个数了而不是整个地图）或者在玩家需要更多竞技场时零时建造竞技场？（自己也没实现过）（应该比较简单）看到过一个别人做的地图还原：\n public void reset()\n  {\n    System.out.println(this.changed.size() + \" to reset.\");\n\n    final ArrayList failedblocks = new ArrayList();\n\n    Bukkit.getScheduler().runTask(this.a.plugin, new Runnable() {\n      public void run() {\n        int failcount = 0;\n        for (SmartArenaBlock ablock : SmartReset.this.changed.values()) {\n          try {\n            Block b_ = ablock.getBlock().getWorld().getBlockAt(ablock.getBlock().getLocation());\n            if (b_.getType() == Material.FURNACE) {\n              ((Furnace)b_.getState()).getInventory().clear();\n              ((Furnace)b_.getState()).update();\n            }\n            if (b_.getType() == Material.CHEST) {\n              ((Chest)b_.getState()).getBlockInventory().clear();\n              ((Chest)b_.getState()).update();\n            }\n            if ((!b_.getType().toString().equalsIgnoreCase(ablock.getMaterial().toString())) || (b_.getData() != ablock.getData().byteValue())) {\n              b_.setType(ablock.getMaterial());\n              b_.setData(ablock.getData().byteValue());\n            }\n            if (b_.getType() == Material.CHEST) {\n              ((Chest)b_.getState()).getBlockInventory().clear();\n              ((Chest)b_.getState()).update();\n              HashMap chestinv = ablock.getNewInventory();\n              for (Integer i : chestinv.keySet()) {\n                ItemStack item = (ItemStack)chestinv.get(i);\n                if (item != null) {\n                  ((Chest)b_.getState()).getBlockInventory().setItem(i.intValue(), item);\n                }\n              }\n              ((Chest)b_.getState()).update();\n            }\n            if ((b_.getType() == Material.WALL_SIGN) || (b_.getType() == Material.SIGN_POST)) {\n              Sign sign = (Sign)b_.getState();\n              if (sign != null) {\n                int i = 0;\n                for (String line : ablock.getSignLines()) {\n                  sign.setLine(i, line);\n                  i++;\n                  if (i > 3) {\n                    break;\n                  }\n                }\n                sign.update();\n              }\n            }\n          } catch (IllegalStateException e) {\n            failcount++;\n            failedblocks.add(ablock);\n          }\n        }\n\n        SmartReset.this.changed.clear();\n        SmartReset.this.a.setArenaState(ArenaState.JOIN);\n        Bukkit.getScheduler().runTask(SmartReset.this.a.plugin, new Runnable() {\n          public void run() {\n            SmartReset.this.a.setArenaState(ArenaState.JOIN);\n            Util.updateSign(SmartReset.this.a.plugin, SmartReset.this.a);\n          }\n        });\n        System.out.println(failcount + \" to redo.\");\n\n        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(MinigamesAPI.getAPI(), new Runnable() {\n          public void run() {\n            SmartReset.this.changed.clear();\n            for (SmartArenaBlock ablock : SmartReset.1.this.val$failedblocks) {\n              Block b_ = ablock.getBlock().getWorld().getBlockAt(ablock.getBlock().getLocation());\n              if (!b_.getType().toString().equalsIgnoreCase(ablock.getMaterial().toString())) {\n                b_.setType(ablock.getMaterial());\n                b_.setData(ablock.getData().byteValue());\n              }\n              if (b_.getType() == Material.CHEST) {\n                b_.setType(ablock.getMaterial());\n                b_.setData(ablock.getData().byteValue());\n                ((Chest)b_.getState()).getInventory().setContents(ablock.getInventory());\n                ((Chest)b_.getState()).update();\n              }\n            }\n          }\n        }\n        , 40L);\n\n        System.out.println(\"Done.\");\n      }\n    });\n  }复制代码貌似是把破坏前的方块数据保存在对象里（而不是文件），还原时就简单的多了。但要小心在插件卸载时一定要从之所有竞技场。\n\n\n\n"
+        }
+    ]
+}

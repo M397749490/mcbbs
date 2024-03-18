@@ -1,0 +1,34 @@
+{
+    "title": "【Mod开发】配置/升级Forge 11.14.3.1503及之后版本一些注意事项",
+    "author": "fyfly",
+    "replyCount": 5,
+    "timestamp": 1440526860,
+    "txt_content": " 本帖最后由 fyfly 于 2015-8-27 19:35 编辑 \n\n简介\n也许你已经发现了，在Forge 11.14.3.1503版本中，ForgeGradle已经升级到了2.0的版本，而ForgeGradle 1.2的支持也就到此为止(最后一个支持的版本就是1502)。如果你不升级ForgeGradle，直接把build.gradle文件中minecraft{}代码块中的version后面的版本号改成1.8-11.14.3.1504(写本教程时最新版本)并运行gradlew setupDecompWorkspace，那么必定会在genSrgs这个task这里失败。所以，接下来你就需要升级你的ForgeGradle。\n\n以下所有Gradle指令一律用gradle代替wrapper的gradlew，如果没装Gradle全给替换成gradlew。\n\n如果你第一次下载Forge开发包\n如果你是第一次想要开发mod，你在下载Forge的时候会发现Src文件不见了，取而代之的是Mdk。Mdk是Minecraft Development Kit的简称，因为之前Src文件并没有包含Forge的源码，会引起误解，所以现在改名叫Mdk。注意如果用IntelliJ IDEA的话现在不要使用gradle idea了！根据说明请setupDecompWorkspace之后直接IDEA里面启动界面Import Project选build.gradle导入工程，之后运行gradle genIntellijRuns生成启动配置，具体见最下面。\n\n现有mod升级：build.gradle设置\n如果你已经在开发的1.8mod，请打开你的build.gradle文件，找到开头这样的几行：\nbuildscript {\n    repositories {\n        mavenCentral()\n        maven {\n            name = \"forge\"\n            url = \"http://files.minecraftforge.net/maven\"\n        }\n        maven {\n            name = \"sonatype\"\n            url = \"https://oss.sonatype.org/content/repositories/snapshots/\"\n        }\n    }\n    dependencies {\n        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'\n    }\n}复制代码\n\n如果你想使用稳定的版本，也就是ForgeGradle 2.0.1（最新版本请去ForgeGradle的repo查看），那么把这几行改成：\nplugins {\n    id \"net.minecraftforge.gradle.forge\" version \"2.0.1\"\n}复制代码\n\n如果你想使用实时更新的快照，也就是ForgeGradle 2.0.2 SNAPSHOT（可能会更新），那么把这几行改成：\nbuildscript {\n    repositories {\n        jcenter()\n        maven {\n            name = \"forge\"\n            url = \"http://files.minecraftforge.net/maven\"\n        }\n    }\n    dependencies {\n        classpath 'net.minecraftforge.gradle:ForgeGradle:2.0-SNAPSHOT'\n    }\n}\napply plugin: 'net.minecraftforge.gradle.forge'复制代码最后把minecraft{}里面的version改到最新版本就行了：\nminecraft {\n    version = \"1.8-11.14.3.1506\"\n...\n}复制代码\n\n如果还是不明白，请下载最新版本的Mdk，打开里面的build.gradle文件研究，或者参考我这个：http://git.io/vs5eV\n\n好了，这样你就把ForgeGradle升级到2.0了，之后输入gradle setupDecompWorkspace或者gradle setupDevWorkspace就行了。但是还是要注意几个问题：\nForgeGradle 2.0自带了一个sourceJar的task，能直接导出source的jar，如果你build.gradle里面也有这个task的话请直接删了 /w\\不知道怎么回事，升级之后Access Transformer好像有点问题，如果你用了Access Transformer请注意一下建立环境之前一定记得gradle clean一下，把之前的缓存清理掉，不清理可能会有错误，必要时候--refresh-dependencies请尽量在每个环节都保持能连入外网新版本生成Eclipse工作区好像有点问题，可以先使用IntelliJ IDEA，不过已经正在修了(2.0.1说是已经修好了但是还是有报告)\n\n\nIntelliJ IDEA设置\n这一部分作为补充内容，因为我之前升级之后在IDE设置里遇到了种种问题，在这里说一下总体的步骤。如果你不同时开发多个mod就不用看了，本部分目标为创建一个多Module的Forge开发环境，注意现在不要用gradle idea。\n\n1. 首先，为Forge专门创建一个文件夹，把Mdk解压所有文件都放进去，之后你需要把build.gradle文件修好，具体见上，不多说了\n\n2. 之后重新运行以下指令：\n$ gradle setupDecompWorkspace复制代码\n注意如果你想配置快一点用setupDevWorkspace也可以，具体区别见这里\n\n3. 成功之后，打开IntelliJ IDEA，如果你已经打开一个Project了，选择上面的File->New->Project from Existing Sources。如果没有打开，选择Import Project。之后会弹出一个窗口，选择包含你build.gradle那个文件夹。接下来选择Import project from external model里面的Gradle，然后就一直确定就行了，中途有些设置你可以看一下\n\n4. 接下来Gradle会进行依赖的刷新，慢慢等就行了，大概需要花2-5分钟的时间。完成之后继续切换到终端输入：\n$ gradle genIntellijRuns复制代码\n\n5. 完成之后IDEA里重新载入下工程，之后你就应该能看到有Minecraft Client和Server的启动项了\n\n接下来是多Module\n\n6. 首先，File->New->Module创建一个新的Module并选好地址，它作为一个单独的mod。里面放一个mod必须的东西，如果不知道放什么可以参考这里。当然你如果mod多也可以创建多个。\n\n7. 打开File->Project Structure，选择左边的Modules选项，选择Forge那个Module，之后点击上面的Dependencies选项卡，像下面一样把所有的Export都打钩：\n\n\n\n这是为了解决之后添加Module dependency还需要单独继续导入的问题。\n\n8. 打完钩之后，点击右上角那个绿色加号，选择Module dependency，之后选你刚刚创建的那个新mod的Module。还在那个列表里找你刚刚新加的那个Module，把Scope调成Runtime，注意这个不用打钩\n\n9. 调到之前新建的mod的Module，点击加号把Forge那个Module添加为Module dependency，最后点击OK就行了\n\n10. 还有注意一点，默认的mark是在src文件夹上，建议右键Mark Directory As->Unmark as Sources Root；接下来右键src/main里的java文件夹，Mark Directory As->Sources Root；右键src/main里的resources文件夹，Mark Directory As->Resources Root\n\n11. 做完这一切就完成了\n\n12. 如果你又更新了Forge，改完build.gradle运行完setupDecompWorkspace之后打开IDEA，打开右边一个叫做Gradle的选项卡，点击选项卡上方最左边那个绿色的Refresh all Gradle projects图标，刷新完成后重新打开就行了。如果发现旧版本的依赖还没删掉可以手动去删\n\n最后\n新版本遇到的问题我基本都修好了，不过，如果你不想，不升级也可以，但是以后终究肯定还是要升级的（比如之后有推荐版本的时候），到时候再来参考这个进行升级也可以。另外，既然ForgeGradle忙完了现在应该要开始升级Forge 1.8.8了吧/w\\\n\n最后宣传一下Forge和ForgeGradle文档的翻译，如果有对ForgeGradle不熟悉的可以去看看，仍在缓慢更新中：http://www.mcbbs.net/thread-467618-1-1.html",
+    "replies": [
+        {
+            "author": "fyfly",
+            "timestamp": 1440650880,
+            "txt_content": "目前ForgeGradle 2.0.1已经正式发布，现在的Snapshot版本为2.0.2，并且添加了一些东西，等会回来再说，稳定版想要更新2.0.1请把原来代码改成下面这样\nplugins {\n    id \"net.minecraftforge.gradle.forge\" version \"2.0.1\"\n}复制代码\n\n"
+        },
+        {
+            "author": "fyfly",
+            "timestamp": 1440687720,
+            "txt_content": "注意：Eclipse的问题已在Forge1506版本中解决，如果发现有问题请升级到该版本并使用2.0.1版本以上的FG"
+        },
+        {
+            "author": "fyfly",
+            "timestamp": 1441166880,
+            "txt_content": "setupCIWorkspace新版本中还是有点问题，等待修复"
+        },
+        {
+            "author": "fyfly",
+            "timestamp": 1442115600,
+            "txt_content": "fyfly 发表于 2015-9-2 12:08\nsetupCIWorkspace新版本中还是有点问题，等待修复\n更新：该问题已经修复，如果你用的稳定版本，请使用Snapshot！\n\n另外AT的问题也应该修了"
+        },
+        {
+            "author": "ChenXijun",
+            "timestamp": 1444304520,
+            "txt_content": "嗯！我刚好制作完fgow的配置文件，现在又要升级了"
+        }
+    ]
+}

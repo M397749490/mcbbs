@@ -1,0 +1,44 @@
+{
+    "title": "关于使用authme、mysql和php完成网页登录的研究",
+    "author": "Gearing",
+    "replyCount": 7,
+    "timestamp": 1529335500,
+    "txt_content": " 本帖最后由 Gearing 于 2018-6-18 23:47 编辑 \n\n1、前言\n前几天突发奇想想做一个网页登录，查看了authme的配置文件后发现authme支持mysql，于是决定使用该插件进行开发。本文只是做一个思路上的总结，并不包含实际技术，望此会给各位一些启发。2、建议阅读人群\nI.有一定php基础，明白centos操作。\nII.能够自行排查故障。\n3、正文\nI.首先准备材料:\n\n        ①Navicat(Mysql连接工具)\n        ②Putty(可选，用于centos连接)\n        ③WebStorm(用于开发网页)\n        ④FlashFXP(用于上传数据)\n        ⑤Authme插件\n        ⑥一个服务端\nII.安装插件后，涉及到一个config修改问题，修改如下:(如果没有config，请先启动一次服务端，然后再修改。\nDataSource:\n    # 你希望如何存储登陆数据?\n    # 允许设置的值: sqlite, sqlitehikari, mysql\n    # (sqlitehikari 比普通的 sqlite 更快 但这只是一个实验功能!)\n    backend: sqlite\n    # 开启数据缓存\n    caching: false（因为要实时更改，所以不开启）\n    # MySql 数据库地址\n    mySQLHost: 127.0.0.1(这个是用于远程连接的参数，如果使用本机mysql，则保持。)\n    # MySql 数据库端口\n    mySQLPort: '3306'\n    # MySql 最大连接数\n    mySQLMaxConections: 25\n    # MySql 用户名\n    mySQLUsername: 你的mysql用户名\n    # MySql 密码\n    mySQLPassword: '你的mysql用户密码'\n    # MySql 数据库名称, 或者是 SQLITE 数据库名称\n    mySQLDatabase: 你的数据库名\n    # 数据库表名\n    mySQLTablename: 你的表名\n    # 字段 id 字段名复制代码III.安装mysql数据库\n           ①Windows操作系统 https://blog.csdn.net/chic_data/article/details/72286329\n           ②Centos操作系统 https://www.linuxidc.com/Linux/2016-09/134940.htm\n\nIV.配置mysql\n           ①新建数据库，名称使用上方配置文件中你填写的数据库名称。\n           ②新建表，名称使用上方配置文件中你填写的表名称，在新建表的时候，可能会涉及到需求增加至少一列的问题，我们新增一个id字段就好，如果authme查到缺少字段，会自动新增。\n\n\nV.启动服务端\nVI.编写入口网页\n在这里我使用了比较简单的一个post表单\n<form method=\"post\" action=\"index.php\">\n                <input type=\"text\" name=\"u\" placeholder=\"玩家ID\" required=\"required\" />\n                <input type=\"password\" name=\"p\" placeholder=\"密码\" required=\"required\" />\n                <button type=\"submit\" class=\"btn btn-primary btn-block btn-large\">登录</button>\n        </form>复制代码\nVII.编写后台处理网页\n\n<?php\nsession_start(); //使用session来判断登录情况\n      if(!$_SESSION['login_state']){\n$con=mysql_connect(\"localhost\",\"你的数据库用户名\",\"你的数据库密码\");\nif(!$con){\n   die(\"数据库连接失败！\");\n   }\nmysql_select_db(\"你的数据库名\",$con);\n$username = $_POST['u'];\n$userpasswd = $_POST['p'];\n$result=mysql_query(\"select * from 你的数据表名 where realname = '$username'\");\n$dbusername=null;\n$dbpassword=null;\nwhile($row=mysql_fetch_array($result)){\n   $dbusername=$row[\"username\"];\n   $dbpassword=$row[\"password\"];\n   }\n$pro_pass = explode('$',$dbpassword);   切割Autheme存储的密码数据(password)\n$salt_pass = $pro_pass[2];   得到盐\n$target_password = $pro_pass[3];   得到已经生成的密码\n$prepro_pass = hash('sha256',$userpasswd,true);         \n$prepro_pass = bin2hex($prepro_pass);      用SHA256加密用户密码\n$finished_pass = hash('sha256',$prepro_pass.$salt_pass,true);\n$finished_pass = bin2hex($finished_pass); 加盐后再度用SHA加密\n      if($finished_pass==$target_password){\n      $_SESSION['login_state'] = $dbusername;\n      }\n      }else{\n   die(\"你已经登录\".$_SESSION['login_state']);\n      }\n?>\n我们来看一下Authme创建密码的方法：\nsha(sha(密码)+SALT)复制代码所以结果为$SHA$盐$sha(sha(密码)+盐)复制代码\n第一个$后的是表示，表示这是使用SHA加密的数据，第二个$后的数据是SALT，一个随机数，我们不需要关注他是怎么生成的，这是authme自动产生的（如果有大佬知道是怎么生成的不妨评论区写一下），第三个$后的参数是加密后的密码，他的加密方式为：\n也就是先使用sha256算法算一次密码，得到初步加密的数据，再将初步加密的数据与SALT拼合，再进行一次sha运算，得到加密密码，请注意，sha运算几乎是不可逆的，所以，我们要是想比较用户输入密码和储存密码是否一致，只能再次进行正向运算，然后比较结果，例如：\n我输入Yuudachi----SHA256------>4945f5a2dc36c16c1236f211d14feeb30684e6d3bf4cffa9464c6fbc117980d6----拼接salt(a7d16ab5c6ff412d)---->4945f5a2dc36c16c1236f211d14feeb30684e6d3bf4cffa9464c6fbc117980d6(新增)a7d16ab5c6ff412d(新增)----再度SHA256加密--->d34c48302e0b7bd6137d3cf87b4c36571497195e13536791996604d424c48647（得到结果）复制代码同样的，我们也可以通过这一方法来用网页注册用户，我们可以自己生成盐，然后自己进行加密，达到实现网页注册的目的，authme会使用记录的盐进行比对。\n\n4.结语\n可能中间有些话不通顺，讲得并不明白，我会慢慢对这篇文章改进。\n2018.6.18\n\n\n",
+    "replies": [
+        {
+            "author": "1204074991",
+            "timestamp": 1529376360,
+            "txt_content": "登录？不应该是注册么"
+        },
+        {
+            "author": "Gearing",
+            "timestamp": 1529377500,
+            "txt_content": "1204074991 发表于 2018-6-19 10:46\n登录？不应该是注册么\n原理都是差不多的，注册无非是自己生成而已，如果要实现网页登录，提取authme已经存储的数据库数据就可以了。"
+        },
+        {
+            "author": "1204074991",
+            "timestamp": 1529448180,
+            "txt_content": "Gearing 发表于 2018-6-19 11:05\n原理都是差不多的，注册无非是自己生成而已，如果要实现网页登录，提取authme已经存储的数据库数据就可以 ...\n你的意思是登录网站啊"
+        },
+        {
+            "author": "Gearing",
+            "timestamp": 1529458740,
+            "txt_content": "1204074991 发表于 2018-6-20 06:43\n你的意思是登录网站啊\n对的qwq，使用mysql的话数据互通嘛..."
+        },
+        {
+            "author": "1204074991",
+            "timestamp": 1529678160,
+            "txt_content": "authme的sha256是不是没有盐啊，我没找到数据库里放盐的地方"
+        },
+        {
+            "author": "4one_R",
+            "timestamp": 1529683620,
+            "txt_content": "都水漫金山了都"
+        },
+        {
+            "author": "Gearing",
+            "timestamp": 1529690940,
+            "txt_content": "4one_R 发表于 2018-6-23 00:07\n都水漫金山了都\nemmmm......"
+        }
+    ]
+}

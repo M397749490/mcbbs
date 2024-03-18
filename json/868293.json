@@ -1,0 +1,79 @@
+{
+    "title": "【BDS】MC基岩版官方开服器Windows版插件开发包",
+    "author": "Player_MB",
+    "replyCount": 14,
+    "timestamp": 1558699140,
+    "txt_content": "MC基岩版官方开服器Windows版插件开发教程2019年5月22日 作者：Player 前言：MC基岩版官方开服器（BDS）自发布至今，已经有数月时间。其间有各种魔改的开服端以及各种功能的插件出现，但是截止目前，由于MC官方发布BDS在Linux版与Windows版之间存在一些固有的差异，导致插件开发者制作的插件无法跨平台使用，也无法跨平台编译。本文将提供一种开发出能够在Windows版开服器上使用的插件的途径。当前，BDS正处于早期测试版，本教程附带的工具能够利用测试版附带的相关信息实现插件功能。 概述：本文中的插件是指可执行文件的动态链接库文件。开发者使用开发工具将所写的源代码编译成插件（DLL文件）。然后使用专用的启动器在开服器程序的运行时期将插件导入开服器进程之中，导入后的开服器进程在功能上因插件加载而得到扩展，得到原本没有的功能。插件的使用将允许开服器的功能有一个质的飞跃。作为插件开发者，开发过程从零开始的流程如下：1、下载官方BDS压缩包与插件开发工具包，并解压2、使用工具包中“PDB导出工具”，找到解压后的BDS目录，选择bedrock_server.pdb文件，导出对应的PDB信息文件3、用Visual Studio 2019打开工具包中的插件开发工程“MCMODDLL”。然后打开其列表中的symbol.txt，按照文件要求添加你需要修改功能的符号名称4、再利用“PDB导出工具”，选择步骤2导出的PDB信息文件和步骤3中的symbol.txt文件，导出对应的C++头文件（默认SymHook.h）替换掉插件工程中原先的SymHook.h文件5、打开SymHook.h文件，复制所需要的符号对应的由工具自动生成的C++变量名，再打开插件工程中的mod.cpp文件，利用这个变量名，在内部写上你要对这个符号对应的函数做出的修改部分的代码6、确认代码无误后，编译生成DLL文件7、在BDS目录下新建一个目录，叫MOD_DLL，然后将步骤6生成的DLL文件放入这个目录8、启动工具包中的“MC BDS简易启动器”，勾选“加载插件”复选框（默认为勾选状态），点击“启动服务器”至此，服务器在加载插件的情况下顺利启动，大功告成！\n插件案例：爆炸箭在Minecraft基岩版中，箭原本是不具有爆炸属性的，但是通过插件，我们可以实现这一独特的功能。\n\n\n\n\nimage.png (288.76 KB, 下载次数: 2)\n\n下载附件\n\n2019-5-24 18:48 上传\n\n\n\n\n之前MCMrARM写过一个关于爆炸箭的教程，目标是Linux平台，该教程由于年头久远，又缺乏维护，已经无法按步骤实现。但是可以作为看本案例之前的参考。地址：https://github.com/minecraft-linux/server-modloader/wiki/Making-mods-%232:-Disassembly-&-Hooking从这篇文章中，我们获取了一点重要的信息：1、当箭中目标时候，会触发ProjectileComponent::onHit类方法2、产生一次爆炸是用Level::explode类方法另外，通过分析，我们发现其他的类方法诸如HitResult::getPos在当前版本都已经不复存在了，所以上述说MCMrARM的教程当前已经无法按步骤实现。接下来，我们将一步步自己实现爆炸箭功能：（一）利用IDA Pro逆向分析主程序bedrock_server.exe文件在IDA Pro开始分析的时候会问你是否加载pdb调试信息，选择确定。\n\n\n\n\n图片2.png (142.97 KB, 下载次数: 2)\n\n下载附件\n\n2019-5-24 18:50 上传\n\n\n\n\n左侧是从调试信息中分析出的各种函数名称，右侧为内容。（一）确定需要研究的内容上面提到了两个十分重要的类方法：ProjectileComponent::onHit和Level::explode前者在箭击中时候触发的，后者制造一个爆炸效果。基本思路是，让前者触发的时候调用后者制造一个爆炸。这样“爆炸箭”功能就实现了。那么让我们看一下从IDA Pro中获取的原型：void __fastcall ProjectileComponent::onHit(ProjectileComponent *__hidden this, const struct HitResult *) void __fastcall Level::explode(Level *this, struct BlockSource *, struct Actor *, const struct Vec3 *, float, bool, bool, float, bool)乍一看，似乎前者给的参数不够调用后者，这该如何是好呢？现在我们来收集整理一下我们手上现有的信息：这个onHit 方法提供了两个指针，ProjectileComponent（抛射物）指针和HitResult（击中结果）指针。而explode需要四个结构体指针：1、Level* 存档指针，MC基岩版使用Level表示存档，用于存档的kv数据库叫LevelDB；2、BlockSource* 不知道是什么结构的指针，不过看上去十分重要；3、Actor* 似乎是玩家/生物结构的指针；4、Vec3* 嗯，就是坐标结构的指针，没跑了。至于后续的float和bool，因为我们可以直接提供，所以先不管。（二）分析Level::explode和ProjectileComponent::onHit参数指向的结构体上面我们看到，仅仅使用onHit提供的参数不做任何处理是不能够完成对explode直接调用的。那么我们不妨先找一下其他的函数对Level::explode调用让我们学习参考一下。首先找到 Level::explode：\n\n\n\n\n图片3.png (6.5 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 18:55 上传\n\n\n\n\n然后打开，在右侧的反汇编内容里选择函数符号，右键，点击Jump to xref to operand（跳转到该函数的调用位置列表）：\n\n\n\n\n图片4.png (45.32 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 18:56 上传\n\n\n\n\n\n\n\n\n图片5.png (29.95 KB, 下载次数: 5)\n\n下载附件\n\n2019-5-24 18:56 上传\n\n\n\n\n可能你也发现了，中间的那个BedBlock::use显得格格不入，而且十分亮眼！没错，这就是玩家在地狱放置床的时候发生的爆炸。那么我们现在就进去看看这葫芦里卖的是啥药呢。为了方便查看，这里我们使用F5插件进行反编译：\n\n\n\n\n图片6.png (49.84 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 18:57 上传\n\n\n\n\n哦？这里Actor*居然是不必要的，这算是潜在可能会减少一点我们分析的工作量。接着我们继续追查其他三个指针的来源：首先分析Level*：\n\n\n\n\n图片7.png (2.99 KB, 下载次数: 5)\n\n下载附件\n\n2019-5-24 18:59 上传\n\n\n\n\n\n\n\n\n图片8.png (2.06 KB, 下载次数: 2)\n\n下载附件\n\n2019-5-24 18:59 上传\n\n\n\n\n\n\n\n\n图片9.png (1.12 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 18:59 上传\n\n\n\n\n是从Player结构体里出来的，我们继续追查，打开Player::Player类构造函数，发现：\n\n\n\n\n图片10.png (2.43 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:00 上传\n\n\n\n\n再进入Mob::Mob：\n\n\n\n\n图片11.png (3.69 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:00 上传\n\n\n\n\n再进入Actor::Actor：\n\n\n\n\n图片12.png (1.71 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:02 上传\n\n\n\n\n\n\n\n\n图片13.png (4.93 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:02 上传\n\n\n\n\n于是，我们发现Player类是由Mod类派生而来，而Mod类又是由Actor类派生出来，而且Level*指针最终归在了Actor结构体内416*sizeof(QWORD*)的位置。然后分析BlockSource*：\n\n\n\n\n图片14.png (4.88 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-24 19:04 上传\n\n\n\n\n\n\n\n\n图片15.png (3 KB, 下载次数: 7)\n\n下载附件\n\n2019-5-24 19:05 上传\n\n\n\n\n从上文分析得知，这个a2是Player*的，v5是取Player内部414*sizeof(QWORD*)的位置，那么这个位置也同样是Actor类的内部。接下来就是分析Vec3了：\n\n\n\n\n图片16.png (6.64 KB, 下载次数: 5)\n\n下载附件\n\n2019-5-24 19:07 上传\n\n\n\n\n\n\n\n\n图片17.png (3.74 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:07 上传\n\n\n\n\n\n\n\n\n\n图片18.png (5.36 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:07 上传\n\n\n\n\n\n\n\n\n图片19.png (4.21 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:07 上传\n\n\n\n\n\n\n\n\n图片20.png (4.28 KB, 下载次数: 5)\n\n下载附件\n\n2019-5-24 19:07 上传\n\n\n\n\n在一系列复杂的操作之前，v56和v57最终来自于BlockPos结构，这是BedBlock::use的第三个参数：\n\n\n\n\n图片21.png (2.41 KB, 下载次数: 5)\n\n下载附件\n\n2019-5-24 19:09 上传\n\n\n\n\n\n\n\n\n图片22.png (1.32 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:09 上传\n\n\n\n\n显然这里BlockPos储存的是放置的床的坐标，而放置床的操作显然不会跟打击动作扯上关系，更不应该跟HitResult有关系。这里我们选择放弃继续追查这里的坐标来源。根据MCMrARM的教程，HitResult储存了坐标信息，我们转而去分析HitResult内部的结构。试试看有没有可能取得突破。由于HitResult没有任何类成员函数，除了一个operator=，给我们的分析带来了麻烦，此时只能选择动态分析内部结构。找到ProjectileComponent::onHit，在它的第一条指令上下断点：\n\n\n\n\n图片23.png (9.28 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:10 上传\n\n\n\n\n然后我们利用IDA Pro附加windbg(x64)调试器启动开服器进行调试分析。打开MC基岩版客户端（我用的win10版）进入游戏，这里为了构建一个足够识别Vec3的环境，我们进入创造模式，在控制台输入：\n\n\n\n\n图片24.png (41.17 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:11 上传\n\n\n\n\n然后朝这个基岩射箭：\n\n\n\n\nfile_1558696312000.jpg (161.61 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:11 上传\n\n\n\n\n回到IDA Pro调试界面，我们发现IDA Pro已经截获到了这个断点，HitResult是onHit方法的第二个参数，根据微软的x64程序调用约定（fastcall），第二个参数保存位置是RDX寄存器，然后我们跟踪RDX指向的内存区域：\n\n\n\n\n图片26.png (12.83 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:13 上传\n\n\n\n\n并选择float类型查看该区域：\n\n\n\n\n图片27.png (22.61 KB, 下载次数: 2)\n\n下载附件\n\n2019-5-24 19:14 上传\n\n\n\n\n怎么样？跟刚才输入的/setblock后的坐标是不是大致相同？那么，现在我们确定HitResult内部在一开始的位置就包含Vec3坐标，而且顺序是X,Y,Z。那么这四个结构的来源我们都搞定了，explode中剩下的5个参数就照搬床爆炸的参数吧：“5.0, true, true, 3.4, false”。最后，我们需要找到ProjectileComponent*与Actor*的关系，找到ProjectileComponent::ProjectileComponent，发现其中正好有一个函数附带Actor*的参数：\n\n\n\n\n图片28.png (43.04 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:15 上传\n\n\n\n\nActor*被保存在结构体内2*sizeof(QWORD*)的位置。至此，爆炸箭功能研究分析部分就完成了，下面我们将要开始着手实现这一切。（一）下载BDS开服器和工具包，并解压：本案例中使用的是1.11.2.1版本BDS。\n\n\n\n\n图片29.png (37.83 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:17 上传\n\n\n\n\n\n\n\n\n图片30.png (33.29 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:17 上传\n\n\n\n\n（二）解压缩MOD插件工程包，用VS2019打开，复制我们需要的符号到Symbol.txt中，并使用“PDB导出工具”将必要符号导出到工程SymHook.h文件：\n\n\n\n\n图片31.png (61.93 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:19 上传\n\n\n\n\n图中的符号分别是ProjectileComponent::onHit与Level::explode方法的，点击保存，先使用PDB工具生成PDB信息文件，再使用PDB工具生成SymHook.h覆盖掉原文件：\n\n\n\n\n图片32.png (26.71 KB, 下载次数: 4)\n\n下载附件\n\n2019-5-24 19:20 上传\n\n\n\n\n打开SymHook.h，发现符号对应的变量已成功生成：\n\n\n\n\n图片33.png (33.4 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:20 上传\n\n\n\n\n（三）打开mod.cpp，编写插件代码，注意，这里的Hook宏的使用方式与MCMrARM那篇教程大致相同，有不同点但在mod.cpp内说明了。\n\n\n\n\n图片34.png (45.35 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-24 19:22 上传\n\n\n\n\n（四）编译出插件DLL，将它放在开服器目录MOD_DLL目录下，使用工具包中的“BDS简易启动器”启动服务器：\n\n\n\n\n图片35.png (6.98 KB, 下载次数: 1)\n\n下载附件\n\n2019-5-24 19:23 上传\n\n\n\n\n\n\n\n\n图片36.png (4.33 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:23 上传\n\n\n\n\n（五）测试爆炸箭\n\n\n\n\nfile_1558697076000.jpg (202.56 KB, 下载次数: 3)\n\n下载附件\n\n2019-5-24 19:24 上传\n\n\n\n\n最后，实验成功！\n注意事项：1、当你在使用IDA Pro附加windbg(x64)调试的时候一定要先设置好windbg(x64)所在的位置，windbg可以通过Windows SDK安装包来安装，通过设置PATH变量或者更改IDA Pro目录下的/cfg/ida.cfg文件来让IDA Pro找到windbg(x64)。另外，当你发现设置没有问题但是无法启动调试的时候，请注意被调试的程序所在的文件路径，为稳妥考虑，路径中最好不要出现特殊字符或者中文，这些内容可能导致无法调试。我没有去测试到底是不是中文字符的问题。2、MOD工程中的“T”开头的宏的使用方法参考MCMrARM的教程，如果你写过Linux上的BDS插件，那么你可能对它十分熟悉。另外，SYM_CALL宏是我自己写的，上面已经用注释说明了使用方法。3、针对不同版本的开服器，插件互相是无法通用的，开服器使用不合适版本的插件将会导致严重错误，这也是为什么我将插件目录设置在开服器目录下而不是启动器目录下的原因。让插件适应当前版本的办法是用“PDB导出工具”将新版的符号重新生成出SymHook.h文件，然后再次编译插件。4、如果你发现工具中存在的Bug，请反馈给我！在工具中的“关于”按钮内有我的网上联系方式。\n\n",
+    "replies": [
+        {
+            "author": "SakuranaRanbom",
+            "timestamp": 1558706400,
+            "txt_content": "顶贴，感谢大佬开发win版（虽然我用的linux的插件，枯辽）"
+        },
+        {
+            "author": "酒兮",
+            "timestamp": 1558707900,
+            "txt_content": "666666666666666666666666666666666"
+        },
+        {
+            "author": "zsdzsd21",
+            "timestamp": 1561548480,
+            "txt_content": "linux怎么导插件啊"
+        },
+        {
+            "author": "wwt。wwt",
+            "timestamp": 1561607640,
+            "txt_content": "emmmm...........\n\n没看懂"
+        },
+        {
+            "author": "Player_MB",
+            "timestamp": 1563080640,
+            "txt_content": "资源地址变更，链接：https://pan.baidu.com/s/15Xbs4a2vzN1ZE1u1HtpQ4g  提取码：3xdg"
+        },
+        {
+            "author": "史图馆",
+            "timestamp": 1567436220,
+            "txt_content": "大佬，请收下我的膝盖，太厉害了"
+        },
+        {
+            "author": "御灵双子ol",
+            "timestamp": 1569077040,
+            "txt_content": "#在这里快感谢大佬速回复#"
+        },
+        {
+            "author": "御灵双子ol",
+            "timestamp": 1569077040,
+            "txt_content": "御灵双子ol 发表于 2019-9-21 22:44\n#在这里快感谢大佬速回复#\nemm，快速回复回复了什么东西..."
+        },
+        {
+            "author": "Yolkcookie",
+            "timestamp": 1569245340,
+            "txt_content": "没看懂qwq.."
+        },
+        {
+            "author": "2537190136",
+            "timestamp": 1573289820,
+            "txt_content": " 本帖最后由 2537190136 于 2019-11-9 17:29 编辑 \n\n链接失效了...ヽ(*。>Д<)o゜\n\n对不起没看到下面回复...."
+        },
+        {
+            "author": "ziyueyoumo",
+            "timestamp": 1579016580,
+            "txt_content": "我希望能够提供一个安装这个插件支持库的链接或者插件示列网站。以至于我不用花时间现场去研发插件"
+        },
+        {
+            "author": "xiaohei7972",
+            "timestamp": 1579462200,
+            "txt_content": "高技术作品，等下亿年我会来看你的教程学习的"
+        },
+        {
+            "author": "没落的情绪",
+            "timestamp": 1601001600,
+            "txt_content": "在使用linux板的服务器，希望可以出一个linux板的教程"
+        },
+        {
+            "author": "秋-月",
+            "timestamp": 1603614720,
+            "txt_content": "很棒的功能，谢谢楼主，MCBBS有你更精彩"
+        }
+    ]
+}

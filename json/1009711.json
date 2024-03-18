@@ -1,0 +1,59 @@
+{
+    "title": "[举二反三深入模组开发 第一节] 息壤 + 午餐盒 = ?",
+    "author": "兔肉煲",
+    "replyCount": 10,
+    "timestamp": 1586183340,
+    "txt_content": " 本帖最后由 兔肉煲 于 2020-4-7 15:51 编辑 \n\n举二反三深入模组开发 息壤 + 午餐盒 = ?\n\n\n只有第一节才有的前言\n\n关于本系列的开端:\n\n近年来越来越多的Mod开发教程涌泉般出现, 偏向实际性的有皇天的从零开始Forge开发, 偏向理论向的有Harbinger等, 偏向综合性的有fmltutor, 过一阵子zzzz的新书出版之后我们也会有偏向基础和入门向的模组开发教程, 但偏向学习前辈开源Mod的代码并且总结其中偏向实用的部分的这类教程却难得可见, 于是便有了本系列的萌生\n\n为什么是举二反三而不是举一反二, 举n反n+1\n\n由于本系列是总结并走向实用的, 所以固然会有回顾已有Mod的代码并且再结合新的思路走向实际的这两部分, 但过多的分析已有代码或过多的编写新的代码都是不合理的, 综合这个考虑还是回顾两个Mod中的两个特性, 并加以结合成为一个新思路的想法比较切合实际, 所以是举二而反三(明白两个特性 + 明白一个实例)\n\n关于标题和内容\n\n内容会尽量选取玩家们所熟知的, 内部逻辑不至于太复杂而且有高度实用性和应用度的, 比如本节所选取的息壤和午餐盒\n\n读者看到下面的小标题可能感到诧异, 那么开发和方程有什么卵关系(雾), 为了增强趣味性, 标题采用的是先分析列举A, 再分析列举B, 然后得出收获产生A+B的感觉, 比如本章的\"列方程\" + \"列方程\" => \"联立成方程组解方程\"这种形式\n\n\n列一元二次方程 - 神秘工匠的息壤实现\n\n息壤是在神秘工匠灵道篇目颇为冷门的物品之一, 这里先简单介绍一下, 他会在你使用错误的觉醒灵宝系列工具挖方块时自动替换成背包中正确的工具, 引用mcmod里面举的例子大概就是这样的: 一旦你试图使用觉醒灵宝镐挖土，而背包中有觉醒灵宝铲时会自动替换两工具的位置，以便让你更快挖掘脚下泥土。\n\n站在开发的角度我们可以理解, 息壤的实现主要有两部分, 一是判定交互的方块应该用何种工具挖掘, 二是在物品栏寻找对应的工具替换手中的错误工具, 我们先抛开第二个问题不谈, 来看看如何实现第一个部分, 我们可以在TT的开源项目关于息壤的代码中找到如下的部分\n\nif (block != null) {\n    Material mat = block.getMaterial();\n    if (ToolHandler.isRightMaterial(mat, ToolHandler.materialsPick))\n        typeToFind = \"pick\";\n    else if (ToolHandler.isRightMaterial(mat, ToolHandler.materialsShovel))\n        typeToFind = \"shovel\";\n    else if (ToolHandler.isRightMaterial(mat, ToolHandler.materialsAxe))\n        typeToFind = \"axe\";\n}\n神秘工匠开源地址: https://github.com/Thaumic-Tinkerer/ThaumicTinkerer/\n节选自(1.7.10分支): /common/item/kami/ItemProtoclay.java复制代码\n不难看出TT的作者自己实现了一个实用的方法\"isRightMaterial\", 来判断方块A是否应该用工具B来采掘, 继续深入, 我们来看看ToolHandler.isRightMaterial()方法的相关细节\n\npublic static Material[] materialsPick = new Material[]{ Material.rock, Material.iron, Material.ice, Material.glass, Material.piston, Material.anvil };\n\npublic static Material[] materialsShovel = new Material[]{ Material.grass, Material.ground, Material.sand, Material.snow, Material.craftedSnow, Material.clay };\n\npublic static Material[] materialsAxe = new Material[]{ Material.coral, Material.leaves, Material.plants, Material.wood };\n\npublic static boolean isRightMaterial(Material material, Material[] materialsListing) {\n    for (Material mat : materialsListing) {\n        if (material == mat)\n        return true;\n    }\n    return false;\n}\n神秘工匠开源地址: https://github.com/Thaumic-Tinkerer/ThaumicTinkerer/\n节选自(1.7.10分支): /common/item/kami/tool/ToolHandler.java复制代码\n看到这里, 相信读者已经略知一二了, 既isRightMaterial实则遍历了一遍你提供的Material[], 如果你提供的Material是预先填充好的Material[]中的成员, 则返回了true. 如果作为读者的你觉得这有点暴力, 那不妨去看看ItemPickaxe等对应工具类的源码(雾), 这里就不展示了\n\n\n列一元二次方程 - 生活调味料的午餐盒实现\n\n接下来我们看看生活调味料中难得可见的两个物品中的其中一个 —— 午餐盒. 午餐盒的投食逻辑实现这里就不多说了, 这并不是我们要讨论的重点, 我们着重来看一看午餐盒的贴图(Models)的变化, 如果读者使用过午餐盒的话大概会有印象, 午餐盒可以打开和关上, 如果里面存有食物的话会有果蔬的贴图, 像下面这样: \n\n\n\n关于贴图更换的逻辑, 我们不难猜想, 实际更换贴图的思路伪代码应该是这样的\n\nif (找找NBT里面午餐盒是开着的吗) {\n    if (那午餐盒里面有东西吗) {\n        渲染带马铃薯面包苹果的贴图()\n    } else {\n        渲染开着的空盒子的贴图()\n    }\n} else {\n    渲染关上的贴图()\n}复制代码\n思而不学则殆, 下面我们来看看午餐盒改变贴图的代码\n\n@SideOnly(Side.CLIENT)\npublic void registerModels()\n{\n    final ModelResourceLocation closed = new ModelResourceLocation(getRegistryName(), \"inventory\");\n    final ModelResourceLocation openEmpty = new ModelResourceLocation(getRegistryName() + \"_open_empty\", \"inventory\");\n    final ModelResourceLocation openFull = new ModelResourceLocation(getRegistryName() + \"_open_full\", \"inventory\");\n\n    ModelLoader.registerItemVariants(this, closed, openEmpty, openFull);\n\n    ModelLoader.setCustomMeshDefinition(this, new ItemMeshDefinition()\n    {\n        @Override\n        public ModelResourceLocation getModelLocation(ItemStack itemStack)\n        {\n            if (isOpen(itemStack))\n            {\n                return isEmpty(itemStack) ? openEmpty : openFull;\n            }\n            return closed;\n        }\n    });\n}\n生活调味料开源地址: https://github.com/squeek502/SpiceOfLife/\n节选自(1.12分支): /items/ItemFoodContainer.java复制代码\n前三行代码很普通的声明了三个ModelResourceLocation, 其地址很普通的对应了三个Model的json文件, 这与创建三个物品为他们分配贴图的时候的ModelResourceLocation没什么大区别, 读者像普通给物品放贴图一样的方式来声明就可以了\n\n接下来, 我们要让Minecraft知道, 我们准备要给物品使用的贴图分别都有什么, 以便于让Minecraft事先为我们准备, 我们需要用ModelLoader.registerItemVariants(Item, ModelResourceLocations......)来提供, 我们可以看到上文代码中把刚刚声明的三个资源位置传了进去\n\n最后, 我们要给物品添加贴图, 为了让Minecraft根据我们的需要自由的变换材质, 我们应该给物品添加一个CustomMeshDefinition, 何为MeshDefinition呢, 我们引用Harbinger中的定义: \n\nItemMeshDefinition 是一个原版类，允许某个物品只根据 ItemStack 提供的信息返回不同的 ModelResourceLocation。一个 ItemStack 里有什么？物品类型、数量、metadata（或损害值）甚至是 NBT 数据。理论上应该足够满足各种奇怪的需求了。\n\n地址: https://harbinger.covertdragon.team/chapter-11/baked/custom-mesh.html\n相信读到这里, 读者已经明白使用CustomMeshDefinition的意图了, 它可以直接访问ItemStack对象, 符合我们此时根据午餐盒这个ItemStack是否装满的状态来决定贴图的需求, 其后对ItemMeshDefinition接口的实现的具体代码结合我们上文的伪代码来看, 含义也就不言而喻了\n\n\n联立一元二次方程组求解 - 动态渲染的\"万能工具\"\n\n造物品\n\n读者不妨想一想结合上文两个例子的分析我们能开发出什么来...........\n\n我认为你可能已经猜出来答案了, 因为他就写在标题上(雾), 所以我们要做万能工具, 超凡脱俗的万能工具, 举世闻名的万能工具, 是会动的长方体......哦扯远了......\n\n传统的万能工具只是一个贴图, 我们这次通过ItemMeshDefinition来让贴图随着挖掘方块的改变而改变, 而决定应该用什么工具的方式, 就是使用ToolHandler.isRightMaterial()类似的用法了, 我们可以直接套用原版工具的材质, 这样不花一分钱就能搞到好看的贴图了\n\n俗话说万事开头难, 但写一个工具的开头还是很简单的, 我们可以简单创建一个继承自ItemTool的工具并且使其包含所有方块, 不过这个解决方案不够浪漫, 所以我们直接继承自ItemPickaxe, 然后为其添加斧和铲的支持, 对于原版来说, 我们直接允许我们的万能工具挖掘所有的方块都用efficiency的速度就万事大吉了\n\npublic class UniversalIronTool extends ItemPickaxe {\n    public UniversalIronTool() {\n        super(ToolMaterial.IRON);\n        this.setCreativeTab(CreativeTabs.TOOLS);\n        this.setRegistryName(\"universal_irontool\");\n        this.setTranslationKey(\"forgedev.universalIronTool\");\n    }\n\n    @Override\n    public float getDestroySpeed(ItemStack stack, IBlockState state) {\n        return this.efficiency;\n    }\n}复制代码\n之后我们要监听注册事件并且调用registry来注册这个物品, 笔者这里就不多赘述了, 不要忘记就可以了, 如果此时进入游戏我们已经能得到一个紫黑块的\"万能工具了\"\n\n填材质\n\n之后我们就要着手给我们的工具添加材质了, 也是本章的重中之重, 首先我们一如既往的监听ModelRegistryEvent\n\n@SubscribeEvent\n    @SideOnly(Side.CLIENT)\n    public static void onModelRegistry(ModelRegistryEvent event) {\n\n    }复制代码\n有了午餐盒的经验, 我们已经对自定义模型的添加有了初步认识, 我们这里先小小的复习一下: 首先我们应该告诉Minecraft去准备我们需要的模型. 像下面这样, 我们声明需要的模型, 并且拜托Minecraft先为我们加载着\n\n@SubscribeEvent\n    @SideOnly(Side.CLIENT)\n    public static void onModelRegistry(ModelRegistryEvent event) {\n        //我们这里使用了原版的木棍, 铁镐, 铁斧, 铁铲的材质, 读者也可以更换\n        final ModelResourceLocation stick = new ModelResourceLocation(\"stick\");\n        final ModelResourceLocation pickaxe = new ModelResourceLocation(\"iron_pickaxe\");\n        final ModelResourceLocation axe = new ModelResourceLocation(\"iron_axe\");\n        final ModelResourceLocation shovel = new ModelResourceLocation(\"iron_shovel\");\n        //这里universalIronTool是刚刚创建的继承自ItemPickaxe类的实例\n        ModelLoader.registerItemVariants(universalIronTool, pickaxe, axe, shovel, stick);\n    }\n复制代码\n之后我们就要基于ItemStack能搞到的所有信息来为我们选择正确的材质了, 毫无疑问我们要基于ItemStack里面存储的NBT来判断, 所以我们的初步想法是: \n\n步骤一、在玩家开始挖掘方块的一刹那把对应工具类型的字符串存到ItemStack的NBT里面步骤二、在自定义渲染模型中再次读取NBT, 根据字符串的内容决定该返回什么工具的ModelResourceLocation\n\n践行想法步骤二(午餐盒的应用)\n\n有了想法我们就可以开始实践了, 我们先把渲染趁热打铁写完, 我们在上文的代码结束处追加\n\n//这里universalIronTool是刚刚创建的继承自ItemPickaxe类的实例\nModelLoader.setCustomMeshDefinition(universalIronTool, itemStack -> {\n    if (itemStack.hasTagCompound()){\n        NBTTagCompound nbtTag = itemStack.getTagCompound();\n        switch (nbtTag.getString(\"toolType\")) { //我们打算往NBT里面存一个名为\"toolType\"的字符串值\n            case \"pickaxe\":return pickaxe; //如果这个值为pickaxe, 则返回铁镐的ModelResourceLocation\n            case \"axe\":return axe;\n            case \"shovel\":return shovel;\n            default:return stick; //如果值为none或者什么其他的不合法的值, 则让我们的万能工具变成木棍的样子\n        }\n    }\n    return stick; //如果干脆物品就没有NBT, 那也是渲染木棍的贴图\n});复制代码\n现在Minecraft已经会根据NBT的内容不同来为我们正确挑选材质了, 不过接下来也是重点, 我们要完成想法的步骤一(不要问我为什么先二后一)\n\n践行想法步骤一(息壤的应用)\n\n玩家挖掘方块的一刹那, 相信读者头脑中自然就产生了监听PlayerInteractEvent事件的念头, 那么恭喜你, 猜对了, 我们正是要监听玩家与方块交互的这个事件, 我们创建EventHandler类并监听它\n\n@Mod.EventBusSubscriber(modid = \"forgedev\")\npublic class EventHandler {\n    @SubscribeEvent\n    public static void onInteract(PlayerInteractEvent event) {\n        if (event.getSide().isClient()) return;\n        if (event.getHand().equals(EnumHand.OFF_HAND)) return;\n        if (event.getItemStack().getItem() instanceof UniversalIronTool) {\n            Material curMaterial = event.getWorld().getBlockState(event.getPos()).getMaterial();\n            NBTTagCompound nbtTag = event.getItemStack().hasTagCompound() ? event.getItemStack().getTagCompound() : new NBTTagCompound();\n            nbtTag.setString(\"toolType\", ToolUtils.getRightTool(curMaterial));\n            event.getItemStack().setTagCompound(nbtTag);\n        }\n    }\n}\n复制代码\n相信代码的含义读者也一目了然, 我们给ItemStack创建了一个NBT, 并且调用ToolUtils.getRightTool()方法来获取指定方块应该用什么工具来采掘..........Wait a second.......别着急, 我们现在来创建ToolUtils类\n\npublic class ToolUtils {\n    private static Material[] materialsPickaxe = new Material[]{ Material.ROCK, Material.IRON, Material.ICE, Material.GLASS, Material.PISTON, Material.ANVIL };\n    private static Material[] materialsShovel = new Material[]{ Material.GRASS, Material.GROUND, Material.SAND, Material.SNOW, Material.CRAFTED_SNOW, Material.CLAY };\n    private static Material[] materialsAxe = new Material[]{ Material.CORAL, Material.LEAVES, Material.PLANTS, Material.WOOD };\n\n    public static String getRightTool(Material material) {\n        for (Material mat : materialsAxe) {\n            if (material == mat) return \"axe\";\n        }\n        for (Material mat : materialsPickaxe) {\n            if (material == mat) return \"pickaxe\";\n        }\n        for (Material mat : materialsShovel) {\n            if (material == mat) return \"shovel\";\n        }\n        return \"none\";\n    }\n}复制代码\n类似于神秘工匠中息壤的写法, 我们也创建了三个对应工具应挖掘的Material的集合, 并且在getRightTool中遍历集合, 找到其正确对应的集合并且返回\"axe\", \"pickaxe\"或者是\"shovel\", 如果该material不属于任何工具将会返回\"none\"\n\n看效果\n\n至此, 我们已经创建了我们会动的万能工具了, 你可以检查一遍自己是否已经监听了所有应该监听的事件, 注册了所有应该注册的事件处理器, 之后我们就可以进入游戏查看效果了, 不出意外的话你会得到下面这样拔群的效果\n\n\n\n\n小结\n\n本节内容的小结: \n\n了解了神秘工匠息壤工具决策的内部逻辑明白了如何使用MeshDefinition来自定义更改物品模型在1和2的基础上举\"万能工具\"例子, 使读者对1, 2有更深了解明确了举二反三深入模组开发的基本形式\n\n课后小思考:\n\n我们能否通过多态和封装让我们的万能工具直接支持原版所有的材料呢?思考能否通过MeshDefinition来动态生成材质呢?\n\n\n本文代码已开源: https://github.com/TROU2004/forgedev\n基于本文的实例制作的Mod: https://www.mcbbs.net/thread-1010246-1-1.html (其源码中实现了课后思考1, 读者感兴趣可以阅读)\n\n",
+    "replies": [
+        {
+            "author": "huang_zu",
+            "timestamp": 1586326260,
+            "txt_content": "占楼占楼\n兔子煲加油"
+        },
+        {
+            "author": "DariusXGaren",
+            "timestamp": 1586427180,
+            "txt_content": "占楼占楼"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586481840,
+            "txt_content": "占楼~占楼~"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586482020,
+            "txt_content": "DariusXGaren 发表于 2020-4-9 18:13\n占楼占楼\n我也是"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586482020,
+            "txt_content": "huang_zu 发表于 2020-4-8 14:11\n占楼占楼\n兔子煲加油\n这个模组我还没玩过"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586482080,
+            "txt_content": "ff750328271 发表于 2020-4-10 09:27\n这个模组我还没玩过\n玩纯净选手"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586482320,
+            "txt_content": "ff750328271 发表于 2020-4-10 09:28\n玩纯净选手\n咳咳 蹭楼"
+        },
+        {
+            "author": "ff750328271",
+            "timestamp": 1586482740,
+            "txt_content": "ff750328271 发表于 2020-4-10 09:32\n咳咳 蹭楼\n再蹭金粒"
+        },
+        {
+            "author": "白夜酱",
+            "timestamp": 1586489160,
+            "txt_content": "行，很棒"
+        },
+        {
+            "author": "史蒂夫老哥",
+            "timestamp": 1586530440,
+            "txt_content": "0.0我是网易版太难了"
+        }
+    ]
+}

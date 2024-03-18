@@ -1,0 +1,59 @@
+{
+    "title": "[Bukkit/Spigot] [PCD] SQLite 快速上手",
+    "author": "埃拉拉",
+    "replyCount": 10,
+    "timestamp": 1594954380,
+    "txt_content": " 本帖最后由 ElaBosak 于 2020-7-17 13:42 编辑 \n\n 一. SQLite 的应用场景 & SQLite VS MySQL\n\nSQLite 顾名思义，SQL 说明它是个数据库软件，Lite 说明它的轻和小，使用简便，适合给数据量不大的应用提供简单实用的数据库服务，就比如现在编写的 Bukkit/Spigot 插件，若你的插件对于数据的交互量要求并不是那么高，只是为了永久性地存储数据，那么恭喜你，SQLite 是你的选择，若你的数据交互量非常大，那么建议你还是使用 MySQL 或者 MariaDB 进行存储，另外有一个区别，SQLite 的数据库文件是以 .db 为后缀的本地文件，而 MySQL 需要连接外置数据库进行操作，但如果还是硬要将 SQLite 和 MySQL 进行比较，很抱歉，我认为它们没有可比性\n\nQuestion 既然是数据量不大，为什么不使用 Json 存储数据，而是使用 SQLite ？\n开发的时候，我们确实可以使用 Json 进行文件存储，因为我可以使用阿里开发的 FastJson 或者谷歌开发的 Gson 来达到目的，首先，从易用性上来讲， FastJson 比 Gson 易用得多，但 Spigot 的服务端内不包含 FastJson，所以如果导出构件的时候，如果不把 FastJson 的依赖一同打包，你的插件是无法运行的！而 Gson 虽然 Spigot 服务端包含了 Gson，但是给我的第一印象是“不好用”，因此，既然 SQLite 可以达到相同的目的，为何不使用 SQLite 呢？\n\n\n 二. 入手 SQLite  \n一. 添加 SQLite 依赖\n* 建议使用 libs 文件夹来添加依赖，再将 libs 添加进 Gradle 的 dependencies 下\n\nQuestion 为什么使用 implementation 而不是 compile ？\n因为到时候丢到 libs 文件夹的 Jar 包，都是在 Spigot 中包含的依赖，不需要在构建成品中再次打包，非常耗空间\n\n1. 下载 SQLite 依赖包\n因为是 Java 编程，所以连接数据库，逃不掉 JDBC，你可以在 https://search.maven.org/ 中搜索 SQLite-JDBC，如下图\n\n注意 Group ID 和 Artifact ID，点击下载，就能获取到 SQLite 的 Jar 包依赖 \"sqlite-jdbc-3.32.3.1.jar\"\n2. 载入 SQLite 依赖包\n将这个 \"sqlite-jdbc-3.32.3.1.jar\" 拖入 libs 文件夹，刷新 Gradle，让 Gradle 载入依赖\n\n二. 创建控制类\n在插件主类的同一个目录下创建新目录 sql，建议每一个数据库的表对应一个控制类（类的命名注意驼峰命名法），就如下图\n\n假如我创建了一个控制类名为 SQLite.java，代码如下（如果看不懂 SQL 语句，建议先学习一下，很快的 https://www.runoob.com/sql/sql-tutorial.html）\n\npublic class SQLite {\n    \n    //创建+链接数据库 CONNECT\n    public static Connection getConnection() throws SQLException {\n        SQLiteConfig config = new SQLiteConfig();\n        config.setSharedCache(true);\n        config.enableRecursiveTriggers(true);\n        SQLiteDataSource ds = new SQLiteDataSource(config);\n        //⭐你可以命名\"jdbc:sqlite:\"后面的数据库文件名称，程序运行时若无此文件，会自动创建\n        String url = System.getProperty(\"user.dir\"); // 获取工作目录\n        ds.setUrl(\"jdbc:sqlite:\"+url+\"/plugins/MailW/\"+\"MailW-Database.db\");\n        return ds.getConnection();\n    }\n\n    //创建表操作 CREATE TABLE\n    public static void createTable(Connection con)throws SQLException {\n        //⭐这里需要自定义数据类型和数据数量\n        String sql = \"DROP TABLE IF EXISTS NUMBERS ;create table NUMBERS (english String, chinese String); \";\n        Statement stat = null;\n        stat = con.createStatement();\n        stat.executeUpdate(sql);\n\n    }\n\n    //完全删除表操作 DROP TABLE\n    public static void dropTable(Connection con)throws SQLException {\n        String sql = \"drop table NUMBERS \";\n        Statement stat = null;\n        stat = con.createStatement();\n        stat.executeUpdate(sql);\n    }\n\n    //新增操作 INSERT\n    public static void insert(Connection con, String english, String chinese)throws SQLException {\n        String sql = \"insert into NUMBERS (english, chinese) values(?,?)\";\n        PreparedStatement pst = null;\n        pst = con.prepareStatement(sql);\n        int idx = 1 ;\n        pst.setString(idx++, uuid.toString());\n        pst.setString(idx++, sqlite);\n        pst.executeUpdate();\n\n    }\n\n    //修改操作 UPDATE\n    public static void update(Connection con, String english, String chinese)throws SQLException {\n        String sql = \"update NUMBERS set chinese = ? where english = ?\";\n        PreparedStatement pst = null;\n        pst = con.prepareStatement(sql);\n        int idx = 1 ;\n        pst.setString(idx++, sqlite);\n        pst.setString(idx++, uuid.toString());\n        pst.executeUpdate();\n    }\n\n    //刪除操作 DELETE\n    public static void delete(Connection con, Stirng english)throws SQLException {\n        String sql = \"delete from NUMBERS where english = ?\";\n        PreparedStatement pst = null;\n        pst = con.prepareStatement(sql);\n        int idx = 1 ;\n        pst.setString(idx++, uuid.toString());\n        pst.executeUpdate();\n    }\n    \n    //查找操作 SELECT\n    public static void selectAll(Connection con)throws SQLException {\n        String sql = \"select * from NUMBERS\";\n        Statement stat = null;\n        ResultSet rs = null;\n        stat = con.createStatement();\n        rs = stat.executeQuery(sql);\n        while(rs.next())\n        {\n            String uuid = rs.getString(\"english\");\n            String sqlite = rs.getString(\"chinese\");\n            System.out.println(rs.getString(\"english\")+\"\\t\"+rs.getString(\"chinese\"));\n        }\n    }\n}复制代码\n\n 三. 使用 SQLite  就使用下上面的 SQLite.java 吧，代码如下\n\nimport SQLite;\n public static void main(String args[]) throws SQLException {\n    Connection con = SQLite.getConnection();\n    //建立表\n    SQLite.createTable(con);\n    //新增数据\n    SQLite.insert(con, \"First\", \"一\");\n    SQLite.insert(con, \"Second\", \"二\");\n    //查询数据\n    SQLite.selectAll(con);\n    //修改数据\n    SQLite.update(con, \"First\", \"壹\");\n    //删除数据\n    SQLite.delete(con, 1);\n    //完全删除表\n    SQLite.dropTable(con);\n    //⭐⭐⭐断开连接，重点，养成好习惯，用完数据库就断开\n    con.close();\n}\n复制代码这只是个小用法，如果想更加灵活运用 SQLite，首先要熟悉 SQL 语句，其他的，我认为，只要按照代码上面，灵活的更改就完事了，总而言之 SQLite 并不难，重点在于：适合自己程序的才是最好的，并不是说有了 SQLite 就能代替 Gson 和 MySQL，还是需要仔细思考后再使用数据存储工具\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1594957200,
+            "txt_content": "SQLite和MYSQL的区别是不是就是SQLite不需要安装 他的数据文件直接生成在插件文件夹中\n\n(没有了解过数据库相关)"
+        },
+        {
+            "author": "埃拉拉",
+            "timestamp": 1594957800,
+            "txt_content": "南柯郡守 发表于 2020-7-17 11:40\nSQLite和MYSQL的区别是不是就是SQLite不需要安装 他的数据文件直接生成在插件文件夹中\n\n(没有了解过数据库 ...\n就是说 SQLite 使用门槛低，没有 MySQL 那么多复杂的配置和步骤"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1594963680,
+            "txt_content": "南柯郡守 发表于 2020-7-17 11:40\nSQLite和MYSQL的区别是不是就是SQLite不需要安装 他的数据文件直接生成在插件文件夹中\n\n(没有了解过数据库 ...\n应该说是大部分服务器的环境都可以使用sqlite\n但是有一些服务器环境不能使用mysql\n也并非每个腐竹都会使用、搭建外置数据库\nsqlite几乎都是直接存在本地的文件里\nmysql可以链接任意地方的（如外置的）数据库"
+        },
+        {
+            "author": "Dicro_scrive",
+            "timestamp": 1594966560,
+            "txt_content": "谢谢已食用\n留给以后开服的自己用"
+        },
+        {
+            "author": "HotPe_e",
+            "timestamp": 1595260020,
+            "txt_content": "谢谢，非常感谢 一直想要找关于sqlite的教程\n对于不需要多服同步，更好的储存数据 他比config高效太多了"
+        },
+        {
+            "author": "wisdomme",
+            "timestamp": 1595725140,
+            "txt_content": "啊这，感谢大佬，但是以前一直都是用yaml和MySQL储存数据的，下不了贼船了咋办啊"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1595941380,
+            "txt_content": "不是，你都用Gradle了，为什么还要手动下载jar文件作为依赖?\n直接implementation 'org.xerial:sqlite-jdbc:3.32.3.1'复制代码不就行了?"
+        },
+        {
+            "author": "埃拉拉",
+            "timestamp": 1595943060,
+            "txt_content": "RE_OVO 发表于 2020-7-28 21:03\n不是，你都用Gradle了，为什么还要手动下载jar文件作为依赖?\n直接不就行了?\n也对，但是我更想贴近一下源站"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1595945760,
+            "txt_content": "ElaBosak 发表于 2020-7-28 21:31\n也对，但是我更想贴近一下源站\n啥贴近源站？Gradle/Maven最主要的功能不就是依赖管理吗，你这手动下载jar不是等于脱裤子放屁吗"
+        },
+        {
+            "author": "埃拉拉",
+            "timestamp": 1595947860,
+            "txt_content": " 本帖最后由 ElaBosak 于 2020-7-28 22:55 编辑 \nRE_OVO 发表于 2020-7-28 22:16\n啥贴近源站？Gradle/Maven最主要的功能不就是依赖管理吗，你这手动下载jar不是等于脱裤子放屁吗 ...\n可以可以，听你的，如果你仔细看看这个教程，我去 Maven 仓库主要是为了找 SQLite 的 jar 包，确实已经知道了 GroupID 和 Artifact，但是既然我都进去了，况且我习惯使用 libs 存储 craftbukkit 的 jar 文件来方便直接测试，所以我便会使用 jar 包来导入，我觉得，这种事情上，没必要这么钻牛角尖，因为这种事情全凭个人喜好，况且，这只是个教程贴，并不代表你们一定要这么做，你们可以使用自己的方法，知道了就行了，何况，本帖的主题是 SQLite，不是 Gradle，但感谢你提出来"
+        }
+    ]
+}

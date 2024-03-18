@@ -1,0 +1,24 @@
+{
+    "title": "[教程]认识Ebean数据库",
+    "author": "魔族宝",
+    "replyCount": 3,
+    "timestamp": 1472354280,
+    "txt_content": " 本帖最后由 魔族宝 于 2016-11-21 11:16 编辑 \n\nSpigot 将在 1.12版本移除Ebean.\n0.前言\n数据库是大部分插件都需要的，很多插件还在使用Yaml来作为数据库载体。但是使用Yaml来做数据库有很多弊端，比如当服务器意外终止时，数据会丢失。大量读写Yaml文件，效率低下不利于批量读入，数据载入到内存中又会浪费过多内存资源。\n\n鉴于以上不利因素，更多的插件开发者开始尝试使用Sqlite或者MySQL来替代Yaml作为数据库。但是建立一个Sql数据库，建立一个数据库连接，执行语句，筛选返回结果这些操作，太过复杂和繁琐。让很多人望而却步，一些大佬则开始考虑是不是封装一个Sql操作工具。其实，在JavaPlugin里，Bukkit的开发人员早就封装好了一个Sql操作工具，这就是Ebean！教程：认识Ebean数据库\n你可能在Bukkit APIDocs中的JavaPlugin类里看到过这个方法。\n\n\n\n\n360截图20160828102647870.jpg (36.15 KB, 下载次数: 10)\n\n下载附件\n\n2016-8-28 10:20 上传\n\n\n\n\n\n没错，这就是JavaPlugin封装的Ebean数据库，Ebean是一个ORM框架。Ebean的主页：https://ebean-orm.github.io/Ebean是一个超简单的ORM框架，ORM框架可以让你以很舒爽的方式来操作你的SQL数据库。\n下面请跟随源码认识和使用Ebean数据库。\nBukkit为我们准备了一个例子，我将围绕这个例子进行讲解。\n这是一个“多个家”的插件，使用Ebean作为数据库。\n例子源码：https://github.com/Bukkit/HomeBukkit\n\n1.数据实体类\n@Entity()\n@Table(name=\"hb_home\")\npublic class Home {\n    @Id\n    private int id;\n\n    @NotNull\n    private String playerName;\n\n    @Length(max=30)\n    @NotEmpty\n    private String name;\n\n    @NotNull\n    private double x;\n\n    @NotNull\n    private double y;\n\n    @NotNull\n    private double z;\n\n    @NotNull\n    private float pitch;\n\n    @NotNull\n    private float yaw;\n\n    @NotEmpty\n    private String worldName;复制代码这个类包含我们想要存储的所有数据。\n每个数据实体类的结构都是一张库表。\n每个数据实体类的成员属性就是这张库表的字段。\n你要注意的是，这里只允许使用Java的基础属性。\n\n\n简单介绍一下这个类中的各个注解。\n@Entity，注解在数据实体类上。代表这是一个数据实体。\n\n@Table，注解在数据实体类上，参数name确定数据表名。\n\n@Id，数据ID的注解\n\n@Length，标记数据的长度\n\n@NotEmpty，不允许为空\n\n@NotNull，不允许为Null\n\n（更多注解请翻阅Ebean的API，这里只做简单介绍）\n同时，你要为你的数据实体类写好所有Getter/Setter。（可以用IDE的快捷输入）\n\n\n2.注册数据类\n\n\n在JavaPlugin中向Ebean注册你的数据实体类，以期让其工作。\n@Override\n    public List<Class<?>> getDatabaseClasses() {\n        List<Class<?>> list = new ArrayList<Class<?>>();\n        list.add(Home.class);\n        return list;\n复制代码\n\n\n3.创建数据库\n\n\n当你的插件第一次运行的时候，数据库/表都是不存在的，那么你需要创建。\n需要手动创建吗？不，JavaPlugin封装好了，你只需要检查一下是否需要创建。\nprivate void setupDatabase() {\n        try {\n            getDatabase().find(Home.class).findRowCount();\n        } catch (PersistenceException ex) {\n            System.out.println(\"Installing database for \" + getDescription().getName() + \" due to first time usage\");\n            installDDL();\n        }\n    }复制代码我推荐你把这个方法写到JavaPlugin中。\n这个方法将会尝试读取某个数据实体类的所有数量，当出现PersistenceException异常的时候，创建这个数据表。\n而创建方法，就是调用已经封装好的installDDL();\n\n\n4.操作数据库\n对数据库的基础操作分为：增、删、查、改。\n4.1 增\n其中，增加一条数据记录，就是实例化一个数据实体类，然后将其save在数据库内。\n            home = new Home();\n            home.setPlayer(player);\n            home.setName(name);\n        home.setLocation(((Player)sender).getLocation());\n<span style=\"line-height: 19.0909px;\">plugin.getDatabase().save(home);</span>复制代码\n4.2 删\n删除之前先获取这条数据的实体类。\n// 获取数据实体类复制代码4.3 查\n查询，读取，这一步比较复杂。\n查询单个记录：\nHome home = plugin.getDatabase().find(Home.class).where().ieq(\"name\", name).ieq(\"playerName\", player.getName()).findUnique();复制代码find(Home.class)，首先指明想要获取数据的数据实体类。\nwhere()，判断\nieq(\"name\", name)，是否相等，判断name这个字段中哪条记录和变量name相等。\nieq(\"playerName\",player.getName())，是否相等，判断playerName这个字段中哪条记录和玩家的名字相等。\nfindUnique(); 返回一个独一无二的记录。\n\n查询一组记录：\nList<Home> homes = plugin.getDatabase().find(Home.class).where().ieq(\"playerName\", player.getName()).findList();复制代码前面基本上都一样。\n这里只有一个 ieq(\"playerName\",player.getName()) ,意思是取所有玩家名相对应的记录。\n最关键的是findList()，他返回一组记录，所有符合要求的记录都会被实例化为数据实体类，然后返回。\n返回值是List<?>\n\n\n更多的查询需要你自己前往Ebean的API中查询，诸如更复杂的查询条件，排序查询等等。\n\n\n4.4 改\n所谓改，就是对数据的一种刷新。\n// 获取数据实体类\nHome home;复制代码这个也十分简单，获取到数据实体类，修改其内容，然后重新update到数据库中。\n\n\n5.配置\n\n\n最后一步，不要忘记在你的插件配置文件中打开database这个选项，以激活Ebean数据库！\n# Plugin.yml 插件文件复制代码\n\n6.瑕疵\n\n\n目前还没发现怎么让Ebean支持MySQL（只支持Sqlite），如果各位大佬有研究成果，欢迎分享。\n\n让Ebean支持MySQL，请参考我的第二篇文章：[教程]认识Ebean数据库（二）\nhttp://www.mcbbs.net/forum.php?mod=viewthread&tid=636860\n(出处: http://www.mcbbs.net/)\n\n\n使用了Ebean之后，如果你在测试服务器中测试Ebean插件，并修改代码后覆盖正在运行的Ebean插件，然后使用Reload指令重载服务器端，会造成这个Ebean插件无法工作\n（至于原因，应该是反射机制的问题。你只能重启服务器端来解决这个问题）\n\n\n7.结语\n\n\n使用Ebean可以大大加快你的插件开发进度，完善你的插件数据库。\nORM框架除了给你提供强大快捷的对象映射之外，还自带反SQL注入，确保了数据安全。\n\n\n对于新手插件开发者、甚至熟练插件开发者，Ebean作为Bukkit原生支持的ORM框架，都是值得使用的。\n希望这篇文章能帮助为各位插件开发者了解和学习Ebena。\n祝愿各位国内的插件开发者能开发出更强大、更完善的插件。\n\n来自:神坑插件开发小组\n\n",
+    "replies": [
+        {
+            "author": "q549365815",
+            "timestamp": 1476518100,
+            "txt_content": "很不错\n我选择mysql"
+        },
+        {
+            "author": "1315453150",
+            "timestamp": 1476520320,
+            "txt_content": "很不错\n帖子内容也非常丰富"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1476564060,
+            "txt_content": "不错，数据库操作实在是太烦了，有了这个可以简化了"
+        }
+    ]
+}

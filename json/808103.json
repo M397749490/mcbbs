@@ -1,0 +1,39 @@
+{
+    "title": "【Bone Studio】【原创】【Hamster君】Spigot插件教学——玩家の新属性",
+    "author": "苏丶小沫",
+    "replyCount": 6,
+    "timestamp": 1534160580,
+    "txt_content": " 本帖最后由 HamsterB君 于 2018-8-14 19:37 编辑 \n\n摸鱼摸了半个月，终于更新啦！这次的章节很重要！(于是我又水了一个开头梗)Spigot插件教学——玩家の新属性[其它教程没有的知识点（重要）]\nPart1-学会使用HashMap储存玩家信息[其它教程没有的知识点（重要）]\nJava自带了各种各样的API（额外的功能），其中有一些给开发者使用的数据结构，例如HashMap为了给每个玩家储存单独对应的信息，肯定是这样配对的： 一个玩家-一个信息。这正好应对了HashMap中的键-值关系。那么玩家就是一个标识，我们可以利用HashMap来控制对应的玩家信息。这样子创建一个HashMap：(括号中的可以不写)(public) static HashMap<键的数据类型,值的数据类型> 变量名字 = new HashMap();复制代码想要给每个玩家储存血量值，键就用String类型的玩家名，值就用int类型的血量值，这样写public static HashMap<String,int> 变量名字 = new HashMap();复制代码哎呀！我们发现Eclipse在int上面打上了红线并提示错误，这是因为泛型的原因（见Part4）.那么我们直接这样写，反正int和Integer可以随时转换：public static HashMap<String,Integer> 变量名字 = new HashMap();复制代码好了！这样我们的为玩家储存的HashMap就创建好啦！这是控制HashMap中控制数据的常用函数：名字.put(键,值);                                //在HashMap中储存对应的键和值\n名字.remove(键);                              //在HashMap中移除键（其对应的值也会被移除）\n名字.get(键);                                    //在HashMap中查找键对应的值\n名字.containsKey(键);                        //在HashMap中看看键是否存在\n名字.containsValue(值);                     //在HashMap中看看值是否存在\n名字.clear();                                     //清空整个HashMap（慎用）复制代码Part2-把玩家的信息储存至YAML文件[其它教程没有的知识点（重要）]在之前的章节中，我们已经学会了怎么使用YAML文件储存配置，现在，我们把玩家的信息也一一储存成YAML文件。储存的代码：//保存每位玩家的参数至YAML文件\npublic static void save(String playerName) {\n//创建方法\n    YamlConfiguration data = YamlConfiguration.loadConfiguration(new File(\"/playerdata/\" + playerName + \".yml\"));\n    //创建一个YAML类型的变量方便保存，其路径就是保存的路径（在new File后）\n    data.set(\"路径名字\", HashMap名字.get(playerName));\n    //给data设置路径和值\n    try{\n        data.save(new File(\"/playerdata/\" + playerName + \".yml\"));\n        //直接把变量变成YAML文件\n    } catch (IOException e) {\n        //如果错误出现，抓住这个可恶的错误！\n        e.printStackTrace();\n        //如果错误出现，报错！\n    }\n    //因为保存时可能出现IOException错误，使用try-catch语句\n}复制代码\n那么，保存玩家的信息就用：save(玩家名字);读取的代码：//从TAML文件中读取玩家的参数\npublic static void load(String playerName) {\n    File dataFile = new File(\"/playerdata/\" + playerName + \".yml\");\n    //创建File类型变量方便读取时访问文件（这里的路径务必和上面save()方法的路径一样）\n    if (!dataFile.exists()) {\n    //玩家有没有玩过？没有玩过的话……\n        HashMap名字.put(playerName,20);\n        //直接在HashMap中创立新的值，20是你的新属性的初始值\n        return;\n        //直接结束方法\n    }\n    YamlConfiguration data = YamlConfiguration.loadConfiguration(dataFile);\n    //创建YAML类型的变量data，方便读取\n    HashMap名字.put(playerName,data.get(playerName));\n    //在HashMap中储存\n}复制代码那么，读取玩家的信息就用：load(玩家名字);\n为了使插件能够自动储存、读取，那么我们就创立监听器，在玩家加入服务器、退出服务器时调用对应的save()、load()方法在加入服务器时，调用load(event.getPlayer().getName());在离开服务器时，调用save(event.getPlayer().getName());在离开服务器时删，除不再需要的信息：HashMap名字.remove(event.getPlayer().getName());Part3-储存自定义对象以减少你的HashMap个数[其它教程没有的知识点（重要）]按照我上面的教程，如果小伙伴们想同时保存玩家的血量值、饥饿值、盔甲值、呼吸值（原版四大HUD），那么只能这样写：public static HashMap<String,int> health = new HashMap();  //血量\npublic static HashMap<String,int> hunger = new HashMap();  //饥饿\npublic static HashMap<String,int> armor = new HashMap();  //盔甲\npublic static HashMap<String,int> air = new HashMap();  //呼吸复制代码哇，怎么这么多个HashMap啊！管理起来也会十分烦人痛苦……为了使HashMap的个数少些，我们为什么不把这么多属性放到一起呢？有小伙伴可能会问：HashMap中每个键只能对应一个值，该怎么聚合到一起呢？那么，我们就自己来定义全新的对象，假设一个玩家对应一个对象，那么我们就这样写：public class playerData{           //直接新建类\n    //对象的四个属性\n    public int health;                 \n    public int hunger;\n    public int armor;\n    public int air;\n    //构造函数：在创建对象是必要的参数\n    public playerData(int hp, int hg, int am, int ar){\n        //对象的属性赋值操作\n        this.health = hp;\n        this.hunger = hg;\n        this.armor = am;\n        this.air = ar;\n    }\n}复制代码然后，我们直接创建HashMap，并且设定值的类型为playerData：public HashMap<String,playerData> playerDatas = new HashMap();看，我们把所有的属性都放进同一个HashMap啦！如果要访问数据，就直接使用playerDatas.get(玩家名).health|hunger|armor|air如果要新建数据，就直接使用playerDatas.put(玩家名, new playerData(20,20,0,20));从YAML中保存、读取数据也是同理，直接访问即可Part4-HashMap注意事项[其它教程没有的知识点（重要）]1-HashMap中不能容纳int, short, byte, long类型！但是它可以容纳Integer, Short, Byte, Long！2-HashMap中切勿存放Player类型变量，宁可用String类型的玩家名来代替Player类型的玩家！3-注意使用后删除HashMap中的无用数据，否则可能会导致内存泄漏！4-切勿直接用输出流把HashMap保存成txt文件，否则读入时可能会有空指针错误！5-注意在插件启用时，遍历一遍服务器的玩家，以免某op使用/reload指令，导致HashMap直接被刷新\n\n8892字打得手疼有问题的小伙伴请在1楼问我\n你们也不看看我多少级……人气撒起来吧>>回到目录<<\n[groupid=1306]Bone Studio[/groupid]",
+    "replies": [
+        {
+            "author": "Rikka╮",
+            "timestamp": 1534162260,
+            "txt_content": "坐沙发看大佬"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1534164840,
+            "txt_content": "dalao写的教程就是优秀，真的是不敢恭维.\n我在这篇教程里学到了不少新鲜的东西."
+        },
+        {
+            "author": "下面好舒服",
+            "timestamp": 1534165320,
+            "txt_content": "厉害 完全一脸懵逼（我才学到加减乘除取尾啥的）"
+        },
+        {
+            "author": "Kyokuki",
+            "timestamp": 1534410660,
+            "txt_content": "学到了！楼主加油"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1535725680,
+            "txt_content": "2-HashMap中切勿存放Player类型变量，宁可用String类型的玩家名来代替Player类型的玩家！\n请问为什么不直接用WeakHashMap呢？"
+        },
+        {
+            "author": "苏丶小沫",
+            "timestamp": 1535726220,
+            "txt_content": "gooding300 发表于 2018-8-31 22:28\n请问为什么不直接用WeakHashMap呢？\n也对噢，谢谢提醒\n"
+        }
+    ]
+}

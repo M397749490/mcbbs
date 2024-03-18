@@ -1,0 +1,64 @@
+{
+    "title": "实体新建变量如何在事件中修改",
+    "author": "数据system",
+    "replyCount": 11,
+    "timestamp": 1585633680,
+    "txt_content": " 本帖最后由 数据system 于 2020-3-31 14:53 编辑 \n    @SubscribeEvent\n    public void onUseItem(RightClickItem event) {\n            EntityLivingBase player=event.getEntityPlayer();\n            World worldIn=player.getEntityWorld();\n            ItemStack Mainhand=player.getHeldItemMainhand();\n            if (!worldIn.isRemote) {\n            if(Mainhand.getDisplayName()==\"book\") {\n                    EntityMagicBullet entity=new EntityMagicBullet(worldIn, player);\n                    entity.time=360;\n                    worldIn.spawnEntity(entity);\n                    }\n            }\n    }复制代码public class EntityMagicBullet extends EntityThrowable {\n        public int time=20;\n        public void setTime(int t) {\n                this.time=t;\n        }\n        public int getTime() {\n                return this.time;\n        }\n        public void onUpdate() {\n                int i=this.getTime();\n                this.setTime(--i);\n                if(i<=0) {this.setDead();}\n        }\n    public EntityMagicBullet(World worldIn)\n    {\n        super(worldIn);\n    }\n\n    public EntityMagicBullet(World worldIn, EntityLivingBase throwerIn)\n    {\n        super(worldIn, throwerIn);\n    }\n\n    public EntityMagicBullet(World worldIn, double x, double y, double z)\n    {\n        super(worldIn, x, y, z);\n    }\n\n        @Override\n        protected void onImpact(RayTraceResult result) {\n                \n        }\n        \n    protected float getGravityVelocity()\n    {\n        return 0.0F; \n    }\n}复制代码public class EntityLoader {\n        private static int nextID = 0;\n\n        public EntityLoader()\n    {\n        registerEntity(EntityMagicBullet.class, \"MagicBullet\", 64, 3, true);\n    }\n\n        private static void registerEntity(Class<? extends Entity> entityClass, String name, int trackingRange,\n            int updateFrequency, boolean sendsVelocityUpdates)\n    {\n                final ResourceLocation registryName = new ResourceLocation(Dataextension.MODID, name);\n        EntityRegistry.registerModEntity(registryName,entityClass, name, nextID++,Dataextension.instance,trackingRange, updateFrequency,\n                sendsVelocityUpdates);\n    }\n        //实体注册\n        \n    @SideOnly(Side.CLIENT)\n    public static void registerRenders()\n    {\n            registerEntityRender(EntityMagicBullet.class,RenderMagicBullet.class);\n    }\n    @SideOnly(Side.CLIENT)\n    private static <T extends Entity> void registerEntityRender(Class<T> entityClass, Class<? extends Render<T>> render)\n    {\n            RenderingRegistry.registerEntityRenderingHandler(entityClass, new EntityRenderFactory<T>(render));\n    }\n    //实体渲染注册\n}复制代码\n\n\n就像这样，我在实体EntityMagicBullet新建time这么一个变量来控制其的存在时间，但在生成该实体时修改time却没有作用，实体依然只存在了1秒。",
+    "replies": [
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1585636680,
+            "txt_content": "有没有完整点的代码，setTime只有这一个地方调用吗?"
+        },
+        {
+            "author": "数据system",
+            "timestamp": 1585637520,
+            "txt_content": "Billy12345 发表于 2020-3-31 14:38\n有没有完整点的代码，setTime只有这一个地方调用吗?\n是实体的全部代码吗？  setTime只有这一个地方调用了"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1585638300,
+            "txt_content": "数据system 发表于 2020-3-31 14:52\n是实体的全部代码吗？  setTime只有这一个地方调用了\n我有一猜想，你setDead()的时候没有判断在哪一端，可能是在客户端执行setDead()导致的\n你可以尝试在你见到实体消失之后用命令检测一下服务端有没有这个实体"
+        },
+        {
+            "author": "数据system",
+            "timestamp": 1585640340,
+            "txt_content": "Billy12345 发表于 2020-3-31 15:05\n我有一猜想，你setDead()的时候没有判断在哪一端，可能是在客户端执行setDead()导致的\n你可以尝试在你见 ...\n感谢大佬，存在时间的问题解决了，我还想请教一下大佬我又写了一个变量，用来设置实体渲染时的贴图，但实体依然是使用默认设置的贴图\n    @SubscribeEvent\n    public void onUseItem(RightClickItem event) {\n            EntityLivingBase player=event.getEntityPlayer();\n            World worldIn=player.getEntityWorld();\n            ItemStack Mainhand=player.getHeldItemMainhand();\n            if (!worldIn.isRemote) {\n            if(Mainhand.getDisplayName()==\"book\") {\n                    EntityMagicBullet entity=new EntityMagicBullet(worldIn, player);\n                    entity.setTime(360);\n                    entity.setname(\"magicbullet1.png\");\n                    worldIn.spawnEntity(entity);\n                    }\n            }\n    }复制代码public class EntityMagicBullet extends EntityThrowable {\n        public String name=\"magicbullet.png\";\n        public int time=20;\n        \n        public void setname(String t) {\n                this.name=t;\n        }\n        public String getname() {\n                return this.name;\n        }\n        \n        public void setTime(int t) {\n                this.time=t;\n        }\n        public int getTime() {\n                return this.time;\n        }\n        public void onUpdate() {\n                int i=this.getTime();\n                this.setTime(--i);\n                if(i<=0) {if(!this.world.isRemote) {this.setDead();}}\n        }\n    public EntityMagicBullet(World worldIn)\n    {\n        super(worldIn);\n    }\n\n    public EntityMagicBullet(World worldIn, EntityLivingBase throwerIn)\n    {\n        super(worldIn, throwerIn);\n    }\n\n    public EntityMagicBullet(World worldIn, double x, double y, double z)\n    {\n        super(worldIn, x, y, z);\n    }\n\n        @Override\n        protected void onImpact(RayTraceResult result) {\n                \n        }\n        \n    protected float getGravityVelocity()\n    {\n        return 0.0F;\n    }\n}复制代码\n\n"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1585640580,
+            "txt_content": "数据system 发表于 2020-3-31 15:39\n感谢大佬，存在时间的问题解决了，我还想请教一下大佬我又写了一个变量，用来设置实体渲染时的贴图，但实 ...\n还是CS的问题，你在服务端设置贴图怎么会有效果呢？\n渲染在客户端上啊"
+        },
+        {
+            "author": "数据system",
+            "timestamp": 1585641780,
+            "txt_content": "Billy12345 发表于 2020-3-31 15:43\n还是CS的问题，你在服务端设置贴图怎么会有效果呢？\n渲染在客户端上啊\n大佬似乎不是客户端服务端的问题，我只是设置变量name的内容，贴图的实际绑定还是在Render中\nResourceLocation r =new ResourceLocation(Dataextension.MODID, \"textures/entity/\"+entity.getname());\nMinecraft.getMinecraft().renderEngine.bindTexture(r);//绑定贴图"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1585642140,
+            "txt_content": "数据system 发表于 2020-3-31 16:03\n大佬似乎不是客户端服务端的问题，我只是设置变量name的内容，贴图的实际绑定还是在Render中\nResourceLoc ...\n 对啊，你对name的修改在服务端上，没有其他代码上的话并不会自动反映到客户端上，所以你在Renderer里访问到的name还是原来的name(magicbullet.png)，你在entity.setname(String)中应当以某种方式告知客户端name已变更"
+        },
+        {
+            "author": "数据system",
+            "timestamp": 1585645080,
+            "txt_content": "Billy12345 发表于 2020-3-31 16:09\n对啊，你对name的修改在服务端上，没有其他代码上的话并不会自动反映到客户端上，所以你在Renderer里访问 ...\n大佬应该如何告知客户端数据的改动，发数据包吗？"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1585645740,
+            "txt_content": " 本帖最后由 Billy12345 于 2020-4-2 10:11 编辑 \n数据system 发表于 2020-3-31 16:58\n大佬应该如何告知客户端数据的改动，发数据包吗？\n因为我最近一直使用Fabric写mod，上次写Forge已经是18年了，现在手上没有Forge开发环境，我现在没有办法告诉你具体要怎么做\nFabric有TrackedData来自动完成这个动作，他在Forge中叫做DataParameter\n"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1585688760,
+            "txt_content": "虽然我并不是mod开发者，但是我还得说一下，您，，，为啥要用==判断字符串呢？您IDE没有提示吗\n\n>  Mainhand.getDisplayName()==\"book\""
+        },
+        {
+            "author": "数据system",
+            "timestamp": 1585703040,
+            "txt_content": "Karlatemp 发表于 2020-4-1 05:06\n虽然我并不是mod开发者，但是我还得说一下，您，，，为啥要用==判断字符串呢？您IDE没有提示吗\n\n>  Mainhan ...\n这就是为了测试召唤实体修改数据临时写的，反正也只是用来召唤实体，能召唤出来就行了，也没管其他什么的了。"
+        }
+    ]
+}

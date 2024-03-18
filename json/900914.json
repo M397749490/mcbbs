@@ -1,0 +1,44 @@
+{
+    "title": "【原版模组】战利品表随机数 —— 更简洁的数据包随机数前置",
+    "author": "ruhuasiyu",
+    "replyCount": 7,
+    "timestamp": 1565534640,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2020-4-9 18:19 编辑 \n\n战利品表随机数Random Generator by Loot Table\n随机数生成本版已有多种实现方式，之前人们主要使用 https://www.mcbbs.net/thread-706030-1-1.html 中使用随机给药水云加分来实现。然而自从战利品表被增强之后，我们可以使用更为简便的做法来实现。实际上，很多CB玩家都已经使用这个技巧，这也包括 https://www.mcbbs.net/thread-855790-1-1.html 的做法。\n\n然而，实际上我们可以生成一段区域内的浮点随机数，倍乘之后，我们便轻易地得到了一个巨大范围的整随机数。例如在set_attribute这个function中，我们可以设置物品的属性值为至多0-2048范围内的浮点数，然后倍乘1048575。具体见下文。如何使用将 \n\n\n\n战利品表随机数1.3.zip\n(2.56 KB, 下载次数: 217)\n\n\n\n2020-4-9 18:19 上传\n点击文件名下载附件\n1.3\n\n\n\n\n 放入存档datapacks文件夹即可。\n使用时，设定好最大最小值之后执行函数random:random即可，分数会存储在#result的random记分板。\nscoreboard players set #random_min random [最小值]\nscoreboard players set #random_max random [最大值]\nfunction random:random复制代码原理简析0. 创建记分板略。\n1. 创建战利品表\nrandom/loot_tables/random.json\n{\n    \"pools\": [\n        {\n            \"rolls\": 1,\n            \"entries\": [\n                {\n                    \"type\": \"minecraft:item\",\n                    \"name\": \"minecraft:stone\",\n                    \"functions\": [\n                        {\n                            \"function\": \"set_attributes\",\n                            \"modifiers\": [\n                                {\n                                    \"slot\": \"mainhand\",\n                                    \"name\": \"random_luck\",\n                                    \"attribute\": \"generic.luck\",\n                                    \"operation\": \"addition\",\n                                    \"amount\": {\n                                        \"min\": 0,\n                                        \"max\": 2048\n                                    }\n                                }\n                            ]\n                        },\n                        {\n                            \"function\": \"set_nbt\",\n                            \"tag\": \"{randomMarker:1b}\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}复制代码2. 生成这个战利品的掉落物，然后将其属性值乘以1048575倍（控制在记分板最大值范围内），我们便得到了0-2048*1048575范围的随机数。\n3. 然后我们对随机数范围取同余，并加上最小值即可。\nrandom/functions/random.mcfunctionloot spawn ~ -1 ~ loot random:random\nexecute positioned ~ -1 ~ store result score @s random run data get entity @e[type=item,nbt={Item:{tag:{randomMarker:1b}}},limit=1,distance=..1] Item.tag.AttributeModifiers[0].Amount 1048575\nexecute positioned ~ -1 ~ run kill @e[type=item,nbt={Item:{tag:{randomMarker:1b}}},limit=1,distance=..1]\nscoreboard players operation #random_interval random = #random_max random\nscoreboard players operation #random_interval random -= #random_min random\nscoreboard players add #random_interval random 1\nscoreboard players operation @s random %= #random_interval random\nscoreboard players operation @s random += #random_min random复制代码\n非常简单，只有8行命令。\n更新日志v1.3 2020/04/09\n+ 现在支持1.16版本。\n\nv1.2 2019/09/29\n+ 现在分数会被记录在#result的分数上而非执行者。\n\nv1.1 2019/08/13\n+ 修复了执行后原本记分板会发生改变的问题。\n\nv1.0 2019/08/11\n+ 提交第一个版本。[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1565580960,
+            "txt_content": " 本帖最后由 CHElover_C60 于 2019-8-12 11:43 编辑 \n\n没想到用了浮点数之后那么简洁明了\n顺便又回去看了一眼我的渣优化\n\n另外，在函数执行后，是不是应该对random_max进行复位？在执行函数后，random_max的值有变化，这就会使execute多个实体执行函数时，部分实体的分数偏小。或者因为一般随机数一次只需要用一个，因此可以忽略execute多个实体执行的情况？"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1565582220,
+            "txt_content": "CHElover_C60 发表于 2019-8-12 11:36\n没想到用了浮点数之后那么简洁明了\n顺便又回去看了一眼我的渣优化\n是这样的，我设定的是每次都需要设置最大最小值。也就是上面那三行是由一个实体来一次性执行，所以就没复位了。\n\n不过，加上也行。。"
+        },
+        {
+            "author": "1600947387",
+            "timestamp": 1565604000,
+            "txt_content": "学到了，很厉害的随机"
+        },
+        {
+            "author": "MC深坑不回头",
+            "timestamp": 1572070920,
+            "txt_content": "好棒的数据包~!请问可用在我的自制地图中吗? "
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1572071460,
+            "txt_content": "MC深坑不回头 发表于 2019-10-26 14:22\n好棒的数据包~!请问可用在我的自制地图中吗?\n随便用"
+        },
+        {
+            "author": "sengehehe",
+            "timestamp": 1578746700,
+            "txt_content": "可以学到了"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1608209400,
+            "txt_content": "非常简单，只有8行命令。可是战利品表这么长长长长长长长长长长长长长......(太夸张了)\n\n\n"
+        }
+    ]
+}

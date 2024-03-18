@@ -1,0 +1,64 @@
+{
+    "title": "[Bukit|Spigot][PCD]细谈ActionBar与Title的使用 | NMS与反射",
+    "author": "白羊羊",
+    "replyCount": 11,
+    "timestamp": 1518261060,
+    "txt_content": " 本帖最后由 mimimis 于 2018-2-10 19:23 编辑 \n\n细谈ActionBar与Title的使用—— Bukkit | Spigot ——在1.8之后，似乎使用ActionBar和Title显示信息的插件越来越多了，因为ActionBar位于物品名称显示区域的上方，而Title位于屏幕中央并靠下，相比传统的聊天框显示，显得更为简洁、新颖。那么，作为开发者，如何使用这些功能呢？在Bukkit1.9版本之后，Player类新增了一个sendTitle(Stirng title, String subtitle)方法，到了1.11版本，这个方法变得更高级了sendTitle(String title ,String subtitle ,int fadein ,int stay ,int fadeout)，你可以直接传入全部构造Title的参数来为玩家发送Title。不过，Title在1.8同样可以使用，但是Bukkit没有为我们封装方法，怎么办呢？方案一、借助API插件 \n基础教程：对于新手开发者，最简单粗暴能够直接操作ActionBar和Title的方法，就是使用其他插件提供的API，这里我们在站内随便找了一个TitleAPI插件，以下是详细操作步骤：IDE：EC（idea是什么，我不知道）API插件：http://www.mcbbs.net/thread-653804-1-1.html（如果能找到有doc的更好）这里我们演示直接调用API中提供的方法：假如我只想给玩家发一个Title出去，就像这样写：玩家就会收到你自定义的一个Title信息了，ActionBar同理。这种方法是最简单粗暴的，但是请注意，使用了其他的API插件，你的插件始终都会有一种依赖性，如果你使用的API插件不再更新或是出现问题，你自己是没有办法解决的。这也是很多人都不会去用这些API最根本的原因。\n 使用ProtocolLib发送数据包：友情链接：http://www.mcbbs.net/thread-568714-1-1.html方案二、直接使用nms  基础教程：使用nms之前，我们先了解一下什么是nms，一句话，nms就是Bukkit核心jar里面的包net.minecraft.server.vXXX就拿我的 spigot-1.9.4 使用 jd-gui 进行反编译，呈现在我们眼前的是这个：可以看到，不同bukkit版本，包名都不同，比如1.8就是v1_8_R1，1.8.3就是v1_8_R2，而现在看到的这个1.9.4，就是1_9_R2因此，如果你使用了nms，就会有着严格的版本限制，多版本兼容后面讲到。\n现在来说我们为什么要使用这个包里面的东西，就拿Title来说，1.8是没有为我们提供任何发送Title消息的方法的，那其他插件是怎么做到的呢？原因很简单，因为在Bukkit核心jar里面，就藏着我们想要的东西。\n1.6版本之后，Bukkit的通信机制大改，许多的东西都是通过给玩家发送数据包的方式做到的。而我们想要的Title，也是这样，你可以找到PacketPlayOutTitle这个类，里面藏着的，正是Title的构造方法。当你完成了一个Title的构造然后发送给玩家时，玩家的客户端就会对你发送的数据包进行解读，最终呈现的，就是Title消息了。\n而我们要达到的目的，就是像上面一样给玩家发送这样一个数据包。下面是详细操作步骤：展开这个类，查看所有的构造方法。从上面的消息中我们得到了这个类的4个构造方法PacketPlayOutTitle() - 无参PacketPlayOutTitle(EnumTitleAction, IChatBaseComponent) - 类型枚举、基础交流类？(随便起个名字好了)PacketPlayOutTitle(EnumTitleAction, IChatBaseComponent,int,int,int) - 类型枚举、基础类、淡入时间、停留时间、淡出时间PacketPlayOutTitle(int,int,int) - 淡入时间、停留时间、淡出时间\n而我们最需要的，就是能够传入参数最多的那个构造方法。现在，我们来看看如何构造：\n在这里要注意一下 EnumTitleAction 是一个内部枚举类，在Bukkit1.8.3之前被拿到外面成为单独的一个枚举类。EnumTitleAction类提供的枚举用于区分Title的类型：两个我们要一般用到的：TITLE - 主Title内容（第一行）SUBTITLE - 副Title内容（第二行）\n像上面这样，我们就已经构造出一个PacketPlayOutTitle对象了，接下来要做的，就是将它发送给玩家。\n步骤如下：\n这样，我们就完成了Title的发送。你可以将其包装成为自己的方法，以便随时调用。\n 实现多版本教程：我们学会了如何用nms给玩家发送数据包，那么如何才能实现多版本支持呢？一个类里面导入每一个版本的包吗？这肯定是不现实的。从Spigot Wiki中，我们可以找到答案。利用接口与版本区分，来为每一个版本单独分配发送Title的类。既然Wiki里面已经介绍了ActionBar，那我们就来讲Title，下面是详细操作步骤：完成接口定义后，开始实现这个接口请注意在构建路径中添加各个版本的jar核心这是1.8的：这是1.9的：\n打开主类，开始重写onEnable()方法完成初始化之后，就可以尽情使用了这个方法正如Wiki中所说，是向后兼容的，当Bukkit推出新版本之后，你就可以去新增一个类来兼容到最新版本。当然，如果你认为这种方法还是很麻烦，你可以使用反射（后面会讲）\n ActionBar的发送步骤和Title一样，使用jd-gui反编译，找到PacketPlayOutChat类我们来看看这个类的构造方法PacketPlayOutChat() - 无参PacketPlayOutChat(IChatBaseComponent) - IChatBaseComponent类PacketPlayOutChat(IChatBaseComponent ,byte) - IChatBaseComponent类、byte参数\n肯定，我们选择参数最多的那一个构造方法。想要构造一个PacketPlayOutChat对象，详细操步骤作如下：对于1.12之后的ActionBar的发送，想要使用新的构造方法：如果你实在是不习惯新的操作方式，也可以调用里面的a()方法：PacketPlayOutChat pack = new PacketPlayOutChat(chat, ChatMessageType.a((byte) 2));通过直接使用nms来发送ActionBar和Title的教程就到这里。方案三、反射  ActionBar反射使用+向上版本兼容:如果你不想导入这样那样的包，认为直接使用nms很麻烦，你可以使用Java的反射机制来达到目的。使用反射后，理论可以向上兼容，但是仍然需要注意每一个版本的变更。下面是详细操作步骤：\n开始我们的反射，我建议在开服时完成全部的反射所以请把反射的方法添加到onEnable()方法内。反射完成后，现在就是使用了最后，你就可以调用你已经完成的方法给玩家发送ActionBar并且，理论上是全版本支持的，不过也要注意，反射的效率比较低，使用反射之前请跟据情况决定是否使用反射。\n\n Title的反射使用+向上反射兼容：Title的反射与ActionBar方法相同，下面是详细操作步骤：至此，通过反射使用ActionBar与Title的教程结束。\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "eizi6666",
+            "timestamp": 1518444720,
+            "txt_content": "ddddddddddd"
+        },
+        {
+            "author": "咕",
+            "timestamp": 1518570720,
+            "txt_content": "园神凛祢 发表于 2018-2-14 08:36\n介绍比较全面\n（不过这个比较简单，因为95%的开发者都会）\n对小白有比较实质性的帮助\n多版本的nms使用反射最大的问题是运行速度慢\n抽象为接口并在每个版本实现是追求高性能的多版本实现\n参见citizens\n\n另外如果不想分别实现可以用asm动态生成实现类"
+        },
+        {
+            "author": "白羊羊",
+            "timestamp": 1518578580,
+            "txt_content": "园神凛祢 发表于 2018-2-14 10:58\n有道理，但是那样会有点麻烦吧\n每个版本都要撸一个接口出来。。\n其实国外很多插件都是这样的，之前有看到过很多类似插件都使用了这种"
+        },
+        {
+            "author": "咕",
+            "timestamp": 1518584160,
+            "txt_content": "园神凛祢 发表于 2018-2-14 10:58\n有道理，但是那样会有点麻烦吧\n每个版本都要撸一个接口出来。。\n反射的性能，就算写了缓存，消耗也有点大\n连nodejs的运行速度都比不上"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1519002240,
+            "txt_content": "我记得去年我写过一篇差不多的, 不过我直接放上了反射过程的源码以及api, 某dalao(耗*)批评道\"我看看是谁这么愿意弄别人早就做过的事情\"\n当然, 没有楼主这篇详细, 感谢楼主分享, 看了以后我感觉...昧着良心说学到了好多东西...."
+        },
+        {
+            "author": "liuyipeng001",
+            "timestamp": 1519008180,
+            "txt_content": "印象中ASM和直接访问差不多，反射就。。。。。。"
+        },
+        {
+            "author": "艾了个拉",
+            "timestamp": 1519033500,
+            "txt_content": "牛逼，顶"
+        },
+        {
+            "author": "LiquidBounce___",
+            "timestamp": 1519092180,
+            "txt_content": "表示没看懂。。。。。。。。。。。。。。。。"
+        },
+        {
+            "author": "樱之恋",
+            "timestamp": 1519100040,
+            "txt_content": "感谢分享，MCBBS有你更精彩~"
+        },
+        {
+            "author": "sulinly",
+            "timestamp": 1564681620,
+            "txt_content": "正在找呢 谢谢"
+        },
+        {
+            "author": "iPad水晶",
+            "timestamp": 1567933860,
+            "txt_content": "支持楼主啦啦啦"
+        }
+    ]
+}

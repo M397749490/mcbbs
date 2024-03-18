@@ -1,0 +1,54 @@
+{
+    "title": "[机制]插件加载器 —— 前置API,加快插件开发速度[1.7.10]",
+    "author": "azbh111",
+    "replyCount": 9,
+    "timestamp": 1534650180,
+    "txt_content": " 本帖最后由 azbh111 于 2018-8-19 12:06 编辑 \n\n关于本插件\n\n本人开发各种插件时，发现总是会做很多重复烦人的工作\n\n以下列举一些重复烦人的工作，并提供框架下优化后的代码(学霸食用，学渣直接看帖子结尾吧)\n\n?    配置文件的 生成/读取/重载/保存\n\n// 一个自定义配置文件\n@Inject(args = \"{.}/plugins/Clann/configItem.conf\")\nConfigWrapper configWrapper;\n// 配置采用注入的方式\n@Configure(value = \"modules.autoSave.interval\", comment = \"间隔(s)\")\nprivate long saveInterval = 600; //10分钟保存一次\n// 重载插件时的回调\n@ReLoad\npublic void reload() {\n    // doSomething\n}复制代码\n?    自定义数据的 创建/读取/保存\n\n// 定义一个数据文件\n@Ignore\n@Inject(args = {\"{.}/data/clann/blocklog\"})\nFileDataHolder dataFile;\n\n// 读取数据\n@Load\npublic void load() {\n    if (!dataFile.exist()) {\n        dataFile.save(this);\n    } else {\n        dataFile.fill(this);\n    }\n}\n\n// 保存数据\npublic void save() {\n    dataFile.save(this);\n}复制代码\n?    数据库连接的.... \n\n// 创建一个数据库连接，(本框架使用h2数据库)\n@Inject(id = AutoBackup.dataSourceId, args = \"${Clann:modules.backupInv.jdbcUrl}\")\nSqlSource sqlSource;\n\n// 创建一个PreparedStatement\n@Inject(depends = {AutoBackup.dataSourceId}, args = {AutoBackup.dataSourceId\n    , \"SELECT id,created,player,temp,invId FROM \" + BackupTable.tableName\n    + \" where player=? and temp=1 order by id desc limit 1\"})\nprivate PreparedStatement getTemp;\n\n// 创建一个数据库表\n@Inject(id = BackupTable.tableName, depends = AutoBackup.dataSourceId)\n@Table(BackupTable.tableName)\npublic class BackupTable implements Pojo {\n    public static final String tableName = \"clann_invbackup\";\n    // some column define\n}复制代码\n?    插件加载时，各种java对象的初始化，装配....\n\n// 依赖注入,实现Listener的Service会自动注册监听器\n@Service(successMsg = \"检测到MOD:应用能源，监听器**\"\n        , needClass = \"appeng.core.AppEng\"\n        , enableConfigPath = \"enable\"\n        , comment = \"是否启用\")\npublic class Appliedenergistics2 implements Listener {\n    // 依赖注入\n    @Inject\n    AEFixer plugin;\n    @Inject\n    WorldUtils worldUtils;\n    @Inject\n    TileEntityUtils tileEntityUtils;\n    @Inject\n    NBTCompoundUtils nbtCompoundUtils;\n\n    // 配置注入\n    @Configure(value = \"singleController\", comment = \"是否禁止CPU相邻放置(防止网络规模过大)\")\n    private boolean singleController = true;\n    @Configure(value = \"protectWorkingCPU\", comment = \"是否禁止破坏正在工作的CPU(总感觉有问题)\")\n    private boolean protectWorkingCPU = true;\n    @Configure(value = \"safeCPU\", comment = \"是否禁止CPU跨区块放置(刷物品)\")\n    private boolean safeCPU = true;\n\n    // 插件生命周期\n    @Load\n    private void load(){\n        // do something\n    }\n\n    // 插件生命周期\n    @Reload\n    private void reload(){\n        // do something\n    }\n\n    // 插件生命周期\n    @UnLoad\n    private void unload(){\n        // do something\n    }\n\n}复制代码\n?    根据各种条件判断是启用某个功能\n\n// Class.forName(\"appeng.core.AppEng\")不抛异常\n// 配置文件中 enable为true\n// 插件Essentials存在\n// 物品DIAMOND存在(可用来判断mod是否存在)\n// AEFixer实例化的Service存在\n// 满足以上条件才会加载此Service\n@Service(successMsg = \"检测到MOD:应用能源，监听器**\"\n        , needClass = \"appeng.core.AppEng\"\n        , enableConfigPath = \"enable\"\n        , comment = \"是否启用\"\n        , needPlugin = \"Essentials\"\n        , needItemType = \"DIAMOND\"\n        , depend = AEFixer.class)\npublic class Appliedenergistics2 {\n}复制代码\n?    制作指令时，无限if else，各种参数解析，权限判断简直烦死，\n\n// 指令/pluginloader reload [<plugin>]的实现类\n@Service\npublic class LoaderCommand extends ICommand {\n\n    public LoaderCommand() {\n        super(\"PluginLoader\", \"pluginloader\");\n    }\n\n    // @CommandAnnotation可以控制这条指令执行所需权限，是否要OP，是否必须玩家才能执行\n    // 会自动解析参数\n    // 这只是个例子\n    // 实现指令，不需要op权限，有mplayer的玩家才能执行 /pluginloader tp <x> <y> <z> [<world>]\n    // 没有world参数时，为当前世界\n    @CommandAnnotation(permission = \"mplayer\", needOp = false, mustPlayer = true, args = \"<x> <y> <z> [<world>]\", des = \"重载插件\")\n    public void tp(@Sender Player sender, int x, int y, int z, @OptionalParam World world) {\n        if (world == null) {\n            world = sender.getWorld();\n        }\n        // do something\n    }\n\n    // 实现/pluginloader reload [<plugin>]\n    @CommandAnnotation(args = \"[<plugin>]\", des = \"重载插件\")\n    public void reload(@Sender CommandSender sender, @OptionalParam String plugin) {\n        if (plugin == null) {\n            plugin = \"\";\n        }\n        logger.info(\"开始重载插件{}\", plugin);\n        sender.sendMessage(\"开始重载插件\" + plugin);\n\n        Stopwatch watch = Stopwatch.createStarted();\n        List<ServiceHolder> services = BeanContext.getServices();\n\n        String pluginId = plugin;\n\n        services.stream()\n                .forEach(s -> {\n                    if (!StringUtils.isEmpty(pluginId) && !s.getPlugin().getId().equalsIgnoreCase(pluginId)) {\n                        return;\n                    }\n                    try {\n                        //重载默认配置文件\n                        s.getPlugin().setConfigNode(s.getPlugin().getConfigLoader().load());\n                        long count = ConfigUtils.injectConfigure(s.getPlugin().getConfigNode(), s.getHandle());\n                        if (count > 0) {\n                            logger.info(\"重载配置:\" + s.getId());\n                        }\n                    } catch (Throwable e) {\n                        logger.error(\"配置注入失败:\" + s.getId(), e);\n                    }\n                });\n        LoaderUtils.invokeMethods(services, Reload.class, \"reload\");\n        this.plugin.saveConfig();\n        watch.stop();\n        sender.sendMessage(\"重载完毕,耗时\" + watch.elapsed(TimeUnit.MILLISECONDS) + \"ms\");\n    }\n}复制代码\n?    mns的混淆名查找，记不住啊。。。神烦\n\n// 假设服务器是多线，怎么能知道玩家连接的是服务器的哪个ip呢\n// 这里使用反射拿到玩家对应的nettyChannel，反射使用的名字全是为混淆的名字，会根据1.7.10的混淆规则自动映射混淆的方法\npublic String getServerIp(Player p) {\n         //常规方式\n        WrapClass<? extends Player> wc = ClassUtils.wrap(p.getClass());\n        WrapField wentity = wc.getField(\"entity\");\n        WrapField wplayerNetServerHandler = ClassUtils.wrap(wentity.getType()).getField(\"playerNetServerHandler\");\n        WrapField wnetManager = ClassUtils.wrap(wplayerNetServerHandler.getType()).getField(\"netManager\");\n        WrapMethod wchannel = ClassUtils.wrap(wnetManager.getType()).getMethod(\"channel\");\n        io.netty.channel.Channel channel0 = (Channel) wchannel.invoke(wnetManager.get(wplayerNetServerHandler.get(wentity.get(p))));\n\n        //快捷方式，链式调用\n        io.netty.channel.Channel channel = Invoker.of(p)\n                .get(\"entity\")\n                .get(\"playerNetServerHandler\")\n                .get(\"netManager\")\n                .invoke(\"channel\")\n                .get();\n        return channel.localAddress().toString().replaceFirst(\"/\", \"\").split(\":\", 2)[0];\n}复制代码\n?    等等。。。。。\n\n鉴于以上情况，特开发了这个插件框架来加快插件开发速度，并最大程度优化以上情况\n\nps：此后本人所有其他插件均会直接依赖此插件\n\n关于Minecraft版本\n\n因为本人只在1.7.10下开服，所以目前只支持1.7.10\n\n指令\n\n只有一个指令 /pluginloader reload [<plugin>]    用于重载所有/指定插件的插件（当然前提是在此框架下开发的插件）\n\n下载\n\n因为打包了很多类库，所以很大Orz。。\n\n最近很穷啊，希望各位大佬在笑纳时顺便评分赏赏金粒吧\n\n地址\n链接:https://pan.baidu.com/s/1saTd4ADpyT7D-uIJGJLEAg  密码:7a88",
+    "replies": [
+        {
+            "author": "神奈川归尘",
+            "timestamp": 1534650660,
+            "txt_content": "非优秀禁止使用回复可见"
+        },
+        {
+            "author": "xiaoQQQa",
+            "timestamp": 1535083980,
+            "txt_content": "网盘炸了呀"
+        },
+        {
+            "author": "xiaoQQQa",
+            "timestamp": 1535084040,
+            "txt_content": "xiaoQQQa 发表于 2018-8-24 12:13\n网盘炸了呀\n好像是我的问题......\n没事了非常优秀"
+        },
+        {
+            "author": "dafd",
+            "timestamp": 1535084220,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "play7770",
+            "timestamp": 1561703940,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "play7770",
+            "timestamp": 1561706640,
+            "txt_content": "6666666666666666666666666"
+        },
+        {
+            "author": "youqing123",
+            "timestamp": 1562564580,
+            "txt_content": "有个有没有UTF-8呢"
+        },
+        {
+            "author": "azbh111",
+            "timestamp": 1562575320,
+            "txt_content": "youqing123 发表于 2019-7-8 13:43\n有个有没有UTF-8呢\n和编码没关系 \n此插件已弃坑 \n用新的SpringBootPlugin"
+        },
+        {
+            "author": "虎牙安言",
+            "timestamp": 1567483440,
+            "txt_content": "bbs有你更精彩"
+        }
+    ]
+}

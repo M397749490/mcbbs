@@ -1,0 +1,14 @@
+{
+    "title": "[已解决][bukkit求助] 实例量多时序列化如何储存占用少效率高？",
+    "author": "1609089074",
+    "replyCount": 1,
+    "timestamp": 1551445380,
+    "txt_content": " 本帖最后由 1609089074 于 2019-3-5 21:27 编辑 \n\n我写了个Device装置类，类似于实体一样绑有Location，虽然实现了ConfigurationSerializable，需要onDisenable时候储存实例 onEnable再调出来恢复实例，但类成员变量比较多，也包含有其他ConfigurationSerializable，而且实例数量很有可能超过50，存yml是不是行数太多占用太大了，除了存yml还有哪些储存占用更少读存效率更高的储存方式吗？读存的内容是 Map<String, Object>好一些还是按json格式转换为一串String更好一点？(不是很了解哪个占用少哪个效率高)",
+    "replies": [
+        {
+            "author": "海螺螺",
+            "timestamp": 1551454500,
+            "txt_content": " 本帖最后由 754503921 于 2019-3-1 23:43 编辑 \n\n首先要明白一点，要存储的数据表现在硬盘里一定会占用大于等于相对应的空间，这个是下限。\n图方便而且不介意用数据库，有种东西叫bson，对应有种数据库叫mongodb，存储格式也类似于yaml的键值而不是mysql的表，大概可以满足你的需求。\n\n如果要尽可能的压缩空间还要追求效率，假如你的数据非常有格式(或者你不介意多造一些轮子)，你可以直接存二进制数据，做得好的话效率和空间都可以达到很高。\n写二进制数据的话，bukkit使用的netty库提供了一些工具帮你更简单的规划数据，我给一个小例子，希望可以抛砖引玉(代码做了适当简化)\nimport io.netty.buffer.*\n\npublic class Device {\n  int x\n  int y\n  int z\n  // 假设这个 SubDevice 是你说的其他类\n  // 也实现了几个类似的方法\n  SubDevice d\n\n  public ByteBuf serialize(ByteBuf buf) {\n    buf.writeInt(x).writeInt(y).writeInt(z)\n    d.serialize(buf)\n    return buf\n  }\n\n  public static Device unserialize(ByteBuf buf) {\n    Device dev = new Device()\n    dev.x = buf.readInt()\n    dev.y = buf.readInt()\n    dev.z = buf.readInt()\n    dev.d = SubDevice.unserialize(buf)\n    return dev\n  }\n}\n\npublic class MyPlugin extends JavaPlugin {\n\n  public void onEnable() {                                             byte[] arr = read(..) // 看下面你怎么存的，再把它读出来\n    Device dev = Device.unserialize(Unpooled.wrappedBuffer(arr))       use(dev) // 做你想做的事                                         }\n\n  public void onDisable() {\n    Device dev = ...\n    ByteBuf buf = dev.serialize(Unpooled.buffer())\n    byte[] arr = buf.array()\n    write(arr) // 用你的方法保存这个byte数组，写进文件或者base64了存yml都是可以的\n  }\n\n}复制代码\n至于怎么读写文件成byte数组，这个网上太多了。\n\n这种写法的空间利用很好，不多用任何空间，效率也很高，但是如果后期你的数据发生了变化，那么会多很多工作才能保证兼容(比如在序列化开始之前写一个版本号)\n\n至于如果说要用json存，其实某种意义上只是另一种yaml，性能不会有太大变化。\n\n\n\n手机打字不易，有缺漏谬误在所难免，请谅"
+        }
+    ]
+}

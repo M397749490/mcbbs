@@ -1,0 +1,459 @@
+{
+    "title": "写了一个自动抢锭的程序",
+    "author": "雨韵",
+    "replyCount": 90,
+    "timestamp": 1583553240,
+    "txt_content": " 本帖最后由 雨韵 于 2020-3-8 08:50 编辑 \n\n这个帖子我不知道版规能不能发，看了下版规也没看到明确的要求。。。\n所以不能发的话，，删源码吧 让我帖子数+1\n\n原理：检测到新帖子包含有“锭”字，就会打开浏览器并跳转到相关帖子。\n\n代码如下\n\n# -*- coding: UTF-8 -*-\nimport win32gui\nimport win32con\nimport time\nimport requests\nfrom bs4 import BeautifulSoup\nimport logging\nimport webbrowser\n\n\nclass TestTaskbarIcon:\n    def __init__(self):\n        wc = win32gui.WNDCLASS()\n        hinst = wc.hInstance = win32gui.GetModuleHandle(None)\n        wc.lpszClassName = \"PythonTaskbarDemo\"\n        wc.lpfnWndProc = {win32con.WM_DESTROY: self.OnDestroy, }\n        classAtom = win32gui.RegisterClass(wc)\n        style = win32con.WS_OVERLAPPED | win32con.WS_SYSMENU\n        self.hwnd = win32gui.CreateWindow(classAtom, \"Taskbar Demo\", style,\n                                          0, 0, win32con.CW_USEDEFAULT, win32con.CW_USEDEFAULT,\n                                          0, 0, hinst, None)\n        hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)\n        nid = (self.hwnd, 0, win32gui.NIF_ICON, win32con.WM_USER + 20, hicon, \"Demo\")\n        win32gui.Shell_NotifyIcon(win32gui.NIM_ADD, nid)\n\n    def showMsg(self, title, msg):\n        nid = (self.hwnd,  # 句柄\n               0,  # 托盘图标ID\n               win32gui.NIF_INFO,  # 标识\n               0,  # 回调消息ID\n               0,  # 托盘图标句柄\n               \"TestMessage\",  # 图标字符串\n               msg,  # 气球提示字符串\n               0,  # 提示的显示时间\n               title,  # 提示标题\n               win32gui.NIIF_INFO  # 提示用到的图标\n               )\n        win32gui.Shell_NotifyIcon(win32gui.NIM_MODIFY, nid)\n\n    def OnDestroy(self):\n        nid = (self.hwnd, 0)\n        win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, nid)\n        win32gui.PostQuitMessage(0)  # Terminate the app.\n\n\ndef GetInfo(AimUrl):\n    res = requests.get(AimUrl)\n    html = res.text\n    html = html.encode(\"ISO-8859-1\")\n    html = html.decode(\"utf-8\")\n    soups = BeautifulSoup(html, 'html.parser')\n    return soups\n\n\ndef Remind():\n    t = TestTaskbarIcon()\n    t.showMsg(\"您关注的内容有了更新\", \"有人疑似要发锭了！\")\n    time.sleep(5)\n    win32gui.DestroyWindow(t.hwnd)\n\n\ndef log():\n    # 创建一个logging对象\n    logger = logging.getLogger()\n    # 创建一个文件对象  创建一个文件对象,以UTF-8 的形式写入 标配版.log 文件中\n    fh = logging.FileHandler('AllLog.log', encoding='utf-8')\n    # 创建一个屏幕对象\n    sh = logging.StreamHandler()\n    # 配置显示格式  可以设置两个配置格式  分别绑定到文件和屏幕上\n    formatter = logging.Formatter('%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s')\n    fh.setFormatter(formatter)  # 将格式绑定到两个对象上\n    sh.setFormatter(formatter)\n\n    logger.addHandler(fh)  # 将两个句柄绑定到logger\n    logger.addHandler(sh)\n\n    logger.setLevel(10)  # 总开关\n    fh.setLevel(10)  # 写入文件的从10开始\n    sh.setLevel(30)  # 在屏幕显示的从30开始\n\n    logging.debug('debug message')\n    logging.info('info message')\n    logging.warning('warning message')\n    logging.error('error message')\n    logging.critical('critical message')\n\n\nif __name__ == '__main__':\n    log()\n    print('请输入刷新时效(整数，越小刷新越快，但过可能会错过。建议5左右)')\n    PutTime = input('>>>')\n    aim_url = 'http://zhannei.baidu.com/cse/site?q=%E9%94%AD&s=&cc=mcbbs.net&sti=' + str(PutTime)\n\n    print('0000 INFO: 系统初始化完成..')\n    print('0001 INFO: 正在暗中观察发锭选手..')\n    print('0002 INFO: 作者：mcbbs [雨韵] uid:1617821')\n    i = 3\n    while 1:\n        soup = GetInfo(aim_url)\n        divs = soup.find_all(\"h3\", class_='c-title')\n        if len(divs) < 1:\n            print(str(i).zfill(4) + ' INFO: 暂无新帖')\n            i = i + 1\n        else:\n            i = i + 1\n            for r in divs:\n                url = r.a['href']\n                print(str(i).zfill(4) + ' INFO: 发现新的帖子地址 ' + url)\n                webbrowser.open(url)\n            Remind()\n            exit()\n        time.sleep(2)\n\n\n\n\n\n之所以放出来还有一个原因\n\n\n\n我发现我开了这个也抢不过折叠= =\n这个代码完成于二月十号左右\n百度近期更新后非常不稳定，成功率极低。且本身检测的内容便不是很准确\n因此即使其他人得到这个代码，也没有啥卵用。。。\n毕竟是半过期的代码（手动狗头）\n\n\n\n\n\n我发现我忘记发个锭把折叠召唤过来了= =\n\n\n划重点：\n这个现在已经非常的不好用了，所以我才会发出来= =\n而且我现在上班也没时间去抢锭\n\n答疑：\n\n这个是用python语言写的爬虫程序。 大概过程如下： \n百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右。 \n这个程序会向百度的站内搜索引擎提交搜索关键词“锭”的请求。 \n\n百度站内搜索链接解析：http://zhannei.baidu.com/cse/site?q=[这里是关键词]&cc=mcbbs.net&sti=[这里是筛选最近X分钟的帖子]\n例如：http://zhannei.baidu.com/cse/site?q=锭&s=&cc=mcbbs.net&sti=5\n指的就是5分钟内有没有含有关键词“锭”的帖子出现 （由于近期百度站内搜索不稳定，所以多进几次才能显示真正的效果）\n百度响应请求后，返回【在规定的时间内是否有含有关键词的帖子，以及帖子的地址是什么】 \n如果5分钟内有这样的一个帖子，则会在右下角消息区弹窗提醒有关注内容 \n这里由于我不会【点击消息则跳转】因此我选择了弹窗提醒的同时打开浏览器。\n有会的可以教教我吗qaq \n这里的浏览器是默认浏览器，也就是你平时用来浏览mcbbs的浏览器。 \n你的账号已经在这个浏览器登录、所以可以节省登陆的时间。 \n之后就需要你根据是否的确是发锭或讨论帖，从而进行针对性的回复。 \n比如恰锭和水贴\n\n这种通过爬取百度间接获取内容的爬虫对mcbbs的网站服务器比较友好。\n基本不会额外占用带宽和处理器。\n也因此，百度站内搜索近期更新/不稳定，导致这个爬虫失效。\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "xiaoxuandada",
+            "timestamp": 1583553300,
+            "txt_content": "看不懂大佬的操作"
+        },
+        {
+            "author": "零x",
+            "timestamp": 1583553420,
+            "txt_content": "所以折叠的程序比你厉害点啊"
+        },
+        {
+            "author": "mohui666",
+            "timestamp": 1583553480,
+            "txt_content": "折叠AI生命实锤了"
+        },
+        {
+            "author": "SHEEP_REALMS",
+            "timestamp": 1583553540,
+            "txt_content": "鉴定完毕，没学过这种语言。Python？"
+        },
+        {
+            "author": "智乃offical",
+            "timestamp": 1583553540,
+            "txt_content": "哇塞是大佬，i了i了"
+        },
+        {
+            "author": "小兜兜.",
+            "timestamp": 1583553540,
+            "txt_content": "这个太行了"
+        },
+        {
+            "author": "小丛雨",
+            "timestamp": 1583553600,
+            "txt_content": "所以还是折叠比较神仙"
+        },
+        {
+            "author": "EGEE2468",
+            "timestamp": 1583553600,
+            "txt_content": "机器终究是比不过人类\n\n\n\n\n\n\n1583326577(1).jpg\n(155.42 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2020-3-7 12:01 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1583553720,
+            "txt_content": "直接爬论坛不好，百度的爬虫哪有那么快"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583553960,
+            "txt_content": "xmdhs 发表于 2020-3-7 12:02\n直接爬论坛不好，百度的爬虫哪有那么快\n我担心对论坛服务器造成影响，所以爬取的百度的"
+        },
+        {
+            "author": "苏子峰",
+            "timestamp": 1583554500,
+            "txt_content": "这就是高科技吗"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583554680,
+            "txt_content": "苏子峰 发表于 2020-3-7 12:15\n这就是高科技吗\n相对于折叠来讲。。。\n我就是个渣渣"
+        },
+        {
+            "author": "45gfg9",
+            "timestamp": 1583554680,
+            "txt_content": "据说隔壁euOnmyoji有一个McbbsHelper 用Java写的 也许可以改成关键字检测(X\n\n为什么要用win32 api啊 直接杀死其他平台玩家啊\n懒得改x"
+        },
+        {
+            "author": "GCVillager",
+            "timestamp": 1583554740,
+            "txt_content": "折叠大佬的应该也是爬虫脚本，为什么就有这么大区别呢……"
+        },
+        {
+            "author": "小孩孩",
+            "timestamp": 1583555040,
+            "txt_content": "那好吧\n标题写上“锭”，就是不设置回帖奖励\n"
+        },
+        {
+            "author": "小兜兜.",
+            "timestamp": 1583555040,
+            "txt_content": "那个软件怎么用"
+        },
+        {
+            "author": "可乐加薯片",
+            "timestamp": 1583555460,
+            "txt_content": "满头的问号"
+        },
+        {
+            "author": "主世界",
+            "timestamp": 1583556420,
+            "txt_content": "这不能绕开折叠吧\n折叠是什么？"
+        },
+        {
+            "author": "Enderman3133",
+            "timestamp": 1583557260,
+            "txt_content": "但也有可能发锭的时候标题没“锭”字"
+        },
+        {
+            "author": "42313123123123",
+            "timestamp": 1583557320,
+            "txt_content": "和莉莉一样,下次我搞个标题,然后打死也不发锭"
+        },
+        {
+            "author": "DaiBM1",
+            "timestamp": 1583557680,
+            "txt_content": "什么语言？"
+        },
+        {
+            "author": "838650937",
+            "timestamp": 1583558340,
+            "txt_content": "表示完全看不懂"
+        },
+        {
+            "author": "凉凉丶",
+            "timestamp": 1583558520,
+            "txt_content": "折叠是完整代码"
+        },
+        {
+            "author": "addc123",
+            "timestamp": 1583558520,
+            "txt_content": "那么以后的标题就是，啥啥啥---不发锭（滑稽）"
+        },
+        {
+            "author": "凋灵斯拉",
+            "timestamp": 1583559720,
+            "txt_content": "EGEE2468 发表于 2020-3-7 12:00\n机器终究是比不过人类\n卢本伟滑稽，牛逼！"
+        },
+        {
+            "author": "岁月静好、",
+            "timestamp": 1583560440,
+            "txt_content": "我只会搬运不会写0.0"
+        },
+        {
+            "author": "邪恶草",
+            "timestamp": 1583560740,
+            "txt_content": "论坛不禁止吗"
+        },
+        {
+            "author": "ksqeib445",
+            "timestamp": 1583560980,
+            "txt_content": "折叠太强了 快九级了"
+        },
+        {
+            "author": "PercyDan",
+            "timestamp": 1583561220,
+            "txt_content": " 本帖最后由 PercyDan 于 2020-3-7 14:09 编辑 \n\n就知道是python。。。\n不算抢锭吧，是自动找锭\n"
+        },
+        {
+            "author": "小鑫emm",
+            "timestamp": 1583561460,
+            "txt_content": "wc 这 我以后怎么抢锭啊"
+        },
+        {
+            "author": "Xiao2",
+            "timestamp": 1583562120,
+            "txt_content": "没事没事\n你以后就是折叠第二mmm"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583564580,
+            "txt_content": "Xiao2 发表于 2020-3-7 14:22\n没事没事\n你以后就是折叠第二mmm这个已经非常的不好用了，所以我才会发出来= =\n而且我现在上班也没时间去抢锭\n            "
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583564700,
+            "txt_content": " 本帖最后由 雨韵 于 2020-3-7 15:15 编辑 \nGCVillager 发表于 2020-3-7 12:19\n折叠大佬的应该也是爬虫脚本，为什么就有这么大区别呢……\n爬的内容不一样吧\n我→百度→论坛\n大佬→论坛\n\n相对来讲我的这个对论坛比较友好，不额外占用带宽和计算力。缺点就是速度慢（大概慢10s），需要手动回复"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583564760,
+            "txt_content": "邪恶草 发表于 2020-3-7 13:59\n论坛不禁止吗\n已经算是半过期了，对论坛没啥影响，所以我才发出来"
+        },
+        {
+            "author": "Xiao2",
+            "timestamp": 1583564760,
+            "txt_content": "雨韵 发表于 2020-3-7 15:03\n你怎么不搞一个好用一点 的给大家  白嫖\n\n上班可以摸鱼"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583564820,
+            "txt_content": "EGEE2468 发表于 2020-3-7 12:00\n机器终究是比不过人类\n手动滑稽"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583565300,
+            "txt_content": "Xiao2 发表于 2020-3-7 15:06\n你怎么不搞一个好用一点 的给大家  白嫖\n\n上班可以摸鱼\n你咋知道我是为了上班摸鱼所以写的这个"
+        },
+        {
+            "author": "mmoo1122",
+            "timestamp": 1583565660,
+            "txt_content": "看不懂代码，但是好奇怎么过验证码一关"
+        },
+        {
+            "author": "KonoeSubaru",
+            "timestamp": 1583565660,
+            "txt_content": "几天水到8级的可比不了"
+        },
+        {
+            "author": "快乐小方",
+            "timestamp": 1583565780,
+            "txt_content": "直接检测后面带不带后缀不就好了"
+        },
+        {
+            "author": "EGEE2468",
+            "timestamp": 1583567700,
+            "txt_content": "凋灵斯拉 发表于 2020-3-7 13:42\n卢本伟滑稽，牛逼！\n低调，刚才看你头像，才发现你脑袋张反了？"
+        },
+        {
+            "author": "专刀你",
+            "timestamp": 1583567940,
+            "txt_content": "折叠那是手速"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583571240,
+            "txt_content": "mmoo1122 发表于 2020-3-7 15:21\n看不懂代码，但是好奇怎么过验证码一关\n不用过验证码啊，，你在哪里遇到验证码了"
+        },
+        {
+            "author": "mmoo1122",
+            "timestamp": 1583571480,
+            "txt_content": "雨韵 发表于 2020-3-7 16:54\n不用过验证码啊，，你在哪里遇到验证码了\n有锭的回复时不是要点图片上的字？"
+        },
+        {
+            "author": "小lon",
+            "timestamp": 1583571900,
+            "txt_content": "好活！老铁！"
+        },
+        {
+            "author": "longye1234",
+            "timestamp": 1583571960,
+            "txt_content": "这是c++吗?"
+        },
+        {
+            "author": "Xu__",
+            "timestamp": 1583571960,
+            "txt_content": "所以LZ能不能说一下怎么运行？这是什么语言？"
+        },
+        {
+            "author": "Wudji",
+            "timestamp": 1583572080,
+            "txt_content": "mohui666 发表于 2020-3-7 11:58\n折叠AI生命实锤了\n底 特 律 变 人"
+        },
+        {
+            "author": "凋灵斯拉",
+            "timestamp": 1583572680,
+            "txt_content": "EGEE2468 发表于 2020-3-7 15:55\n低调，刚才看你头像，才发现你脑袋张反了？\n你懂甚，老二在晃来晃去做运动呢，老三在睡觉\n"
+        },
+        {
+            "author": "冰成很帅",
+            "timestamp": 1583573520,
+            "txt_content": "能不能写一个外挂"
+        },
+        {
+            "author": "Reichsadler",
+            "timestamp": 1583573760,
+            "txt_content": "大佬都是用程序，我们都是靠手。。。"
+        },
+        {
+            "author": "蟹蒙老鸽",
+            "timestamp": 1583584560,
+            "txt_content": "这个是走的JAVA吗"
+        },
+        {
+            "author": "Kruls",
+            "timestamp": 1583585340,
+            "txt_content": "这什么操作？？？所以有用没用"
+        },
+        {
+            "author": "fengmowanxiang",
+            "timestamp": 1583586180,
+            "txt_content": "不好用 就不香了"
+        },
+        {
+            "author": "DE_SHARK",
+            "timestamp": 1583596620,
+            "txt_content": "所以你们是怎么做到实时刷mcbbs页面的？"
+        },
+        {
+            "author": "JMBishark",
+            "timestamp": 1583596740,
+            "txt_content": "我觉得折叠也靠程序"
+        },
+        {
+            "author": "冬天冬天W",
+            "timestamp": 1583596980,
+            "txt_content": " 本帖最后由 冬天冬天W 于 2020-3-8 15:05 编辑 \n\nif louzhu == dalao:\n    print(\"python大佬实锤前来膜拜，刚好我也在学习Python\"\nelse:\n     print(\"深藏不露大佬流弊！\")"
+        },
+        {
+            "author": "猫眼",
+            "timestamp": 1583597820,
+            "txt_content": "啊是大佬~~"
+        },
+        {
+            "author": "Doomsday_Envoy",
+            "timestamp": 1583597940,
+            "txt_content": "爬虫之间的对决"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583627100,
+            "txt_content": "Kruls 发表于 2020-3-7 20:49\n这什么操作？？？所以有用没用\n以前有用，现在没用了所以开源"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583627160,
+            "txt_content": "蟹蒙老鸽 发表于 2020-3-7 20:36\n这个是走的JAVA吗\n不是的呢，这个是python语言。\n百度实时爬取bbs的页面\n我再爬取百度的页面"
+        },
+        {
+            "author": "1925312490",
+            "timestamp": 1583627400,
+            "txt_content": "鉴定完毕，是个大佬！"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583627940,
+            "txt_content": "神秘救赎 发表于 2020-3-7 17:06\n所以LZ能不能说一下怎么运行？这是什么语言？\n这个是用python语言写的爬虫程序。\n大概过程如下：\n百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右。\n这个程序会向百度的站内搜索引擎提交搜索关键词“锭”的请求。\n站内搜索链接：\nhttp://zhannei.baidu.com/cse/site?q=[这里是关键词]&cc=mcbbs.net&sti=[这里是筛选最近X分钟的帖子]\n例如：http://zhannei.baidu.com/cse/site?q=锭&s=&cc=mcbbs.net&sti=5 指的就是5分钟内有没有含有关键词“锭”的帖子出现\n百度响应请求后，返回【在规定的时间内是否有含有关键词的帖子，以及帖子的地址是什么】\n如果5分钟内有这样的一个帖子，则会在右下角消息区弹窗提醒有关注内容\n这里由于我不会【点击消息则跳转】因此我选择了弹窗提醒的同时打开浏览器。\n这里的浏览器是默认浏览器，也就是你平时用来浏览mcbbs的浏览器。\n你的账号已经在这个浏览器登录、所以可以节省登陆的时间。\n之后就需要你根据是否的确是发锭或讨论帖，从而进行针对性的回复。\n比如恰锭和水贴\n\n如果还有什么疑问可以继续回复我。"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583629380,
+            "txt_content": "更新了答疑部分"
+        },
+        {
+            "author": "Xu__",
+            "timestamp": 1583635200,
+            "txt_content": "雨韵 发表于 2020-3-8 08:39\n这个是用python语言写的爬虫程序。\n大概过程如下：\n百度会对mcbbs进行数据爬取，从发帖到被爬取约10s左右 ...\n所以让我一个学C++的看python..."
+        },
+        {
+            "author": "GL好运",
+            "timestamp": 1583636940,
+            "txt_content": "佛了 这就是大佬嘛"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583638920,
+            "txt_content": "神秘救赎 发表于 2020-3-8 10:40\n所以让我一个学C++的看python...\nC++稍微改一下就可以了啊qaq\n原理都一样\n而且这个比较复杂，实际用的时候可以去掉log部分和弹窗部分"
+        },
+        {
+            "author": "轩辕Shi",
+            "timestamp": 1583639280,
+            "txt_content": "大佬牛逼了"
+        },
+        {
+            "author": "qq15015911125",
+            "timestamp": 1583645820,
+            "txt_content": "抢锭，不会被封么，听说水贴惩罚很严重的呢"
+        },
+        {
+            "author": "雨韵",
+            "timestamp": 1583646300,
+            "txt_content": "qq15015911125 发表于 2020-3-8 13:37\n抢锭，不会被封么，听说水贴惩罚很严重的呢\n这个只是起到一个提醒作用，具体的还是要自己动手去回复"
+        },
+        {
+            "author": "xiaoxiao212536",
+            "timestamp": 1583646720,
+            "txt_content": "辣是真滴牛"
+        },
+        {
+            "author": "NBlcq",
+            "timestamp": 1583647080,
+            "txt_content": "看不懂 流批就完事了"
+        },
+        {
+            "author": "xiaobbl",
+            "timestamp": 1583647380,
+            "txt_content": "再nb的脚本也干不过折叠"
+        },
+        {
+            "author": "mcshenglong",
+            "timestamp": 1583647680,
+            "txt_content": "看不懂大佬的操作"
+        },
+        {
+            "author": "mcshenglong",
+            "timestamp": 1583647680,
+            "txt_content": "看起来好厉害"
+        },
+        {
+            "author": "玄月月",
+            "timestamp": 1583649240,
+            "txt_content": "世宇宇：你这个不行，"
+        },
+        {
+            "author": "Xu__",
+            "timestamp": 1583649300,
+            "txt_content": "雨韵 发表于 2020-3-8 11:42\nC++稍微改一下就可以了啊qaq\n原理都一样\n而且这个比较复杂，实际用的时候可以去掉log部分和弹窗部分 ...\n要不你帮我改改..."
+        },
+        {
+            "author": "冬天冬天W",
+            "timestamp": 1583650680,
+            "txt_content": "蟹蒙老鸽 发表于 2020-3-7 20:36\n这个是走的JAVA吗\n这个是Python开始几行就是导入Python的扩展库"
+        },
+        {
+            "author": "JandL",
+            "timestamp": 1583654460,
+            "txt_content": "我学过python你写的也是python为什么我就是看不懂呢"
+        },
+        {
+            "author": "Neccc",
+            "timestamp": 1583654520,
+            "txt_content": "我说怎么这么快抢锭、原来都用了高科技！"
+        },
+        {
+            "author": "JJ怪大战",
+            "timestamp": 1583654700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "AzureHanChen",
+            "timestamp": 1583654820,
+            "txt_content": "tql\n我这菜鸡只能写到从Console显示出来的\n而且还不能记录的那种"
+        },
+        {
+            "author": "XL铭梦、",
+            "timestamp": 1583654880,
+            "txt_content": "感觉很NB，但是不会用= ="
+        },
+        {
+            "author": "JJ怪大战",
+            "timestamp": 1583654880,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "神秘人233",
+            "timestamp": 1583655060,
+            "txt_content": "要不要把腚也加上"
+        },
+        {
+            "author": "EGEE2468",
+            "timestamp": 1583660160,
+            "txt_content": "JJ怪大战 发表于 2020-3-8 16:08\n你水得太快了！\n我哪里水了，你看看我那认真的回复"
+        },
+        {
+            "author": "Strange_name",
+            "timestamp": 1583661540,
+            "txt_content": "欢乐泥潭大佬多"
+        },
+        {
+            "author": "GenjiKai",
+            "timestamp": 1583663760,
+            "txt_content": "好的lz，末影之路见"
+        },
+        {
+            "author": "wuliao_dada",
+            "timestamp": 1583664120,
+            "txt_content": "不愧是大佬啊"
+        },
+        {
+            "author": "Spider_Queen",
+            "timestamp": 1583664120,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

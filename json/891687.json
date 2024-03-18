@@ -1,0 +1,364 @@
+{
+    "title": "[1.14.4] 追根溯「源」——实体选择器",
+    "author": "SPGoding",
+    "replyCount": 71,
+    "timestamp": 1564070460,
+    "txt_content": " 本帖最后由 SPGoding 于 2019-10-7 23:25 编辑 \n\n[1.14.4] 追根溯「源」——实体选择器\n\nMIT\n\nGitHub 原帖\n\nMCBBS 原帖\n\n追根溯「源」\n\n追根溯「源」，是从源代码角度对部分命令机制的漫谈系列。也许在骂着 Mojang SB 的间隙，偶尔看看他们是怎么犯下的蠢，能帮你更好地驾驭命令？谁知道呢。\n\n本系列漫谈基于对 Minecraft Java Edition 1.14.4 的反编译与反混淆，十分感谢 FabricMC 提供的散发着自由气息的 yarn 项目，梓榆谨代表自己向所有该项目的贡献者致以最崇高的敬意。三鞠躬。由于散步商业闭源软件的源代码属于违法行为，本帖中只给出极少数代码片段，仅供学习交流使用。当然，因为名字都是人起的，为了方便，本人对部分映射名进行了修改。\n\n阅读本系列可能需要具备一定的英语水平，或是具备查阅字典的能力，并不需要有多么高深的编程水平。毕竟，笔者压根就不会编程。\n\n实体选择器\n\n实体选择器（entity selector），也叫目标选择器（target selector），是一种用于选择实体的命令参数。你可以在 Wiki（或中文 Wiki）中阅读相关信息。\n\n实体选择器的相关代码放置在 net.minecraft.command.EntitySelector 类中。我们可以看到其定义了如下的字段：\n\n\n\n可以发现，它们和实体选择器的参数并不是一一对应的关系。那么是怎样的关系呢？这需要先从 net.minecraft.command.EntitySelectorReader 类讲起。\n\n解析\n\nEntitySelectorReader 可以解析玩家输入的字符串形式的实体选择器。我们简单来看一下它的流程：\n\n判断输入字符串是 UUID、玩家名，还是一个实体选择器：\n\n若第一个字符不是 @，则为一个 UUID 或玩家名；若第一个字符是 @，则为一个实体选择器。\n\n对于 UUID 或玩家名的处理流程\n\n尝试按照 UUID 解析。如果解析成功，则设定：\n\n字段值备注includingNonPlayertrue允许包含非玩家。uuid-UUID。limit1相当于我们在选择器参数里写的 limit=1。\n解析失败，说明它不是 UUID，而是一个玩家名。设定：\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。playerName-玩家名。limit1相当于我们在选择器参数里写的 limit=1。\n对于实体选择器的处理流程\n\n解析实体选择器变量\n\n在这一步中，将根据不同的实体选择器变量，来设定实体选择器的参数。\n\n@p\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。limit1相当于我们在选择器参数里写的 limit=1sorterNEAREST相当于我们在选择器参数里写的 sort=nearestentityTypeEntityType.PLAYER相当于我们在选择器参数里写的 type=player\n@a\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。limit2147483647相当于我们在选择器参数里写的 limit=2147483647。从这里可以看出，选择器选择的数量默认有上限的，一般达不到就是了。sorterARBITRARY相当于我们在选择器参数里写的 sort=arbitraryentityTypeEntityType.PLAYER相当于我们在选择器参数里写的 type=player\n@r\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。limit1相当于我们在选择器参数里写的 limit=1。sorterRANDOM相当于我们在选择器参数里写的 sort=randomentityTypeEntityType.PLAYER相当于我们在选择器参数里写的 type=player\n@s\n\n字段值备注includingNonPlayertrue允许包含非玩家。senderOnlytrue只选择执行者。limit1相当于我们在选择器参数里写的 limit=1。\n@e\n\n字段值备注includingNonPlayertrue允许包含非玩家。predicateEntity::isAlive筛选出活着的实体。limit2147483647相当于我们在选择器参数里写的 limit=2147483647。sorterARBITRARY相当于我们在选择器参数里写的 sort=arbitrary\n读取选择器参数\n\n在这一步中，将根据不同的选择器参数，来设定实体选择器的字段。本部分中使用 %值% 来简单表示玩家指定的值，实际上整个过程要复杂不少。\n\nname=%值%\n\n字段值备注predicateentity.getName().asString().equals(%值%) != isNegation判断实体名是否满足指定条件。\n注： predicate 中调用的 asString() 很有意思。我们可以把它返回的内容大体理解为显示出来的文本内容（其实完全不是），因此你使用 /summon xxx ~ ~ ~ {CustomName:'{\"text\":\"haha\",\"color\":\"red\"}'} 命令生成的生物可以被 @e[name=haha] 选中。可能以后本系列会对 JSON 原始文本进行详细的讲解。\n\ndistance=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。distance%值%-\nlevel=%值%\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。levelRange%值%-\nx=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。offsetX%值%-\ny=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。offsetY%值%-\nz=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。offsetZ%值%-\ndx=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。boxX%值%-\ndy=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。boxY%值%-\ndz=%值%\n\n字段值备注localWorldOnlytrue只获取当前世界中的实体。boxZ%值%-\nx_rotation=%值%\n\n字段值备注pitchRange%值%-\ny_rotation=%值%\n\n字段值备注yawRange%值%-\nlimit=%值%\n\n字段值备注limit%值%-\nsort=%值%\n\n字段值备注sorter%值%-\ngamemode=%值%\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。predicateisNegation ? mode != %值% : mode == %值%判断玩家的游戏模式是否满足指定条件。\nteam=%值%\n\n字段值备注predicateteamName.equals(%值%) != isNegation判断实体所处的队伍是否满足指定条件。\ntype=%值%\n\n字段值备注includingNonPlayer某些情况下设置为 false当 %值% 为 minecraft:player 并且没有感叹号 ! 时设置为不允许包含非玩家。type某些情况下设置为 %值%只有在 %值% 不包含感叹号 ! 时才设置。predicate略判断实体的类型是否满足指定条件。\ntag=%值%\n\n字段值备注predicate略判断实体的标签是否满足指定条件。\n注：设置 predicate 的函数中有判断 %值% 是否为空字符串的部分，如果为空，则会设置 predicate 为 entity.getScoreboardTags().isEmpty() != isNegation。因此我们可以使用 @e[tag=] 来选择没有标签的实体，用 @e[tag=!] 来选择有任意标签的实体。我也真佩服 Mojang 绕得出这个逻辑。\n\nnbt=%值%\n\n字段值备注predicateTagHelper.areTagsEqual(%值%, tag, true) != isNegation判断实体的 NBT 标签是否满足指定条件。\nscores=%值%\n\n字段值备注predicate略判断实体的分数是否满足指定条件。\nadvancements=%值%\n\n字段值备注includingNonPlayerfalse不允许包含非玩家。predicate略判断实体的进度是否满足指定条件。\n小结\n\n停一停，我都忘了这部分标题叫什么了！\n这一部分的标题是「解析」，讲述的是游戏如何将玩家输入的字符串解析为实体选择器。游戏会根据不同的实体选择器变量、实体选择器参数，来不断调整各种字段的值。\n\n从上面的字段表中我们可以发现，除了我们熟悉的 limit、sorter、type 等字段对应着实体选择器的各种参数外，还有 includingNonPlayer、predicate、senderOnly、localWorldOnly、playerName、uuid 这六个陌生的东西。它们是什么？有什么用？作为 CBer 的我们该如何利用？且看下一部分。\n\n\n注：\n\n其实「下一个字符」比「第一个字符」更加准确，但这么描述就涉及到了整个命令解析的技术细节，比较繁琐，所以简化了描述；本帖描述省略了各种异常处理。\n\n获取\n\n本部分将讲述实体选择器获取实体的工作流程。\n\n获取实体的主要行为定义在函数 getEntities() 中。该函数有一个参数，代表命令的执行者（执行者不一定是实体，也可以是方块、命令函数、控制台等）。当不满足 includeNonPlayers，即只允许选取玩家时，该函数会把后续操作交给 getPlayers() 函数进行。\n\ngetPlayers() 的流程\n\n当指定了 playerName 时，遍历服务器玩家列表，找到玩家名和 playerName 一致的玩家（见源码 net.minecraft.server.PlayerManager#getPlayer），并返回；当指定了 uuid 时，直接从服务器玩家列表中获取 UUID 为 uuid 的玩家（该操作基于 HashMap，速度非常快）（见源码 net.minecraft.server.PlayerManager#getPlayer），并返回；基于命令执行坐标等，建立谓词（后文有说明）；当 senderOnly 为 true，即只选择命令执行者时，将检查命令执行者是否为玩家、是否满足谓词，均满足则返回命令执行者，否则返回空列表。（由于是直接对命令执行者进行判断，而上文又提到过，命令的执行者被作为参数传入函数，因此该判断没有进行任何遍历，非常迅速）；当 localWorldOnly 为 true，即只选择命令执行者所在的世界的玩家时，将遍历该世界的玩家列表，筛选出满足谓词的玩家（见源码 net.minecraft.server.world.ServerWorld#getPlayers）；否则，遍历全服的玩家列表（见源码 net.minecraft.server.MinecraftServer#getPlayerManager 和 net.minecraft.server.PlayerManager#getPlayerList），筛选出满足谓词的玩家。将上述步骤（5 或 6）中筛选出的玩家按照 sorter 排序，再按照 limit 限制的数量从列表中移除多余的玩家（见源码 net.minecraft.command.EntitySelector#getEntities），并返回。\n\n刚刚我们提到了「谓词」，这就进行解释。\n\n谓词\n\n谓词，英文 predicate，可简单理解为一系列的条件。当我们把一个实体传入谓词中后，谓词会进行一系列判断，返回这个实体是否满足各种条件。\n\n上述过程中的「建立谓词」，指的是在基础谓词的基础上，加入坐标谓词合成出新谓词的过程。\n\n其中，基础谓词，是在实体选择器的解析过程中不断建立出来的：在解析过程中，设置 predicate 字段的时候，其实是在将新谓词合并到原有谓词中（见源码 net.minecraft.command.EntitySelectorReader#setPredicate）。在全部解析完成后，又会执行一个函数，添加 x_rotation、y_rotation、level 这三个选择器参数对应的谓词到基础谓词当中（见源码 net.minecraft.command.EntitySelectorReader#buildPredicate），至此基础谓词彻底建立完毕。例如，根据上面的字段表，在解析实体选择器 @e[type=zombie] 时，当解析完变量 @e 后，会将 Entity::isAlive 加入谓词；当解析完参数 type=zombie 后，会将「判断实体类型是否为僵尸」合并入谓词；全部解析完成后，得到了基础谓词，它要求实体既需要是活的，也需要是一只僵尸。\n\n坐标谓词，是基于 distance、x、y、z、dx、dy、dz 这七个选择器参数建立的对实体坐标的谓词。我们省去 offset、box 等只在源代码中体现的技术性细节不谈，只说近似结论：\n\nx、y、z 中缺省的项目会使用命令执行坐标补全；当存在 distance 时，会判定实体所在坐标到 (x, y, z) 的距离是否在 distance 限定范围之内；当存在 dx、dy、dz 的任意一个时，会将缺省项目用 0.0 补齐，然后使用以下函数建立 Box，判定实体的碰撞箱是否与这个 Box 相交：\n\n// net.minecraft.command.EntitySelectorReader#createBox\nprivate Box createBox(double dx, double dy, double dz) {\n    boolean boolean_1 = dx < 0.0D;\n    boolean boolean_2 = dy < 0.0D;\n    boolean boolean_3 = dz < 0.0D;\n    double double_1 = boolean_1 ? dx : 0.0D;\n    double double_2 = boolean_2 ? dy : 0.0D;\n    double double_3 = boolean_3 ? dz : 0.0D;\n    double double_4 = (boolean_1 ? 0.0D : dx) + 1.0D;\n    double double_5 = (boolean_2 ? 0.0D : dy) + 1.0D;\n    double double_6 = (boolean_3 ? 0.0D : dz) + 1.0D;\n    return new Box(double_1, double_2, double_3, double_4, double_5, double_6);\n}复制代码\n这是一个非常莫名其妙的函数。说成人话，即：\n\n如果 dx 小于 0.0，那么实体的碰撞箱在 x 轴方向上需要接触的范围是 (x + dx, x + 1.0)  \n如果 dx 大于等于 0.0，那么该范围是 (x, x + dx + 1.0)  \n不论 dx 取何值，该范围与我们印象中的 (x, x + dx) 都不相同。\n其中 x、dx 均为实体选择器参数。\n（替换为 y 和 dy、z 和 dz 同理。）\n还有一件诡异的事情，当你完全没有指定 dx、dy、dz 这三者，但是指定了 distance 的最大值（例如 distance=..5、distance=3 等）的时候，游戏会自动建立出一个判定区域 Box，判定实体的碰撞箱是否与这个 Box 相交：\n\nfloat distanceMax = (Float)this.distance.getMax();\nbox = new Box(\n    (double)(-distanceMax), (double)(-distanceMax), (double)(-distanceMax), \n    (double)(distanceMax + 1.0F), (double)(distanceMax + 1.0F), (double)(distanceMax + 1.0F)\n);复制代码\n这一段操作看似多出了不少没必要的操作，实则是对实体选择器极大的优化。为什么呢？且看下一部分，注意对比它与 getPlayers() 流程的差异。\n\ngetEntities() 的流程\n\n当不满足 includeNonPlayers，即只允许选取玩家时，调用上面提到的 getPlayers() 函数，并返回。当指定了 playerName 时，遍历服务器玩家列表，找到玩家名和 playerName 一致的玩家（这一步和 getPlayers() 里相应步骤一致），并返回；当指定了 uuid 时，遍历所有加载的世界，获取该世界中 UUID 为 uuid 的实体（后半部分操作同样基于 HashMap，速度非常快）（见源码 net.minecraft.server.world.ServerWorld#getEntity），并返回；基于命令执行坐标等，建立谓词；当 senderOnly 为 true，即只选择命令执行者时，将检查命令执行者是否为实体、是否满足谓词，均满足则返回命令执行者，否则返回空列表。（由于是直接对命令执行者进行判断，而上文又提到过，命令的执行者被作为参数传入函数，因此该判断没有进行任何遍历，非常迅速）；当 localWorldOnly 为 true，即只选择命令执行者所在的世界的实体时，将调用该世界的 getEntities() 函数，筛选出满足谓词的实体（见源码 net.minecraft.server.world.ServerWorld#getEntities）；否则，遍历所有世界，调用每个世界的 getEntities() 函数，筛选出满足谓词的实体。将上述步骤（6 或 7）中筛选出的实体按照 sorter 排序，再按照 limit 限制的数量从列表中移除多余的实体（见源码 net.minecraft.command.EntitySelector#getEntities），并返回。\n\n其中，世界的 getEntities() 函数代码如下：\n\n// net.minecraft.world.World#getEntities\npublic List<Entity> getEntities(@Nullable EntityType<?> type, Box box, Predicate<? super Entity> predicate) {\n    /* 所谓 box，是根据 x y z dx dy dz 这六个选择器参数计算出来的方块区域，\n     * 而我们上文曾说过，如果指定 distance，游戏会自动计算出一个 box，这便是为了让这一步骤中能够不遍历不必要的区块。\n     * 因此，只要参数中指定了 dx dy dz distance 中的任几个，并且 includingNonPlayer 为 true，都可以享受到由本函数带来的优化。\n     */\n    // 计算出 box 涉及到的区块坐标们。\n    int chunkMinX = MathHelper.floor((box.minX - 2.0D) / 16.0D);\n    int chunkMaxX = MathHelper.ceil((box.maxX + 2.0D) / 16.0D);\n    int chunkMinZ = MathHelper.floor((box.minZ - 2.0D) / 16.0D);\n    int chunkMaxZ = MathHelper.ceil((box.maxZ + 2.0D) / 16.0D);\n    List<Entity> result = Lists.newArrayList();\n\n    // 遍历这些区块坐标。\n    for(int chunkX = chunkMinX; chunkX < chunkMaxX; ++chunkX) {\n        for(int chunkZ = chunkMinZ; chunkZ < chunkMaxZ; ++chunkZ) {\n        WorldChunk chunk = this.getChunkManager().getWorldChunk(chunkX, chunkZ, false);\n        if (chunk != null) {\n            /* 调用该区块的 appendEntities 函数，把该区块中满足谓词的实体加入返回的实体列表当中。\n             * 而 net.minecraft.world.chunk.Chunk#appendEntities 函数中调用的是 net.minecraft.util.TypeFilterableList#getAllOfType，\n             * 在类 net.minecraft.util.TypeFilterableList 中，元素以类型索引，\n             * 说了这么多废话，就是想说，如果选择器参数中指定了 type，就只会遍历该类型实体的列表了。\n             */\n            chunk.appendEntities((EntityType)type, box, result, predicate);\n        }\n        }\n    }\n\n    return result;\n}复制代码\n可以看出，这一部分的流程大体与 getPlayers() 一致，但是在具体代码实现上，是从实体列表中遍历，还引入了针对实体类型 type、针对实体坐标所在区块的特殊优化，使得每次检索实体时不一定遍历整个实体列表，而是可以只获取某几个区块的指定类型的生物的实体列表。\n\n小结\n\n实体选择器在获取实体时的步骤，整合以后可以归类如下：\n\n对 UUID 的特殊处理，直接从 HashMap 索引，速度非常快；对 @s（senderOnly）的特殊处理，直接读取参数，速度非常快；一般情况下，将从列表中获取实体。字段 includingNonPlayers 决定使用实体列表还是玩家列表，字段 localWorldOnly 决定范围是当前世界还是全服，是否有字段 box 决定范围是某几个区块还是全地图，是否有字段 type 决定范围是指定类型的实体列表还是全部实体列表；把获取到的实体传入谓词，筛选出符合条件的实体；根据 sorter 排序，再根据 limit 移除多余实体。\n\n如果你追求性能的话：\n\n在函数全篇大量使用某个相同实体（如 @e[tag=marker]）时，不如套一层 execute as @e[tag=marker] run function xxx，用极其高效的 @s 替换掉多次遍历全服实体列表；在选择确定类型的实体的时候，在选择器内显式指定不带感叹号且不是实体标签的 type；在选择确定位置的实体的时候，尽量指定 distance、dx、dy、dz 中的一个或几个，缩小遍历范围；如果你有些病态，可以用手动指定 UUID 来替代用 tag 标记 marker，但我个人不太推荐这么做。\n\n另外，由常识：\n\n玩家列表通常比实体列表要小，至少不会比它大；当前世界的列表通常比全服列表小，至少不会比它大。\n\n因此，如果你是一个十分病态、极致追求性能（其实一般情况下没有必要，真的涉及实体数量非常多的话，MC 自己就会卡得不行了，你命令再怎么高性能也挽救不回来）的玩家的话，可以通过限定选择器变量、选择器参数，在允许的情况下尽量使 includingNonPlayers 变为 false，使 localWorldOnly 变为 true。\n\n后语\n\n在最初观看 Wiki、看到实体选择器的相关介绍时，我曾有过各种各样的困惑。而如今，我也能够把握十足地回答它们了。请注意，以下内容适用于 Minecraft 1.14.4，可能颠覆您的三观：\n\n@e[type=minecraft:player]、@a 是否等价？性能呢？\n并不等价。根据「解析」部分的字段表，@e 向谓词中自动加入了 Entity::isAlive，导致前者不能选中死亡的玩家；后者则没有这种限制。\n\n性能区别不大。前者在解析完 type 后会设定 includingNonPlayers 为 false，后者 @a 自动设定 includingNonPlayers 为 false，两者都是从玩家列表中选择玩家。\n\n@e[nbt={UUIDMost:1L,UUIDLeast:1L}]、00000000-0000-0001-0000-000000000001 是否等价？ 性能呢？\n效果不等价。如上所述，前者不能选中死亡的实体。不过鉴于实体死亡后很快就会从实体列表中移除，这个差别不是很大。\n\n性能上前者慢于后者。因为前者将遍历全部世界和世界中的全部实体，而后者将在遍历全部世界时直接从 HashMap 中获取指定 UUID 对应的实体。\n\n@p[name=SPGoding]、SPGoding 是否等价？ 性能呢？\n效果等价。都是选择名为 SPGoding 的玩家。\n\n性能区别不大。两者都遍历了一遍全服玩家列表。\n\n@e[tag=marker]、@e[tag=marker,type=minecraft:armor_stand] 是否等价？ 性能呢？（假设只有盔甲架有 marker 标签。）\n效果等价。\n\n性能上前者慢于后者，因为前者将遍历各地图、各区块的全部实体，而后者将只遍历各地图、各区块的盔甲架。\n\n@a[sort=nearest,limit=1]、@p 是否等价？ 性能呢？\n效果等价，都是选择最近的玩家。\n\n性能几乎一致。不过，写那么一大长串的人似乎不太聪明…？\n\n结语\n\n不知道本帖是否具有很高的实用性，但我个人认为，从源代码的角度理解实体选择器的运作原理，能让人不那么「被 Mojang 牵着鼻子走」，至少在写下每一个选择器的时候，心里能有点底，知道它到底意味着什么。\n\n由于笔者完全不会编程，只是对命令略有涉猎，文章中可能有不少错误，望各位 dalaoes 不吝指出，感谢。\n\n你知道吗\n\n本部分是本人在分析反编译后的源代码中发现的一些有趣的事情。\n\n在判断实体到指定坐标的距离是否满足选择器参数 distance 中规定的范围时，Mojang 进行比较的是距离的平方，省去了很多次开根运算。其实我们在写一些数据包的时候也可以这样的，不一定非要算出距离是多少，距离的平方也许就够用了；在判断实体 NBT 标签的谓词中，有一句向玩家的标签中添加 SelectedItem 的代码。也就是说，我们平时检测得很爽的 SelectedItem 标签其实原本是不存在的，它是 Mojang 为了让我们方便检测，硬生生加出来的。感动！对字符串进行的 switch 编译以后会变成对 hashCode() 的 switch。这是因为 switch 其实只能对数字进行，对字符串的支持是在 Java7 加入的补救措施。\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1564072740,
+            "txt_content": "SelectedItem 应该是1.8加入的，以前就只能恼人地用SelectedItemSlot+背包判断，所以还是mojang良心发现加入的……\n\n另外，不是说一般加上distance或者其它范围限制的话会比直接从所有实体选择要快吗？这一点能看出来吗？"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564073100,
+            "txt_content": " 本帖最后由 梓榆 于 2019-7-26 11:49 编辑 \nruhuasiyu 发表于 2019-7-26 00:39\nSelectedItem 应该是1.8加入的，以前就只能恼人地用SelectedItemSlot+背包判断，所以还是mojang良心发现加 ...\n不能，大概是谣传 ;(\n\n确实如此。distance、dx、dy、dz 中任意定义一个或几个，都能有效减少遍历范围。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1564083420,
+            "txt_content": "效果等价，都是选择 UUID 为  00000000-0000-0001-0000-00000000000 的实体。\n\n性能上前者慢于后者。因为前者将遍历全部世界和世界中的全部实体，而后者将在遍历全部世界时直接从 HashMap 中获取指定 UUID 对应的实体。\n你不是上面刚说完前者选不到死了的吗。。。。。。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1564087620,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2019-7-25 10:57 编辑 \n\n说得好，但还是有一些疑问\n\ndxdydz创建的box做不到(范围从全世界缩减到box范围)减少目标的效果？\n@e[tag=marker]、@e[tag=marker,type=minecraft:armor_stand] 是否等价？ 性能呢？（假设只有盔甲架有 marker 标签。）\n选择器参数是否有处理顺序，如果有的话，例中使用[type,tag]是否会有不同的效果？\n为什么@e的值是EntityType.PLAYER？\n这是哪个大佬的小号？头像为什么不是往中间摔?\n\n\n也请大佬讲讲这些差别...\nexecute if score @s board matches 1..\nexecute if entity @s[scores={board=1..}]复制代码execute if data @s A.B\nexecute if entity @s[nbt={A:{B:1b}}]复制代码"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564107360,
+            "txt_content": "chyx 发表于 2019-7-26 03:37\n你不是上面刚说完前者选不到死了的吗。。。。。。\n因为普通实体死了之后没多久就删了，所以没考虑这么多…\n补上了！"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564108860,
+            "txt_content": " 本帖最后由 梓榆 于 2019-7-26 14:41 编辑 \n⊙v⊙ 发表于 2019-7-26 04:47\n说得好，但还是有一些疑问dxdydz创建的box做不到(范围从全世界缩减到box范围)减少目标的效果？\n没错，dx dy dz distance 都可以，帖子已更新\n\n为什么@e的值是EntityType.PLAYER？\n对不起！！！\n\n这是哪个大佬的小号？头像为什么不是往中间摔？\n为什么你用户名的嘴是尖的，而不是圆的？\n\nexecute if score @s board matches 1..\nexecute if entity @s[scores={board=1..}]\n前者的代码是这样的\n// 省略一堆\n.then(CommandManager.literal(\"score\").then(CommandManager.argument(\"target\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(((RequiredArgumentBuilder)((RequiredArgumentBuilder)((RequiredArgumentBuilder)((RequiredArgumentBuilder)((RequiredArgumentBuilder)CommandManager.argument(\"targetObjective\", ObjectiveArgumentType.objective()).then(CommandManager.literal(\"=\").then(CommandManager.argument(\"source\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(addConditionLogic(commandNode_1, CommandManager.argument(\"sourceObjective\", ObjectiveArgumentType.objective()), boolean_1, (commandContext_1) -> {\n    return testScoreCondition(commandContext_1, Integer::equals);\n}))))).then(CommandManager.literal(\"<\").then(CommandManager.argument(\"source\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(addConditionLogic(commandNode_1, CommandManager.argument(\"sourceObjective\", ObjectiveArgumentType.objective()), boolean_1, (commandContext_1) -> {\n    return testScoreCondition(commandContext_1, (integer_1, integer_2) -> {\n    return integer_1 < integer_2;\n    });\n}))))).then(CommandManager.literal(\"<=\").then(CommandManager.argument(\"source\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(addConditionLogic(commandNode_1, CommandManager.argument(\"sourceObjective\", ObjectiveArgumentType.objective()), boolean_1, (commandContext_1) -> {\n    return testScoreCondition(commandContext_1, (integer_1, integer_2) -> {\n    return integer_1 <= integer_2;\n    });\n}))))).then(CommandManager.literal(\">\").then(CommandManager.argument(\"source\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(addConditionLogic(commandNode_1, CommandManager.argument(\"sourceObjective\", ObjectiveArgumentType.objective()), boolean_1, (commandContext_1) -> {\n    return testScoreCondition(commandContext_1, (integer_1, integer_2) -> {\n    return integer_1 > integer_2;\n    });\n}))))).then(CommandManager.literal(\">=\").then(CommandManager.argument(\"source\", ScoreHolderArgumentType.scoreHolder()).suggests(ScoreHolderArgumentType.SUGGESTION_PROVIDER).then(addConditionLogic(commandNode_1, CommandManager.argument(\"sourceObjective\", ObjectiveArgumentType.objective()), boolean_1, (commandContext_1) -> {\n    return testScoreCondition(commandContext_1, (integer_1, integer_2) -> {\n    return integer_1 >= integer_2;\n    });\n}))))).then(CommandManager.literal(\"matches\").then(addConditionLogic(commandNode_1, CommandManager.argument(\"range\", NumberRangeArgumentType.numberRange()), boolean_1, (commandContext_1) -> {\n    return testScoreMatch(commandContext_1, NumberRangeArgumentType.IntRangeArgumentType.getRangeArgument(commandContext_1, \"range\"));\n})))))))复制代码\n\n后者 scores 所引入的断言代码是这样的\nclass_2303_1.setPredicate((entity) -> {\n    Scoreboard scoreboard = entity.getServer().getScoreboard();\n    String string_1 = entity.getEntityName();\n    Iterator var4 = rangesOfObjective.entrySet().iterator();\n\n    Entry key;\n    int score;\n    do {\n        if (!var4.hasNext()) {\n            return true;\n        }\n\n        key = (Entry)var4.next();\n        ScoreboardObjective objective = scoreboard.getNullableObjective((String)key.getKey());\n        if (objective == null) {\n            return false;\n        }\n\n        if (!scoreboard.playerHasObjective(string_1, objective)) {\n            return false;\n        }\n\n        ScoreboardPlayerScore scoreObj = scoreboard.getPlayerScore(string_1, objective);\n        score = scoreObj.getScore();\n    } while(((NumberRange.IntRange)key.getValue()).test(score));\n\n    return false;\n});复制代码\n\n前者直接解析出对应的计分项，然后比较值的大小；而后者会遍历一次实体的全部分数。所以前者性能更好。\n\nexecute if data @s A.B\nexecute if entity @s[nbt={A:{B:1b}}]\n这两个效果首先就不等效。第一个只要有 B 就行，而第二个需要 B 为 1b。当然，如果 B 是自定义标签并且只在 1b 的时候才设置的话，效果上就没有区别了。\n\n前者的代码\nliteralArgumentBuilder_1.then(class_3164$class_3167_1.addArgumentsToBuilder(CommandManager.literal(\"data\"), (argumentBuilder_1) -> {\nreturn argumentBuilder_1.then(((RequiredArgumentBuilder)CommandManager.argument(\"path\", NbtPathArgumentType.nbtPath()).fork(commandNode_1, (commandContext_1) -> {\n    return getSourceOrEmptyForConditionFork(commandContext_1, boolean_1, countPathMatches(class_3164$class_3167_1.getObject(commandContext_1), NbtPathArgumentType.getNbtPath(commandContext_1, \"path\")) > 0);\n})).executes(getExistsConditionExecute(boolean_1, (commandContext_1) -> {\n    return countPathMatches(class_3164$class_3167_1.getObject(commandContext_1), NbtPathArgumentType.getNbtPath(commandContext_1, \"path\"));\n})));\n}));\n\n// 各种调用以后，最终调用到的计数代码\n// net.minecraft.command.arguments.NbtPathArgumentType.NbtPath#count\npublic int count(Tag tag) {\n    List<Tag> list = Collections.singletonList(tag);\n    NbtPathArgumentType.NbtPathNode[] nodes = this.nodes;\n    int nodesLength = nodes.length;\n\n    for(int i = 0; i < nodesLength; ++i) {\n    NbtPathArgumentType.NbtPathNode node = nodes[i];\n    list = node.get(list);\n    if (list.isEmpty()) {\n        return 0;\n    }\n    }\n\n    return list.size();\n}复制代码\n\n后者的代码\nclass_2303_1.setPredicate((entity) -> {\n    CompoundTag tag = entity.toTag(new CompoundTag());\n    if (entity instanceof ServerPlayerEntity) {\n        ItemStack class_1799_1 = ((ServerPlayerEntity)entity).inventory.getMainHandStack();\n        if (!class_1799_1.isEmpty()) {\n            tag.put(\"SelectedItem\", class_1799_1.toTag(new CompoundTag()));\n        }\n    }\n\n    return TagHelper.areTagsEqual(valueTag, tag, true) != isNegation;\n});\n\n// 判断标签是否相等的代码\n// net.minecraft.util.TagHelper#areTagsEqual\n// 不贴了…贴得太多了…复制代码\n\n两者都是先用实体的 `toTag()` 构造出 NBT。前者是不断层层递进，看 NBT 标签符不符合传入的路径；后者是遍历 valueTag 复合标签中的键，看该键在 valueTag 中的值与在 tag 中的值是否相等。俩都挺复杂的…可能后者因为涉及到两个标签间的比较会更慢一些。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1564420680,
+            "txt_content": "0-0-1-0-1\n和\n00000000-0000-0001-0000-000000000001\n等价吗？"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1564496520,
+            "txt_content": "\n\n\n\n\n4qiiaikg8w0ffsa3qby4mhpch.jpg (11.2 KB, 下载次数: 34)\n\n下载附件\n\n2019-7-30 22:21 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564499580,
+            "txt_content": "chyx 发表于 2019-7-30 01:18\n0-0-1-0-1\n和\n00000000-0000-0001-0000-000000000001\n这一部分解析是由 Java 的 java.util.UUID.fromString 所实现的，我 哪 知 道【跑\n\n也许查看 Wikipedia 对 UUID 的介绍能明白些什么，但因为太硬核了我不想看\n"
+        },
+        {
+            "author": "1581277682",
+            "timestamp": 1564564680,
+            "txt_content": "666666666666666"
+        },
+        {
+            "author": "xin_erQWQ",
+            "timestamp": 1564610700,
+            "txt_content": "好复杂看不懂..."
+        },
+        {
+            "author": "RF_Tar_Railt",
+            "timestamp": 1564678740,
+            "txt_content": "那性能上execute as @e[tag=marker,type=minecraft:armor_stand] run fuction foo:c与\na.mcfunction:\nexecute as @e[type=minecraft:armor_stand] run function foo:b\nb.mcfunction:\nexecute as @e[tag=marker] run function foo:c\n是否相同？\n还有@e[tag=marker,nbt={A:{B:1b}}] 与 @e[tag=marker] if entity @s [nbt={A:{B:1b}}]？"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1564706880,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-8-2 16:18 编辑 \n\n我也要来问问题！\ndalao 分析一下：\neffect give @a[tag=233] minecraft:speed 10 0 true\nexecute as @a[tag=233] run effect give @s minecraft:speed 10 0 true\nexecute as @a run effect give @s[tag=233] minecraft:speed 10 0 true\nexecute as @a if entity @s[tag=233] run effect give @s minecraft:speed 10 0 true\n这几个在性能上的差异。\n"
+        },
+        {
+            "author": "Doraemon_",
+            "timestamp": 1564713780,
+            "txt_content": "感谢大佬搬运 ,虽然我这个菜鸡不怎么看得懂（手动滑稽）"
+        },
+        {
+            "author": "底层咸鱼",
+            "timestamp": 1564733340,
+            "txt_content": " 本帖最后由 897412176 于 2019-8-4 10:03 编辑 \nRF_Tar_Railt 发表于 2019-8-2 00:59\n那性能上execute as @e[tag=marker,type=minecraft:armor_stand] run fuction foo:c与\na.mcfunction:\nexecu ...\n就第 1 个问题的话，我觉得应该差不多。\nexecute as @e[tag=marker,type=minecraft:armor_stand] run fuction foo:c\n和\na: execute as @e[type=minecraft:armor_stand] run function foo:b\nb: execute as @e[tag=marker] run function foo:c\n（a: 我个人没有去翻过代码，不知道当 tag 和 type 同时出现的话，不知道是先检测 tag 还是 type……\n不过我记得应该和你写的顺序无关，检测顺序应该是代码写死的）\n当然，如果是先检测 type，再检测 tag 的话，两个应该是等价的（不考虑在函数内调用其他函数消耗的性能）\n当然，我对代码和英语一窍不通，如果说错了不要打我（请求）\n（此答案仅供参考，具体等楼主回答）\n强行甩锅\n经 SPG dalao 这么一说，发现两个并不是等价的（无论是性能还是效果）\n第2个：先 as 所有盔甲架 ，再 as 所有 marker，那么所有没有 type=minecraft:armor_stand，但是有 tag=marker 也会执行函数 c 。举个例子：有 m 个只有 type=minecraft:armor_stand 和 n 个只有 tag=marker 以及 type 和 tag 两者都有的 k 个，那么函数 c 会执行：（m+k）（n+k）次 。\n当然如果把函数 b 改成 as @s[tag=marker] ，我说的应该是对的。Spg dalao 快来帮我！"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1564774140,
+            "txt_content": "在函数全篇大量使用某个相同实体（如 @e[tag=marker]）时，不如套一层 execute as @e[tag=marker] run function xxx，用极其高效的 @s 替换掉多次遍历全服实体列表；\n\n这个太有用了，我一直在困惑是否需要用在大量 @e 外面套一层 execute ，今天找到答案了"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564846080,
+            "txt_content": "RF_Tar_Railt 发表于 2019-8-2 00:59\n那性能上execute as @e[tag=marker,type=minecraft:armor_stand] run fuction foo:c与\na.mcfunction:\nexecu ...\n久等了。\n\n一\nexecute as @e [tag=marker,type=minecraft:armor_stand] run fuction foo:c\n只遍历了一次盔甲架的列表\n\na.mcfunction:\nexecute as @e[type=minecraft:armor_stand] run function foo:b\nb.mcfunction:\nexecute as @e[tag=marker] run function foo:c\n遍历了一次盔甲架的列表、一次全部实体列表，肯定会慢一些。我觉得把 b 里面的 @e 改成 @s 的话，两种写法性能差别就不是很大了。\n\n二\n@e[tag=marker,nbt={A:{B:1b}}]\n@e[tag=marker] if entity @s [nbt={A:{B:1b}}]\n我个人认为区别不大…众所周知，@s 超级快（"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1564846260,
+            "txt_content": "Teenager_Yang 发表于 2019-8-2 08:48\n我也要来问问题！\ndalao 分析一下：\neffect give @a[tag=233] minecraft:speed 10 0 true\n不知道，别纠结这没用的\n\n\n从命令解析的角度，第一句最快，只读取了一次命令树，没有奇怪的 redirect（等一下，你在讲什么，帖子里一句没提到这个啊）\n剩下三种写法的话，都挺…那什么的。我不知道谁更快，也不想知道。\n\n另外，一般第一种写法最便于理解，剩下的都太诡异了，选择器参数这儿一块儿那一块儿的，为了你自己的视力着想，也不能选择后三种啊！"
+        },
+        {
+            "author": "mon-yu",
+            "timestamp": 1564891500,
+            "txt_content": "?(.???.)?来份????"
+        },
+        {
+            "author": "DOPING_DEFINED",
+            "timestamp": 1564970820,
+            "txt_content": "顶顶顶顶顶顶顶顶顶顶顶顶顶顶！！"
+        },
+        {
+            "author": "3220392",
+            "timestamp": 1564993500,
+            "txt_content": "又是个大佬，萌新表示看不懂"
+        },
+        {
+            "author": "海豹暴晒",
+            "timestamp": 1565027640,
+            "txt_content": "哇刚入门java的我还是完全看不懂"
+        },
+        {
+            "author": "Potat",
+            "timestamp": 1565052180,
+            "txt_content": "对小白的我来说，真是头大"
+        },
+        {
+            "author": "13851214659qwe",
+            "timestamp": 1565080560,
+            "txt_content": "6666666666666666"
+        },
+        {
+            "author": "奋飞的小鸟",
+            "timestamp": 1565084640,
+            "txt_content": "你们知道吗？对于一个问心无愧的命令方块渣渣，这个帖子扎了TA多深的心吗？都是因为TA看不懂！！！"
+        },
+        {
+            "author": "烟火依旧",
+            "timestamp": 1565156460,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "歪歪c",
+            "timestamp": 1565281440,
+            "txt_content": "牛逼啊，铁子，可以"
+        },
+        {
+            "author": "趴趴小猪",
+            "timestamp": 1565508300,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "745056399",
+            "timestamp": 1565603400,
+            "txt_content": "很好，楼主很用心，期待楼主能在mcbbs中有更多的作品"
+        },
+        {
+            "author": "寒冰520",
+            "timestamp": 1565604300,
+            "txt_content": "厉害厉害厉害厉害"
+        },
+        {
+            "author": "junkoofpurity",
+            "timestamp": 1565622780,
+            "txt_content": "大佬，少见如此细致的"
+        },
+        {
+            "author": "柘木铃",
+            "timestamp": 1565657460,
+            "txt_content": "这样，如果减少遍历的实体数，即使把选择器加得更长，性能也会优化这样？\n之后一定可以派上用场，感谢梓榆\n梓榆的教程风格还是一如既往地让人安心（某叔写这种代码层面的教程的话铃子可能见标题就跑（？\n顺便以后有机会看到更多同系列的作品吗？铃子相当期待"
+        },
+        {
+            "author": "1755201743",
+            "timestamp": 1565670240,
+            "txt_content": "666666666666666666666666666666666"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1565671020,
+            "txt_content": "柘木铃 发表于 2019-8-13 08:51\n这样，如果减少遍历的实体数，即使把选择器加得更长，性能也会优化这样？\n之后一定可以派上用场，感谢梓榆\n ...\n选择器写得长些也只是解析的时候要多读几个字符而已，性能损耗相比于整个实体列表的减小应该是可以忽略不计的。\n\n谢谢铃子夸奖w 是想继续写下去来着，但人比较懒，鱼身上的毛又那么柔软，让人忍不住想去摸…"
+        },
+        {
+            "author": "233小星星",
+            "timestamp": 1565679300,
+            "txt_content": "1755201743 发表于 2019-8-13 12:24\n**** 作者被禁止或删除 内容自动屏蔽 ****\n你很六牛批666"
+        },
+        {
+            "author": "AppleCarrot",
+            "timestamp": 1565744400,
+            "txt_content": "chyx 发表于 2019-7-26 03:37\n你不是上面刚说完前者选不到死了的吗。。。。。。\n其实相差不大,实体死的时候很快两个选择器都选不到了,后者可以选中正在死亡的实体,但如果这个uuid是个玩家的,就跟@e[type=player]和@a区别一样了"
+        },
+        {
+            "author": "末、红尘",
+            "timestamp": 1565748540,
+            "txt_content": "加油！！"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1565753880,
+            "txt_content": "AppleCarrot 发表于 2019-8-14 09:00\n其实相差不大,实体死的时候很快两个选择器都选不到了,后者可以选中正在死亡的实体,但如果这个uuid是个玩 ...\n要是能选择到正在死亡的实体\n是可以改大它的生命来把它救回来的\n明白我的意思不？"
+        },
+        {
+            "author": "AppleCarrot",
+            "timestamp": 1565761800,
+            "txt_content": "chyx 发表于 2019-8-14 11:38\n要是能选择到正在死亡的实体\n是可以改大它的生命来把它救回来的\n明白我的意思不？ ...\nee其实并不能只是这么做\n标签控制死亡的NBT标签 并不仅仅是是health标签[控制生命值的]还受到deathTime标签[控制死亡动画]影响,后者在为0是就是实体活着\n前者是触发后者的条件,然而反过来当后者触发时候修改前者为正数,并不会阻止后者的增加\n换句话说当死亡动画已经播放时,增加这个实体的生命值并不能挽救它,除非同时更改前者为正数且后者为0"
+        },
+        {
+            "author": "QAQexe",
+            "timestamp": 1565861160,
+            "txt_content": "看看，感谢分享"
+        },
+        {
+            "author": "PhonixSupheria",
+            "timestamp": 1565872740,
+            "txt_content": "赞赞赞，码上"
+        },
+        {
+            "author": "hyzgzz",
+            "timestamp": 1566008220,
+            "txt_content": "牛逼啊大触"
+        },
+        {
+            "author": "hiahiahi",
+            "timestamp": 1566019200,
+            "txt_content": "666666666666666666666666"
+        },
+        {
+            "author": "紫云SAMA_",
+            "timestamp": 1566309780,
+            "txt_content": ""
+        },
+        {
+            "author": "2047283952",
+            "timestamp": 1566460500,
+            "txt_content": "牛逼６６６５５５５"
+        },
+        {
+            "author": "亿岁",
+            "timestamp": 1566548280,
+            "txt_content": "看着有点晕"
+        },
+        {
+            "author": "MC520520",
+            "timestamp": 1566565020,
+            "txt_content": "有点复杂....."
+        },
+        {
+            "author": "念旧丶无心",
+            "timestamp": 1566650400,
+            "txt_content": "很棒棒的啊"
+        },
+        {
+            "author": "Just_Suning",
+            "timestamp": 1566912480,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "51691",
+            "timestamp": 1567151460,
+            "txt_content": "这操作太真实"
+        },
+        {
+            "author": "Vioket_QAQ",
+            "timestamp": 1567598640,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1567643640,
+            "txt_content": "predicate<T>在Java中不是“断言”，而是“谓词”，指那种T->return boolean的lambda表达式，例如ruhua->ruhua.isThirty()==true;\n而Java里的断言叫做assert，用于单元测试，比如assertTrue(ruhua.getAge()，30)，如果getAge的结果不是30说明有问题，会弹消息。"
+        },
+        {
+            "author": "apzt",
+            "timestamp": 1567776300,
+            "txt_content": "很有帮助，感谢感谢"
+        },
+        {
+            "author": "o320481446",
+            "timestamp": 1567781100,
+            "txt_content": "太复杂了"
+        },
+        {
+            "author": "ZhuJingYe",
+            "timestamp": 1567824360,
+            "txt_content": "实体选择器折磨好啊"
+        },
+        {
+            "author": "lzk122001333",
+            "timestamp": 1567869480,
+            "txt_content": "感谢大佬 就是没看懂"
+        },
+        {
+            "author": "HHQart",
+            "timestamp": 1568020200,
+            "txt_content": "作为基岩版玩家我对此一窍不通【而且基岩版@r后面加type参数就可以选择非玩家实体了】"
+        },
+        {
+            "author": "loubi",
+            "timestamp": 1568026620,
+            "txt_content": "6666666666666666666666"
+        },
+        {
+            "author": "邪恶草",
+            "timestamp": 1568875560,
+            "txt_content": "看来要准备学习Java了"
+        },
+        {
+            "author": "liness",
+            "timestamp": 1569055620,
+            "txt_content": "233333333333333333"
+        },
+        {
+            "author": "deatin6long",
+            "timestamp": 1569300600,
+            "txt_content": "5555555555"
+        },
+        {
+            "author": "1272097077",
+            "timestamp": 1569675420,
+            "txt_content": "很好 ，学习一下"
+        },
+        {
+            "author": "‮ebotanihS",
+            "timestamp": 1577359440,
+            "txt_content": "刚刚学完java的萌新来拜读此文，然后发现\n\npredicate不就是一种filter嘛，叫“滤器”不就非常棒\n\n请lz轻喷（"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1577380200,
+            "txt_content": "Shinatobe 发表于 2019-12-26 19:24\n刚刚学完java的萌新来拜读此文，然后发现\n\npredicate不就是一种filter嘛，叫“滤器”不就非常棒[:.. ...\n确实，filter 和 predicate 经常一起出现，比如\nPredicate<Integer> isEven = e -> e % 2 == 0;\n...\nx.stream().filter(isEven)复制代码\n（我不会编程，所以代码是复制的：在这里）\n\n但因为我不懂编程，我也不敢瞎翻译。只好听取博学的编程 dalaoes 的建议喽"
+        },
+        {
+            "author": "‮ebotanihS",
+            "timestamp": 1577421180,
+            "txt_content": "梓榆 发表于 2019-12-27 01:10\n确实，filter 和 predicate 经常一起出现，比如\n\n（我不会编程，所以代码是复制的：在这里）\n我明白了。更精细地说，与其说它是“滤器”，不如说是“过滤条件”。\n\n\n\n\ni_f13.png (4.95 KB, 下载次数: 0)\n\n下载附件\n\n2019-12-27 12:25 上传\n\n\n\n\n\n\n或者filter criteria……\n\n……或者“滤网”？（逃\n\n"
+        },
+        {
+            "author": "fukemansite",
+            "timestamp": 1578382860,
+            "txt_content": "真的是大佬哦。佩服佩服耶"
+        },
+        {
+            "author": "Evasi0n丶",
+            "timestamp": 1579445880,
+            "txt_content": "楼主大大你好！想问一下，我是1.12.2的版本，参数里没有distance什么的，我想知道如果我设定了x=,y=,z=,r=的参数，可不可以有效地帮我缩小实体的遍历范围呢？"
+        },
+        {
+            "author": "rooke_zb",
+            "timestamp": 1581728040,
+            "txt_content": "@SPGoding 出来答题（\n假设tag为foo的盔甲架只存在一个，那么是不是\n@e[type=armor_stand,tag=foo,limit=1]的效率会比@e[type=armor_stand,tag=foo]的效率要高？（除非很不幸遍历到最后一个盔甲架才符合结果）\n"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1581753960,
+            "txt_content": "brooke_zb 发表于 2020-2-15 08:54\n@SPGoding 出来答题（\n假设tag为foo的盔甲架只存在一个，那么是不是\n@e[type=armor_stand,tag=foo,limit=1] ...\n不是\n\nlimit 是最后处理的，事实上加了以后反而还要多一步移除多余实体的操作。"
+        },
+        {
+            "author": "13626464852",
+            "timestamp": 1594773900,
+            "txt_content": "从头看到尾懵逼的我"
+        },
+        {
+            "author": "kunkun520",
+            "timestamp": 1596026220,
+            "txt_content": "mcbbs有你更精彩！！！"
+        }
+    ]
+}

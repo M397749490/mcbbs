@@ -1,0 +1,74 @@
+{
+    "title": "如何通过编辑的NBT方式修改投出的三叉戟的基础伤害值",
+    "author": "生命的火花",
+    "replyCount": 13,
+    "timestamp": 1570501380,
+    "txt_content": "如何通过nbt修改三叉戟投出后的基础伤害？\n现在已经知道了AttributeModifiers AttriguteName:generic.attackDamage能够修改三叉戟主手捅刺的伤害值，那么投射出去的三叉戟的伤害值在哪个项里修改呢？\n如果可以的话希望能够给出一个修改数据的存档，来学习一下",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1570501380,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-10-15 01:12 编辑 \n\n源码分析\nCode Analysis\n\n以下分析基于 FabricMC/yarn#ef9864b2b8f59bcd60f942a6482f711f2af52526\n\n\ndamage 是 ProjectileEntity 类（TridentEntity 的基类）所带有的自定义 NBT 标签：\npublic void readCustomDataFromTag(CompoundTag tag) {\n    ...\n    if (tag.contains(\"damage\", 99)) {\n        this.damage = tag.getDouble(\"damage\");\n    }\n    ...\n}复制代码\n\n但是，TridentEntity 类中，在处理三叉戟与实体相撞时，进行了如下处理：\n@Override\nprotected void onEntityHit(EntityHitResult entityHitResult) {\n    Entity entity3 = entityHitResult.getEntity();\n    float float4 = 8.0f;\n    if (entity3 instanceof LivingEntity) {\n        LivingEntity livingEntity5 = (LivingEntity)entity3;\n        float4 += EnchantmentHelper.getAttackDamage(this.tridentStack, livingEntity5.getGroup());\n    }\n    Entity entity5 = this.getOwner();\n    DamageSource damageSource6 = DamageSource.trident(this, (entity5 == null) ? this : entity5);\n    this.dealtDamage = true;\n    SoundEvent soundEvent7 = SoundEvents.ITEM_TRIDENT_HIT;\n    if (entity3.damage(damageSource6, float4) && entity3 instanceof LivingEntity) {\n        LivingEntity livingEntity8 = (LivingEntity)entity3;\n        if (entity5 instanceof LivingEntity) {\n            EnchantmentHelper.onUserDamaged(livingEntity8, entity5);\n            EnchantmentHelper.onTargetDamaged((LivingEntity)entity5, livingEntity8);\n        }\n        this.onHit(livingEntity8);\n    }\n    this.setVelocity(this.getVelocity().multiply(-0.01, -0.1, -0.01));\n    ...\n}复制代码\n\n从中我们可以很容易地看出，三叉戟实体的默认伤害为 8.0f。此外，其物品形式中的附魔会被用于在 EnchantmentHelper#getAttackDamage 方法中计算相关伤害，使得锋利等附魔的附加伤害能够添加到三叉戟实体的伤害上。整个过程中我们可以发现，damage 这个从基类 ProjectileEntity 上继承过来的字段并没有参与到伤害计算当中，因此修改 damage 不会有任何影响。\n\n\n以上代码分析证明，@SGZSSSSS 在 6# 部分所述、@ruhuasiyu 在 11# 全文所述正确。\n\n请勿为本答案设置最佳。"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1570510920,
+            "txt_content": "修改实体的NBT：\n{Trident:{tag:{AttributeModifiers:[{UUIDMost:1,UUIDLeast:1,Amount:10.0d,AttributeName:\"generic.attackDamage\",Operation:0,Name:\"Attack\"}]}}}"
+        },
+        {
+            "author": "雪颜の顾",
+            "timestamp": 1570640040,
+            "txt_content": " 本帖最后由 雪颜の顾 于 2019-10-10 01:01 编辑 \n爱心大魔王 发表于 2019-10-8 13:02\n修改实体的NBT：\n{Trident:{tag:{AttributeModifiers:[{UUIDMost:1,UUIDLeast:1,Amount:10.0d,AttributeNam ...\n射出的箭矢有伤害NBT，但是火焰弹，雪球，鸡蛋这些没有伤害NBT，三叉戟的话或许跟箭矢差不多，\n你这个修改伤害NBT的指令，貌似没有效果，实体的攻击力和弹射物的攻击力表达方式不一样的吧\n下图可以看出箭矢和三叉戟的命中伤害数值应该是{damage}这个NBT\n\n\n\n\n\nQQ截图20191010005645.png (34.43 KB, 下载次数: 7)\n\n下载附件\n\n2019-10-10 00:58 上传\n\n\n\n\n\n\n\n\n\nQQ截图20191010005807.png (34.38 KB, 下载次数: 6)\n\n下载附件\n\n2019-10-10 00:58 上传\n\n\n\n\n\n\n\n\n\nQQ截图20191010005703.png (52.89 KB, 下载次数: 6)\n\n下载附件\n\n2019-10-10 00:58 上传\n\n\n\n\n\n\n\n\n\nQQ截图20191010005749.png (38.88 KB, 下载次数: 6)\n\n下载附件\n\n2019-10-10 00:58 上传\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "雪颜の顾",
+            "timestamp": 1570640520,
+            "txt_content": "由于是回复的爱心大魔王，楼主收不到，所以在此再回复一下楼主，看一下我上面的回复"
+        },
+        {
+            "author": "生命的火花",
+            "timestamp": 1570671960,
+            "txt_content": "雪颜の顾 发表于 2019-10-10 00:54\n射出的箭矢有伤害NBT，但是火焰弹，雪球，鸡蛋这些没有伤害NBT，三叉戟的话或许跟箭矢差不多，\n你这个修改 ...\n如果我没理解错的话，三叉戟的NBT分三个层次，顶层的是damage、shake等，是实体的共通标签。根据wiki里说的，trident里面包含的是物品捡起时给出的物品标签，含id、count等，这层下边还有一个tag，里面包含的是Unbreakable、Damage、RepairCost等标签，这里Damage表示的是物品的受损程度。\n之前在这里修改过generic.attackDamage和attackSpeed，用的是AttributeModifiers。\n可能实体标签的存储位置与物品有所不同，我不太清楚，但由于我修改NBT是用NBTExplorer，里面能看到的都是物品形式的，想要在NbtExplore里面修改物品状态的三叉戟的实体通用标签应该怎么改写？"
+        },
+        {
+            "author": "SGZSSSSS",
+            "timestamp": 1570767900,
+            "txt_content": "额，三叉戟的伤害好像是攻击伤害决定的，因此锋利五也可以增加三叉戟的投掷伤害，如果要加伤害可以用命令附魔锋利，也可以设置更高的伤害属性来增加投掷伤害"
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1570931220,
+            "txt_content": "生命的火花 发表于 2019-10-10 09:46\n如果我没理解错的话，三叉戟的NBT分三个层次，顶层的是damage、shake等，是实体的共通标签。根据wiki里说 ...\n？实体公用标签当然只有实体才有 物品不是实体怎么能改写实体通用标签\n箭矢和三叉戟攻击的确由damage决定 但是除人为修改 能在创造时决定damage的只有弓的力量附魔\n所以 改写方法无解\n但是 改写外的方法还是有的 比如命令（原版模组）而且非常简单"
+        },
+        {
+            "author": "生命的火花",
+            "timestamp": 1571030580,
+            "txt_content": "Jokey_钥匙 发表于 2019-10-13 09:47\n？实体公用标签当然只有实体才有 物品不是实体怎么能改写实体通用标签\n箭矢和三叉戟攻击的确由damage决定 ...\nsummon trident ~0 ~1 ~0 {damage: 5.0d,Motion:[-1.2d,0.5d,0.0d],pickup:1}\n这条语句有问题么？这里的motion和pickup都能起到作用，但是唯独damage不管用，是为什么？"
+        },
+        {
+            "author": "生命的火花",
+            "timestamp": 1571031000,
+            "txt_content": "雪颜の顾 发表于 2019-10-10 00:54\n射出的箭矢有伤害NBT，但是火焰弹，雪球，鸡蛋这些没有伤害NBT，三叉戟的话或许跟箭矢差不多，\n你这个修改 ...\n参考了上面图片里三叉戟拥有的实体标签，我在一个命令方块中写下了\nsummon trident ~0 ~1 ~0 {damage: 5.0d,Motion:[-1.2d,0.5d,0.0d],pickup:1}\n命令，这里的damage无论是多少，结果都是一样的，而其他的motion和pickup都能起到作用。是不是直接改写这里的damage方法不行？还是我这种思路有问题？"
+        },
+        {
+            "author": "雪颜の顾",
+            "timestamp": 1571033040,
+            "txt_content": "生命的火花 发表于 2019-10-14 13:30\n参考了上面图片里三叉戟拥有的实体标签，我在一个命令方块中写下了\nsummon trident ~0 ~1 ~0 {damage: 5. ...\n箭矢经过测试damage是可以的，不过很奇怪100的damage才造成25点伤害，200造成50点伤害\n三叉戟刚才测试了一下，发现damage的确没用，我也不知道它是根据什么判断伤害的"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1571037180,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2019-10-14 15:15 编辑 \nSGZSSSSS 发表于 2019-10-11 12:25\n额，三叉戟的伤害好像是攻击伤害决定的，因此锋利五也可以增加三叉戟的投掷伤害，如果要加伤害可以用命令附 ...\n正解，因此只需要在三叉戟的物品中添加锋利附魔即可增加伤害，例如\nexecute as @e[type=trident] run data merge entity @s {Trident:{tag:{Enchantments:[{id:\"minecraft:sharpness\",lvl:5s}]}}}复制代码增加后的伤害值变为 (等级+17)/2，上面的锋利V也就是11点伤害，5.5颗心\n\n\n\n\nTIM截图20191014151316.png (33.46 KB, 下载次数: 0)\n\n下载附件\n\n2019-10-14 15:13 上传\n\n\n\n\n\n\n@雪颜の顾 \n@生命的火花 @爱心魔王FHC @SPGoding @SGZSSSSS @Jokey_钥匙 \n"
+        },
+        {
+            "author": "雪颜の顾",
+            "timestamp": 1571042340,
+            "txt_content": "ruhuasiyu 发表于 2019-10-14 15:13\n正解，因此只需要在三叉戟的物品中添加锋利附魔即可增加伤害，例如\n增加后的伤害值变为 (等级+17)/2，上面 ...\n我之前试过直接修改三叉戟的攻击伤害，好像没用....\n锋利没试过"
+        },
+        {
+            "author": "生命的火花",
+            "timestamp": 1571045580,
+            "txt_content": "梓榆 发表于 2019-10-8 10:23\n源码分析\nCode Analysis\n虽然你说不要设置最佳，但是确实是解决了我一直发愁的问题：damage不直接参与三叉戟投掷伤害的计算。或者说现阶段不直接参与。我觉得让人一下就能理解的答案就是最好的，所以就采纳了。再此感谢你的帮助~"
+        }
+    ]
+}

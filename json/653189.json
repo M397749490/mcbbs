@@ -1,0 +1,159 @@
+{
+    "title": "[教程系列]利用Annotation与反射实现更加整洁易用的子命令",
+    "author": "RE_OVO",
+    "replyCount": 30,
+    "timestamp": 1481277060,
+    "txt_content": " 本帖最后由 RecursiveG 于 2016-12-18 06:40 编辑 \n\n论坛竟然没有滑稽表情，差评！\n大家平时写子命令都是都是用的switch或者if吧，但是这种方法在子命令多的情况下特别蛋疼，代码很乱，各种嵌套，影响阅读。\n今天我讲给各位介绍利用Annotation+反射实现更加方便清晰易用的子命令。\n什么是Annotation?   百度去\n什么是反射?    百度去\n\n接下来，我将以一个/xxx命令为梨子，来介绍利用Annotation写子命令。\n\n首先，你需要准备的是:\n  电脑\n  大脑\n  双手\n  滑稽\n\n打开我们的IDE，我创建一个工程，并且完成包，类的，创建。并且在plugin.yml里注册xxx命令。\n他看起来是这样的额\n\n\n接下来，我们在onEnable方法里注册命令，并创建命令类。\n\n\n\n一切看起来似乎很正常！\n接下来才是正文！\n我们创建一个Annotation类，就叫他SubCommand\n\n\n\n@interface是定义Annotation类的关键字\n\n@Target(ElementType.METHOD) 指的是用于方法的声明\n@Retention(RetentionPolicy.RUNTIME) 指的是运行时加载Annotation到JVM中\ndefault 表示这个成员的默认值。\n不懂没关系，记住就行。\n然后我们在里面定义了3个成员，后面会用到。\n回到我们的命令方法，我们添加一个无参数的判断，输出所有子命令。\n如图:\n\n\n这里我们遍历了本类的方法，判断是否有SubCommand注释，如果有，获取这个方法的注释并拼接帮助并发送消息。\n很多人问为什么要遍历本类方法？因为我们把子命令写在了这个类，下面看下去你就知道了。\n然后，有帮助还不行，还有执行子命令啊，于是，如图:\n\n\n我们同样遍历本类方法，判断SubCommand注释，并且判断注释中的cmd是否和输入的参数相等，相等就使用反射执行此方法，并return true退出方法。\n然后我们再加个找不到子命令的提示\n\n\n最后，完整的onCommand()方法是这样的:\n\npublic boolean onCommand(CommandSender sender, Command arg1, String label, String[] args) {\n                if(label.equalsIgnoreCase(\"xxx\")){\n                        //判断是否是玩家\n                        if(!(sender instanceof Player)){\n                                sender.sendMessage(\"只能在游戏里执行此命令！\");\n                                return true;\n                        }\n                        //判断是否有权限\n                        if(!sender.hasPermission(\"xxx.use\")){\n                                sender.sendMessage(\"你没有权限。\");\n                                return true;\n                        }\n                        //强转对象\n                        Player p=(Player) sender;\n                        //\n                        //无参数\n                        if(args.length==0){\n                                p.sendMessage(ChatColor.translateAlternateColorCodes('&', \"&6==========[&b 帮助&6 ]==========\"));\n                                for(Method method : this.getClass().getDeclaredMethods()){\n                                        if(!method.isAnnotationPresent(SubCommand.class)){\n                                                continue;\n                                        }\n                                        SubCommand sub=method.getAnnotation(SubCommand.class);\n                                        p.sendMessage(ChatColor.translateAlternateColorCodes('&', \"&6/xxx &b\"+sub.cmd()+\" &3\"+sub.arg()+\"&6-&a \"+sub.des()));\n                                }\n                                return true;\n                        }\n                        for(Method method:this.getClass().getDeclaredMethods()){\n                                if(!method.isAnnotationPresent(SubCommand.class)){\n                                        continue;\n                                }\n                                SubCommand sub=method.getAnnotation(SubCommand.class);\n                                if(!sub.cmd().equalsIgnoreCase(args[0])){\n                                        continue;\n                                }\n                                \n                                try {\n                                        method.invoke(this, p,args);        \n                                } catch (IllegalAccessException e) {\n                                        e.printStackTrace();\n                                } catch (IllegalArgumentException e) {\n                                        e.printStackTrace();\n                                } catch (InvocationTargetException e) {\n                                        e.printStackTrace();\n                                }\n                                return true;\n                        }\n                        p.sendMessage(ChatColor.translateAlternateColorCodes('&', \"&a未找到此子命令:&c\"+args[0]));\n                        return true;\n                }\n                return false;\n        }复制代码\n好了，命令轮子造完了，现在我们几乎不需要再去动他了，我们只需要在下面添加命令就行了。@SubCommand(cmd=\"子命令内容\",arg=\"参数介绍\",des=\"命令介绍\")\npublic void 方法名字随便写(Player p,String args[]){\n//执行此子命令\n}\n为什么参数是Player p和String args[]呢？\n因为，我们上面利用反射执行的时候传进来就是这两个参数，而我们也需要这2个参数啊，不然子命令怎么知道执行者和其他的参数？\n方法名随意，因为靠的是上面的@SubCommand注释来判断的\n然后我们添加2个字命令进行测试:\n\n由于我们的命令帮助是靠遍历Annotation自动生成的，我们也不需要去改动onCommand方法\n我们来测试下:\n\n\n很棒是不是\n而且代码清晰可读性高，添加子命令快速，自动生成帮助。\n\n好了，教程就到这里\n求人气求回复\n\n禁止转载！禁止转载！",
+    "replies": [
+        {
+            "author": "wansi",
+            "timestamp": 1481340780,
+            "txt_content": "前排，支持！"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1481365620,
+            "txt_content": "反射使效率降低了不少"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1481368320,
+            "txt_content": "耗子 发表于 2016-12-10 18:27\n反射使效率降低了不少\n这只是命令而已,效率问题不大\n我觉得还是美观易用最重要\nswitch/if写出来各种嵌套看的辣眼睛。"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1481370300,
+            "txt_content": "jebme 发表于 2016-12-10 19:12\n这只是命令而已,效率问题不大\n我觉得还是美观易用最重要\nswitch/if写出来各种嵌套看的辣眼睛。 ...\n与其写个教程，不如写个API"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1481480100,
+            "txt_content": "耗子 发表于 2016-12-10 19:45\n与其写个教程，不如写个API\n这就涉及到一个名言了\n授人以鱼不如授人以渔←_←\n当然,像什么用到nms之类的,代码多的,还是鱼好了"
+        },
+        {
+            "author": "桃渊林",
+            "timestamp": 1481557500,
+            "txt_content": "有人写过类似的但并没有分享。。\n可以考虑写成API前置嘛"
+        },
+        {
+            "author": "12345559",
+            "timestamp": 1481764020,
+            "txt_content": "我觉得还是发教程好,自己写比调用的好多了"
+        },
+        {
+            "author": "CCU",
+            "timestamp": 1481794620,
+            "txt_content": "只是一个用不用的问题，反射更适合用在其他类里"
+        },
+        {
+            "author": "Beam_less",
+            "timestamp": 1481803380,
+            "txt_content": "虽说反射降低了效率 但是可以把反射后的结果 比如Method 先存起来 下次就直接用了\nBukkit的事件系统 在registerEvents之后 似乎也是这样做的 对效率的影响没那么大了 起码不会再遍历一遍了"
+        },
+        {
+            "author": "叶米柯",
+            "timestamp": 1481804700,
+            "txt_content": "反射卡卡卡……………………(省略1000个卡)…………卡，好的，反射比直接调用卡1000倍左右，这也是为什么Mod服带不了特别多的人，如果你要forClass的话还要更卡\n当然如果你只是调用指令的话没问题，但是不建议在Java中过度使用反射，你要想啃语言糖就去用scala"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1481814000,
+            "txt_content": "如果不考虑Java6的支持，为何不直接使用MethodHandle呢= ="
+        },
+        {
+            "author": "awt2003",
+            "timestamp": 1485327060,
+            "txt_content": "我有应该问题，子命令下的子命令该如何解决？\n比如/am automsg enable"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1485329220,
+            "txt_content": "awt2003 发表于 2017-1-25 14:51\n我有应该问题，子命令下的子命令该如何解决？\n比如/am automsg enable\n这个直接在子命令执行里判断参数吧"
+        },
+        {
+            "author": "azbh111",
+            "timestamp": 1498109580,
+            "txt_content": "叶米柯 发表于 2016-12-15 20:25\n反射卡卡卡……………………(省略1000个卡)…………卡，好的，反射比直接调用卡1000倍左右，这也是为什么Mo ...\nMOD服带不了特别多人与反射有啥关系？\n\n难道是MOD服大量使用反射？  MOD在使用还是FORGE在使用?"
+        },
+        {
+            "author": "mai1015",
+            "timestamp": 1498609260,
+            "txt_content": "12345559 发表于 2016-12-15 09:07\n我觉得还是发教程好,自己写比调用的好多了\n此人骗走我 600块，不信的可以对质。\n此人人品及道德价值观严重有问题！！请大家注意！！\n\n请问你还有脸混在MCBBS？？还有脸混于插件界？\n你的做法以及人品道德价值观，你家人，你同学，你朋友知道吗？"
+        },
+        {
+            "author": "mai1015",
+            "timestamp": 1498641360,
+            "txt_content": "mai1015 发表于 2017-6-28 08:21\n此人骗走我 600块，不信的可以对质。\n此人人品及道德价值观严重有问题！！请大家注意！！\n骗钱还有前因？因为他穷？"
+        },
+        {
+            "author": "liuyipeng001",
+            "timestamp": 1501925160,
+            "txt_content": "写成一个类的看戏"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1515486000,
+            "txt_content": "azbh111 发表于 2017-6-22 13:33\nMOD服带不了特别多人与反射有啥关系？\n\n难道是MOD服大量使用反射？  MOD在使用还是FORGE在使用? ...\n主要是因为Mod的各种功能例如识别主类,识别服务端/客户端,代理等都是用Annotation实现的。\n当然卡的要死"
+        },
+        {
+            "author": "azbh111",
+            "timestamp": 1515508440,
+            "txt_content": "switefaster 发表于 2018-1-9 16:20\n主要是因为Mod的各种功能例如识别主类,识别服务端/客户端,代理等都是用Annotation实现的。\n当然卡的要死 ...\n 你确定不是因为单线程...."
+        },
+        {
+            "author": "小沈同学",
+            "timestamp": 1515717060,
+            "txt_content": "好用，已收藏"
+        },
+        {
+            "author": "Kirito刀剑神域",
+            "timestamp": 1518685620,
+            "txt_content": "挖个坟。MethodHandle在效率上更好。其实替换if/elseif，java也有一些成熟的模式。不过个人喜欢造轮子，搞一套解析。这样有OO的感觉2333"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1518941700,
+            "txt_content": "Kirito刀剑神域 发表于 2018-2-15 17:07\n挖个坟。MethodHandle在效率上更好。其实替换if/elseif，java也有一些成熟的模式。不过个人喜欢造轮子，搞 ...\n目前我喜欢用抽象类\n写个SubCommand抽象类\n然后子命令继承\n把这些SubCommand丢到主命令里的List"
+        },
+        {
+            "author": "Kirito刀剑神域",
+            "timestamp": 1519096260,
+            "txt_content": "jebme 发表于 2018-2-18 16:15\n目前我喜欢用抽象类\n写个SubCommand抽象类\n然后子命令继承\n对，我就是采用这种方式。\n不过增加了简单的解析。比如固定一个模式，就直接提取参数。"
+        },
+        {
+            "author": "936796603",
+            "timestamp": 1534441980,
+            "txt_content": "图崩了"
+        },
+        {
+            "author": "ksqeib445",
+            "timestamp": 1535391120,
+            "txt_content": "图全挂啦，兄弟！"
+        },
+        {
+            "author": "酷乐工作室",
+            "timestamp": 1535434740,
+            "txt_content": "图挂完了，lz补一下，看着不舒服"
+        },
+        {
+            "author": "MayDayMemory",
+            "timestamp": 1582529100,
+            "txt_content": "图挂了。。。"
+        },
+        {
+            "author": "MayDayMemory",
+            "timestamp": 1582530660,
+            "txt_content": "Kirito刀剑神域 发表于 2018-2-15 17:07\n挖个坟。MethodHandle在效率上更好。其实替换if/elseif，java也有一些成熟的模式。不过个人喜欢造轮子，搞 ...\n有没有感觉用map其实也可以..如果把子命令也按照命令模式来写。先弄个Order接口，里头放一个execute(CommandSender sender,String label,String args[])。写子命令的时候就接口Order。如果用CommandMap注册父命令的话，不是要传个实例进去嘛。可以在父命令的构造方法里实现子命令的“注册”，也就是把子命令的名称和子命令的实例放进Map<String,Order>里。父命令execute的时候就直接检索子命令然后execute。建包的时候按照父命令的名字来建，比如说/abc的子命令全都放到abcSubcommand这个包里，这样文件视图不也清晰起来了。"
+        },
+        {
+            "author": "Handsome男孩",
+            "timestamp": 1582610040,
+            "txt_content": "这个软件真的太棒了，正好需要"
+        },
+        {
+            "author": "MZIMU",
+            "timestamp": 1582612740,
+            "txt_content": "XD。。图炸拉"
+        }
+    ]
+}

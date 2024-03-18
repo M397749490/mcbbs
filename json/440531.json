@@ -1,0 +1,304 @@
+{
+    "title": "【TRP出品】【乙烯】小游戏【扫雷】的具体原理分析",
+    "author": "乙烯_中国",
+    "replyCount": 59,
+    "timestamp": 1430487660,
+    "txt_content": " 本帖最后由 乙烯_中国 于 2016-3-20 18:15 编辑 \n\n大家好，我是乙烯。今天给大家带来我的扫雷的原理详解以及制作过程中的思考步骤。\n\n此贴与【TRP出品】小游戏复刻系列——扫雷【bug修复】联动，强烈建议过去兜一圈。\n\n在之前呢，还是惯例的闲聊几句。准确的说，我发布的版本是版本6.3。这次的扫雷呢，也是补上了TRP的入组审核，虽然分量还是不够足，但是我觉得制作这样的一个作品的过程，本身就是非常快乐的。虽然在制作版本3和版本4的时候有人给我喝过倒彩，也有人说国外有人做过了。但是我觉得，因此就放弃的话是不对的。\n在开坑的时候应该大约是1.7时代，那时我几乎相当于命令方面的小白，只知道有哪些指令及功能，要我自己来写指令，那是完全不可能的。但是，人是一种会在挑战中成长的生物。就在这个过程之中，我自己对命令的认识可以算是大大提升了，而实际上，平时在论坛里的厚积薄发也帮了我很多忙。此外，如果不能坚持读到这句话的人，我觉得成功路上多多少少会有坎坷。\n\n一、整理思路\n扫雷，一个风靡全球的小游戏，简单的规则，然而却能够吸引很多的玩家挑战。那么我们现在来分析一下扫雷的规则：\n每个被翻开的格子，如果其不是雷，则会写出其周围8个格子所包含的雷数，如果是0则会翻开周围8个格子。翻开的是雷则游戏结束。翻开的第一个格子永远不会是雷。\n\n好的，那么现在我们确定了一个目标，制作扫雷，那么我们就可以根据规则列出一张扫雷的游戏流程表。（由于在初期计划阶段，我们大概画画就好。）\n\nOk，那么现在我们有了一个初始的计划图，现在，由于我们是要在mc里制作这样一个游戏，那我们现在开始就要将其模块化条理化并添加mc元素进去。容我们来梳理一下思路：\n\n开局：由于我们要保证第一步翻开的格子肯定不是雷，那么显而易见，我们需要在开局，即翻开第一个格子的时候，生成整个棋局，才能完全保证我们所翻的格子不是雷。而我们也要保证生成完棋局的时候确实那个格子是被翻开的。同时呢，计时器也要开始工作。游戏中：这个地方很简单，我们需要检测玩家的类左键操作和类右键操作。同时对其进行处理，而我们还需要统计场上出现的旗帜数。最后，我们还需要进行胜利判定。胜利/失败：这个重点不多，我们只需要将地图剩余未标记的雷和标记错误的格子进行反馈。或者计算出玩家的时间是否能够开启修改英雄榜的方法。重新开局：这个地方也是非常简单的。直接就可以重置地图，统计，还有时间。英雄榜：将现有玩家的分数打印出来，同时给予玩家打印自己名字的权限。简单的说就是个打字机。\n\n让我们简洁的整理下思路：\n开局：生成雷局，开始计时器。\n游戏中：检测输入，统计旗帜，检测胜利。\n胜利：检查时间是否低于最优记录。\n失败：反馈未正确标记的格子。\n重新开局：重置雷局，重置计时器。\n仔细看看其实我们要做的也不是特别多嘛，压力还是不大的。那么我们现在可以再将整理过的思路进行填充，增加实现方法。在开工各个部分之前，我们需要定一个整体的规划，这样就可以使我们建造出来的各个模块能够协同工作，可以理解为是某种协议。\n首先，扫雷需要是哪种显示方法？当然有很多选择，但是我这里使用的是展示框配合地图的显示方法，因为展示框不是方块，是一个实体，那么就可以很方便的用选择器来进行选择及操作，它可以响应左键右键和中键，而其和地图的联动让其的显示效果丝毫不亚于方块。而操作方法也就在这时候定下来了，单纯的左键右键以及中键。其次我们现在可以考虑模块之间有哪几种交流。生成雷局的时候，由于我定的规模是初级扫雷，那么就会有十个格子被标记为雷，而这个会在游戏中和失败两个模块里用到。计时器会在胜利模块中用到。旗帜会在失败模块里用到。\n\n二、开工\n那么现在我们可以开工了。由于我们选择的是展示框显示屏，所以我们只能通过高频检测的情况来进行正常游戏。\n这里我将我的电路截图进行说明，有图为证，整个扫雷的电路的确是模块化的产品：\n\n\n制作开始。\n\n这里是将地图进行预加载的地方，然而由于失误，我漏掉了没有雷的格子。\n\n注：文中指令方块部分使用了绝对坐标，具体制作中请参考具体地图位置。\n\n第一部分：开局\n\n这是我的棋局的剖面图，这里我的开局使用的是石质按钮开局，原因是我不希望高频一直启动着，这里选择用按钮是在效果和性能之间的折中选择。\n\n每个按钮都可以激活前两层的命令方块，共计六个，第一层可以放置互相干扰也没问题的命令方块第一层的指令为：\nsetblock 16 3 -15 redstone_block复制代码\n\n该指令的作用为开启生成棋局的命令方块阵列第二层的指令为：\nsetblock ~ ~ ~2 air复制代码\n该指令的作用为对这个格子进行一个标记，使生成雷局的时候不会在这个格子生成雷（其实这种处理方式没必要这么麻烦，然而我懒的找按下的按钮的数据值）。\n\n这是开局模块：\n\n\n其中中继器末尾就是上文红石块的放置位置，再配合这个命令就可以输出一个脉冲：\nsetblock ~ ~-1 ~ air复制代码\n\n另外一个命令方块是上文标记系统的第二部分，指令如下：\n/execute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] ~ ~ ~ detect ~ ~ ~ air 0 /scoreboard players set @e[c=1,type=ItemFrame] kill 1复制代码\n这条指令的作用是给棋局内部按钮被消去的格子里的展示框的kill计分板分数+1。\n\n中继器之后接的命令是如下几条：\n\n这条指令没什么必要，提供一个按下的格子变成禁止符号的标记，纯粹的视觉效果：\nentitydata @e[score_kill=1,score_kill_min=1] {Item:{id:\"minecraft:barrier\",Count:1b,Damage:0s}}复制代码\n\n这条指令是用来清除所有的石质按钮。因为石质按钮只是在开局时使用的。\nfill 19 17 23 27 25 23 air 0复制代码\n\n这条指令为激活左边的命令阵列\nsetblock ~ ~1 ~1 redstone_block复制代码\n该阵列由复制十次的模块组成\n\n模块讲解：\n每个模块都有\nsetblock~ ~-1 ~ air复制代码\n和\nsetblock ~ ~1 ~1 redstone_block复制代码\n两条指令，这两条指令的作用就是复位本个模块并往下一个模块输出信号。\n\n每个模块又包含生成雷局的核心指令：\nscoreboard players set  @r[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_kill_min=0,score_kill=0,score_high=0,score_high_min=0] high 1复制代码\n@r自带随机功能，而选择器内选择kill分数为0而且high分数也为0的展示框，使其high计分板的分数为1（high计分板就是标记这个格子是否有雷的计分板）。\n其作用翻译成人话就是：除去刚按下的那个，然后随便找一个没标记的展示框标记一下。\n这条指令会被激活十次，所以雷局里会有十个雷。\n命令阵列执行到最后，会往远处那个中继器里输出信号，\n\n后面接着的五个命令方块是用来给每个格子写入数字，即我们在玩扫雷时看到的数字，指令如下：\nexecute @e[type=ItemFrame,score_high=1,score_high_min=1] ~ ~ ~ /scoreboard players remove @e[r=1,type=ItemFrame] mine 1复制代码execute @e[type=ItemFrame,score_high=1,score_high_min=1] ~ ~ ~ /scoreboard players add @e[dx=1,dy=1,type=ItemFrame] mine 1复制代码execute @e[type=ItemFrame,score_high=1,score_high_min=1] ~ ~ ~ /scoreboard players add @e[dx=1,dy=-1,type=ItemFrame] mine 1复制代码execute @e[type=ItemFrame,score_high=1,score_high_min=1] ~ ~ ~ /scoreboard players add @e[dx=-1,dy=1,type=ItemFrame] mine 1复制代码execute @e[type=ItemFrame,score_high=1,score_high_min=1] ~ ~ ~ /scoreboard players add @e[dx=-1,dy=-1,type=ItemFrame] mine 1复制代码\n非常相似的指令，总的来说就是给每个雷周围8个展示框里的数字+1。\n\n最后一条指令，开启“游戏中”模块：\nsetblock -3 4 -15 redstone_block复制代码\n\n\n第二部分：游戏中\n指针所指之处为fill高频。上面的红石块将放置在此处。\n\n由于该模块的核心为fill高频。所以电路结构非常简单，就是很多命令方块围着一根红石块棒子，我就不上截图了。\n然而其中的时序是非常严谨的。由于fill高频是有一个更新顺序，这个顺序是由坐标决定，站里也有人研究，因此在这里不详细说明了。\n\n下面我将按照时序介绍指令而不是逻辑顺序。\n\n①\n这个命令是将所有问号格子的旗帜标记取消。即取消标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] flag 0 {ItemRotation:0b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:106s}}复制代码\n\n②\n高频产生：\nfill ~-1 ~-1 ~ ~15 ~-1 ~ redstone_block复制代码fill ~-1 ~1 ~ ~15 ~1 ~ air复制代码\n\n给予所有的格子左键标志：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] l 1复制代码\n\n将所有被旋转过一次的未翻开格子给予右键标志：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark=0,score_mark_min=0] r 1 {ItemRotation:1b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码\n\n③\n将上方状态栏的展示框拨正：\nentitydata @e[18,27,22,dx=10,dy=3,dz=1] {ItemRotation:0b}复制代码\n\n取消所有未旋转的展示框的右键标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark=0,score_mark_min=0] r 0 {ItemRotation:0b}复制代码\n\n取消所有有装地图的展示框的左键标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] l 0 {Item:{id:\"minecraft:filled_map\"}}复制代码\n\n将所有被插旗的格子的内容变为旗帜：\nentitydata @e[type=ItemFrame,score_flag=1,score_flag_min=1] {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:105s}}复制代码\n\n此四条不重时序，将空白格子的周围格子翻开：\nexecute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark_min=2,score_mark=2] ~ ~ ~ scoreboard players set @e[dx=1,dy=1,dz=1,type=ItemFrame,score_flag=0,score_flag_min=0,score_high=0,score_high_min=0] l 1 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码execute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark_min=2,score_mark=2] ~ ~ ~ /scoreboard players set @e[dx=1,dy=-1,dz=1,type=ItemFrame,score_flag=0,score_flag_min=0,score_high=0,score_high_min=0] l 1 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码execute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark_min=2,score_mark=2] ~ ~ ~ /scoreboard players set @e[dx=-1,dy=1,dz=1,type=ItemFrame,score_flag=0,score_flag_min=0,score_high=0,score_high_min=0] l 1 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码execute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark_min=2,score_mark=2] ~ ~ ~ /scoreboard players set @e[dx=-1,dy=-1,dz=1,type=ItemFrame,score_flag=0,score_flag_min=0,score_high=0,score_high_min=0] l 1 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码\n\n将所有被旋转的旗帜格子进行右键标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark=0,score_mark_min=0] r 2 {ItemRotation:1b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:105s}}复制代码\n\n探测是否有被踩中的雷（此条接比较器，往失败模块输出）：\ntestfor @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high_min=1,score_high=1] {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:108s}}复制代码\n\n④\n将所有旗帜格子进行旗帜标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] flag 1 {ItemRotation:0b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:105s}}复制代码\n\n将所有被标记的格子的数字调整到非法值：\nscoreboard players set  @r[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high=1,score_high_min=1] mine 9复制代码\n\n将旋转的问号格子进行右键标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_mark=0,score_mark_min=0] r 3 {ItemRotation:1b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:106s}}复制代码\n\n⑤\n将所有没有方块依附的展示框后方放上方块：\n/execute @e[type=ItemFrame] ~ ~ ~ detect ~ ~ ~-1 air 0 setblock ~ ~ ~-1 command_block 0 keep {Command:\"setblock 16 3 -15 redstone_block\"}复制代码\n\n将所有拥有右键标记的空白格子内容变为旗帜：\nentitydata @e[score_r=1,score_r_min=1,type=ItemFrame] {ItemRotation:0,Item:{id:\"filled_map\",Damage:105}}复制代码\n\n将所有拥有右键标记的旗帜格子内容变为问号：\nentitydata @e[score_r=2,score_r_min=2,type=ItemFrame] {ItemRotation:0,Item:{id:\"filled_map\",Damage:106}}复制代码\n\n将所有拥有右键标记的问号格子内容变为空白（这里之所以格式不同是因为留个中键的接口）：\nexecute @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_r=3,score_r_min=3] ~ ~ ~ setblock ~ ~ ~-4 redstone_block复制代码\n\n胜利检测，当空白格子、问号格子和旗帜格子之和为10时游戏胜利（输出接胜利模块）：\ntestfor @a[score_s=10,score_s_min=10]复制代码\n\n旗帜数目检测（输出接旗帜统计）：\ntestfor @e[score_flag=1,score_flag_min=1,type=ItemFrame]复制代码\n\n将所有被踩中的雷进行标记：\nscoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high_min=1,score_l_min=1,score_l=1] mark2 1复制代码\n\n翻开被踩中的空白格子（其余数字也有各自的指令，暂不详述）：\nentitydata @e[type=ItemFrame,score_l=1,score_l_min=1,score_mine=0,score_mine_min=0] {ItemRotation:0b,Item:{id:\"filled_map\",Damage:104}}复制代码\n\n对满足胜利条件的格子进行标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] mark 3 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:105s}}复制代码/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] mark 5 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:106s}}复制代码/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] mark 4 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码\n\n⑥\n探测满足胜利条件的格子：\ntestfor @e[score_mark=5,score_mark_min=3,type=ItemFrame]复制代码\n\n⑦\n重置所有的标记：\n/scoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame] mark 0复制代码\n\n好的…实际上到这里，整个扫雷的主体已经完工，接下来就是一些非常简单的玩意儿。\n\n胜利模块\n进行胜利宣言：\ntitle @a title {text:\"YOU WIN!\",color:\"red\",bold:\"true\"}复制代码\n\n停止游戏中的高频：\nsetblock -3 6 -15 redstone_block复制代码\n\n你懂得，就是显示游戏胜利戴墨镜的那张脸：\nentitydata @e[name=face] {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:102s}}复制代码\n\n比较此次成绩与最好纪录：\n/scoreboard players operation @a timeall -= @a best复制代码testfor @a[score_timeall=0]复制代码\n\n一旦此次成绩更好，则设置此次成绩为最好成绩，同时开启英雄榜：\nsetblock 27 18 41 redstone_block复制代码/scoreboard players operation @a timeall += @a best复制代码/scoreboard players operation @a best = @a timeall复制代码\n\n重置时间：\nscoreboard players set @a time2 0复制代码scoreboard players set @a time1 0复制代码scoreboard players set @a time 0复制代码\n\n失败模块\n你懂得，还是那张脸：\nentitydata @e[name=face] {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:103s}}复制代码\n\n停止高频：\nsetblock -3 6 -15 redstone_block复制代码\n\n将踩中的雷变成红色爆炸的雷。\nscoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high_min=1,score_high=1] mark2 1 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:104s}}复制代码entitydata @e[score_mark2_min=1,score_mark2=1] {ItemRotation:0b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:108s}}复制代码\n\n将未标记的雷指出。\nscoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high_min=1,score_high=1] mark2 2 {Item:{id:\"minecraft:filled_map\",Count:1b,Damage:1s}}复制代码entitydata @e[score_mark2_min=2,score_mark2=2] {ItemRotation:0b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:107s}}复制代码\n\n将错误标记指出\nscoreboard players set @e[19,17,22,dx=9,dy=9,dz=1,type=ItemFrame,score_high_min=0,score_high=0,score_flag=1,score_flag_min=1] mark2 3复制代码entitydata @e[score_mark2_min=3,score_mark2=3] {ItemRotation:0b,Item:{id:\"minecraft:filled_map\",Count:1b,Damage:118s}}复制代码\n\n\n英雄榜模块\n就是一个tellraw的打字机。鉴于命令过长，我将另外开贴进行说明。请转至http://www.mcbbs.net/thread-441864-1-1.html观看\n\n\n大召唤术：  @圆石 @jianghr @719823597 @阿散ASun @1127193030   \n[groupid=143]The Redpixel[/groupid]",
+    "replies": [
+        {
+            "author": "末影矿工",
+            "timestamp": 1430487900,
+            "txt_content": "发了？ 干嘛不标【TRP|CBL】"
+        },
+        {
+            "author": "siiftun1857",
+            "timestamp": 1430488440,
+            "txt_content": "应该对旗帜溢出处理一下。。。\n这样在就不会在只有十个雷的时候出现十一个旗子导致显示器出错。。。"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430488560,
+            "txt_content": "siiftun1857 发表于 2015-5-1 21:54\n应该对旗帜溢出处理一下。。。\n这样在就不会在只有十个雷的时候出现十一个旗子导致显示器出错。。。 ...\n{:10_492:}是我说明不全，如果旗帜溢出的话旗帜统计会显示“E”"
+        },
+        {
+            "author": "siiftun1857",
+            "timestamp": 1430488680,
+            "txt_content": "乙烯_中国 发表于 2015-5-1 21:56\n是我说明不全，如果旗帜溢出的话旗帜统计会显示“E”\n但是原版的扫雷会出现\"-1\"或\"-9\"诸如此类的提示。。。"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430488920,
+            "txt_content": "siiftun1857 发表于 2015-5-1 21:58\n但是原版的扫雷会出现\"-1\"或\"-9\"诸如此类的提示。。。\n{:10_493:}那个就没办法啦...虽然再加一条计数器也可以做，但是我觉得跳E应该足够了（ps：其实我忘记导入负号的素材了）"
+        },
+        {
+            "author": "江米条",
+            "timestamp": 1430490840,
+            "txt_content": "看到TRP还以为是红石制作的..."
+        },
+        {
+            "author": "繁琐Fansuo",
+            "timestamp": 1430493540,
+            "txt_content": "大赞如此详细的原理"
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1430502840,
+            "txt_content": " 本帖最后由 jianghr 于 2015-5-2 02:01 编辑 \n\n终于改完了，以后你发帖记得不要从WORD直接拷东西到编辑框，代码简直没法看，你的头稿里还在CB框里出现微软雅黑，简直逗。尤其是编辑置顶，严禁使用Word。\n修改完的原稿已发本子群。你也可以自己在编辑模式提取。\n排版和语言我重新给你修正了下，目的是给想学的人看懂，实际发教程时不要直接说CB，我都给你替换掉了。\n然后，说下本帖说明的几个问题：\n如果我没看错的话，mine记分板是做数字判定中比较重要的一部数据格式，然而通篇你没说，你只说了high记分板。全文介绍看似对结构和运行说的很明白，但是对参与判定和显示的核心——记分板数据一笔带过。\n你这种模式的优点就是生成时就做了判定，游戏中的运行效率说得过去，GUI也不错。但在这篇解说中没有把这些优点突出出来。最具逼格的地图损害值显示系统，你没做任何解释……生成部分我单独给你拎了一下，其它部分我想拎但是怕拎错了误人子弟。\n总而言之，从结果上看，这个制作很具有可玩性，解说也是用心撰写，我们这几个月来也是看着你一点一点做出来的，综上，予以加精。不过这篇解说最根本的目的不是写给群里人看的，而是让想学想仿的人能够按照你的解说看懂而仿制出来，希望能在今后注意这一点，多向贰逼学习他那种写教程的方法。"
+        },
+        {
+            "author": "C-青皮君",
+            "timestamp": 1430526900,
+            "txt_content": "所以说最复杂的部分是岛素材° A°"
+        },
+        {
+            "author": "G_LGlet",
+            "timestamp": 1430539380,
+            "txt_content": "居然全部看完了。。\n不过为什么不加一个自定义雷数&自定义棋盘大小"
+        },
+        {
+            "author": "CrafterMichael",
+            "timestamp": 1430540700,
+            "txt_content": "法克，神奇啊！"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430541060,
+            "txt_content": "G_LGlet 发表于 2015-5-2 12:03\n居然全部看完了。。\n不过为什么不加一个自定义雷数&自定义棋盘大小\n因为我发布的版本实际上是将中键系统移除的版本，中键和自定义系统不能共存。"
+        },
+        {
+            "author": "ufof",
+            "timestamp": 1430542020,
+            "txt_content": " 本帖最后由 ufof 于 2015-5-10 14:10 编辑 \n翻开的第一个格子永远不会是雷。\n为什么我有的时候玩扫雷刚开始就输"
+        },
+        {
+            "author": "GTVZDH123",
+            "timestamp": 1430546040,
+            "txt_content": "江米条 发表于 2015-5-1 22:34\n看到TRP还以为是红石制作的...\n红石也是TRP的？\n话说你好像没看到标题的TRP后面又一个乙烯"
+        },
+        {
+            "author": "江米条",
+            "timestamp": 1430546280,
+            "txt_content": "GTVZDH123 发表于 2015-5-2 13:54\n红石也是TRP的？\n话说你好像没看到标题的TRP后面又一个乙烯\nOrz   TRP的官网不就是一大坨红石，而且TRP是简称..Red不是指红石吗"
+        },
+        {
+            "author": "GTVZDH123",
+            "timestamp": 1430546520,
+            "txt_content": "江米条 发表于 2015-5-2 13:58\nOrz   TRP的官网不就是一大坨红石，而且TRP是简称..Red不是指红石吗\n等等，我以为你说的是FHC红石\n而不是游戏里的红石...."
+        },
+        {
+            "author": "guqu",
+            "timestamp": 1430548620,
+            "txt_content": "怎么没有蜘蛛纸牌"
+        },
+        {
+            "author": "Zlsin",
+            "timestamp": 1430551800,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "阿散ASun",
+            "timestamp": 1430554140,
+            "txt_content": "江米条 发表于 2015-5-2 13:58\nOrz   TRP的官网不就是一大坨红石，而且TRP是简称..Red不是指红石吗\nTRP的timeline里面明明也有唠叨的cb打字机哪里全部都是纯红石了\n更何况TRP是红色像素而不是红石像素{:10_493:}"
+        },
+        {
+            "author": "PMMD",
+            "timestamp": 1430565720,
+            "txt_content": "挖槽！ 厉害乙烯！"
+        },
+        {
+            "author": "圆石",
+            "timestamp": 1430742900,
+            "txt_content": " 本帖最后由 圆石 于 2015-5-4 20:39 编辑 \n\n启发了我的脑洞（）"
+        },
+        {
+            "author": "super东",
+            "timestamp": 1430744580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "z9481752630",
+            "timestamp": 1430747460,
+            "txt_content": "不错~~~~~~~~~~~~~~~~"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1430748540,
+            "txt_content": "看完了 居然藏的这么好  我完全不知道 算法不错 \n\n我试着去做生命游戏 不过最近忙 要二摸 可能要过一段时间了"
+        },
+        {
+            "author": "denggezuishuai",
+            "timestamp": 1430752380,
+            "txt_content": "。。。。。人才啊，虽然完全看不懂，但是还是感觉吊吊的"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430754720,
+            "txt_content": "chyx 发表于 2015-5-4 22:09\n看完了 居然藏的这么好  我完全不知道 算法不错 \n\n我试着去做生命游戏 不过最近忙 要二摸 可能要过一段时间 ...\n{:10_493:}你让我这种已经做好的情何以堪啊。。。"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430754780,
+            "txt_content": " 本帖最后由 乙烯_中国 于 2015-5-5 00:01 编辑 \nchyx 发表于 2015-5-4 22:09\n看完了 居然藏的这么好  我完全不知道 算法不错 \n\n我试着去做生命游戏 不过最近忙 要二摸 可能要过一段时间 ...\n本来是打算今晚发出来的。。。我再看看这几天能不能吧前面的给做的更好一点。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1430785920,
+            "txt_content": "乙烯_中国 发表于 2015-5-4 23:53\n本来是打算今晚发出来的。。。我再看看这几天能不能吧前面的给做的更好一点。 ...\n/me 掀桌\n。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。复制代码\n你做关灯游戏了么？"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430791260,
+            "txt_content": "chyx 发表于 2015-5-5 08:32\n/me 掀桌\n\n你做关灯游戏了么？\n啊，如果你说的是点灯游戏的话，扫雷的副产品里有，不考虑复位的话六个cb就搞定了。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1430797320,
+            "txt_content": "乙烯_中国 发表于 2015-5-5 10:01\n啊，如果你说的是点灯游戏的话，扫雷的副产品里有，不考虑复位的话六个cb就搞定了。 ...\n\n\n"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1430802480,
+            "txt_content": "乙烯_中国 发表于 2015-5-2 12:31\n因为我发布的版本实际上是将中键系统移除的版本，中键和自定义系统不能共存。 ...\n怎么做自定义系统？ 放个指针计数summon ？"
+        },
+        {
+            "author": "项秉超",
+            "timestamp": 1430830620,
+            "txt_content": "能不能行。"
+        },
+        {
+            "author": "ASYTasyt",
+            "timestamp": 1430914500,
+            "txt_content": "CrafterMichael 发表于 2015-5-2 12:25\n法克，神奇啊！\n当然啦！{:10_492:}这么牛的作品"
+        },
+        {
+            "author": "ASYTasyt",
+            "timestamp": 1430914500,
+            "txt_content": "怎么能这么牛！{:10_495:}"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1430974260,
+            "txt_content": "我做好后比较一下谁做得好发谁的可以么？"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1430982960,
+            "txt_content": "chyx 发表于 2015-5-7 12:51\n我做好后比较一下谁做得好发谁的可以么？\n你是有我私下的联系方式的，版聊是作死行为，私下找我。此外点灯和生命游戏的技术含量在我看来都不值得单独开帖，到时候再看吧。"
+        },
+        {
+            "author": "guqu",
+            "timestamp": 1430992740,
+            "txt_content": " 我要lz的金苹果.好吧我要蜘蛛卡牌！."
+        },
+        {
+            "author": "q394960445",
+            "timestamp": 1431003180,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "fire__rain",
+            "timestamp": 1431064800,
+            "txt_content": "好玩！            "
+        },
+        {
+            "author": "1903386055",
+            "timestamp": 1431072900,
+            "txt_content": "好复杂的说 看不懂"
+        },
+        {
+            "author": "1578137",
+            "timestamp": 1431236700,
+            "txt_content": "诶，挺高能，学习学习"
+        },
+        {
+            "author": "繁星满天",
+            "timestamp": 1431321360,
+            "txt_content": "看起来很有趣"
+        },
+        {
+            "author": "nyp1",
+            "timestamp": 1431344100,
+            "txt_content": "好NB啊，大神。"
+        },
+        {
+            "author": "时光如年i",
+            "timestamp": 1431358500,
+            "txt_content": "扫雷.....楼主，你红石建筑到底有多狠。。。好厉害。"
+        },
+        {
+            "author": "苏黎世°",
+            "timestamp": 1431437100,
+            "txt_content": "看不懂 - -楼主真流弊"
+        },
+        {
+            "author": "954807079",
+            "timestamp": 1431683460,
+            "txt_content": "Ssssssssssssssssssss"
+        },
+        {
+            "author": "索龙。sy",
+            "timestamp": 1431859380,
+            "txt_content": "大赞如此详细的原理"
+        },
+        {
+            "author": "希晴",
+            "timestamp": 1432048020,
+            "txt_content": "{:10_493:}为何要在mc里做游戏"
+        },
+        {
+            "author": "神秘预言师",
+            "timestamp": 1432144500,
+            "txt_content": "mc里玩扫雷。。。。。。。。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1432144860,
+            "txt_content": "希晴 发表于 2015-5-19 23:07\n为何要在mc里做游戏\n因为可以做？"
+        },
+        {
+            "author": "987607008",
+            "timestamp": 1432302000,
+            "txt_content": "在mc中制造智能电子产品已不是幻想"
+        },
+        {
+            "author": "jiangwuque",
+            "timestamp": 1432368060,
+            "txt_content": "诶...好高端"
+        },
+        {
+            "author": "忘了回忆",
+            "timestamp": 1432385880,
+            "txt_content": "好厉害，这都给解释出来了，赞个"
+        },
+        {
+            "author": "NobleGolden",
+            "timestamp": 1432443480,
+            "txt_content": "果然大触！！膜拜"
+        },
+        {
+            "author": "懒虫哥",
+            "timestamp": 1432530720,
+            "txt_content": "(⊙０⊙)哇\n涨姿势OWO"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1444903920,
+            "txt_content": "为何你的连连看没有精品？"
+        },
+        {
+            "author": "去猫",
+            "timestamp": 1444915200,
+            "txt_content": "额...我想说，为什么不用踩方块的形式？。。。反正都是改材质"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1444917720,
+            "txt_content": "去猫 发表于 2015-10-15 21:20\n额...我想说，为什么不用踩方块的形式？。。。反正都是改材质\n并没有改材质"
+        },
+        {
+            "author": "1481000501",
+            "timestamp": 1444989600,
+            "txt_content": "额'服用的"
+        }
+    ]
+}

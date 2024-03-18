@@ -1,0 +1,34 @@
+{
+    "title": "custom_model_data的使用限制",
+    "author": "ruhuasiyu",
+    "replyCount": 5,
+    "timestamp": 1558238460,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2019-5-19 19:16 编辑 \n\n缘由\n起初是 @七刀月复 使用了custom_model_data超过18000000大小的模型结果发现实际custom_model_data的模型与期望的有差异；然后@⊙v⊙ 在discord上曾经听闻过custom_model_data有范围限制，之后⊙v⊙便去问了discord上的大佬，大佬告诉他\nIt isn't a simple max and min, it is whichever values both a 32 bit float and a 32 bit int can hold. Which isn't just a range. Because in the model overrides it is actually a float, not an int, so only values that both can represent are able to be used.\n简单来说就是模型中overrides的数均视为浮点数，而很大的整数对应的浮点数编码可能是相同的，就会发生一些期望之外的事情。\n\n整数和浮点数的编码格式\n在Java中，整数int和浮点数float都是用4字节(32bit)来表示的。\n\n整数的第一个bit为符号位，非负整数(0至2[sup]31[/sup]-1)直接写成二进制即可\n1234=10011010010[sub]2[/sub]表示为00000000 00000000 00000100 11010010\n\n负整数(-2[sup]31[/sup]至-1)，先加上2[sup]31[/sup]并写成二进制，最后符号位为1即可\n2^31-5678=2147477970=01111111 11111111 11101001 11010010[sub]2[/sub]\n因此-5678表示为11111111 11111111 11101001 11010010\n\n浮点数的存储格式较为复杂，我们仅简单说明我们需要的部分。java中采用的IEEE754标准中，第一个bit为符号位，之后8个表示2进制科学计数法的指数，最后的23位为小数部分。一个正整数如果位于2[sup]k[/sup]≤n<2[sup]k+1[/sup]-1，则我们将n/2[sup]k[/sup]这个数展开为2进制小数，例如\n1234=1024*(1234/1024)=2[sup]10[/sup] * 1.001101001[sub]2[/sub]，指数部分加上127得到137=10001001[sub]2[/sub]，因此最终为01000100 10011010 01000000 00000000。\n负数则在首位符号位为1。\n\n整数转浮点数\n对于-2[sup]24[/sup]+1至2[sup]24[/sup]-1之间的整数，由于浮点数有23位有效数字，因此这些整数写成2进制科学计数法之后不会丢失位数，也就是说，转成float之后不会和任何其它的整数转成float之后的编码相同。然而在这范围之外的数，例如大于2[sup]24[/sup]-1的整数，写成2进制科学计数法之后，小数部分位数可能超过23。为了便于理解，我们将下面例子中的数的有效部分之外写在小数点之后：\n\n2[sup]24[/sup]=2*1 00000000 00000000 0000000.0[sub]2[/sub]\n2[sup]24[/sup]+1=2*1 00000000 00000000 0000000.1[sub]2[/sub]\n2[sup]24[/sup]+2=2*1 00000000 00000000 0000001.0[sub]2[/sub]\n2[sup]24[/sup]+3=2*1 00000000 00000000 0000001.1[sub]2[/sub]\n2[sup]24[/sup]+4=2*1 00000000 00000000 0000010.0[sub]2[/sub]\n2[sup]24[/sup]+5=2*1 00000000 00000000 0000010.1[sub]2[/sub]\n2[sup]24[/sup]+6=2*1 00000000 00000000 0000011.0[sub]2[/sub]\n2[sup]24[/sup]+7=2*1 00000000 00000000 0000011.1[sub]2[/sub]\n2[sup]24[/sup]+8=2*1 00000000 00000000 0000100.0[sub]2[/sub]\n\n2[sup]25[/sup]=4*1 00000000 00000000 0000000.00[sub]2[/sub]\n2[sup]25[/sup]+1=4*1 00000000 00000000 0000000.01[sub]2[/sub]\n2[sup]25[/sup]+2=4*1 00000000 00000000 0000000.10[sub]2[/sub]\n2[sup]25[/sup]+3=4*1 00000000 00000000 0000000.11[sub]2[/sub]\n2[sup]25[/sup]+4=4*1 00000000 00000000 0000001.00[sub]2[/sub]\n2[sup]25[/sup]+5=4*1 00000000 00000000 0000001.01[sub]2[/sub]\n2[sup]25[/sup]+6=4*1 00000000 00000000 0000001.10[sub]2[/sub]\n2[sup]25[/sup]+7=4*1 00000000 00000000 0000001.11[sub]2[/sub]\n2[sup]25[/sup]+8=4*1 00000000 00000000 0000010.00[sub]2[/sub]\n\n对于这些数，我们将其近似到最近的小数点之后为0的数。对于离最近的两个数一样近的数，例如2[sup]24[/sup]+3和2[sup]24[/sup]+2、2[sup]24[/sup]+4一样近，采用round to even原则，即近似到最后一位为0的数，这里也就是2[sup]24[/sup]+4。\n\n模型中custom_model_data处理方式\n在物品模型中的overrides.predicate的custom_model_data，minecraft会将这些整数转为浮点数来比较，如果对应的浮点数编码相同，那么minecraft会认为二者时一样的，或者说，二者无法区分。而overrides.predicate一样时，后写的会覆盖先写的。\n\n根据上面的说明，我们得知，对于-2[sup]24[/sup]+1至2[sup]24[/sup]-1之间的custom_model_data，overrides.predicate不会出现重复；对于这个范围之外的，需要将其转为浮点数来比较。例如\n{\n    \"parent\": \"item/handheld\",\n    \"textures\": {\n        \"layer0\": \"item/carrot_on_a_stick\"\n    },\n    \"overrides\": [        \n        { \"predicate\": { \"custom_model_data\": 16777214 }, \"model\": \"cpp:element/blue_force_of_sky\"},\n        { \"predicate\": { \"custom_model_data\": 16777215 }, \"model\": \"cpp:element/green_force_of_water\"},\n        { \"predicate\": { \"custom_model_data\": 16777216 }, \"model\": \"cpp:element/cyan_force_of_mountain\"},\n        { \"predicate\": { \"custom_model_data\": 16777217 }, \"model\": \"cpp:element/orange_force_of_dirt\"},\n        { \"predicate\": { \"custom_model_data\": 16777218 }, \"model\": \"cpp:element/yellow_force_of_earth\"},\n        { \"predicate\": { \"custom_model_data\": 16777219 }, \"model\": \"cpp:element/red_force_of_fire\"},\n        { \"predicate\": { \"custom_model_data\": 16777220 }, \"model\": \"cpp:element/purple_force_of_life\"},\n        { \"predicate\": { \"custom_model_data\": 16777221 }, \"model\": \"cpp:element/white_force_of_lightning\"},\n        { \"predicate\": { \"custom_model_data\": 16777222 }, \"model\": \"cpp:element/black_force_of_moon\"}\n    ]\n}复制代码由于转化为浮点数之后，16777216f=16777217f≠16777218f≠16777219f=16777220f=16777221f，因此第3个和第4个相同，第6,7,8个相同。\n\n\n使用注意事项\n因此我们在使用时，需要注意避免重复。实际中，-2[sup]24[/sup]+1至2[sup]24[/sup]-1之间的custom_model_data，不需要额外注意。2[sup]24[/sup]至2[sup]25[/sup]-1的数，我们每次只选取2的倍数即可保证两两不同；2[sup]25[/sup]至2[sup]26[/sup]-1的数，我们每次只选取4的倍数即可保证两两不同；2[sup]23+k[/sup]至2[sup]24+k[/sup]-1的数，k=1,2，,...,7我们每次只选取2[sup]k[/sup]的倍数即可保证两两不同。负数同理。总结一下，我们只使用下面的custom_model_data即可\n0\n±1\n±2\n...\n±16777215\n(以下为2的倍数)\n±16777216\n±16777218\n±16777220\n...\n±33554430\n(以下为4的倍数)\n±33554432\n±33554436\n...\n±67108860\n(以下为8的倍数)\n±67108864\n±67108872\n...\n±134217712\n(以下为16的倍数)\n±134217728\n±134217744\n...\n±268435440\n(以下为32的倍数)\n±268435456\n±268435488\n...\n±536870880\n(以下为64的倍数)\n±536870912\n±536870976\n...\n±1073741760\n(以下为128的倍数)\n±1073741824\n±1073741952\n...\n±2147483520\n\n±2147483647\n复制代码所以±16777215之间还不够你用的么……\n\n鉴于这种神必操作浪费了96%的整数，让我们大喊\nmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsbmjsb\n\n感谢@七刀月复 @⊙v⊙ @路邊電燈泡 @森林蝙蝠 等人的帮助。\n参考了 https://zh.wikipedia.org/wiki/IEEE_754\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "SolidBlock",
+            "timestamp": 1583499780,
+            "txt_content": "难怪我要求的模型总是篡夺别的模型。我觉得mojang要求custom_model_data使用数字是与1.13以来的扁平化潮流背道而驰的，更何况还是浮点，不支持命名空间，希望地狱更新修复，要不然我觉得可以钉在mojang的耻辱柱上。"
+        },
+        {
+            "author": "低耐久铁砧",
+            "timestamp": 1593585900,
+            "txt_content": "SolidBlock 发表于 2020-3-6 21:03\n难怪我要求的模型总是篡夺别的模型。我觉得mojang要求custom_model_data使用数字是与1.13以来的扁平化潮流 ...\n地狱更新前来考古，我只能说：没修，但是下次应该就要修了，再不修没道理......"
+        },
+        {
+            "author": "参汣",
+            "timestamp": 1611841260,
+            "txt_content": "插眼，蹲雪山更新"
+        },
+        {
+            "author": "2505210199",
+            "timestamp": 1611850320,
+            "txt_content": "阿哲,看了老久,试了老久,还是不懂"
+        },
+        {
+            "author": "cxl5201314",
+            "timestamp": 1612612800,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

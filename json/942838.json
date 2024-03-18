@@ -1,0 +1,44 @@
+{
+    "title": "MCEdit存档Schematic格式",
+    "author": "taolu",
+    "replyCount": 7,
+    "timestamp": 1579303080,
+    "txt_content": " 本帖最后由 taolu 于 2020-8-22 20:24 编辑 \n\n前言可能有些人的程序需要对Schematic格式的支持，所以我自己摸索了几天(其实还是去年暑假了)。\n其实Wiki里有关于Schematic的格式的介绍，但是我自己通过导出MCEdit发现和Wiki中有些不一样，比如有些项目我导出来并没有，这里我就按我导出的的文件格式讲一下Schematic的格式。格式对象作用大小Schematic识别Schematic格式12字节Height高度Y 最大64K(mod突破高度限制?)2字节Length长度Z 最大64K2字节Width宽度X 最大64K2字节Entities实体不固定默认8字节TileEntitiesNBT不固定默认8字节TileTicks方块要更新的数据不固定默认8字节Materials版本 默认Alpha 随意填其他没有事不固定Data方块数据 也就是setblock后面那个数字X × Y × Z字节Biomes每个方块的生物群系X × Z字节Block方块(数字ID, 1. 8及之后可以使用MCEdit-Unified查看）X × Y × Z字节如果生物群系对你有作用的话，请看下表\n名称数字ID数字ID(16进制)海洋00平原11沙漠22山地33森林44针叶林55沼泽66河流77下界荒地88末地99冻洋10A冻河11B积雪的冻原12C雪山13D蘑菇岛14E蘑菇岛岸15F沙滩1610沙漠丘陵1711繁茂的丘陵1812针叶林丘陵1913山地边缘2014丛林2115丛林丘陵2216丛林边缘2317深海2418石岸2519积雪的沙滩261A桦木森林271B桦木森林丘陵281C黑森林291D积雪的针叶林301E积雪的针叶林丘陵311F巨型针叶林3220巨型针叶林丘陵3321繁茂的山地3422热带草原3523热带高原3624恶地3725繁茂的恶地高原3826恶地高原3927末地小型岛屿4028末地中型岛屿4129末地高岛422A末地荒岛432B暖水海洋442C温水海洋452D冷水海洋462E暖水深海472F温水深海4830冷水深海4931封冻深海5032虚空1277F向日葵平原12981沙漠湖泊13082沙砾山地13183繁花森林13284针叶林山地13385沼泽山丘13486冰刺平原1408C丛林变种14995丛林边缘变种15197高大桦木森林1559B高大桦木丘陵1569C黑森林丘陵1579D积雪的针叶林山地1589E巨型云杉针叶林160A0巨型云杉针叶林丘陵161A1沙砾山地+162A2破碎的热带草原163A3破碎的热带高原164A4被风蚀的恶地165A5繁茂的恶地高原变种166A6恶地高原变种167A7竹林168A8竹林丘陵169A9灵魂沙峡谷170AA绯红森林171AB诡异森林172AC玄武岩三角洲173AD谜？\n对于其中的高度限制，我还是不太清楚。虽然说有些Mod可以突破高度限制，但是似乎Mcedit也有高度限制。几次实验后发现如果高度大于255，那么高度好像会从第一行重新写入，也就是说把从第一行已经生成的方块给覆盖掉。如果只有255方块，那么为什么大小要设置成两个字节，难道一个字节不就能用完呢?希望有人能帮我解惑。格式中每个数据(姑且就这么叫吧)之间有指定的字符串去隔开，而在指定的字符串后还要声明此数据的长度。所以每一个数据的格式如下指定的分隔字节(两字节)+数据标题长度(一字节)+数据标题+数据长度(+数据)(当为Data,Biomes,Block…时)\n值识别对象0x0A 0x00Schematic文件0x02 0x00Height，Length，Width0x09 0x00Entities，TileEntities，TileTicks0x08 0x00Materials0x07 0x00Data，Biomes，Blocks知道了格式接下来就好做了。\n将数据写入文件，再通过同目录下的gzip.exe压缩成x.gz文件，最后重命名为Schematic文件即可用MCEdit打开。\n\nSchematic(gzip压缩后)\ntemp(gzip压缩前)那么这里就讲一下data和block数据吧\n通过立体坐标计算那么坐标为(X,Y,Z)的方块的data和block数据位于第      (Y - 1) × (Width × Height) + ( Z - 1) × Width + X\n      个数据内(Width 和 Height为总的长和宽)，只要在这个位置写入Block数据和Data数据就可以了。      可能你不怎么理解，如果看一下这张图和实例也许就知道了\n\n按X和Z轴来进行，这里有一个5*5的二维平面。我们从第一个方块开始，给每一个方块标记数字。在二维中公式是这样的      (所在行数-1)×总的列数+所在列数\n      可见图中红色方块在第5行第4列，代入公式:            (5-1)×5+4=24 成立      你也可以去试试其他方块，得到的结果是一样的。\n      其实也能想象得出来，多了一维的情况下，公式变成了这样            (所在高度-1)×总的行数×总的列数+(所在行数-1)×总的列数+所在列数VB代码Private Declare Function WaitForSingleObject Lib \"kernel32\" (ByVal hHandle As Long, ByVal dwMilliseconds As Long) As LongPrivate Declare Function CloseHandle Lib \"kernel32\" (ByVal hObject As Long) As LongPrivate Declare Function OpenProcess Lib \"kernel32\" (ByVal dwDesiredAccess As Long, ByVal bInheritHandle As Long, ByVal dwProcessId As Long) As LongPrivate Sub Gen()'....LoopDB = BmpWidth * BmpHeight * BY '长*宽*高LoopBI = BmpWidth * BmpHeight '长*宽TempHX = Replace(Format(Hex(BmpWidth), \"@@@@\"), \" \", \"0\") '转换成16进制的字符串，以便于写入文件TempHY = Replace(Format(Hex(BY), \"@@@@\"), \" \", \"0\")TempHZ = Replace(Format(Hex(BmpHeight), \"@@@@\"), \" \", \"0\")TempHLoopDB = Replace(Format(Hex(LoopDB), \"@@@@@@@@\"), \" \", \"0\")TempHLoopBI = Replace(Format(Hex(LoopBI), \"@@@@@@@@\"), \" \", \"0\")HX = TempHXHY = TempHYHZ = TempHZHLoopDB = TempHLoopDBHLoopBI = TempHLoopBIReDim StrDT(LoopDB)ReDim StrBL(LoopDB)For Y=1 To BYFor X=1 To BmpWidthFor Z=1 To BmpHeightStrP = (Y - 1) * (BmpWidth * BmpHeight) + (Z - 1) * BmpWidth  + X '3维方块对应Block和Data数据的位置StrBL(StrP) = m_Names(Block) '也许用结构体会好点？StrDT(StrP) = m_Nbt(Block)'....Block的处理NextNextNextOpen App.Path & \"\\temp\" For Binary As #1 '在当前目录下新建temp文件Put #1, , Chr$(10) & Chr$(0) & Chr$(9) & \"Schematic\" '指定的分隔字符串(两字节)+数据标题长度(一字节)+数据标题+数据长度(+数据)Put #1, , Chr$(2) & Chr$(0) & Chr$(6) & \"Height\"Put #1, , CByte(\"&H\" & CStr(Left(HY, 2))) '数据的长度(要以二进制的文件写入)Put #1, , CByte(\"&H\" & CStr(Right(HY, 2)))Put #1, , Chr$(2) & Chr$(0) & Chr$(6) & \"Length\"Put #1, , CByte(\"&H\" & CStr(Left(HZ, 2)))Put #1, , CByte(\"&H\" & CStr(Right(HZ, 2)))Put #1, , Chr$(2) & Chr$(0) & Chr$(5) & \"Width\"Put #1, , CByte(\"&H\" & CStr(Left(HX, 2)))Put #1, , CByte(\"&H\" & CStr(Right(HX, 2)))Put #1, , Chr$(9) & Chr$(0) & Chr$(8) & \"Entities\" & Chr$(1) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(9) & Chr$(0) & Chr$(12) & \"TileEntities\" & Chr$(1) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(9) & Chr$(0) & Chr$(9) & \"TileTicks\" & Chr$(1) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(0) & Chr$(8) & Chr$(0) & Chr$(9) & \"Materials\" & Chr$(0) & Chr$(5) & \"Alpha\" & Chr$(7) & Chr$(0) & Chr$(4) & \"Data\"Put #1, , CByte(\"&H\" & CStr(Left(HLoopDB, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopDB, 3, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopDB, 5, 2)))Put #1, , CByte(\"&H\" & CStr(Right(HLoopDB, 2)))For I = 0 To LoopDB - 1    If Len(StrDT(I)) = 0 Then        Put #1, , Chr$(0)    Else        Put #1, , CByte(StrDT(I)) 'VB的bug?直接Put #1, , StrDT每两个字节之间会多出00    End IfNextPut #1, , Chr$(7) & Chr$(0) & Chr$(6) & \"Biomes\"Put #1, , CByte(\"&H\" & CStr(Left(HLoopBI, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopBI, 3, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopBI, 5, 2)))Put #1, , CByte(\"&H\" & CStr(Right(HLoopBI, 2)))For I = 0 To LoopBI - 1        Put #1, , Chr$(0)NextPut #1, , Chr$(7) & Chr$(0) & Chr$(6) & \"Blocks\"Put #1, , CByte(\"&H\" & CStr(Left(HLoopDB, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopDB, 3, 2)))Put #1, , CByte(\"&H\" & CStr(Mid(HLoopDB, 5, 2)))Put #1, , CByte(\"&H\" & CStr(Right(HLoopDB, 2)))For I = 0 To LoopDB - 1    If Len(StrBL(I)) = 0 Then        Put #1, , Chr$(0)    Else        Put #1, , CByte(StrBL(I))    End IfNextPut #1, , Chr$(0)Close #1OutPutEnd SubPrivate Sub OutPut()Dim Path As StringDim I As Long, R As Long, P As Long    Path = SaveFile()'文件对话框，这里不多讲了，此时Path已经成为一个Schematic的目录    I = Shell(App.Path & \"\\gzip.exe -f \"\"\" & App.Path & \"\\temp\"\"\", vbNormalFocus) '调用Gzip压缩(输出为.gz文件)    P = OpenProcess(SYNCHRONIZE, False, I) '等待进程(文件都没有生成怎么进行下一步啊喂)    R = WaitForSingleObject(P, INFINITE)    R = CloseHandle(P)    I = Shell(\"cmd /c copy \"\"\" & App.Path & \"\\temp.gz\"\" \" & Path & \" /y\", vbNormalFocus)'重命名成.Schematic文件    P = OpenProcess(SYNCHRONIZE, False, I)    R = WaitForSingleObject(P, INFINITE)    R = CloseHandle(P)    I = Shell(\"cmd /c del /f /q \"\"\" & App.Path & \"\\temp.gz\"\"\", vbNormalFocus)'删除Temp    P = OpenProcess(SYNCHRONIZE, False, I)    R = WaitForSingleObject(P, INFINITE)    R = CloseHandle(P)End Sub\n\n注意在VB写入文件时，方块等数据不能使用Chr，这是因为当Chr的Acsii编码超过128的都会被翻译成”?”，所以需要通过写入Binary文件，调用CByte来写入文件。除数据标题以外以上数据都以二进制的方式写入文件。数据可以调换顺序。\n\n",
+    "replies": [
+        {
+            "author": "ShuoChenFeng",
+            "timestamp": 1583072280,
+            "txt_content": "欸，如果有支持基岩版的schematic制作软件就好了"
+        },
+        {
+            "author": "zcw0803",
+            "timestamp": 1583106960,
+            "txt_content": "投影mod的sch文件不通用吗"
+        },
+        {
+            "author": "kuqingshu",
+            "timestamp": 1583148840,
+            "txt_content": "应该是可以互相用的吧"
+        },
+        {
+            "author": "1930940598",
+            "timestamp": 1583222580,
+            "txt_content": "新版本还有高度限制吗"
+        },
+        {
+            "author": "1930940598",
+            "timestamp": 1583222640,
+            "txt_content": "有些东西好厉害的样子看不懂"
+        },
+        {
+            "author": "taolu",
+            "timestamp": 1583228640,
+            "txt_content": "1930940598 发表于 2020-3-3 16:03\n新版本还有高度限制吗\n这个是根据Mcedit和投影mod的来的，我这里使用mcedit加载高度超过255的Schematic文件如果超过的话会会从Y=1重新写入，也就是第一层被256层给覆盖了。虽然说这个高度的值为2个字节，也就是65535层高，但是也就用了一个字节(255层)如果你要硬试的话，加上一个更高世界的mod可能会出错的(mod存储大于255层的方块和mc存档中的mca存档可能不是一样的)。"
+        },
+        {
+            "author": "xiaozhang421",
+            "timestamp": 1583292780,
+            "txt_content": "good job！！！"
+        }
+    ]
+}

@@ -1,0 +1,119 @@
+{
+    "title": "MCP的Mod制作教程(5) - 地形生成器,制作新的TileEntity",
+    "author": "szszss",
+    "replyCount": 22,
+    "timestamp": 1330789740,
+    "txt_content": " 本帖最后由 szszss 于 2012-12-8 20:56 编辑 \n\nMCP的Mod制作教程(5)地形生成器,制作新的TileEntity,Mod的打包发布作者:szszss\n索引贴地址:\nhttp://www.mcbbs.net/thread-18949-1-2.html\n\n注:本文最初基于MCP5.6和ModLoader1.1.0编写的.\nMCP6.2和ModLoader1.2.4更新了大量方法的名字,导致我的教程几乎报废一半... 不管怎么说,我用了一个晚上的时间还是修正了教程的文字部分,使其和最新版的MCP与ModLoader接轨.但图片部分我实在是无力修改了...大家将就着看吧.\n\n本章我们要进行:修改地形生成器,使新矿物可以生成一个以土块为燃料的新炉子Unthinkable Furnace\n利用ModLoader制作新地形\n我还是想先讲一下MC的地图生成原理...知识点:MC的地图生成流程///////////////////////////////////////////////////////////////////////////////////////////////////////////net.minecraft.client包内的Minecraft类中有两种方法,startWorld和usePortal.前者对应玩家第一次进入游戏或者正常载入游戏,后者对应玩家进入传送门,它们都包含创造世界(World)的功能.创造一个世界其实直接调用World的构造函数就可以了,World的构造函数有这四个重载.他们的参数分别是:(1)ISaveHandler,String,WorldProvider,WorldSettings(2)World,WorldProvider(3)ISaveHandler,String,WorldSettings(4)ISaveHandler,String,WorldSettings,WorldProvider(我在这里仅仅保留了参数的类型而剔除掉了参数名称)\nstartWorld使用的是重载(3),usePortal使用的是重载(2).ISaveHandler是存档位置句柄,Minecraft会分析出存档所应存放的位置.通常来说不用管这个.String是存档的名字,不是世界的名字.至少在单人模式下是如此.World是母世界,比如你开了一个新档,那么你出生所在的正常世界就是母世界,而你在那个存档制造的地狱世界和End世界就是子世界,子世界会继承母世界的WorldInfo和ISaveHandler.与lockTimestamp(反破解锁,它的原理与作用不在讲解范围内).WorldSettings是世界设置,它负责记录地图种子,游戏模式,地图类型(正常/平坦),是否生成建筑,WorldSettings仅仅是在创建世界时存在,当世界创造完后,它会被转换为WorldInfo存储在对应的世界.WorldInfo比WorldSettings包含更多的信息,WorldProvider与WorldSettings有一点点相似,两者都会传递一些地图信息,WorldProvider会传递世界类型(地狱/End/普通),土地深度,有无天空等信息.它还具有\"注册\"世界的功能.世界只有被注册才会有效.(注:(3)重载虽然没有WorldProvider这个参数,实际上它是隐式地创建了一个世界类型为普通的WorldProvider作为参数.)\n另外游戏中还有个称为dimension的东西,它代表\"世界高度\"或者说\"世界类型\",主要在usePortal方法中使用,0高度代表普通世界,-1高度是地狱世界,1高度是End世界,形象吧...\n接下来的过程我就无力过多解释了,因为我也不太明白...我只能说在World的构造函数中有一大堆初始化,但最关键的代码在最后方:chunkProvider = getChunkProvider();乍一看像是初始化一个变量而已,实际上它包含了整个游戏世界的创建过程.具体的创建过程非常复杂,多个类之间相互嵌套纠缠.我认为ChunkProviderGenerate类是最重要的.\n另外MC还有一个设定是气候(Biome),不同的Biome有不同的砖块刷新率,温度等...我们在这里主要靠添加自定义Biome来达到修改地形的目的.BiomeGenBase类是所有气候的基类.BiomeDecorator类是装饰物类,它负责生成矿物花草.///////////////////////////////////////////////////////////////////////////////////////////////////////////\nModLoader提供了generateSurface方法来供我们添加自定义生成物.\n知识点:GenerateSurface方法的使用///////////////////////////////////////////////////////////////////////////////////////////////////////////generateSurface方法有4个输入参数:world(类型World),rand(类型Random),i(类型int),j(类型int)generateSurface方法和load类似,它在Chunk生成阶段会被调用并由ModLoader为它输入参数.world是生成中的Chunk所属的世界,rand是随机种子或者说是伪随机数生成器,i和j分别对应生成中的Chunk的XZ坐标.12.3.9备注:generateSurface是在地上世界生成砖块,有个类似的方法是在地狱世界生成砖块.\n关于砖块生成有两种思路,一种是非常稀有但容易发现(比如村庄),一种是非常多但难以发现(比如地底的铁矿,它其实非常多!).对于两种不同的生成方式,有两种不同的算法.第一种是:\npublic void generateSurface(World world, Random rand, int i, int j)\n{\n    if(rand.nextInt(100) < 20)\n    {\n        int x = i + rand.nextInt(16);\n        int z = j + rand.nextInt(16);\n        int y = world.getTopSolidOrLiquidBlock(x, z)-2;\n        for(int loop = 0;loop<10;loop++)\n        {\n            world.setBlockWithNotify(x-2+rand.nextInt(4), y-2+rand.nextInt(4), z-2+rand.nextInt(4), Block.oreDiamond.blockID);\n        }\n    }\n}复制代码\n这个代码能让每个Chunk有约为五分之一的几率在地表生成一个最多有10块钻石矿的钻石矿脉.它可能不是十分容易发现.\n第二种是:\npublic void generateSurface(World world, Random rand, int i, int j)\n{\n    for(int number = 0;number < 10;number++)\n    {\n        int x = i + rand.nextInt(16);\n        int z = j + rand.nextInt(16);\n        int y = rand.nextInt(world.getTopSolidOrLiquidBlock(x, z))-2;\n        if(y<5)\n        {\n            y=5;\n        }\n        for(int loop = 0;loop<5;loop++)\n        {\n            world.setBlockWithNotify(x-1+rand.nextInt(2), y-1+rand.nextInt(2), z-1+rand.nextInt(2), Block.blockDiamond.blockID);\n        }\n    }\n}复制代码\n它在每个Chunk生成10组钻石砖矿脉(...)每组最多5个,深度是5~地表.(顺便一提,这个范例我最初是用TNT作为刷出的矿脉,但结果生成世界时卡了个半死,原因是TNT由于它的特殊性每刷出就需要对整个Chunk进行检测,所以不要大量刷TNT...)\n你可能注意到我在这里的替换砖块使用的是setBlockWithNotify,它比setBlock更加安全.如果它所替换的位置有砖块(特别是有特殊功能的砖块)的话它会进行特殊处理以避免程序错误.(2012.8.12备注:然而这是个挺耗计算量的东西,所以如果你在开新档时卡死了的话就换成setBlock有人问我nextInt是啥,这个是从随机器中取出一个随机整数)\n另外,Random功能需要导入java.util.Random这个库,别忘了导入.///////////////////////////////////////////////////////////////////////////////////////////////////////////\n现在我们可以开始添加矿脉生成算法了.(我保留了上面的知识点里的两个范例代码,如果你也想保留只需要将它们合并到一个方法内就行了).创建或者在已有的generateSurface方法中添加这些代码.\nif(rand.nextInt(100) < 50)\n{\n    int x = i + rand.nextInt(16);\n    int z = j + rand.nextInt(16);\n    int y = world.getTopSolidOrLiquidBlock(x, z)-3;\n    for(int loop = 0;loop<10;loop++)\n    {\n        world.setBlockWithNotify(x-2+rand.nextInt(4), y-2+rand.nextInt(4), z-2+rand.nextInt(4), mod_Diracon.BlockDiracium.blockID);\n    }\n}复制代码\n它在每个Chunk的地表有50%的几率生成一组迪拉克矿矿脉.此时你的代码应该是这样的.(图中的GenerateSuface应为generateSuface)\n\n\n\n\nE1.jpg (18.79 KB, 下载次数: 42)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n\n由于我们已经能开采迪拉克矿,所以我们之前制作的迪拉克矿合成也没用了,将它删掉.然后保存编译测试.(别忘了这次开新档测试)(如果你细心你可能会注意到我让矿脉随机出的高度减2~3,是因为如果不这样做的话某些砖块可能会浮在空中,其实这也有个更完美地解决方法,就是在刷出砖块时检测其高度,如果过高就让降低它的高度.)(2012.7.30备注:其实有个更好的方法,以一个Chunk的基岩层到地面层为范围进行随机,如果随机到的位置是石块,就将其替换为你要的矿物,这样可以保证绝对没问题而且非常Easy!  另外,你不一定一定要用setBlockWithNotify,很多时候,如果放置的是无特殊功能的砖块,比如普通的矿石,用setBlock就可以了,能节省很多计算量)\n\n\n\n\n\nE1Plus.jpg (26.08 KB, 下载次数: 43)\n\n下载附件\n\n2012-3-3 23:57 上传\n\n\n\n\n\n\n\n\n\nE2.png (92.69 KB, 下载次数: 40)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n\n\n\n\nE3.png (194.34 KB, 下载次数: 40)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n看上去我们成功了,但实际上这些算法仍有不完美之处,有些矿并不容易被发现,而钻石砖矿脉在地下空洞有可能被凭空刷新.这些问题以后都需要完善.\nTileEntity的制作\nTileEntity(Tile实体)是基础教程最后一个正式章节(非正式章节的最后一个是Mod的打包与发布)TileEntity很难以理解和应用,我最初的计划是在教程第三篇(你现在看的是教程第五篇)的末尾讲如何制作TileEntity,但很快发现知识量和巨大的难度落差会让读者崩溃,于是我将讲述TileEntity的章节一分为二,第一部分放在了教程第四篇,为群众简单普及一下TileEntity的知识,而第二部分则放在这里,详细讲述TileEntity的原理和制作.\n知识点:TileEntity的原理///////////////////////////////////////////////////////////////////////////////////////////////////////////正如Entity那样,TileEntity也很少使用,大多数时候我们会根据需求从TileEntity类中派生出新的类.TileEntity也有一个实体列表,这个列表能根据TileEntity的名字来获取对应的TileEntity类,也可以通过TileEntity类来获取它的名字.\n(以下灰色字体有部分结论有误,具体看备注)\n所有能够具有TileEntity的砖块全部派生自BlockContainer类,当你在游戏中放置一个继承自BlockContainer类的砖块时,它会调用砖块的getBlockEntity方法来获取其对应的TileEntity并设置入游戏.另外ChunkLoader类也有一个系统用来处理TileEntity的存读,但这就不是我们需要考虑的了.\n(2012.7.30备注:不完全正确,继承自BlockContainer类的砖块仅仅只是放置时便自带一个TileEntity,你应该可以在砖块的某一阶段再创建TileEntity,但为了安全起见,我真心推荐你还是老老实实继承BlockContainer类...)(2012.8.8补充一个其他人的研究,Daifei:BlockContainer类会在创建时自动在当前位置绑定上一个TileEntity,如果要制作不继承BlockContainer类的带TileEntity的砖块的话,则需要:1.在砖块初始化参数时(即构建函数内)让isBlockContainer字段为true,或者重写hasTileEntity方法让它强制返回true.2.onBlockAdded方法是砖块在被放置时触发的,重写(Override)它并加上添加TileEntity的代码.3.breakBlock方法在砖块被击碎时触发,重写它并加上移除TileEntity的代码.4.onBlockEventReceived方法在触发一个砖块事件时引发,你可以先不管何为事件,但总之要重写它并加上相关代码.于是你便作出了一个能拥有TileEntity的非BlockContainer派生类.szszss:既然说到了砖块事件(BlockEvent)我就顺便解释一下,砖块事件是向某一个位置引发某一种砖块的特殊功能的一种办法,你可以通过调用World类的实例的addBlockEvent方法来引发一个砖块事件,addBlockEvent包括6个参数,前三个分别是目标位置的xyz坐标,第四个参数是某一种砖块(以下我们简称为砖块A)的砖块ID,第五个参数是事件ID,第六个参数是事件参数.引发一个砖块事件时,游戏会调用砖块A的onBlockEventReceived方法,这个方法包括xyz坐标和事件ID,事件参数这五个参数.这有一个好处,就是哪怕位于XYZ的砖块是B,你也可以调用砖块A的砖块事件在XYZ位置进行操作.任何类都有onBlockEventReceived方法,BlockContainer类的onBlockEventReceived方法会调用自己的TileEntity的receiveClientEvent方法并传递事件ID和事件参数.另外有一个疑点我不得不说,MCP组为addBlockEvent方法写的备注中提到,这个方法所引发的砖块事件不会立刻实行,而是会在下一个Tick时执行,但我从代码上分析是调用后立即执行的...再顺便一提,receiveClientEvent方法的备注有误?)\n因此,我们可以总结出创造TileEntity的流程:(1)创建一个新的TileEntity(2)为物品添加getBlockEntity方法的重写,并将返回值设为你新建的TileEntity(3)在mod_xxx类内注册你的TileEntity(使用RegisterTileEntity方法)///////////////////////////////////////////////////////////////////////////////////////////////////////////\n我们这章要制作一个以泥土为燃料的炉子:Unthinkable Furnace(非想炉...).\n首先我们要先制作炉子,复制一份BlockFurnace.java并命名为dcBlockUFurnace\n\n\n\n\n\nE4.png (13.05 KB, 下载次数: 38)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n然后再复制一份TileEntityFurnace,并命名为dcTileEntityUFurnace\n\n\n\n\nE5.png (6.9 KB, 下载次数: 35)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n打开dcTileEntityUFurnace.java,开始着手修改.首先先改掉它的继承,默认它继承自TileEntity类,但出于某些原因,我们要让他继承TileEntityFurnace类.将public class dcTileEntityUFurnace extends TileEntity implements IInventory改为\npublic class dcTileEntityUFurnace extends TileEntityFurnace implements IInventory复制代码\n你可能奇怪我为何不直接新建一个类然后让它继承TileEntityFurnace,而是要创建一个TileEntityFurnace的副本然后让副本继承原体.事实上你的确可以这样做,我这里仅仅是为了图省事.\n然后我们要改掉它的表名字,找到getInvName方法,将返回值由\"container.furnace\"改成\"UFurnace\".对于具有容器功能的TileEntity来说,表名字是它在打开物品栏后显示的名字.(如果你够爱钻研,你会发现这个表名字其实是一个文本库的Key,换句话说,游戏会根据这个Key来在语言库的找到相应的文本并显示出来,然而Notch自然想到了特殊机制,如果这个Key(比如上文的UFurnace)没有对应的文本,那么游戏就会直接将这个Key作为文本显示出去)\n最后修改它的燃料,找到getItemBurnTime方法,将其整个方法替换为如下代码\n\npublic static int getItemBurnTime(ItemStack par1ItemStack)\n    {\n      if (par1ItemStack == null)\n         {\n             return 0;\n         }\n         int i = par1ItemStack.getItem().shiftedIndex;\n         if (i == Block.dirt.blockID)\n         {\n             return 10000;\n         }\n         else\n         {\n          return 0;\n         }\n    }复制代码这个代码使泥土成为唯一燃料,一个泥土能提供烧50个砖块的时间.\nModLoader其实也提供了一个添加燃料的方法,但似乎是未开发完的功能...\n知识点:修改熔炉可冶炼的物品///////////////////////////////////////////////////////////////////////////////////////////////////////////你可能会诧异我为何要穿插这个知识点,因为我觉得如果不接这个机会讲解一下如何修改熔炉可冶炼的物品的话实在是太可惜了.ModLoader提供了一个方法addSmelting来添加冶炼,它的运作原理是向FurnaceRecipes类的冶炼列表内添加一个冶炼公式,之后任何以TileEntityFurnace为TileEntity的炉子在进行冶炼时都会访问FurnaceRecipes类来查询是否有相应的冶炼公式可供冶炼当前物品/砖块.\n说到这里我想你也应该知道该怎么办了,如果你想创造一个全新的冶炼系统,就自己再新建一个FurnaceRecipes类.然后重新编写冶炼公式列表,最后重新编写你的炉子的TileEntity的canSmelt方法和smeltItem方法.///////////////////////////////////////////////////////////////////////////////////////////////////////////\n之后打开dcBlockUFurnace.java,使用搜索替换功能,将所有TileEntityFurnace替换为dcTileEntityUFurnace.注意打开大小写敏感模式!(4.13备注:自从MCP6.0大改参数名后,开不开大小敏感模式似乎不再那么重要了,但我建议你还是打开)\n\n\n\n\n\nE6.png (137.14 KB, 下载次数: 39)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n(如果你之前没有按照要求改掉dcTileEntityUFurnace的继承的话,现在你可以自行捂脸了)然后为新砖块注册里名字,在它的构造函数(dcBlockUFurnace方法)内加入:\nsuper.setBlockName(\"ufurnace\");复制代码\n\n\n\n\n\nE7.png (6.59 KB, 下载次数: 39)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n现在我们要注册TileEntity和砖块并添加炉子的合成.在mod_Diracon类中加入这个代码:\npublic static Block BlockUFurnace;复制代码\n在load方法内添加:\nBlockUFurnace = new dcBlockUFurnace(177, false);\nModLoader.registerBlock(BlockUFurnace);\nModLoader.addName(BlockUFurnace, \"Unthinkable Furnace\");\nModLoader.registerTileEntity(net.minecraft.src.dcTileEntityUFurnace.class, \"UFurnace\");\nModLoader.addRecipe(new ItemStack(BlockUFurnace, 1), new Object[]\n{\n    \"SSS\",\n    \"SDS\",\n    \"SSS\",\n    Character.valueOf('D'), DiracIngot,\n    Character.valueOf('S'), Block.cobblestone\n});复制代码\nRegisterTileEntity方法将dcTileEntityUFurnace类和UFurnace写入TileEntity实体列表内.\n之后保存,编译.测试.\n\n\n\n\n\nE8.png (13.03 KB, 下载次数: 41)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n\n\n\n\n\nE9.png (3.66 KB, 下载次数: 39)\n\n下载附件\n\n2012-3-3 23:55 上传\n\n\n\n\n塞入煤炭,它无法冶炼\n\n\n\n\nE10.png (4.55 KB, 下载次数: 32)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n塞入个土块,这诡异的东西就开始冶炼了!\n当然这个熔炉还有不完善的地方,如果你将它拆掉它只会掉出个普通熔炉,另外如果你一次塞入太多燃料可能会导致里面的东西弹出来(不影响实际操作).但无论如何,我们成功制作出了一个新TileEntity并将它和物品联上.\n至此,我们完成了DiraconMod的所有目标,我们最后一个任务是:打包Mod.\nMod的打包与发布最初的MCP没有提供打包功能,之后提供了需要手动修改配置文件的打包.现在MCP提供了全自动打包服务,你只需要运行MCP文件夹下的reobfuscate.bat就能自动打包!MCP会自动扫描出你修改过或新建的Class文件,并将它们输出到一个文件夹.(注意,打包功能不负责编译,它只是扫描bin文件夹下已编译过的Class文件.所以在打包前请先编译.)(12.3.10 备注:最新研究表明通过打包功能得到的Class与Bin下的Class不一样...或许打包功能也能编译吧.)\n\n\n\n\n\nE11.png (129.5 KB, 下载次数: 37)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n\n(你有想过MCP是如何确定哪个文件是被修改过的吗?你有没有注意到编译的最后一步和Mod打包的第一步是生成MD5码?)12.3.9备注:存疑,有迹象表明MCP似乎并非依靠MD5码来确定文件是否修改,如果有人研究出其运作机理的话请指正.\n\n\n\n\n\nE12.png (15.59 KB, 下载次数: 35)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n\n打包完毕后,编译好的Class文件会存放在MCP下的reobf/minecraft内.但不要忘记我们还有资源文件没有放进来.将lib文件夹下的东西也拷入reobf/minecraft.\n\n\n\n\n\nE13.png (22.13 KB, 下载次数: 43)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n之后我们就可以将它们打包入一个rar\n\n\n\n\nE14.png (37.97 KB, 下载次数: 46)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n\n\n\n\n\n\nE15.png (16.2 KB, 下载次数: 37)\n\n下载附件\n\n2012-3-3 23:56 上传\n\n\n\n\n打包完毕,恭喜,一个全新的Mod制作完毕!用户只需将这个rar内的文件全部塞进minecraft.jar便能开始玩了.接下来是Mod的发布,国内发布Mod就不用我说了,3DM/MCBBS/贴吧.网盘选用115或网站自带的附件服务.但如果你志向远大,可以考虑发布在官网论坛...官网论坛的Mod区发帖的标题格式为:[AA] BBB [CC][DD][EE]\nAA 为支持的版本号,如果停止更新了就加上WIP三个字(2012.6.30备注.我一直以为WIP是Wasted In Peace的意思,但有英语帝指出WIP应为Work In Progress(制作中) 总而言之,不要随意加WIP就好了-w-不更新了就让它默默沉下去,仍在制作中就不要发布)BBB 为mod名字CC 为mod的版本DD 为支持的模式,SSP为一定支持单人,SMP为一定支持多人可能支持单人,SSP/SMP为一定即支持单人也支持多人.如果省略则默认为只支持单人EE 写啥都行,如果支持多语言可以写Muti-Language,也可以写Mod的特性,比如New Weapons(新武器) More Mobs(更多的怪物),可以省略不写.\n例子是:[1.1.0] Modern Weapon [v1.0][SSP][GUN!]现代武器Mod,支持1.1.0版MC的单人模式[1.2.0] Ruin Runner [v2.2][SMP][Biome,Ruin]遗迹Mod,一定支持1.2.0版MC,一定支持多人模式,可能(看制作者怎么设计的)支持单人游戏.[1.7.1 WIP] Yukari's Umbrella [v0.2]隙间Mod,只支持Beta1.7.1版MC,应该只支持单人.已停止更新.\n至于内容,简要介绍一下就可以了,如果需要其他mod(比如ModLoader)要注明上,记得视频用油土鳖,上传文件用adf.ly或mediafire(注意,官方论坛明确要求如果你使用adf.ly上传mod的话你必须是mod的作者,不能是合作者或转载者啥的.因为adf.ly可以为上传者提供经济收益!并非所有Mod都在官网首发,你总不希望你自己的mod被别人拿去赚钱吧!)\n\n\n至此,基础教程全部章节完.\n\"如果你手中只有一张SpellCard,那么世界上一切事物在你眼中都是LastSpell.\"                                                      --Hakurei Reimu                       (考验文艺青年的时刻到了,这句名言的原型是谁说的?)\"如果我和Margatroid同时上场,那么世界上的一切事物在我眼中都是杂兵\"                                                      --Kirisame Marisa           (考验东方众的时刻又到了,这句名言是讽刺永夜抄里的什么东西的?)\n如果你真的耐心把这几章全部读完如果你真的耐心做了每一个实例如果你真的耐心看完了每一个知识点如果你真的看懂了的话...(能达到这点我就满足了 - w -)那么恭喜你,你现在已经可以自称是Minecraft的Mod制作者了!\n你学会了如何创建新的砖块和物品,如何添加新的合成和冶炼公式,学会了制作新的NPC并重写NPC的行为模式.学会了如何为物品添加特殊功能.学会了如何使用NBT存读数据,还掌握了地形生成器的使用和TileEntity的操作.你已经有能力去鄙视那些做个沙子换钻石就出来秀下限的渣渣了!\n然而不得不承认,现在仍有你不会的事情,如何制作支持多人游戏的Mod?如何绘制和显示GUI界面?如何制作新的模型?如何创建光源和更高级的粒子特效?如何修改游戏封包?如何创建新的材质?这个世界上除了Notch以外,没有人完全了解MC的所有代码.总会有你不会的东西,我也不得不承认MC中仍有不少我不了解的代码.但是你可以学习,你已经了解了MC中大部分系统的运作原理(如果你认真看了所有的知识点并读了灰色文字的话)你可以进一步更深入地研究高级系统.我也希望国内能够制作出像BC,BTW,RP,IC那样的大型Mod!最后再次感谢robinxb和719823597与外网的教程作者们!没有巨人的肩膀我也不可能这么顺利地研究MC的代码.\n另外,各位看出这部教程的4个谜题了吗?(考验XX的时刻...)",
+    "replies": [
+        {
+            "author": "geludan",
+            "timestamp": 1330790820,
+            "txt_content": "所以我把LZ所有5篇都追完了"
+        },
+        {
+            "author": "rainsillwood",
+            "timestamp": 1330799460,
+            "txt_content": "大角虫\n没耐心看的路过加分拜服"
+        },
+        {
+            "author": "rainsillwood",
+            "timestamp": 1330801980,
+            "txt_content": "\"一切事物都依存于Entity,即是说,没有做不出的东西.\"\n这个是师匠的话？\n如果你手中只有一张SpellCard,那么世界上一切事物在你眼中都是LastSpell\n这个真心不清楚= =貌似原句是意思是跟这个相反的\n如果我和Margatroid同时上场,那么世界上的一切事物在我眼中都是杂兵\n这个貌似是说的幽冥组\n最后一个谜题：第四个谜题在哪里我真心没找到T T\n晚上草草看了下有时间慢慢看"
+        },
+        {
+            "author": "zangyu25",
+            "timestamp": 1330828380,
+            "txt_content": "作者君碉堡了……绝对碉堡了……"
+        },
+        {
+            "author": "问候你",
+            "timestamp": 1330923540,
+            "txt_content": "支持是必须的！！加分也是必须的！！！"
+        },
+        {
+            "author": "tteicom",
+            "timestamp": 1331083500,
+            "txt_content": "虽然看不懂，但还是来给LZ加油，加油吧"
+        },
+        {
+            "author": "strawmaine",
+            "timestamp": 1331794740,
+            "txt_content": "我看晕了。。。GenerateSurface方法是写在哪里。。。"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1332335040,
+            "txt_content": "求助啊！\n\n\n\n\nwenti.jpg (29.17 KB, 下载次数: 9)\n\n下载附件\n\n2012-3-21 21:04 上传\n\n\n\n\n"
+        },
+        {
+            "author": "rp20010207",
+            "timestamp": 1332336000,
+            "txt_content": "!                -_-                !"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1332403080,
+            "txt_content": "对了，怎么导入java.util.Random这个库"
+        },
+        {
+            "author": "szszss",
+            "timestamp": 1332430740,
+            "txt_content": "ykc200 发表于 2012-3-22 15:58 \n对了，怎么导入java.util.Random这个库\n在package net.minecraft.src;的下方加入:import java.util.Random;复制代码这时你的mod_xxx.java的开头应该是这样的package net.minecraft.src;\n\nimport java.util.Map;\nimport java.util.Random;\n复制代码(如果你没有制作自定义NPC,那么也许不会有import java.util.Map;这行代码)"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1332490260,
+            "txt_content": "szszss 发表于 2012-3-22 23:39 \n在package net.minecraft.src;的下方加入:这时你的mod_xxx.java的开头应该是这样的(如果你没有制作自定义 ...\n求QQ号，我现在需要很多帮助"
+        },
+        {
+            "author": "szszss",
+            "timestamp": 1332645960,
+            "txt_content": "ykc200 发表于 2012-3-23 16:11 \n求QQ号，我现在需要很多帮助\n索引贴有福利(雾)"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1333239900,
+            "txt_content": "szszss 发表于 2012-3-25 11:26 \n索引贴有福利(雾)\n已经把我QQ给黑名单了还是不想帮我了"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1333240080,
+            "txt_content": "szszss 发表于 2012-3-25 11:26 \n索引贴有福利(雾)\n好吧其实我不是小白，只是学过忘了而已，毕竟这是MC"
+        },
+        {
+            "author": "ykc200",
+            "timestamp": 1333246980,
+            "txt_content": "szszss 发表于 2012-3-25 11:26 \n索引贴有福利(雾)\n就原谅我吧"
+        },
+        {
+            "author": "gy7610",
+            "timestamp": 1334134500,
+            "txt_content": "热切期待你的“Extra编”，，，"
+        },
+        {
+            "author": "Houranos",
+            "timestamp": 1334730720,
+            "txt_content": "楼主，你的SpellCard，我收下了！"
+        },
+        {
+            "author": "zhj6690260",
+            "timestamp": 1342487880,
+            "txt_content": "我想问一下：修改地形生成器能不能不修改ACQ.Class？"
+        },
+        {
+            "author": "ByZYM",
+            "timestamp": 1396763700,
+            "txt_content": "求问 打包出现\n== Reobfuscating client ==\n> Cleaning reobf\n> Generating md5s\n> Packing jar\n> Reobfuscating jar\n> Extracting modified classes\n- Done in 36.45 seconds\n!! Can not find server md5s !!\n这个怎么破  有没有手动打包"
+        },
+        {
+            "author": "1770964163",
+            "timestamp": 1396953900,
+            "txt_content": "赞！！感谢LZ"
+        },
+        {
+            "author": "Akimo_",
+            "timestamp": 1418794320,
+            "txt_content": "大角虫你好！！{:10_509:}"
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "title": "[20w17a]attribute指令详解",
+    "author": "Y制杖杖",
+    "replyCount": 7,
+    "timestamp": 1587614340,
+    "txt_content": " 本帖最后由 Y制杖杖 于 2020-4-24 06:31 编辑 \n\n在4月22日发布的全新快照20w17a中，加入了一条新的指令 /attribute\n语法树：\nattribute <目标> <属性> (get|base|modifier)   \n  ... get [<scale>]\n  ... base get [<scale>]\n  ... base set <value>\n  ... modifier (add|remove|value get) \n    ... add <uuid> <name> <value> (add|multiply|multiply_base)\n    ... remove <uuid>\n    ... value get <uuid> [<scale>]复制代码其中，目标可以是任意的实体（包括玩家 (但是玩家的移动速度属性在被更改后会恢复\n属性即AttributeName，允许的值可见：https://minecraft-zh.gamepedia.com/属性\n. 子命令\n    . get [<比率>]\n    获取该属性的值（并乘以比率后作为命令返回值【仅用于execute的储存子命令，在命令反馈中显示的仍然是原值】）\n\n    属性的值是base值经过modifier修饰后的最终值\n    . base get [<比率>]\n    获取该属性的基础值（并乘以比率后作为命令返回值）\n    不经过modifier修饰\n    . base set <值>\n    设置该属性的基础值\n    . modifier add <UUID> <修饰符名称> <值> (add|multiply|multiply_base)\n    为该属性增加修饰符\n    UUID是“字符串形式”，但实际上并不需要双引号，而是类似这样的形式：0000000a-000b-000c-000d-000000000001\n    由于1.16后UUID几乎都以整型数组的形式保存（包括实体NBT中AttributeModifiers中修饰符的UUID），所以我们应该了解如何将其转化为整型数组\n    首先，字符串形式的UUID被四个“-”分割为了5部分，前三部分为最高位（Most），后两部分为最低位（Least），最高位和最低位可以看做两个长整数类型：0000000a000b000c和000d000000000001\n    (需要注意的是这两个数字以16进制储存）\n    再将这两个long类型数据（占8位），转化为两个int类型数据（占四位），就能得到四个整型数据，即我们所要的数组 \n    以下是Java代码实现：（将0000000a-000b-000c-000d-000000000001转化为数组）\n   //这里采用的是先将字符串uuid转化为两个long再拆分为int。直接拆成4个int也是可行的，这样操作是为了方便对高低位UUID的转化。 public static void main(String[] args) {\nfor(int x:getIntegerArray(0x0000000a000b000cL,0x000d000000000001L)) {\n   System.out.print(x+\",\"); //输出结果：10,720908,851968,1,\n  }\n }\n public static int[] getIntegerArray(long most,long least) {\n  byte[] b_1=getBytes(most);\n  byte[] b_2=getBytes(least);\n  return new int[] { //这里需要倒序输出\n   toInt(b_1[4],b_1[5],b_1[6],b_1[7]),\n   toInt(b_1[0],b_1[1],b_1[2],b_1[3]),\n   toInt(b_2[4],b_2[5],b_2[6],b_2[7]),\n   toInt(b_2[0],b_2[1],b_2[2],b_2[3]),\n  };\n }\n public static byte[] getBytes(long x) {\n  byte[] a=new byte[8];\n  for(int i=0;i<a.length;i++)a[i]=(byte)((x>>i*8)&0xff);\n  return a;\n }\n public static int toInt(byte...b){\n  int result=0;\n  for(int i=0;i<4;i++)result+=(int)((b[i]&0xff)<<i*8);\n<div>  return result;</div><div>}</div>复制代码          那么UUID有什么用呢？同一个属性中的修饰符的UUID应该是唯一的，也就是说你不能添加两个UUID相同的修饰符到同一个属性\n          这点在自定义装备中可以得到运用，起到类似“唯一属性”的效果。比如一个头盔和一个胸甲，他们都能提供5点抗击退的属性修饰符，\n    但UUID相同。所以当玩家同时穿上两件装备，增加的仍然只有5点抗击退。\n         修饰符名称没有实际的作用，仅用作标识\n\n         add、multiply、multipy_base分别对应operation的0、1、2\n    见wiki：\n修改的Operation(运算模式)决定这个属性被修饰的模式，大概的说明为：直接加减Amount,乘以Amount，乘以Amount+1；Operation可选值有三个： 0、1 或者2. 这个值将会决定修饰符对属性的基础数值的计算方式. \n\n\n若该值为0：将X的增量设为Amount的值，例如：{Amount:2,Operation:0}和{Amount:4,Operation:0}与基础值3的结果是：9 (3 + 2 + 4 = 9)。 \n\n\n若该值为1：将Y的增量设为X×Amount的值； 例如：修饰符属性：{Amount:2,Operation:1}和{Amount:4,Operation:1}与基础值3的结果是21（3 *（1 + 2 + 4）= 21）。 \n\n\n若该值为2：则计算Y = Y × (1 + Amount的值) (等同于将Y的增量设为 Y × Amount的值)Minecraft会先设 X = Base, 然后执行所有Operation的值为0的修饰符, 紧接着设 Y = X, 之后再执行所有Operation值为1的修饰符, 最后才执行所有Operation的值为2的修饰符。例如：{Amount:2,Operation:2}和{Amount:4,Operation:2}与3的基础值结果是45（3 *（1 + 2）*（1 + 4）= 45）。[3] \n数学行为如下：Operation0：按数量增加X，操作1：增加Y×X *数量，Operation2：Y = Y *（1 +数量）（相当于增量Y减去Y *数量）。\n\n\n 游戏首先设置X = Base，然后执行所有Operation 0修饰符，然后设置Y = X，然后执行所有Operation 1修饰符，最后执行所有Operation 2修饰符。 \n\n   . modifier remove <uuid>\n     移除对应uuid的修饰符\n . modifier value get <uuid> [<比率>]\n     获取对应uuid修饰符的值\n\n\n",
+    "replies": [
+        {
+            "author": "无禾",
+            "timestamp": 1587638760,
+            "txt_content": "在服务器的话用后台的配置文件可以用嘛"
+        },
+        {
+            "author": "我是小曾丫",
+            "timestamp": 1587790140,
+            "txt_content": "是20w17a中间的吗，我没找到诶（可能我有点眼瞎"
+        },
+        {
+            "author": "Y制杖杖",
+            "timestamp": 1587790620,
+            "txt_content": "我是小曾丫 发表于 2020-4-25 12:49\n是20w17a中间的吗，我没找到诶（可能我有点眼瞎\n？什么意思\n/attribute是20w17a加入Minecraft的"
+        },
+        {
+            "author": "我是小曾丫",
+            "timestamp": 1587790680,
+            "txt_content": "Y制杖杖 发表于 2020-4-25 12:57\n？什么意思\n/attribute是20w17a加入Minecraft的\n我有的呀，我好像没找到"
+        },
+        {
+            "author": "Y制杖杖",
+            "timestamp": 1587790860,
+            "txt_content": "我是小曾丫 发表于 2020-4-25 12:58\n我有的呀，我好像没找到\n在聊天栏输入\"/at\"就能看到补全了"
+        },
+        {
+            "author": "我是小曾丫",
+            "timestamp": 1587793740,
+            "txt_content": "Y制杖杖 发表于 2020-4-25 13:01\n在聊天栏输入\"/at\"就能看到补全了\nO(∩_∩)O谢谢"
+        },
+        {
+            "author": "🥶❄️☠️",
+            "timestamp": 1588315140,
+            "txt_content": "诶呀，想不到现在的指令这么高级啊"
+        }
+    ]
+}

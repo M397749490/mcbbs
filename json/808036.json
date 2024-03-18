@@ -1,0 +1,44 @@
+{
+    "title": "请问史蒂夫的运动是怎么样的",
+    "author": "851892190",
+    "replyCount": 7,
+    "timestamp": 1532250420,
+    "txt_content": "为什么连跳比普通跑提速更快，不一样的连跳方式加速又为什么不一样，请问他们是取决于什么的。有没有大佬可以从代码方面什么的讲一下",
+    "replies": [
+        {
+            "author": "Lucky_fish0w0",
+            "timestamp": 1532250420,
+            "txt_content": "注：代码源自mcp，代码版本1.12\n\n终于被我找到了，于net.minecraft.entity.EntityLivingBase的jump()方法中，有一段是这样的\n\nif (this.isSprinting())\n{\n    float f = this.rotationYaw * 0.017453292F;\n    this.motionX -= (double)(MathHelper.sin(f) * 0.2F);\n    this.motionZ += (double)(MathHelper.cos(f) * 0.2F);\n}\n复制代码\n意思是说，mc中的生物在疾跑状态中，跳跃时会获得0.2格/tick的速度加成。对，所有生物都会有这个加成，但是取决于她们会不会疾跑了。不同的连跳方式？你说的是疾跑与不疾跑吧，不疾跑不会有这个速度加成的。\n\n如果是斜着走的速度会稍微变快，可能也只是计算误差的问题了，许多关于坐标系换算的代码都使用到了net.minecraft.util.math.MathHelper的sin、cos和atan2函数，比如说上方的跳跃代码。\n她们的实现方式如下：\npublic static float sin(float value)\n{\n    return SIN_TABLE[(int)(value * 10430.378F) & 65535];\n}\npublic static float cos(float value)\n{\n    return SIN_TABLE[(int)(value * 10430.378F + 16384.0F) & 65535];\n}\n复制代码\natan2的代码超长，但忘了折叠夹怎么做，这里就先不展示了。\n从代码上看，sin和cos的计算结果都是缓存到一个名为 SIN_TABLE 变量里头，也就是说，她们的计算结果是近似值，而不是准确值，从而也能大幅度地提升代码的运行速度（然而在我的电脑上还是那么的卡）至于为什么到了甚至0.2block/s的误差的话，可能是因为这些计算出来的一点点的误差所累积造成的结果。"
+        },
+        {
+            "author": "[A.C]SWAT",
+            "timestamp": 1532257980,
+            "txt_content": "你可以尝试从物理学角度看一下这个问题"
+        },
+        {
+            "author": "狂奔者、",
+            "timestamp": 1532259000,
+            "txt_content": "游戏设定就是这样的，不是什么代码方面"
+        },
+        {
+            "author": "851892190",
+            "timestamp": 1532259120,
+            "txt_content": "mc不科学啊2333"
+        },
+        {
+            "author": "851892190",
+            "timestamp": 1532315580,
+            "txt_content": "cx62d 发表于 2018-7-22 17:07\n注：代码源自mcp，代码版本1.12\n\n终于被我找到了，于net.minecraft.entity.EntityLivingBase的jump()方法中 ...\nemm跳跃状态获得加成的话，请问跳跃状态是哪一部分，从起跳到落地，还是上升的过程？\n按住疾跑连跳，速度上貌似会再落地再次起跳瞬间有一个爆发请问是如何解释？\n很抱歉问题没说清楚，连跳方式不同是指，在疾跑状态下连跳，跳两远一格高连跳和跳3远1格高连跳速度加成不一样。我是看一个测速mod的，，，\n劳烦了"
+        },
+        {
+            "author": "Lucky_fish0w0",
+            "timestamp": 1532527260,
+            "txt_content": " 本帖最后由 cx62d 于 2018-7-25 22:44 编辑 \n851892190 发表于 2018-7-23 11:13\nemm跳跃状态获得加成的话，请问跳跃状态是哪一部分，从起跳到落地，还是上升的过程？\n按住疾跑连跳，速度 ...\n实际上跳跃加成是在跳起的一瞬间获得加成，后面是每gametick乘以0.98以进行减速\n事实上仅仅乘以0.98是不够的，另外还有一段关于脚下代码的计算\n展开后为代码部分，刷屏警告\n\n\n代码于net.minecraft.entity.EntityLivingBase类中的func_191986_a中的方法\n这里的代码暂未完全解混淆，所以前期没能及时发现，抱歉\n\n\npublic void func_191986_a(float p_191986_1_, float p_191986_2_, float p_191986_3_)\n{\n    if (this.isServerWorld() || this.canPassengerSteer())\n    {\n        if (!this.isInWater() || this instanceof EntityPlayer && ((EntityPlayer)this).capabilities.isFlying)\n        {\n            if (!this.isInLava() || this instanceof EntityPlayer && ((EntityPlayer)this).capabilities.isFlying)\n            {\n                if (this.isElytraFlying())\n                {\n                    // 关于鞘翅飞行的代码，由于与题目无关，暂且忽略\n                }\n                else\n                {\n                    float f6 = 0.91F;\n                    BlockPos.PooledMutableBlockPos blockpos$pooledmutableblockpos = BlockPos.PooledMutableBlockPos.retain(this.posX, this.getEntityBoundingBox().minY - 1.0D, this.posZ);\n\n                    if (this.onGround)\n                    {\n                        f6 = this.world.getBlockState(blockpos$pooledmutableblockpos).getBlock().slipperiness * 0.91F;\n                    }\n\n                    float f7 = 0.16277136F / (f6 * f6 * f6);\n                    float f8;\n\n                    if (this.onGround)\n                    {\n                        f8 = this.getAIMoveSpeed() * f7;\n                    }\n                    else\n                    {\n                        f8 = this.jumpMovementFactor;\n                    }\n\n                    this.func_191958_b(p_191986_1_, p_191986_2_, p_191986_3_, f8);\n                    f6 = 0.91F;\n\n                    if (this.onGround)\n                    {\n                        f6 = this.world.getBlockState(blockpos$pooledmutableblockpos.setPos(this.posX, this.getEntityBoundingBox().minY - 1.0D, this.posZ)).getBlock().slipperiness * 0.91F;\n                    }\n\n                    if (this.isOnLadder())\n                    {\n                        // 在梯子上有关的代码\n                    }\n\n                    this.moveEntity(MoverType.SELF, this.motionX, this.motionY, this.motionZ);\n                    if (this.isCollidedHorizontally && this.isOnLadder())\n                    {\n                        // 爬梯子代码，速度为0.2格/tick\n                    }\n                    if (this.isPotionActive(MobEffects.LEVITATION))\n                    {\n                        // 漂浮效果\n                    }\n                    else // 默认的摔落代码\n                    {\n                        blockpos$pooledmutableblockpos.setPos(this.posX, 0.0D, this.posZ);\n                        if (!this.world.isRemote || this.world.isBlockLoaded(blockpos$pooledmutableblockpos) && this.world.getChunkFromBlockCoords(blockpos$pooledmutableblockpos).isLoaded())\n                        {\n                            if (!this.hasNoGravity())\n                            {\n                                this.motionY -= 0.08D;\n                            }\n                        }\n                        else if (this.posY > 0.0D)\n                        {\n                            this.motionY = -0.1D;\n                        }\n                        else\n                        {\n                            this.motionY = 0.0D;\n                        }\n                    }\n                    this.motionY *= 0.9800000190734863D;\n                    this.motionX *= (double)f6;\n                    this.motionZ *= (double)f6;\n                    blockpos$pooledmutableblockpos.release();\n                }\n            }\n            else\n            {\n                double d4 = this.posY;\n                this.func_191958_b(p_191986_1_, p_191986_2_, p_191986_3_, 0.02F);\n                this.moveEntity(MoverType.SELF, this.motionX, this.motionY, this.motionZ);\n                this.motionX *= 0.5D;\n                this.motionY *= 0.5D;\n                this.motionZ *= 0.5D;\n                if (!this.hasNoGravity())\n                {\n                    this.motionY -= 0.02D;\n                }\n\n                if (this.isCollidedHorizontally && this.isOffsetPositionInLiquid(this.motionX, this.motionY + 0.6000000238418579D - this.posY + d4, this.motionZ))\n                {\n                    this.motionY = 0.30000001192092896D;\n                }\n            }\n        }\n        else\n        {\n            // 游泳有关代码，由于与问题无关，故暂忽略\n        }\n    }\n\n    this.prevLimbSwingAmount = this.limbSwingAmount;\n    double d5 = this.posX - this.prevPosX;\n    double d7 = this.posZ - this.prevPosZ;\n    double d9 = this instanceof net.minecraft.entity.passive.EntityFlying ? this.posY - this.prevPosY : 0.0D;\n    float f10 = MathHelper.sqrt(d5 * d5 + d9 * d9 + d7 * d7) * 4.0F;\n    if (f10 > 1.0F)\n    {\n       f10 = 1.0F;\n    }\n    this.limbSwingAmount += (f10 - this.limbSwingAmount) * 0.4F;\n    this.limbSwing += this.limbSwingAmount;\n}\n\n\n复制代码\n\n\n由代码得知玩家的移动速度也和脚下的方块的滑度有关（是否涉及生物暂未验证），比如说明显的，冰块，灵魂沙在代码里头是直接把速度乘以0.4，其他绝大多数方块则是约为0.16277136除以滑度的立方（举个离子，冰块滑度是0.98），再经过某种算法（代码太难看。。懒得解读了）再参与到玩家运动的计算中，摔落时平面上的速度就直接乘以0.91以做到减速。故跳远个人来看可能是滞空速度的差异，造成感觉上的不同，比如说2格1高可能到达下一个方块的速度会相对快一些，而由于3远1高滞空较长，故可能会造成慢速的感觉"
+        },
+        {
+            "author": "lovexyn0827",
+            "timestamp": 1612433280,
+            "txt_content": "Lucky_fish0w0 发表于 2018-7-22 17:07\n注：代码源自mcp，代码版本1.12\n\n终于被我找到了，于net.minecraft.entity.EntityLivingBase的jump()方法中 ...\n直接放源代码不太好吧，指定行号会更保险"
+        }
+    ]
+}

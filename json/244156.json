@@ -1,0 +1,64 @@
+{
+    "title": "一个简单的插件 血量增长修改实例",
+    "author": "q513902026",
+    "replyCount": 11,
+    "timestamp": 1393226100,
+    "txt_content": " 本帖最后由 q513902026 于 2014-2-24 15:17 编辑 \n\n\nPluginCore.java\npackage com.hopeasd.core;\n\nimport java.util.logging.Logger;\n\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport com.hopeasd.model.Config;\nimport com.hopeasd.model.Damage;\nimport com.hopeasd.model.Health;\n\npublic class PluginCore extends JavaPlugin\n{\npublic Logger logger;\npublic Config config;\npublic Health health;\n\n@Override\npublic void onEnable()\n{\nlogger = this.getLogger();\n\nlogger.info(\"开始加载生命模块\");\nhealth = new Health(this);\nhealth.registerEvents();\nlogger.info(\"生命模块加载完成\");\n\nlogger.info(\"开始获取插件配置\");\nconfig = new Config(this);\nconfig.setConfig();\nlogger.info(\"插件配置加载完成\");\n\n}\n\n@Override\npublic void onDisable()\n{\nhealth.unregisterEvents();\n}\n}\n复制代码\nConfig.java\npackage com.hopeasd.model;\n\nimport java.io.File;\n\nimport org.bukkit.configuration.file.FileConfiguration;\n\nimport com.hopeasd.core.PluginCore;\n\npublic class Config\n{\n\n        public PluginCore jPluginCore;\n        public FileConfiguration configuration;\n\n        public int levelTop;\n        public int healthStart;\n        public int randomStar;\n        public int randomEnd;\n        public double healthArg;\n        public double damageArg;\n\n        public double damagerDelTop;\n        public int randomDamagerEnd;\n\n        public Config(PluginCore jpPluginCore)\n        {\n                this.jPluginCore = jpPluginCore;\n        }\n\n        public void setConfig()\n        {\n\n                File configFile = new File(jPluginCore.getDataFolder(), \"config.yml\");\n                configuration = jPluginCore.getConfig();\n\n                if (!configFile.exists())\n                {\n                        addObject(configuration);\n                }\n                ConfigGet();\n        }\n\n        private void ConfigGet()\n        {\n                levelTop = configuration.getInt(\"LevelTop\");\n                healthStart = configuration.getInt(\"Health Start\");\n                randomStar = configuration.getInt(\"Health Random Start\");\n                randomEnd = configuration.getInt(\"Health Random End\");\n                healthArg = configuration.getDouble(\"Health\");\n                damageArg = configuration.getDouble(\"Damager\");\n                damagerDelTop = configuration.getDouble(\"Damager DelTop\");\n                randomDamagerEnd = configuration.getInt(\"Random Damager End\");\n\n        }\n\n        private void addObject(FileConfiguration configuration)\n        {\n\n                jPluginCore.saveDefaultConfig();\n\n        }\n}\n复制代码\nHealth.java\npackage com.hopeasd.model;\n\nimport java.util.HashMap;\n\nimport org.bukkit.Server;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.player.PlayerExpChangeEvent;\nimport org.bukkit.event.player.PlayerJoinEvent;\nimport org.bukkit.event.player.PlayerLevelChangeEvent;\nimport org.bukkit.event.player.PlayerQuitEvent;\n\nimport com.hopeasd.command.CommandGetHealth;\nimport com.hopeasd.command.CommandRoll;\nimport com.hopeasd.core.HopeAsdCore;\nimport com.hopeasd.core.PluginCore;\n\npublic class Health implements Listener\n{\n        public PluginCore jPluginCore;\n\n        public HashMap<String, Double> playerHashMap = new HashMap<String, Double>();\n\n        public Health(PluginCore jPluginCore)\n        {\n                this.jPluginCore = jPluginCore;\n        }\n\n        @EventHandler\n        public void PlayerJoin(PlayerJoinEvent event)\n        {\n                Player aPlayer = event.getPlayer();\n                if (!playerHashMap.containsKey(aPlayer.getName()))\n                {\n                        changeHealth(aPlayer);\n\n                } else\n                {\n                        aPlayer.setHealthScale((Double) playerHashMap.get(aPlayer.getName()));\n                }\n\n        }\n\n        @EventHandler(priority = EventPriority.HIGHEST)\n        public void PlayerLevel(PlayerQuitEvent et)\n        {\n                Player aPlayer = et.getPlayer();\n                final double aPlayerHealth = et.getPlayer().getHealthScale();\n                playerHashMap.put(aPlayer.getName(), aPlayerHealth);\n                aPlayer.setHealthScale(20.0D);\n        }\n\n        @EventHandler\n        public void PlayerLevelChanager(PlayerLevelChangeEvent event)\n        {\n                Player aPlayer = event.getPlayer();\n                changeHealth(aPlayer);\n\n        }\n\n        @EventHandler\n        public void PlayerExpChanager(PlayerExpChangeEvent event)\n        {\n                Player aPlayer = event.getPlayer();\n                changeHealth(aPlayer);\n\n        }\n\n        private void changeHealth(Player aPlayer)\n        {\n                final double aPlayerHealth = aPlayer.getHealthScale();\n                int aPlayerLevel = aPlayer.getLevel();\n                int randomArg = (jPluginCore.config.healthStart - HopeAsdCore\n                                .moreTimesRoll(aPlayerLevel + 1, jPluginCore.config.randomStar,\n                                                jPluginCore.config.randomEnd));\n                double endHealth;\n                if (aPlayerLevel >= 0 && aPlayerLevel < jPluginCore.config.levelTop)\n                {\n                        endHealth = (aPlayerLevel * jPluginCore.config.healthArg + randomArg);\n                        aPlayer.setHealthScale(endHealth);\n                        aPlayer.sendMessage(\"你的等级已经变化 该次变化造成你的生命值\"\n                                        + HopeAsdCore.formatAdd((int) endHealth,\n                                                        (int) aPlayerHealth));\n                        playerHashMap.put(aPlayer.getName(), endHealth);\n                        return;\n                } else if (aPlayerLevel >= jPluginCore.config.levelTop)\n                {\n                        endHealth = (jPluginCore.config.levelTop\n                                        * jPluginCore.config.healthArg + randomArg);\n                        aPlayer.setHealthScale(endHealth);\n                        aPlayer.sendMessage(\"你的等级已经变化 该次变化造成你的生命值\"\n                                        + HopeAsdCore.formatAdd((int) endHealth,\n                                                        (int) aPlayerHealth));\n                        this.playerHashMap.put(aPlayer.getName(), endHealth);\n                        return;\n                }\n\n        }\n\n        public void registerEvents()\n        {\n                Server plServer = jPluginCore.getServer();\n\n                plServer.getPluginManager().registerEvents(this, jPluginCore);\n\n                jPluginCore.getCommand(\"setLevel\").setExecutor(\n                                new com.hopeasd.command.CommandSetLevel(jPluginCore));\n\n                jPluginCore.getCommand(\"getHealth\").setExecutor(\n                                new CommandGetHealth(jPluginCore));\n                jPluginCore.getCommand(\"roll\")\n                                .setExecutor(new CommandRoll(jPluginCore));\n\n        }\n\n        public void unregisterEvents()\n        {\n                for (Player onlinePlayer : jPluginCore.getServer().getOnlinePlayers())\n                {\n                        onlinePlayer.setHealthScale(20.0D);\n                }\n\n        }\n\n}\n复制代码\nplugin.yml\nname: HopeAsd\nmain: com.hopeasd.core.PluginCore\nauthors: [HopeAsd,Bilicraft Team]\nversion: ersion alpha 0.1.0\ncommands:\n  setLevel:\n    description: This is a SetLevel Command\n    usage: /<command> [level]\n    permission: hello.level.set\n    permission-message: You don't have <permission>\n  getHealth:\n    description: This is a getHealth Command\n    usage: /<command> \n    permission: hello.health.get.player\n    permission-message: You don't have <permission>\n  roll:\n    description: roll !\n    usage: /<command> start end times\npermissions:\n  hello.level.set:\n    description: Set Level\n    default: op\n  hello.health.get.otherplayer:\n    description: Get Player Health\n    default: op\n  hello.health.get.player:\n    description: Get Health 复制代码\nconfig.yml\n#请注意:所有Value和Key 之间保持一个空格\n#例子: Key: Value\n#请自行套入\n# 血量线性增加上限 默认为10 不可为0\nLevelTop: 10\n# 血量的初始值\nHealth Start: 20\n# 血量线性增加系数 默认为1.5 计算公式为: 等级 * 成长系数 + 随机系数\nHealth: 1.5\n# 随机系数 开始 计算公式为 <Health Start> - 随机骰子数 \n# 随机骰子数来自Java的Random 伪随机数 骰子会投掷（玩家等级 + 1） 次 最大值为<Health Random End> 最小值为<Health Random Start>\n# 投掷的次数越多 越接近 最大值和最小值之间的中间值\n# 最大值和最小值不能为0，且不能相等\nHealth Random Start: 1\nHealth Random End: 2\n#伤害 减少/增加 上限\nDamager DelTop: 10\n#伤害 减少/增加 参数 \nDamager: 1\n#随机系数 减伤计算公式为: 当前伤害 *(<Damager> - ((等级 +1)/ (<Damager DelTop> + roll(1,1,<Random Damager> + 1))))\n#roll为 本插件的method roll(int times,int start,int end)\nRandom Damager End: 2\n\n复制代码\n以下是源码下载\nhttp://pan.baidu.com/s/1dDwyHJb\n\n顺带问一下 如何创建自己的资源文件\n\n[groupid=350]CTHUWORK[/groupid]",
+    "replies": [
+        {
+            "author": "Coconot",
+            "timestamp": 1393226340,
+            "txt_content": "我做的是沙发么？好像不是诶~表示看不懂LZ~"
+        },
+        {
+            "author": "z59479031",
+            "timestamp": 1393230180,
+            "txt_content": "Coconot 发表于 2014-2-24 15:19\n我做的是沙发么？好像不是诶~表示看不懂LZ~\n第3条 第12个{:10_512:}"
+        },
+        {
+            "author": "Yihc",
+            "timestamp": 1393230720,
+            "txt_content": "惊现q513902026"
+        },
+        {
+            "author": "q513902026",
+            "timestamp": 1393230780,
+            "txt_content": "Yihc 发表于 2014-2-24 16:32\n惊现q513902026\n{:10_522:}"
+        },
+        {
+            "author": "skyqwe2",
+            "timestamp": 1393230960,
+            "txt_content": "q513902026 发表于 2014-2-24 16:33\n????亮了"
+        },
+        {
+            "author": "尘曲",
+            "timestamp": 1393231920,
+            "txt_content": "创建资源文件？"
+        },
+        {
+            "author": "q513902026",
+            "timestamp": 1393232100,
+            "txt_content": "尘曲 发表于 2014-2-24 16:52\n创建资源文件？\nResource文件  "
+        },
+        {
+            "author": "尘曲",
+            "timestamp": 1393233840,
+            "txt_content": "q513902026 发表于 2014-2-24 16:55\nResource文件\n= =你已经做到了啊"
+        },
+        {
+            "author": "q513902026",
+            "timestamp": 1393234260,
+            "txt_content": "尘曲 发表于 2014-2-24 17:24\n= =你已经做到了啊\n我的意思是说 新建一个 date.yml"
+        },
+        {
+            "author": "尘曲",
+            "timestamp": 1393235220,
+            "txt_content": "q513902026 发表于 2014-2-24 17:31\n我的意思是说 新建一个 date.yml\n是啊= =你已经做到了啊，估计你没理解。。。//设置并保存文件\n        File conf = new File(getDataFolder(), \"conf.yml\");\n        FileConfiguration subor = new YamlConfiguration();\n        try {\n            subor.load(conf);\n        } catch (Exception localException) {\n        }\n//设置\n        subor.set(\"配置项\", 233);\n//保存\n        try {\n            subor.save(conf);\n        }catch (Exception localException1) {\n        }复制代码"
+        },
+        {
+            "author": "q513902026",
+            "timestamp": 1393237980,
+            "txt_content": "尘曲 发表于 2014-2-24 17:47\n是啊= =你已经做到了啊，估计你没理解。。。\nthanks"
+        }
+    ]
+}

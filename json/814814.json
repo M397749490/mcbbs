@@ -1,0 +1,54 @@
+{
+    "title": "█某(并不)正经的BungeeCord插件开发教程█ 2 -联动通讯",
+    "author": "erry64",
+    "replyCount": 9,
+    "timestamp": 1534386000,
+    "txt_content": " 本帖最后由 berry64 于 2018-8-26 00:34 编辑 \n\n进入目录\n\nChapter 2CustomPayload, PluginMessage, 以及BC&服务端插件之间的通讯 Part I\n\n一些BC插件的常规操作嘛，虽然我本人是希望把这个联动通讯放到晚一点再编写的，不过思考了半天讲道理BC插件不与bukkit联动能达到的功能好像都已经有人写了...\n不过作为一些基本常规操作还是希望介绍一下\n\n首先是ServerInfo和Server这两个类，ServerInfo可以理解成在BungeeCord的config.yml (如果不知道这个是什么建议你去自己开个BC然后看看配置文件) 里面设置的server。\n\n比如这里我拿我自己配置的一个server信息来\nlobby:\n  motd: '&1Just another BungeeCord - Forced Host'\n  address: localhost:25565\n  restricted: false复制代码\n可以看到这里有几个信息： 服务器名字 (lobby) 服务器的MOTD (这里是默认) 服务器的ip(localhost) 服务器的端口25565\n\n有了这些信息之后我们就可以做出一些高端操作，比如 获取服务器名字 ServerInfo.getName()  高端你个蛇皮鬼\n甚至可以做到获取服务器的玩家 (ServerInfo.getPlayers())\n关于这个是怎么做到的: 虽然本文介绍的是config.yml里面的server配置文件，而且ServerInfo也大致是这个东西，但是实际上代码内的ServerInfo指向的是BC启动之后连接了各种服务器之后的缓存数据，这里面就包括了各种玩家信息\n\n而在BungeeCord插件编写里要获得这样的数据很简单，比如如果是个ProxiedPlayer玩家就是酱紫玩:ProxiedPlayer.getServer().getInfo();复制代码，如果你有一串String作为服务器名称的话可以利用bungeecord自带的api获取：BungeeCord.getInstance().getServerInfo(servername);复制代码不过使用第二种方法要注意，如果BC没有注册这个名字的服务器，那么会返回null。\n\n然后一个基本操作了解一下就可以了:ProxyPlayer.connect(ServerInfo);复制代码这个就是把指定玩家强行转接到另一个服务器, 没有什么高端操作\n\n\nCustomPayload的起源, PluginMessage以及BC服务端联动的基本概念Once upon a time  ，所有mc客户端与服务端的数据通讯都是在同一串数据里的，作为原版MC这本来并没有什么非常严重的问题，但随着MCP和mod的兴起，客户端与服务端之间的通讯越来越复杂，而如此复杂的信息难免会有错误存在。如果是以前所有数据都在同一串数据里，那么这些错误会导致整串数据无法被读取或者读取错误，这时候为了保证游戏体验，MC会自动帮你断开连接。\n\n然而虽然官方能保证原生mc数据的低错误率，但却不能保证各mod (也就是第三方开发的) 完全不会出现这些问题，可是 (大概是notch/jeb玩mod的时候莫名其妙被断开链接了) 很多时候这些错误并不会怎么影响游戏体验，只是单纯的发错了包而已，而在这种情况下又断开连接才是最难受的，所以mojang就把自定义数据包给分流发送了，这样即使自定义数据有错误也不会导致整个游戏崩溃。\n\n官方支持的自定义数据包允许了很多意想♂不到的可能性，而从此衍伸出了很多奇♂特的东西， PluginMessage就是其中之一， pluginmessage通过fml和bukkit的支持允许了开发者以更简易的方式达到mod(客户端)与插件(服务端)的通讯, 详细介绍可以看这里\n\n上面的页面翻到最底下可以看到BungeeCord频道， BC基于这个pluginmessage开发了自己的一套支持从各服务器发送给BC本体各式各样的信息的渠道，嘛，大概就是酱紫了，各式各样的信息\n\n\n那么问题来了，要怎么发送这些数据呢因为是网络通讯，所以这里所有信息都是以一串字节发送的 (byte[])  \n当然，这个字节码有一万种 很多个方法可以读取，不过为了简化我们的操作，在本教程里我们将使用Google Guava的ByteArrayDataOutput和ByteArrayDataInput来:\n在BungeeCord使用的话我们要先注册自己的频道，本教程将在onEnable里注册:getProxy().registerChannel(\"MyChannel\");复制代码感谢BC的支持，我们很轻松就注册了一个频道。\n频道是注册好了，可是怎么监听呢？\n代码                                                                - □ ╳//就像监听一个事件一样, 主类里注册监听器\nBungeeCord.getInstance().getPluginManager().registerListener(this, new MyChannelListener());\n\n//然后我们用新的类来写\npublic class MyChannelListener implements Listener{\n        @EventHandler\n        public void onPluginMessageRecieve(PluginMessageEvent evt) {\n                //到这里就非常好理解了\n                String channel = evt.getTag();                      //频道id\n                ByteArrayDataInput data =ByteStreams.newDataInput(evt.getData);               //方便处理的消息\n                ProxiedPlayer recipient = BungeeCord.getInstance().getPlayer(evt.getReciever().toString());          //目标玩家\n        }\n}\n> _\n其他核心(bukkit/sponge)的监听方法 \n\nBukkitSponge//Bukkit里并不是一个事件，所以要使用单独的messenger api\n//同样，主类里注册一下我们的频道和监听器\nBukkit.getMessenger().registerIncomingPluginChannel(this, \"MyChannel\", new MyBukkitListener());\n//这里也用新的类好了\npublic class MyBukkitListener implements PluginMessageListener{\n        @Override\n        public void onPluginMessageReceived(String channel, Player reciepent, byte[] message) {\n                ByteArrayDataInput data= ByteStreams.newDataInput(message);\n        }\n}复制代码//然而Spongej就有点独特了\n//不过思路还是差不多的，我们先在启动的时候注册频道\nRawDataChannel channel = Sponge.getChannelRegistrar().createRawChannel(this, \"MyChannel\");\nchannel.addListener(new MySpongeListener());\n\n//为了方便，我们再写个新类来监听\npublic class ChannelListener implements RawDataListener{                \n        @Override\n        public void handlePayload(ChannelBuf data, RemoteConnection connection, Type side) {\n                //可以看到这里sponge已经给我们提供了可以直接调用的data\n        }\n}复制代码\n至此，本篇完结，关于发送和自定义将会在下一篇继续讲\n\n如果本教程有帮到你请考虑给个好评评价/回复一下本帖，P.S. 给人气不会损失金币的哦\n\n\n进入目录",
+    "replies": [
+        {
+            "author": "Mr.Luans",
+            "timestamp": 1534387260,
+            "txt_content": "前排支持的大佬的编程教学！\n通过您的教学，相信我对Java会有更好的认识！"
+        },
+        {
+            "author": "夏逆大大",
+            "timestamp": 1534389360,
+            "txt_content": "希望java水平越来越高"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1534392360,
+            "txt_content": "先说一下你这个回复可见，很不.厚道了\n1-5: 本版通常情况下不允许使用回复可见与回复奖励，但以下两种情况下，楼主可以对下载内容使用回复可见：\n一些不易下载访问到的国外资源的国内转存整理文件；\n开发教程内容的源代码整理，但要求相应源代码必须已内嵌进教程中，读者可以阅读回复可见部分之外的教程内容后自己编写得到；复制代码"
+        },
+        {
+            "author": "erry64",
+            "timestamp": 1534392960,
+            "txt_content": "754503921 发表于 2018-8-16 12:06\n先说一下你这个回复可见，很不.厚道了\n感谢提醒，不过因为本教程是针对BC 的所以把BC以外的放到了回复可见里\n这样算啥=w="
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1534393140,
+            "txt_content": "berry64 发表于 2018-8-16 12:16\n感谢提醒，不过因为本教程是针对BC 的所以把BC以外的放到了回复可见里\n这样算啥=w= ...\n那么，我点进你这个帖子想学点东西，结果发现需要学的全在回复隐藏里\n\n另外guava那堆byte啥的stream啥的都丢了，netty的ByteBuf了解一下"
+        },
+        {
+            "author": "lliiooll",
+            "timestamp": 1534544700,
+            "txt_content": "终于找到了"
+        },
+        {
+            "author": "zyx2",
+            "timestamp": 1534688220,
+            "txt_content": "所以为何后半隐藏前半保留=.=吊人胃口"
+        },
+        {
+            "author": "GhostGuJI_Dada",
+            "timestamp": 1548595440,
+            "txt_content": "Java主流语言"
+        },
+        {
+            "author": "fenghaolin1",
+            "timestamp": 1579330080,
+            "txt_content": "java.lang.IllegalArgumentException: Channel must contain : separator算是什么报错"
+        }
+    ]
+}

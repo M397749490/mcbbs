@@ -1,0 +1,24 @@
+{
+    "title": "开发者在写Mod/插件时遇到玩家等游戏元素的临时数据时的常犯错误",
+    "author": "土球球",
+    "replyCount": 3,
+    "timestamp": 1515829740,
+    "txt_content": " 本帖最后由 ustc_zzzz 于 2018-1-19 18:52 编辑 \n\n引言\n\n本以为这种事已经是人尽皆知的常识了，但是看到最近仍然有特别多的开发者在这上面犯错，个人觉着不单开一帖提醒可能不会引起广大开发者注意。\n\n这个帖子理论上适用于所有Minecraft相关开发的场合，包括但不限于Forge Mod、LiteLoader Mod、Sponge插件等。实际上个人认为Bukkit插件也会涉及这件事，但是由于本人不会写Bukkit插件（震惊，编程开发版四个版主竟只有繁华一个人会写Bukkit插件），所以也不是很确定。因为据本人所知，Bukkit插件的Player接口的实现是单独的CraftPlayer，不直接接触NMS的Player，所以个人不敢保证相关的问题一定会出现，但仍然有很大几率适用于这个帖子。\n\n本人假设在阅读这个主题帖的开发者，都有一定程度的Java开发经验，并且知道NMS是什么东西。当然，对于Mod开发者来说，他们是直接接触NMS的。\n\n玩家总是存在吗？\n\n作为插件/Mod开发者，很多时候我们会在内存里存储玩家的一些临时数据，比如说玩家的头衔，声望什么的数据。大部分插件开发者会直接新建一个Player（对于Mod可能是EntityPlayer或者什么别的东西，为方便描述，后面统称为Player）的HashMap存储这个东西，比如说这样：\nprivate final Map<Player, String> someData = new HashMap<>();复制代码\n然后玩家上线或者干什么的时候，就把更新后的数据加到这个HashMap里就行了，反正这也很简单，几乎所有开发者都会实现类似的东西。\n\n但是我们需要想一个问题：这个Player会一直存在吗？\n\n玩家当然不总是存在。玩家可能会下线，可能会死亡，可能会刚跳进末地的传送门，正在读终末之诗。\n\n不管是上面的哪一种情况，旧的Player都会被游戏本身丢弃，同时未来可能有一个新的Player实例被产生。\n\n我们首先设想一种情况，你经营了一个千人大服，开服第一个星期，有5000个玩家访问过你的服务器，并做了一些事情。现在你的这个HashMap里有什么？有5000个Player。但是现在服务器有多少人？实际上可能正值后半夜，服务器只有50个玩家。一个50个玩家的服务器存储了5000个玩家的数据，这真的是开发者想要看到的吗？\n\n我们再设想另一种情况，假设你只经营了一个十人小服，开服第一个星期只有50个玩家访问过你的服务器。但是你服务器的这50个玩家都是硬核玩家，它们分别在这一个星期上线下线了100次，那你的HashMap可能已经持有了多少个Player了？5000个。一共只有50个玩家，却存储了5000个Player的实例，这也真的是开发者想要看到的吗？\n\nPlayer会被游戏本身丢弃，但不会被JVM丢弃。HashMap存储的是Player的强引用，而GC发现强引用会自动绕道，使Player避免被收集。想想服务器的那点可怜的内存吧。\n\n解决方案\n\n实际上，不止是Player，大量相关的游戏元素在代码中对应的实例，比如说TileEntity、World、更广范围的Entity等，都不应该被直接引用。\n\n引用SpongeDocs中对于相关做法的约定：\n某些类的实例，诸如：\nDataHolderTileEntityCommandSourceEntityPlayerSubjectWorld以及任何可能存储这些引用的容器，包括：\nCollectionMap\n\n不应缓存在插件中。\n目前常见的解决方案有两种。\n\n第一种方案是使用UUID等方式识别玩家：\nprivate final Map<UUID, String> someData = new HashMap<>();复制代码\n然后调用getUniqueId或者类似的方法获取玩家的UUID，从而存储数据。\n\n第二种方案相对比较折衷：存储玩家的弱引用。\n\nGC同样会回收那些没有被强引用的对象。因此如果一个对象只被弱引用，那么GC同样会考虑回收它。\n\n相关的类有java.lang.ref.WeakReference、java.util.WeakHashMap等，前者保证其中的对象引用是弱引用，而后者保证整个Map的所有Key均为弱引用。你可以把上面的代码改写成这个样子：\nprivate final Map<UUID, String> someData = new WeakHashMap<>();复制代码\n当然这种使用WeakHashMap存储的数据，在玩家下线等行为后就会失效，所以通常只作为临时数据使用，算是一个治标不治本的办法。我个人更推荐前者。\n\n针对特定平台的方案\n\n如果你开发的是针对1.8.9及更高版本的Forge Mod，那么Capability系统将会对你存取相关数据起到很大帮助。\n\n如果你开发的是Sponge插件，你可以通过自定义DataManipulator的方式针对玩家等特定的对象存取数据。\n\n如果你使用的是Bukkit什么的别的平台，对不起，我。。。我真的不知道还有没有别的办法。\n\n[groupid=534]InfinityStudio[/groupid]",
+    "replies": [
+        {
+            "author": "ddyy163",
+            "timestamp": 1515833760,
+            "txt_content": "应该是服务器 调用getBukkitEntity 会重新包装这个nms的entity的原因吧\n还有物品也有asCraftCopy\n\n其他的nms的类也类似了"
+        },
+        {
+            "author": "螺滨23",
+            "timestamp": 1515840240,
+            "txt_content": "长资质了"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1515890820,
+            "txt_content": "当然，对于Mod开发者来说，他们是直接接触NMS的。\n\n在基于 Forge 的 Mod 开发者的世界中，其实，不存在 NMS 的概念——你绝大部分的时间是在跟 Minecraft 的底层打交道，而不是跟 Forge 或者 FML 打交道。\n\n如果你开发的是针对1.8.9及更高版本的Forge Mod，那么Capability系统将会对你存取相关数据起到很大帮助\n关于 Forge 的 Capability 系统，请参阅 Forge 自己的开发文档（不是 Javadoc！）：https://mcforge.readthedocs.io/e ... orage/capabilities/\n有一篇虽然很老但是还能用的中文教程：http://www.mcbbs.net/thread-592550-1-1.html\n（在基于 Forge 的 Mod 的世界里你为什么要存储 EntityPlayer 引用？？？笔者是想不出合理的使用情景）\n"
+        }
+    ]
+}

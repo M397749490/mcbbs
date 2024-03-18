@@ -1,0 +1,174 @@
+{
+    "title": "从零开始制作Minecraft启动器(C++开源)",
+    "author": "PD_BlueCat",
+    "replyCount": 33,
+    "timestamp": 1450971180,
+    "txt_content": " 本帖最后由 RecursiveG 于 2015-12-25 08:30 编辑 \n\n从零开始制作Minecraft启动器(C++开源)           新手飙车了~~~，MC启动器源码大放送，随心所欲打造自己的专属MC启动器，这不是易语言，是C++。。。分析原理，关键源码都有详细的注释，代码编好就打包放送，所以说凌乱无比。。。\n 下载地址：百度网盘：http://pan.baidu.com/s/1i3UDOXnCSDN下载：http://download.csdn.net/detail/u010661060/9376136\n博客地址：http://www.cnblogs.com/windfall/p/5074619.html \nMClauncher（公版）启动器界面：\n\n\n\n代码全部开源，拥有详细的注释： \n\n\n测试过的平台：windows7 64位、windowsXP，在这两个平台上都能运行。\n 测试MC启动版本：Minecraft1.7.10纯净版、Minecraft1.7.10 forge版都能启动，讲道理的话，其他版本的游戏也有可能启动。。。 \n特别说明：   因为采用的Qt为夸平台软件，编译出来的exe文件运行需要很多的夸平台库，这样的话导致启动器比一般的都要大而且启动器目录非常混乱，为了解决此问题，已将所有的库文件和exe打包成新的exe文件了，直接点击MClauncher.exe运行即可。注意，360会瞎比报毒，直接无视即可。。。\n\n  历经千辛万苦终于撸出了自己的启动器，尽管还有无数的BUG，但至少能用了。。。     刚开始什么都不知道，在网上大量搜索MC启动器源码、MC启动原理等。搜索到的源码还是挺多的，但是大多是易语言写的，下了好多下来。但是，不懂易语言，愣是没看懂怎么启动的。后想到Google上找点源码，但是有GFW的存在，买不起VPN，好多网页都打不开，而且最为关键的是尼玛看不懂英文啊。后来在某个论坛里看见一条回复，说是要启动MC，分析里面的JSON文件就可以了，看到这句话，制作MC启动器终于有了眉目了。          先着手分析MC启动器启动参数，参考旋律启动器，打开旋律启动器调试开关，就可获得启动器传给游戏的参数。当然，也可以打开cmd，在启动器启动时输入“wmic process where caption=\"javaw.exe\" getcaption,commandline /value>D:\\canshu.txt”参数，即可获得启动器参数。\n   在看MC启动器参数之前，先来看看运行jar包参数传递及依赖关系分析。之前为了弄清MC参数传递，特地做了个小的java程序模拟MC游戏，这样不必在庞大的MC游戏上做这个小参数测试。 小游戏启动脚本：java -Xmx1024m -Dplayer.name=BlueCat -cpHelloFrame.jar HelloFrame\n参数分析：-Xmx1024m：代表JVM最大堆内存值（不懂，反正照着别人的抄就行。。。） \n-Dplayer.name：（用-D<name>=<value>来设定系统属性值）这里利用来传递游戏参数，在java程序里可以用：System.getProperty(\"player.name\")获得其值，这样就可以在测试窗口上显示玩家名称了。 \n-cp：目录和 zip/jar 文件的类搜索路径，后面的参数为main函数执行所依赖的jar包，以及其所在的jar包，无先后顺序。 \n最后一个参数：指定main函数所在的类HelloFrame，若该类在包中，前面加上包名，否则只写类名即可。  \n\n现在再来看真正的Minecraft启动参数，太长了，分段来看。\n第一段：C:\\Program Files\\Java\\jre7\\bin\\javaw.exe（包含全路径的javaw.exe） \n第二段：-Xmx1024m -Dfml.ignoreInvalidMinecraftCertificates=true-Dfml.ignorePatchDiscrepancies=true -Djava.library.path=\".minecraft\\natives\"（堆内存及相关系统变量设置） \n第三段：-cp “ ...(此处省略一万个jar包)...1.7.10-Forge10.13.2.1230.jar”（所依赖的jar包） \n第四段：net.minecraft.launchwrapper.Launch（main所在的类） \n第五段：--username        BlueCat --version            1.7.10-Forge10.13.2.1230 --gameDir          .minecraft --assetsDir         .minecraft\\assets --assetIndex       1.7.10 --uuid                ${auth_uuid} --accessToken     ${auth_access_token} --userProperties   {} --userType          legacy --tweakClass       cpw.mods.fml.common.launcher.FMLTweaker（游戏参数，在JSON文件中的minecraftArguments）       在模拟小程序中，除了第五段没有模拟外，其他都是类似的。   启动游戏时传递这些参数即可启动游戏了，这些参数都可以从JSON文件中获得，当然有些参数是固定的有的是自己设置，比如游戏名字自己设置吧。       所说的JSON文件在.minecraft\\versions\\1.7.10\\目录下的1.7.10.json \n       重要的参数都在这里，所以启动器要做的就是解析这个JSON文件，获得其中的值，转化为启动参数，传递给JVM就可以了。所以，做启动器做的最多的就是字符串处理了，我是个菜鸡，C++和Qt都是半吊子，一知半解，也不知道有什么好的方法。反正很多地方都做得比较蠢，代码也写的相当的凌乱，想起什么就写什么，写到最后连我自己都理不清思路了，所以看源代码可能会比较费解，不过关键的方法都有注释。在阅读源代码时记住一条，所做的一切的目的是将JSON中的一串字符转化为合适的启动参数。所以在看到代码在瞎JB做循环或者突然减个1时，不要懵圈了，~_~。关于启动器的原理就说这么多了，更多的查看源代码，哈哈~~~。 \n噢，对了，还有些事情。1、 就是希望大家帮忙测试启动器，BUG发送至我的邮箱1425078914@qq.com，感激不尽！可能不会尽快修复BUG，因为有更重要的事情要做，应该最近很长一段时间内不会再碰启动器了。\n 2、 公版启动器现存的BUG：（1）在选启动版本时存在窗口滑动BUG，类似下图。    这个BUG，我暂时无能为力，我只是一只菜鸡，在不断的学习中。。。\n（2）那个自动设置内存选项是假的，就是固定设置为1024m，我暂时还不知到怎么弄。\n（3）java路径自动查找算法还有待强化，这其实也不太算是BUG，目前只是查找系统环境变量中PATH中含有的java路径，在别的电脑上测试时有失败过。\n 3、关于制作启动器过程中一点蛋疼的问题   先是在Qt4上撸出了启动器的界面，大多按钮采用假连接，后来到解析JSON文件时才发现Qt4没有JSON相关的类，JSON相关的类从Qt5才开始有。于是跑到官网上下了最新版的Qt5.5.1（minGW版），编译好了程序一运行就导致Qt Creater一直未响应，这真的是很蛋疼。后来换到Qt5.0.2才没有这个问题，可是这版本编译的Release版要在没有装Qt的电脑上运行很麻烦，要多很多的库文件。于是，又下了个Qt5.5.0，还是有一直未响应的问题。所以呢，最后用Qt5.0.2编译调试，然后用Qt5.5.0编译在别的电脑上测试。。。\n4、最后一点，参考旋律启动器时有个natives文件夹，里面放的是些dll文件，不知道有什么用，反正没了就是启不动，旋律缺少的话是下载过来的。在这里的话，我是解压相关jar包中的文件到该目录下的，所以，公版启动器中还内置了一个unzip32.exe程序。\n   启动器是从零开始撸出来的，很多地方不是很理解，也有的地方做的有些愚，还望有大牛能够指点一二，万分感谢！！！",
+    "replies": [
+        {
+            "author": "erry64",
+            "timestamp": 1451011800,
+            "txt_content": "KMCCC万岁, JMCCC万岁"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1451023140,
+            "txt_content": "C++终于有救了"
+        },
+        {
+            "author": "shine495",
+            "timestamp": 1451046480,
+            "txt_content": "C艹不错 LZ加油啊 支持~ Launcher UI太普通 可以考虑换个 源码可以放到Github上啊"
+        },
+        {
+            "author": "goose_bomb",
+            "timestamp": 1451056620,
+            "txt_content": "蛤C艹好评，就是写界面不如C# WPF方便"
+        },
+        {
+            "author": "Thorn_Arnor",
+            "timestamp": 1451060940,
+            "txt_content": "精华给你\n少见的c++教程"
+        },
+        {
+            "author": "Thorn_Arnor",
+            "timestamp": 1451061120,
+            "txt_content": "精华给你\n少见的c++教程"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1451064240,
+            "txt_content": "Qt表示我看着头大，体积也大……"
+        },
+        {
+            "author": "296394065",
+            "timestamp": 1451123280,
+            "txt_content": "感谢楼主 不过我还是感觉VS比较好嘛233"
+        },
+        {
+            "author": "PD_BlueCat",
+            "timestamp": 1451142240,
+            "txt_content": "最新github源码地址：https://github.com/leisure-china/MClauncher.git\n感谢 “shine495” 的建议~~"
+        },
+        {
+            "author": "PD_BlueCat",
+            "timestamp": 1451142900,
+            "txt_content": "shine495 发表于 2015-12-25 20:28\nC艹不错 LZ加油啊 支持~ Launcher UI太普通 可以考虑换个 源码可以放到Github上啊 ...\n嗯，启动器确实没啥特色，纯仿旋律做的，非常感谢源码放github上的建议~"
+        },
+        {
+            "author": "PD_BlueCat",
+            "timestamp": 1451143020,
+            "txt_content": "goose_bomb 发表于 2015-12-25 23:17\n蛤C艹好评，就是写界面不如C# WPF方便\n额。。我只会Qt啊。。"
+        },
+        {
+            "author": "KELIKE",
+            "timestamp": 1451801340,
+            "txt_content": "表示 Win10 Java7 启动 1.8.8纯净版 没有反应"
+        },
+        {
+            "author": "Docer.",
+            "timestamp": 1451804100,
+            "txt_content": "C++好评.你能教我做吗?"
+        },
+        {
+            "author": "麦白",
+            "timestamp": 1451804280,
+            "txt_content": "标题: 启动器C++教程难的一见"
+        },
+        {
+            "author": "LIAG",
+            "timestamp": 1451805360,
+            "txt_content": "好教程！赞一个！！{:10_512:}"
+        },
+        {
+            "author": "桃渊林",
+            "timestamp": 1452207720,
+            "txt_content": "C++啊必须好评\n表示刚学C++阅读起来稍微困难（惭愧→_→）"
+        },
+        {
+            "author": "Heer_Kaisair",
+            "timestamp": 1452330300,
+            "txt_content": "希望楼主详细说说读取json并转换的问题~最近易语言卡这里了（网上源码都不能用）"
+        },
+        {
+            "author": "zcm2005",
+            "timestamp": 1458914760,
+            "txt_content": "-cp 那里究竟填什么啊！！！"
+        },
+        {
+            "author": "zcm2005",
+            "timestamp": 1458994320,
+            "txt_content": "-cp后面填什么啊？？？？？？"
+        },
+        {
+            "author": "564487729",
+            "timestamp": 1459044840,
+            "txt_content": "C++启动器为啥显示出未找到文件啊，我只是个小菜鸟，求教"
+        },
+        {
+            "author": "PD_BlueCat",
+            "timestamp": 1460384340,
+            "txt_content": "zcm2005 发表于 2016-3-26 20:12\n-cp后面填什么啊？？？？？？\n在json文件中  \"name\": \"org.lwjgl.lwjgl:lwjgl-platform:2.9.1\" 从这个可以获取到目录文件为：org\\lwjgl\\lwjgl\\lwjgl-platform\\2.9.1\\lwjgl-platform-2.9.1-natives-windows.jar 这就是-cp后面的参数，比较多，可以在相关目录下找到该jar文件。具体你可以在cmd下输入wmic process where caption=\"javaw.exe\" get caption,commandline /value>D:\\canshu.txt获取启动器具体传给JVM具体参数，在这里你就可以看到-cp后具体的内容了。在点了启动游戏后，马上在cmd上运行上面那段代码就可以获取参数，参数文件在d盘根目录下的canshu.txt。原文中这段代码get caption连在一起了-_-。"
+        },
+        {
+            "author": "PD_BlueCat",
+            "timestamp": 1460385120,
+            "txt_content": "564487729 发表于 2016-3-27 10:14\nC++启动器为啥显示出未找到文件啊，我只是个小菜鸟，求教\n显示“未找到游戏文件”可能是MC版本不支持吧！老版本是启动不的。\n启动器启动游戏依赖于.minecraft\\versions\\1.7.10\\1.7.10.json文件。如果显示没有找到游戏文件就是没有发现该目录下的文件。如果你在开发的时候做测试，别忘了把.minecraft下的文件全部拷贝到Qt中和debug、release同级目录下。"
+        },
+        {
+            "author": "duang2333",
+            "timestamp": 1460450580,
+            "txt_content": "有MFC版吗，不会QT"
+        },
+        {
+            "author": "skyblue_Mr",
+            "timestamp": 1460545140,
+            "txt_content": "goose_bomb 发表于 2015-12-25 23:17\n蛤C艹好评，就是写界面不如C# WPF方便\n写代码爽快感也不如C井方便{:10_518:}"
+        },
+        {
+            "author": "zcm2005",
+            "timestamp": 1460625540,
+            "txt_content": "PD_BlueCat 发表于 2016-4-11 22:19\n在json文件中  \"name\": \"org.lwjgl.lwjgl:lwjgl-platform:2.9.1\" 从这个可以获取到目录文件为：org\\lwjgl ...\n我脑子要崩了。。。"
+        },
+        {
+            "author": "564487729",
+            "timestamp": 1460784660,
+            "txt_content": "PD_BlueCat 发表于 2016-4-11 22:32\n显示“未找到游戏文件”可能是MC版本不支持吧！老版本是启动不的。\n启动器启动游戏依赖于.minecraft\\vers ...\n能不能加我QQ帮我远程一下，我只是小白，对软件开发一点都不会"
+        },
+        {
+            "author": "hxp1999",
+            "timestamp": 1469108940,
+            "txt_content": "啊QT万岁"
+        },
+        {
+            "author": "freshlingz",
+            "timestamp": 1469171460,
+            "txt_content": "哎哟，我去水的材质感觉做的不错"
+        },
+        {
+            "author": "七海八千代",
+            "timestamp": 1469176500,
+            "txt_content": "正好需要这教程~"
+        },
+        {
+            "author": "az860325",
+            "timestamp": 1472701320,
+            "txt_content": "用 C++就先推一个再说!"
+        },
+        {
+            "author": "天空之城TMD",
+            "timestamp": 1472901120,
+            "txt_content": "QT做的啊，滋瓷滋瓷～～～～～～～"
+        },
+        {
+            "author": "天空之城TMD",
+            "timestamp": 1472901300,
+            "txt_content": "话说楼主为啥不使用utf8呢？creator默认编码也是utf8啊？"
+        },
+        {
+            "author": "天空之城TMD",
+            "timestamp": 1472902020,
+            "txt_content": "那个。。。。linux下怎么改啊。。。路径改成/了还是无法读取游戏文件。。。。"
+        }
+    ]
+}

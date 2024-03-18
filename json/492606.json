@@ -1,0 +1,504 @@
+{
+    "title": "KMCCC使用教程（使用量超过360w的C#游戏启动核心|2017年11月15日更新）",
+    "author": "gamerteam",
+    "replyCount": 99,
+    "timestamp": 1440391440,
+    "txt_content": "KMCCC（Kblack's Minecraft Core Code）是Kblack（@zhouyiran2 ）制作的一个C#版的启动核心，拥有以下优点\n\n功能多：包含Json解析（LitJson），Java路径获取，Versions版本获取，文件解压，系统信息获取，以及Libraries文件获取、MojangAPI等。\n开源：任何人都可以免费使用，如需修改源码，请务必遵守LGPL协议。\n简单：启动只需要几句代码即可。\n\n\n使用本启动核心的服务器/启动器有：\n\n中国Minecraft口袋妖怪服务器群组（BakaXL）\n\n\nMC部落（mclansLauncher）\n\n\nMinecraft星空物语群组服（McxkLauncher）\n\n\nMCMV3\n\n\n\n适用人群：拥有C#一定基础的开发者\n\nGithub链接：https://github.com/MineStudio/KMCCC\n使用KMCCC的Demo启动器：https://github.com/MineStudio/MCMV3\n\n\n注意事项\n考虑到大部分新手都是使用WinForm开发，本文以WinForm为例，同时我也会标注一些WPF可能不同的代码。\n\nKMCCC需要.net framework 4.0的开发环境，用户也需要安装.net framework 4.0才可以使用\n\n\n目录\n\n1.启动游戏\n2.错误信息的处理\n3.游戏信息和Java的获取\n4.高级工具的使用（1）\n5.高级工具的使用（2）\n\n\n\n\n注：原作者已经放弃本项目，除重大BUG将不会再进行更新，我将继续做KMCCC的更新维护工作。\n\n\n(PS:吐槽一句，上面的启动器大部分我都参与了开发)\n如果你对KMCCC的使用有疑问，欢迎帖子留言，我会尽量帮助你完成属于你的启动器！\n\nKMCCC更新记录：\n0.9.5.4：修正了不兼容老版本（例如1.7.2）的Assets读取目录错误问题，修正了1.9.4Forge无法加载Assets的问题，添加了自定义验证服务器设置\n0.9.5.6：添加Version_Type设置，默认为KMCCC\n0.9.5.7：兼容17w43b版本后修改的JSON格式，KMCCC.Pro增加MojangAPI（目前有销量查询与MojangAPI服务状态查询）",
+    "replies": [
+        {
+            "author": "gamerteam",
+            "timestamp": 1440395100,
+            "txt_content": "标题: 1.启动游戏和版本获取 本帖最后由 gamerteam 于 2016-3-27 02:42 编辑 \n\n使用前的准备：\n启动游戏非常简单，只需要一行代码即可。\n\n在这之前，先添加KMCCC.Pro.dll的引用（DLL文件请自行克隆Github的项目，然后编译。注意，编译KMCCC需要你的电脑安装了WindowsSDK。以及再次强调，如果你没有任何C#基础，请放弃本文）\n\n\n然后打开Program.cs（如果是WPF则是App.xmal.cs）添加KMCCC的引用：\nusing KMCCC.Launcher;复制代码\n\n然后在入口处添加以下代码\npublic static LauncherCore Core = LauncherCore.Create();复制代码\n如图所示\n\n同时建议添加以下代码，方便KMCCC统计你启动器的使用量和启动情况（KMCCC将会严格保护用户隐私，只反馈启动信息和系统配置信息，你随时可以取消反馈）\nReporter.SetClientName(\"启动器名称+版本\");复制代码\n\n\n然后在主窗口添加一个ComboBox和Button控件，后面会用到。\n获取版本列表：\n在窗口事件上面（双击标题栏即可），添加以下代码：WinForm后台代码\n            var versions = Program.Core.GetVersions().ToArray();\n            comboBox1.DataSource = versions;//绑定数据源\n            comboBox1.DisplayMember = \"Id\";//设置comboBox显示的为版本Id复制代码\nWPF xmal代码：\n<ComboBox x:Name=\"comboBox1\" HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\" Width=\"168\" DisplayMemberPath=\"Id\" />复制代码DisplayMemberPath=\"Id\" 为关键，等同于上面的comboBox1.DisplayMember = \"Id\";\n\n\n启动游戏：\n接下来在Button事件上，添加以下代码\nvar ver = (KMCCC.Launcher.Version)comboBox1.SelectedItem;\nvar result = Program.Core.Launch(new LaunchOptions\n {\n Version = ver, //Ver为Versions里你要启动的版本名字\n MaxMemory = 1024, //最大内存，int类型\n Authenticator = new OfflineAuthenticator(\"ZhaiSoul\"), //离线启动，ZhaiSoul那儿为你要设置的游戏名\n //Authenticator = new YggdrasilLogin(\"邮箱\", \"密码\", true), // 正版启动，最后一个为是否twitch登录\n Mode = LaunchMode.MCLauncher, //启动模式，这个我会在后面解释有哪几种\n Server = new ServerInfo {Address = \"服务器IP地址\",Port=\"服务器端口\"}, //设置启动游戏后，自动加入指定IP的服务器，可以不要\n Size = new WindowSize {Height = 768, Width = 1280} //设置窗口大小，可以不要\n });\n复制代码\n\n测试前的准备：\n然后进入程序编译后的文件夹（默认为bin/debug），复制一个.minecraft进去（只需要包含Libraries和Versions即可）\n\n\n然后编译并运行，效果如下：\n\n\n\n\n其他信息：\nAuthenticator为验证模式，有离线启动和正版验证两种，详见上面的代码。\n\nMode为启动模式，KMCCC拥有三种启动模式，分别为默认、BMCL、MCLauncher模式\n\n默认：设置游戏的默认加载目录为.minecraft（即Mods，resourcepacks等文件将放在.minecraft中）\nBMCL模式：复制coremods到Versions/版本 里，参见BMCL的启动模式\nMCLauncher模式：Mods和resourcepacks等资源文件均放在Versions/版本 里面，适合有不同游戏版本的客户端\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440396780,
+            "txt_content": "标题: 2.启动错误信息的处理 本帖最后由 gamerteam 于 2015-8-26 01:55 编辑 \n\n不是每个用户都会处理错误的，所以这时候我们需要错误信息来提示他们怎么解决。\n\n我们只需在上面的启动代码后面，加上以下代码即可\n\n当然，如果你想出错后弄一个自动修复什么的也是可以的，不过那需要你自己研究了{:10_525:}\n\n            if (!result.Success)\n            {\n                //MessageBox.Show(result.ErrorMessage, result.ErrorType.ToString());\n                switch (result.ErrorType)\n                {\n                    case ErrorType.NoJAVA:\n                        MessageBox.Show(\"你系统的Java有异常，可能你非正常途径删除过Java，请尝试重新安装Java\\n详细信息：\" + result.ErrorMessage,\"错误\", MessageBoxButtons.OK, MessageBoxIcon.Error);\n                        break;\n                    case ErrorType.AuthenticationFailed:\n                        MessageBox.Show(this, \"正版验证失败！请检查你的账号密码\", \"账号错误\\n详细信息：\" + result.ErrorMessage,MessageBoxButtons.OK,MessageBoxIcon.Error);\n                        break;\n                    case ErrorType.UncompressingFailed:\n                        MessageBox.Show(this, \"可能的多开或文件损坏，请确认文件完整且不要多开\\n如果你不是多开游戏的话，请检查libraries文件夹是否完整\\n详细信息：\" + result.ErrorMessage, \"可能的多开或文件损坏\",MessageBoxButtons.OK,MessageBoxIcon.Error);\n                        break;\n                    default:\n                        MessageBox.Show(this,\n                            result.ErrorMessage + \"\\n\" +\n                            (result.Exception == null ? string.Empty : result.Exception.StackTrace),\n                            \"启动错误，请将此窗口截图向开发者寻求帮助\");\n                        break;\n                }\n            }复制代码\n\n\n这里我们将libraries改名一下，然后再启动游戏，就会出现以下错误：\n\n我这里给一些开发者一些提示，比如上面的，缺少libraries会出现文件解压错误，建议搭配BMCLAPI下载缺失的libraries文件，怎么获取缺少哪些libraries文件，我将会在后面的章节进行说明。\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440414120,
+            "txt_content": "标题: 游戏信息和Java的获取 本帖最后由 gamerteam 于 2015-11-11 13:16 编辑 \n\nLibraries丢失的文件列表获取：\n我们知道，玩家可能会丢失一些重要的文件，导致MC无法正常开启（Assets丢失后只是无声或者不能中文，所以KMCCC目前还没获取丢失Assets哪些文件的功能），所以我们要知道，玩家到底丢了哪些文件。\n\n首先，创建一个List<T>，例如\nprivate List<string> lostFlie = new List<string>();复制代码\n然后在我们上面写的启动事件上面，添加以下代码\n\n            lostFlie.Clear();//清空列表，防止重新启动后，列表重复\n            var core = LauncherCore.Create();\n            var version = Program.Core.GetVersion(comboBox1.Text);//设置读取的版本配置为当前选择的项\n            try\n            {\n                var libs = version.Libraries.Select(lib => core.GetLibPath(lib));\n\n                var natives = version.Natives.Select(native => core.GetNativePath(native));\n                foreach (string libflie in libs)\n                {\n                    if (!File.Exists(libflie))\n                    {\n                        //MessageBox.Show(\"当前缺少的Libraries文件有：\" + libflie);\n                        lostFlie.Add(libflie);\n                    }\n                }\n\n                foreach (string libflie in natives)\n                {\n                    if (!File.Exists(libflie))\n                    {\n                        //MessageBox.Show(\"当前缺少的Libraries-natives文件有：\" + libflie);\n                        lostFlie.Add(libflie);\n                    }\n                }\n                MessageBox.Show(\"一共缺少\"+lostFlie.Count+\"个文件\");\n                return;//返回一个值，中止继续执行后面的代码\n            }\n            catch\n            {\n                MessageBox.Show(\"版本信息获取失败！请确认已选择正确的核心版本\");\n            }复制代码\n\n\n\n效果如图：\n\n\n还记得我们之前改了Libraries文件名字的吧？现在来试试吧！看提示我们缺少哪些文件！\n\n\n\n至于怎么配合BMCLAPI下载缺失的文件呢？这个就属于研究项目了，各位自行研究吧，其实很简单的。（提示：去掉Libraries前面的路径名，只保留文件在.minecraft里的路径，例如\\libraries\\org\\lwjgl\\lwjgl\\lwjgl\\2.9.0\\lwjgl-2.9.0.jar，然后在修改后的路径名前面加上bmclapi的地址即可）\n\n\nJava路径的获取\nKMCCC自带了Java路径的获取工具，我们可以非常方便的读取玩家电脑里已经安装了哪些Java。\n（我们更推崇不提供Java设置功能，让玩家自行安装完整版的Java。）\n\n我们先给我们的窗口，添加一个TextBox（这只是举一个例子）\n\n\n\n然后在窗口事件中，添加以下代码\n\n\ntextBox1.Text = KMCCC.Tools.SystemTools.FindJava().Last();//textbox1显示我们找到的最后一个Java（也是最近安装的一个）复制代码\n效果如下：\n\n\n\n注意！如果玩家电脑里没有安装Java，直接这样搜索会导致崩溃！\n你需要加一个try来进行修复。\n例如\ntry{ 复制代码\n\n\n当然，要注意，KMCCC.Tools.SystemTools.FindJava()返回的是一个列表，.First()的意思是显示列表中的第一个。\n\n你也可以再改进一下，让玩家自己选择使用哪个Java，就像下面这样。\n\n\n很简单，就交给你们自己研究了。总之要用到.ToList()就对了\n\n注意，并不支持绿色版的Java，如果玩家是通过非正常方式卸载的Java（例如直接删除）的话，注册表是会有残留信息的，我们依然会检测到那个并不存在的Java。\n\n（PS：WinForm用得我想死了，还是建议大家试试WPF吧）\n\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440414240,
+            "txt_content": " 本帖最后由 gamerteam 于 2015-11-4 02:39 编辑 \n\n相信用的人已经发现，版本选择是不允许string类型的，如果我想默认选择一个版本，或者我知道那个版本名字是多少，该怎么做呢？\n这时候就需要用到GetVersion工具了。使用方法如下：\n\nvar core = LauncherCore.Create();\nvar Launchversion = core.GetVersion(\"版本名字\");复制代码\n\n然后在启动版本选择位置，就可以使用Launchversion了\n\n            var result = Program.Core.Launch(new LaunchOptions{\n                    Version = Launchversion , //Ver为Versions里你要启动的版本名字\n                    MaxMemory = 1024, //最大内存，int类型\n                    Authenticator = new OfflineAuthenticator(\"ZhaiSoul\"), //离线启动，ZhaiSoul那儿为你要设置的游戏名\n                    //Authenticator = new YggdrasilLogin(\"邮箱\", \"密码\", true), // 正版启动，最后一个为是否twitch登录\n                    Mode = LaunchMode.MCLauncher, //启动模式，这个我会在后面解释有哪几种\n                    Server = new ServerInfo {Address = \"服务器IP地址\"}, //设置启动游戏后，自动加入指定IP的服务器，可以不要\n                    Size = new WindowSize {Height = 768, Width = 1280} //设置窗口大小，可以不要\n                });复制代码\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440414300,
+            "txt_content": " 本帖最后由 gamerteam 于 2015-8-27 11:54 编辑 \n\n高级工具的更新将会暂缓，因为确实KMCCC的功能略多，就前面的教程已经足够写一个完整的启动器了。本贴待更新将更新更多实用功能，例如修改游戏标题，系统信息获取等\n只接受提问和指导，如需定制启动器，详见我签名\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440414300,
+            "txt_content": "占楼，待更新"
+        },
+        {
+            "author": "8900581",
+            "timestamp": 1440426120,
+            "txt_content": "楼主发本帖后既易语言成为启动器广泛使用的语言后，C#成为了第二大启动器语言"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440429180,
+            "txt_content": "8900581 发表于 2015-8-24 22:22\n楼主发本帖后既易语言成为启动器广泛使用的语言后，C#成为了第二大启动器语言 ...\nC#做启动器本来就很容易，其实不管什么语言，只要你会了基础，然后随便网上搜一个json解析工具，自己就可以写一个启动器了"
+        },
+        {
+            "author": "8900581",
+            "timestamp": 1440433380,
+            "txt_content": "gamerteam 发表于 2015-8-24 23:13\nC#做启动器本来就很容易，其实不管什么语言，只要你会了基础，然后随便网上搜一个json解析工具，自己就可 ...\n易语言更容易，XX模块_游戏启动（）\n手动斜眼"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440468240,
+            "txt_content": "8900581 发表于 2015-8-25 00:23\n易语言更容易，XX模块_游戏启动（）\n手动斜眼\n这也是模块，启动游戏和版本选择，就上面的代码已经搞定"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1440481260,
+            "txt_content": "支持楼主，表示楼主教程写的很棒"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440525120,
+            "txt_content": "tallmoon 发表于 2015-8-25 13:41\n支持楼主，表示楼主教程写的很棒\n{:10_510:}不给人气就不更，啦啦啦啦啦"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1440560220,
+            "txt_content": "100个使用C#和BakaXL的理由"
+        },
+        {
+            "author": "MontyKayla",
+            "timestamp": 1440579780,
+            "txt_content": "{:10_492:}写得很详细嘛 (听说楼主是个小萝莉，而且只有12岁，然而却被kblack爆过，太残忍了，太变态了"
+        },
+        {
+            "author": "←_←←_←",
+            "timestamp": 1440579840,
+            "txt_content": "看起来不错（可惜我不会C#），据说lz是十二岁的小萝莉，支持十二岁的小萝莉~= ="
+        },
+        {
+            "author": "BlueCraft",
+            "timestamp": 1440581100,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1440639660,
+            "txt_content": "gamerteam 发表于 2015-8-24 19:05\n高级工具的更新将会暂缓，因为确实KMCCC的功能略多，就前面的教程已经足够写一个完整的启动器了。本贴待更 ...\n出一个 读写配置文件的教程呗"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440641520,
+            "txt_content": "tallmoon 发表于 2015-8-27 09:41\n出一个 读写配置文件的教程呗\n读写配置文件那不属于KMCCC的功能了，但是也很简单，WPF的话建议使用xml，WinForm的话，可以试试WinAPI的ini读取"
+        },
+        {
+            "author": "poi4399",
+            "timestamp": 1440644040,
+            "txt_content": "╭(°A°`)╮有点触，望交友。"
+        },
+        {
+            "author": "REN0011",
+            "timestamp": 1440648900,
+            "txt_content": "有没有办法支持mac..."
+        },
+        {
+            "author": "T.~以后",
+            "timestamp": 1440650700,
+            "txt_content": "不能跨平台是个问题..."
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440652020,
+            "txt_content": "T.~以后 发表于 2015-8-27 12:45\n不能跨平台是个问题...\n跨平台的话，可以mono在Linux上运行，但是不支持WPF也是头疼，WinForm用得要吐了"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440652020,
+            "txt_content": "REN0011 发表于 2015-8-27 12:15\n有没有办法支持mac...\nMAC的话暂时没办法，主要是考虑到国内大部分玩家都是Windows系统的。"
+        },
+        {
+            "author": "T.~以后",
+            "timestamp": 1440652020,
+            "txt_content": "gamerteam 发表于 2015-8-27 13:07\n跨平台的话，可以mono在Linux上运行，但是不支持WPF也是头疼，WinForm用得要吐了 ...\n那还不如用java写的起动器.."
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440652140,
+            "txt_content": "T.~以后 发表于 2015-8-27 13:07\n那还不如用java写的起动器..\nC#自然有他的优势嘛，WPF写出来的程序又漂亮又简单，而且还可以抱微软爸爸的大腿"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440652200,
+            "txt_content": "poi4399 发表于 2015-8-27 10:54\n╭(°A°`)╮有点触，望交友。\n{:10_527:}我感觉你比我触怎么办"
+        },
+        {
+            "author": "T.~以后",
+            "timestamp": 1440655140,
+            "txt_content": "gamerteam 发表于 2015-8-27 13:09\nC#自然有他的优势嘛，WPF写出来的程序又漂亮又简单，而且还可以抱微软爸爸的大腿 ...\n可是我不喜欢微软...windows什么的真的用不习惯"
+        },
+        {
+            "author": "1343007125",
+            "timestamp": 1440663060,
+            "txt_content": "T.~以后 发表于 2015-8-27 13:59\n可是我不喜欢微软...windows什么的真的用不习惯\n我也是诶，我是Mac"
+        },
+        {
+            "author": "T.~以后",
+            "timestamp": 1440668700,
+            "txt_content": "1343007125 发表于 2015-8-27 16:11\n我也是诶，我是Mac\nGUN/Linux:ElementaryOS&ArchLinux"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440670560,
+            "txt_content": " 本帖最后由 gundamMC 于 2015-8-27 19:53 编辑 \n\n膜拜大触QwQ, 交个朋友好不好233 (*/ω＼*) \n唔。。。试了一下肿么会这样QAQ\n\n\n\n那个dll是直接用KMCCCPro编译的。。。_(:зゝ∠)_"
+        },
+        {
+            "author": "reathiness",
+            "timestamp": 1440685620,
+            "txt_content": " 本帖最后由 breathiness 于 2015-8-27 22:34 编辑 \n\nC#啊.....只能路过了......顺，听说作者是个十二岁的小萝莉（流口水）"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440688800,
+            "txt_content": "gundamMC 发表于 2015-8-27 18:16\n膜拜大触QwQ, 交个朋友好不好233 (*/ω＼*) \n唔。。。试了一下肿么会这样QAQ\n你添加引用没\n\n而且VS自带提示，你鼠标放在错误的地方，有时候又的问题是可以自动帮你解决的\n\n我在后面窗口的位置那儿没写要加一个KMCCC.Launch的引用，就是因为可以使用VS自动修复这个问题的"
+        },
+        {
+            "author": "Darkyoooooo",
+            "timestamp": 1440690900,
+            "txt_content": "T.~以后 发表于 2015-8-27 17:45\nGUN/Linux:ElementaryOS&ArchLinux\n欢迎使用Java版KMCCC——JMCCC: https://github.com/Darkyoooooo/JMCCC"
+        },
+        {
+            "author": "0x3B800001",
+            "timestamp": 1440695280,
+            "txt_content": "Darkyoooooo 发表于 2015-8-27 23:55\n欢迎使用Java版KMCCC——JMCCC: https://github.com/Darkyoooooo/JMCCC\ndarkyoooooo快写教程（不然没人会用的= =，等JMCCC的教程已经好长时间了）！！！！！！！！"
+        },
+        {
+            "author": "王健彬",
+            "timestamp": 1440717000,
+            "txt_content": "口袋妖怪的MC服务器在哪下"
+        },
+        {
+            "author": "T.~以后",
+            "timestamp": 1440721620,
+            "txt_content": "Darkyoooooo 发表于 2015-8-27 23:55\n欢迎使用Java版KMCCC——JMCCC: https://github.com/Darkyoooooo/JMCCC\n可是我并不喜欢java..."
+        },
+        {
+            "author": "nikoniko_ni",
+            "timestamp": 1440722760,
+            "txt_content": "感谢！帮助很大{:10_492:}"
+        },
+        {
+            "author": "rave_heart",
+            "timestamp": 1440731520,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440757620,
+            "txt_content": "gamerteam 发表于 2015-8-27 23:20\n你添加引用没\n\n而且VS自带提示，你鼠标放在错误的地方，有时候又的问题是可以自动帮你解决的\n加了引用。。。"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440761640,
+            "txt_content": " 本帖最后由 gamerteam 于 2015-8-28 19:43 编辑 \ngundamMC 发表于 2015-8-28 18:27\n加了引用。。。\n窗口部分的代码也需要添加using引用\n\nusing KMCCC.Launcher;\n\n"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440764280,
+            "txt_content": "对啊，窗口的那个也加了。你看一下那个报错，应该不是引用的问题。。？"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440766680,
+            "txt_content": "gundamMC 发表于 2015-8-28 20:18\n对啊，窗口的那个也加了。你看一下那个报错，应该不是引用的问题。。？\n你是WinForm还是WPF\n然后我后面的\n\n其中有一段是\n\n然后打开Program.cs（如果是WPF则是App.xmal.cs）添加KMCCC的引用：\nusing KMCCC.Launcher;复制代码\n\n然后在入口处添加以下代码\npublic static LauncherCore Core = LauncherCore.Create();复制代码\n如图所示\n\n\n然后启动参数再进行Program.Core.Launch的引用，这里的Program.Core就是上面的那个，Program类里引用的LauncherCore"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440767880,
+            "txt_content": "gamerteam 发表于 2015-8-28 20:58\n你是WinForm还是WPF\n然后我后面的\n。。。VS2015 _(:зゝ∠)_\n\n后面那段有的。。。\n"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440789480,
+            "txt_content": "gundamMC 发表于 2015-8-28 21:18\n。。。VS2015 _(:зゝ∠)_\n\n后面那段有的。。。\n请确认核心版本>=0.9.5.2（如果我没记错）\n.net >= 4.0"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440808800,
+            "txt_content": "zhouyiran2 发表于 2015-8-29 03:18\n请确认核心版本>=0.9.5.2（如果我没记错）\n.net >= 4.0\n核心是那个KMCCC？ 那个直接从github上面下的。。。\n\n.net是 4.5.2"
+        },
+        {
+            "author": "wu123y",
+            "timestamp": 1440813000,
+            "txt_content": "呵呵，顶"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440822840,
+            "txt_content": "gamerteam 发表于 2015-8-24 23:13\nC#做启动器本来就很容易，其实不管什么语言，只要你会了基础，然后随便网上搜一个json解析工具，自己就可 ...\n{:10_492:}这个是什么软件QAQ"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440824100,
+            "txt_content": "九尾· 发表于 2015-8-29 12:34\n这个是什么软件QAQ\n并不是什么软件，所以我说本文仅适合拥有一定C#基础的人"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440828480,
+            "txt_content": "gamerteam 发表于 2015-8-29 12:55\n并不是什么软件，所以我说本文仅适合拥有一定C#基础的人\n那能告诉我WindowsForm在哪里下载或者在哪里么=-="
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440831300,
+            "txt_content": "九尾· 发表于 2015-8-29 14:08\n那能告诉我WindowsForm在哪里下载或者在哪里么=-=\n就目前的情况看，你没有一点编程基础，本教程不太适合，建议你拥有本语言的基础了来，再来研究本文章"
+        },
+        {
+            "author": "十雨",
+            "timestamp": 1440831420,
+            "txt_content": "九尾· 发表于 2015-8-29 14:08\n那能告诉我WindowsForm在哪里下载或者在哪里么=-=\nvs2008里面有"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440831540,
+            "txt_content": "gamerteam 发表于 2015-8-29 14:55\n就目前的情况看，你没有一点编程基础，本教程不太适合，建议你拥有本语言的基础了来，再来研究本文章 ...\n{:10_524:}我连这个软件哪里下载都不知道怎么学QAQ"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440831660,
+            "txt_content": "十雨 发表于 2015-8-29 14:57\nvs2008里面有\n{:10_495:}好吧我知道了谢谢了"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1440834540,
+            "txt_content": "九尾· 发表于 2015-8-29 14:59\n我连这个软件哪里下载都不知道怎么学QAQ\n同51L，我同样认为你没有一点，一点，任何一点编程基础，学习本教程有些不妥当。\nWinForm不是软件，这是常识。WinForm是.NET里的一个。。。部分罢了，后面还有WPF。\n就好比你总不能说，语文在哪里下载，数学在哪里下载，英语在哪里下载，对吧，一看就知道你不懂"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440841980,
+            "txt_content": "十雨 发表于 2015-8-29 14:57\nvs2008里面有\n但是VS2008并没有.net 4"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440843600,
+            "txt_content": " 本帖最后由 gundamMC 于 2015-8-29 19:15 编辑 \n\n话说导出KMCCC的时候是只导出KMCCC.Pro还是全部一起导出啊。。。导出的时候Basic 和 Pro都没问题，就是那个Shared。。。几乎8000多个报错，那个System.Void未定义或导入。 哦对最开始的时候那个Shared打不开，我改了那个import才打开的\n<Import Project=\"$(MSBuildBinPath)/Microsoft.CSharp.targets\" />\n就是这个，把原来的那个Csharp.targets换掉了\n\n好吧终于琢磨出来了233 总之谢谢啦QwQ\n\n。。。那个java的会报错。。。\n\n“System.InvalidOperationException”类型的未经处理的异常在 System.Core.dll 中发生 \n\n其他信息: 序列不包含任何元素\n\n"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440846900,
+            "txt_content": "gundamMC 发表于 2015-8-29 18:20\n话说导出KMCCC的时候是只导出KMCCC.Pro还是全部一起导出啊。。。导出的时候Basic 和 Pro都没问题，就是那个 ...\n你电脑没有Java吗？那个地方前面加try{，然后后面加}catch{}"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440847080,
+            "txt_content": "gamerteam 发表于 2015-8-29 19:15\n你电脑没有Java吗？那个地方前面加try{，然后后面加}catch{}\n我把那个First换成了SingleOrDefault然后就好了，可是读取不到java啊。。。我电脑上面2个还是3个java应该不会是java的问题吧，都是从官网下的"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440847800,
+            "txt_content": "gundamMC 发表于 2015-8-29 08:40\n核心是那个KMCCC？ 那个直接从github上面下的。。。\n\n.net是 4.5.2\n是不是没法打开KMCCC.Shared、、那个项目用了点非正常科技、如果没装WindowsSDK可能打不开\n楼主12岁小萝莉逗逼，没有写CI地址，直接去这里下编译完的就行了\nhttps://ci.appveyor.com/project/zhouyiran2/kmccc"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440847920,
+            "txt_content": "gundamMC 发表于 2015-8-29 19:18\n我把那个First换成了SingleOrDefault然后就好了，可是读取不到java啊。。。我电脑上面2个还是3个java应该 ...\n如果你是64位系统、只装了64位java，请确认编译模式不是x86，应是AnyCPU\n如果不是，请在github提交issue，如果有条件的话能把内部catch到的的错误详情贴出好"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440847920,
+            "txt_content": "zhouyiran2 发表于 2015-8-29 19:30\n是不是没法打开KMCCC.Shared、、那个项目用了点非正常科技、如果没装WindowsSDK可能打不开\n楼主12岁小萝 ...\n{:10_527:}欧尼酱别这样嘛"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440854880,
+            "txt_content": "tdiant 发表于 2015-8-29 15:49\n同51L，我同样认为你没有一点，一点，任何一点编程基础，学习本教程有些不妥当。\nWinForm不是软件，这是 ...\n{:10_492:}我就学过一些VB++什么的=-="
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440855000,
+            "txt_content": "zhouyiran2 发表于 2015-8-29 19:32\n如果你是64位系统、只装了64位java，请确认编译模式不是x86，应是AnyCPU\n如果不是，请在github提交issue ...\n我电脑是64，java也是64 编译模式那里是AnyCPU，但是我换成x64 或者把那个 首选32位关掉 软件就打不开了\n\n程序“[8344] Origin.vshost.exe”已退出，返回值为 -1073741819 (0xc0000005) 'Access violation'。\n\n这个前面的都是加载正常，你刚才发的那个已经编译好的我也换了。"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440859380,
+            "txt_content": "gundamMC 发表于 2015-8-29 21:30\n我电脑是64，java也是64 编译模式那里是AnyCPU，但是我换成x64 或者把那个 首选32位关掉 软件就打不开了\n ...\nhttps://github.com/MineStudio/MCMV3\n（这是官方Demo，不会弄git的话就把项目里面KMCCC的子项目删掉改成引用dll）\n再出错我也没办法，好好的东西都能炸成这样我也是醉了"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440860280,
+            "txt_content": " 本帖最后由 gundamMC 于 2015-8-29 23:23 编辑 \nzhouyiran2 发表于 2015-8-29 22:43\nhttps://github.com/MineStudio/MCMV3\n（这是官方Demo，不会弄git的话就把项目里面KMCCC的子项目删掉改成 ...\n报错。。。\nFody: An unhandled exception occurred:\nException:\nUnknown custom metadata item kind: 7\nStackTrace:\n   在 Microsoft.Cci.Pdb.PdbFunction.ReadCustomMetadata(BitAccess bits)\n   在 Microsoft.Cci.Pdb.PdbFunction..ctor(ManProcSym proc, BitAccess bits)\n   在 Microsoft.Cci.Pdb.PdbFunction.LoadManagedFunctions(BitAccess bits, UInt32 limit, Boolean readStrings)\n   在 Microsoft.Cci.Pdb.PdbFile.LoadFuncsFromDbiModule(BitAccess bits, DbiModuleInfo info, IntHashTable names, ArrayList funcList, Boolean readStrings, MsfDirectory dir, Dictionary`2 nameIndex, PdbReader reader)\n   在 Microsoft.Cci.Pdb.PdbFile.LoadFunctions(Stream read, Dictionary`2& tokenToSourceMapping, String& sourceServerData, Int32& age, Guid& guid)\n   在 Mono.Cecil.Pdb.PdbReader.PopulateFunctions()\n   在 Mono.Cecil.Pdb.PdbReader.ProcessDebugHeader(ImageDebugDirectory directory, Byte[] header)\n   在 Mono.Cecil.ModuleDefinition.ProcessDebugHeader()\n   在 Mono.Cecil.ModuleDefinition.ReadSymbols(ISymbolReader reader)\n   在 Mono.Cecil.ModuleReader.ReadSymbols(ModuleDefinition module, ReaderParameters parameters)\n   在 Mono.Cecil.ModuleReader.CreateModuleFrom(Image image, ReaderParameters parameters)\n   在 Mono.Cecil.ModuleDefinition.ReadModule(Stream stream, ReaderParameters parameters)\n   在 Mono.Cecil.ModuleDefinition.ReadModule(String fileName, ReaderParameters parameters)\n   在 InnerWeaver.ReadModule() 位置 c:\\TeamCity\\buildAgent\\work\\7495521761d392b9\\FodyIsolated\\ModuleReader.cs:行号 14\n   在 InnerWeaver.Execute() 位置 c:\\TeamCity\\buildAgent\\work\\7495521761d392b9\\FodyIsolated\\InnerWeaver.cs:行号 28\nSource:\nMono.Cecil.Pdb\nTargetSite:\nVoid ReadCustomMetadata(Microsoft.Cci.Pdb.BitAccess)        MCMV3                我试了原来的手动输入Java，还是会提示版本核心不对，没有java什么的"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440863760,
+            "txt_content": "gundamMC 发表于 2015-8-29 22:58\n报错。。。\n我试了原来的手动输入Java，还是会提示版本核心不对，没有java什么的 ...\n您是盗版(VisualStudio .Net Windows 计算机)的受害者【误】\n\n// 我醉了，你看着办吧，用楼主的那个底子，报错了就百度+百度，我要补作业，没空解决个别问题"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440902040,
+            "txt_content": "gundamMC 发表于 2015-8-29 22:58\n报错。。。\n我试了原来的手动输入Java，还是会提示版本核心不对，没有java什么的 ...\n个人感觉是你的系统原因，别告诉我你用的Ghost版的系统。\n个人推荐的开发环境是Win8或以上，安装VS2013或以上版本\nVS你可以去“MSDN我告诉你”下载完整的映像"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1440902700,
+            "txt_content": "九尾· 发表于 2015-8-29 21:28\n我就学过一些VB++什么的=-=\n有时候.NET的一切东西比如VB.NET、C#、F#什么的都可以看做是一种东西，因为他们都是基于.Net，只不过说话的方式变了。\n就比如说，你想表达你今天上午吃了个馒头，你可以说我今天上我吃了个馒头，我还可以说我吃了个馒头在上午，或者上午我吃了个馒头。语法不一样但是意思绝对是一样的，最终的目的是一样的，反正他怎么说，他就是吃了个馒头，上午吃的，就这个意思。\n=。= VB++是啥鬼我也不知道，是Visual Basic 6.0或者更老的？VB6的那个开发框架他就是WinForm。然后微软后续搞了个.Net，把VB6这类的老语言移植到上面了，还神奇的发明了C#什么的。WinForm一般C#里用的比较多。WinForm说白了就是VB6里面那个拖控件的开发模式。但是后续微软搞出了WinForm的Plus也就是WPF，WPF首先他还是拖控件，BUT，这些控件的数据能在xmal里更好的去管理，说简单点就是让WinForm里一些神奇的东西变简单了。比如我要是想在程序里加特技加洗发水，让程序DUANG起来，WPF里做比WinForm容易得多。\n\n说了这么多，WinForm就是老式的拖控件就像你说的VB++那样，但是，VB++里没这个名词是因为VB++里只有一种姿势拖控件，.Net里你还可以用更新颖的姿势拖控件，所以给原来的拖控件规则起个名字叫WinForm。"
+        },
+        {
+            "author": "九尾·",
+            "timestamp": 1440909360,
+            "txt_content": "tdiant 发表于 2015-8-30 10:45\n有时候.NET的一切东西比如VB.NET、C#、F#什么的都可以看做是一种东西，因为他们都是基于.Net，只不过说话 ...\n{:10_496:}你是星空物语腐竹？！"
+        },
+        {
+            "author": "zhouyiran2",
+            "timestamp": 1440925740,
+            "txt_content": "tdiant 发表于 2015-8-30 10:45\n有时候.NET的一切东西比如VB.NET、C#、F#什么的都可以看做是一种东西，因为他们都是基于.Net，只不过说话 ...\n{:10_503:} 不能把WPF理解为WinForm plus、、、这根本差得多多了、、"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1440926700,
+            "txt_content": "zhouyiran2 发表于 2015-8-30 17:09\n不能把WPF理解为WinForm plus、、、这根本差得多多了、、\n我说他是WinForm Plus的意思是想让他知道WPF的初衷是从WinForm演变过来的。\n=A= 其实两个并不一样。但对于不了解WPF的人来说或者VB6粉来说。。。。。。了解这俩的区别和不了解没啥区别"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440931080,
+            "txt_content": "gamerteam 发表于 2015-8-30 10:34\n个人感觉是你的系统原因，别告诉我你用的Ghost版的系统。\n个人推荐的开发环境是Win8或以上，安装VS2013或 ...\nVS2015, Win10 都是官方下的。。。"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1440940140,
+            "txt_content": "gundamMC 发表于 2015-8-30 18:38\nVS2015, Win10 都是官方下的。。。\n我全是MSDN下载的，你出现的这个问题确实就有点奇葩了，很少见。\n你MCMV3能否编译？"
+        },
+        {
+            "author": "gundamMC",
+            "timestamp": 1440941040,
+            "txt_content": "gamerteam 发表于 2015-8-30 21:09\n我全是MSDN下载的，你出现的这个问题确实就有点奇葩了，很少见。\n你MCMV3能否编译？ ...\n不行，报错在上面"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1441021620,
+            "txt_content": "gundamMC 发表于 2015-8-30 21:24\n不行，报错在上面\n我个人也是尝试了很多次，没重现这个BUG\n你试试使用WPF？"
+        },
+        {
+            "author": "15253540",
+            "timestamp": 1441072320,
+            "txt_content": "看起来不错（可惜我不用C#）"
+        },
+        {
+            "author": "绿茵大陆",
+            "timestamp": 1441111680,
+            "txt_content": "定做启动器、方便加我Q么 985517777"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1441116300,
+            "txt_content": "绿茵大陆 发表于 2015-9-1 20:48\n定做启动器、方便加我Q么 985517777\n价格较高，请自行考虑"
+        },
+        {
+            "author": "绿茵大陆",
+            "timestamp": 1441176480,
+            "txt_content": "gamerteam 发表于 2015-9-1 22:05\n价格较高，请自行考虑\n没事的、麻烦您加下吧"
+        },
+        {
+            "author": "sdds15465",
+            "timestamp": 1441190760,
+            "txt_content": "一定C#基础.......\n我曾经是制作GTA：SA CLEOmods的一个制作人，算有基础吗？（也算是C#语言）"
+        },
+        {
+            "author": "马上登陆",
+            "timestamp": 1441205220,
+            "txt_content": "厉害！新手路过..........."
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1441210560,
+            "txt_content": "sdds15465 发表于 2015-9-2 18:46\n一定C#基础.......\n我曾经是制作GTA：SA CLEOmods的一个制作人，算有基础吗？（也算是C#语言） ...\n那我就不知道你的了，不过一般没问题，除了对编程一点都不懂的人，一般还是看得懂"
+        },
+        {
+            "author": "rave_heart",
+            "timestamp": 1441262940,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Dai_Yu",
+            "timestamp": 1441264920,
+            "txt_content": "易语言狗路过。。。{:10_523:}"
+        },
+        {
+            "author": "linzhibin",
+            "timestamp": 1441331040,
+            "txt_content": "{:10_492:}对于我这种没有C#基础的人可就悲惨了"
+        },
+        {
+            "author": "hansara",
+            "timestamp": 1442222760,
+            "txt_content": " 本帖最后由 hansara 于 2015-9-14 21:56 编辑 \n\n大大，请问一下，为什么打不开MOD？"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1442239800,
+            "txt_content": "hansara 发表于 2015-9-14 17:26\n大大，请问一下，为什么打不开MOD？\n打不开mod是什么意思"
+        },
+        {
+            "author": "hansara",
+            "timestamp": 1442276040,
+            "txt_content": "gamerteam 发表于 2015-9-14 22:10\n打不开mod是什么意思\n打不开MOD客户端"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1442313000,
+            "txt_content": "hansara 发表于 2015-9-15 08:14\n打不开MOD客户端\n你是指使用本核心？估计缺少lib文件，或者json有问题。"
+        },
+        {
+            "author": "hansara",
+            "timestamp": 1442324340,
+            "txt_content": "gamerteam 发表于 2015-9-15 18:30\n你是指使用本核心？估计缺少lib文件，或者json有问题。\n我试过了，没有缺少，可以打开正常的端，但是打不开MOD端"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1442325300,
+            "txt_content": "hansara 发表于 2015-9-15 21:39\n我试过了，没有缺少，可以打开正常的端，但是打不开MOD端\n你确定你的客户端符合标准？请不要使用旋律那个完全不遵循启动标准的启动器"
+        },
+        {
+            "author": "816830738",
+            "timestamp": 1442330400,
+            "txt_content": "能不能把教程写详细点{:10_492:}"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1442333100,
+            "txt_content": "816830738 发表于 2015-9-15 23:20\n能不能把教程写详细点\n哪个地方没写详细"
+        },
+        {
+            "author": "telunsu",
+            "timestamp": 1442481240,
+            "txt_content": "很强大{:10_524:}"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1442646480,
+            "txt_content": "楼主快一个月了，求更新高级教程"
+        },
+        {
+            "author": "西行寺占星",
+            "timestamp": 1442961660,
+            "txt_content": "gundamMC 发表于 2015-8-30 21:24\n不行，报错在上面\n遇到了这个错误orz。。。研究了一下是Costura.Fody的锅。。更换新的版本就可以了。。。"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1443615600,
+            "txt_content": "卤煮真的十二岁？请收下我的膝盖！"
+        },
+        {
+            "author": "白狼oy",
+            "timestamp": 1443873420,
+            "txt_content": "怎么没写了？"
+        },
+        {
+            "author": "xingyu",
+            "timestamp": 1446379680,
+            "txt_content": "楼主好，我想请问一下，东西写好了，路径也显示了，点击启动的时候运行了一下就没有了，我的系统是64位的\n而且我的代码\n            var versions = Core.GetVersions().ToArray();\n复制代码\n不能加   Program\n"
+        }
+    ]
+}

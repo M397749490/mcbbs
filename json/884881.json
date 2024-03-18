@@ -1,0 +1,399 @@
+{
+    "title": "[整地]AlwaysKeepInventory —— 妈妈再也不用担心我死亡掉落了[1.7.2-1.15.x]",
+    "author": "a1294790523",
+    "replyCount": 78,
+    "timestamp": 1562945520,
+    "txt_content": " 本帖最后由 a1294790523 于 2021-1-6 14:55 编辑 \n\nAlwaysKeepInventory\n轻量级死亡不掉落插件\n\n本插件仅仅将每个世界的游戏规则（GameRule）的KeepInventory设置为true，无其他功能\n可用于解决天界/星际世界等mod世界无法永久设置死亡不掉落的问题（旧版本的mod死亡不掉落需要进行配置）\n致歉：因为1.4版本抄袭了他人插件（https://www.mcbbs.net/forum.php?mod=viewthread&tid=974709）的思路，在1.4.1版本中删除了此功能，需要此功能的服主请移步此插件页面下载。同时对抄袭了 @结城希亚 的插件感到万分愧疚和惭愧，我不应该贪得一时之便抄袭他人插件的思路，带坏圈子风气，希望能获得大家的原谅。\n下载：\n\n\n\nAlwaysKeepInventory-1.4.1.jar\n(5.5 KB, 下载次数: 2665)\n\n\n\n2021-1-6 14:55 上传\n点击文件名下载附件\n\n\n\n\n\n\n1.7.2专版：\n\n\n\nAlwaysKeepInventory-1.4.1[Windows].jar\n(5.49 KB, 下载次数: 32)\n\n\n\n2021-1-6 14:55 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\nAlwaysKeepInventory-1.4.1[Windows].jar\n(5.49 KB, 下载次数: 12)\n\n\n\n2021-1-6 14:55 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n更新日志：V1.4.1\n删除了强制死亡不掉落的功能，需要此功能请移步https://www.mcbbs.net/forum.php?mod=viewthread&tid=974709\nV1.4\n添加了强制死亡不掉落的功能，感谢https://www.mcbbs.net/forum.php?mod=viewthread&tid=974709插件提供的思路\n\nV1.3.1\n修复无法加载的问题\n\nV1.3\n强制在1.9以下版本使用UTF-8格式，避免乱码问题\nv1.2\n更换版本号判别方式为NMS名\n\nv1.1\n\n应要求加入了旧版本虚无世界死亡不掉落的支持\n\n顺便加入了1.7.10星际背包死亡不掉落的支持\n\n\nv1.0\n第一个版本\n\n配置文件：#启用旧版本虚无世界的死亡不掉落支持\n#感谢@2569115130\n#(自动设置游戏规则KeepAllInventory为true)\nNevermineSupport: true\n\n#启用1.7.10的星际背包死亡不掉落支持\n#实现原理：https://github.com/micdoodle8/Galacticraft/issues/2233#issuecomment-253729191\nGalacticraftSupport: true\n\n#是否持续设置死亡不掉落？\n#当无法正常设置死亡不掉落时才使用\n#此模式会额外增加一个定时任务，每10毫秒设置一次死亡不掉落\nForceMode: false\n\n复制代码\n截图：\n\n\n\n\nTIM截图20190712233209.png (29.3 KB, 下载次数: 3)\n\n下载附件\n\n2019-7-12 23:32 上传\n\n\n\n\n\n源代码（CC0）：package sandtechnology.alwaysKeepInventory;\n\nimport com.google.common.base.Charsets;\nimport org.bukkit.GameRule;\nimport org.bukkit.World;\nimport org.bukkit.configuration.file.YamlConfiguration;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.entity.PlayerDeathEvent;\nimport org.bukkit.event.player.PlayerRespawnEvent;\nimport org.bukkit.event.world.WorldLoadEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport java.io.InputStream;\nimport java.io.InputStreamReader;\n\npublic class AlwaysKeepInventory extends JavaPlugin implements Listener {\n\n    /*\n    多版本兼容\n    使用NMS名称判断\n    org.bukkit.craftbukkit.v1_x_Ry->x\n    比如：org.bukkit.craftbukkit.v1_8_R1->8\n    */\n    private int minecraftVersion = Integer.parseInt(getServer().getClass().getPackage().getName().split(\"_\")[1]);\n\n    @Override\n    public void onEnable() {\n        saveDefaultConfig();\n        getConfig();\n        getServer().getPluginManager().registerEvents(this, this);\n        getLogger().info(\"强制死亡不掉落插件已启用！判断版本号：1.\"+minecraftVersion+\".x\");\n    }\n\n    @Override\n    public void onDisable() {\n        getLogger().info(\"强制死亡不掉落插件已禁用！\");\n    }\n\n    private void trueGamerule(World world, String gamerule) {\n        if (minecraftVersion > 12) {\n            if (gamerule.equals(\"keepInventory\")) {\n                world.setGameRule(GameRule.KEEP_INVENTORY, true);\n            } else throw new RuntimeException(\"不支持的游戏规则：\" + gamerule);\n        } else {\n            world.setGameRuleValue(gamerule, \"true\");\n        }\n    }\n\n    @EventHandler\n    public void onPlayerDeath(PlayerDeathEvent event) {\n        //星际背包支持\n        if (getConfig().getBoolean(\"GalacticraftSupport\")) {\n            getServer().dispatchCommand(getServer().getConsoleSender(), \"gcinv save \" + event.getEntity().getName());\n        }\n    }\n\n    @EventHandler(priority = EventPriority.LOWEST)\n    public void onPlayerRespawn(PlayerRespawnEvent event) {\n        //星际背包支持\n        if (getConfig().getBoolean(\"GalacticraftSupport\")) {\n            getServer().getScheduler().runTaskLater(this, () -> getServer().dispatchCommand(getServer().getConsoleSender(), \"gcinv restore \" + event.getPlayer().getName()), 1);\n        }\n    }\n\n    @EventHandler(priority = EventPriority.LOWEST)\n    public void onWorldLoad(WorldLoadEvent event) {\n        World world = event.getWorld();\n        //原版死亡不掉落\n        trueGamerule(world, \"keepInventory\");\n        //虚无世界支持\n        if (getConfig().getBoolean(\"NevermineSupport\")) {\n            trueGamerule(world, \"KeepAllInventory\");\n        }\n    }\n}\n\n\n复制代码\n\n\n本插件所用所有代码均为原创,不存在借用/抄袭等行为\n\n\n\n",
+    "replies": [
+        {
+            "author": "2569115130",
+            "timestamp": 1563607080,
+            "txt_content": "对虚无世界无任何效果"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1563609000,
+            "txt_content": "2569115130 发表于 2019-7-20 15:18\n对虚无世界无任何效果\n旧版本的虚无世界并不遵循原版的KeepInventory游戏规则\n能否提供相关的gamerule呢"
+        },
+        {
+            "author": "MM_dada",
+            "timestamp": 1563612900,
+            "txt_content": "赞赞6666666666666666666666"
+        },
+        {
+            "author": "McLoce",
+            "timestamp": 1563631140,
+            "txt_content": "希望加入指定世界死亡不掉落"
+        },
+        {
+            "author": "2569115130",
+            "timestamp": 1563698400,
+            "txt_content": "a1294790523 发表于 2019-7-20 15:50\n旧版本的虚无世界并不遵循原版的KeepInventory游戏规则\n能否提供相关的gamerule呢 ...\n旧版本的是KeepAllInventory，新版本的是原版的"
+        },
+        {
+            "author": "天空树",
+            "timestamp": 1563756540,
+            "txt_content": " 本帖最后由 天空树 于 2019-7-22 08:56 编辑 \n\n可以，这确实很方便。不过这分类是整地没问题吗"
+        },
+        {
+            "author": "逗笔~",
+            "timestamp": 1563763200,
+            "txt_content": "非常好用！再也不用担心玩家叫我死亡不掉落了"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1564219680,
+            "txt_content": "2569115130 发表于 2019-7-21 16:40\n旧版本的是KeepAllInventory，新版本的是原版的\n版本已更新\n请下载新版本并配置即可"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1564219980,
+            "txt_content": "McLoce 发表于 2019-7-20 21:59\n希望加入指定世界死亡不掉落\n指定世界死亡不掉落可以看看多世界插件\n这个是用于全局死亡不掉落的"
+        },
+        {
+            "author": "sharina2012",
+            "timestamp": 1564221720,
+            "txt_content": "可以手动啊233 不过对于小白腐竹海星 顶一下"
+        },
+        {
+            "author": "超人152",
+            "timestamp": 1564224780,
+            "txt_content": "厉害了！今天弄服务端刚好看到，好评一下！"
+        },
+        {
+            "author": "tonghongte",
+            "timestamp": 1564228380,
+            "txt_content": "精彩                                                "
+        },
+        {
+            "author": "qisi-jun",
+            "timestamp": 1565272020,
+            "txt_content": "1710 Th端无用已按帖子所说配置完毕"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1565272500,
+            "txt_content": "qisi-jun 发表于 2019-8-8 21:47\n1710 Th端无用已按帖子所说配置完毕\n是否重启了服务器？\n无用指的是什么无用？"
+        },
+        {
+            "author": "qisi-jun",
+            "timestamp": 1565273280,
+            "txt_content": " 本帖最后由 qisi-jun 于 2019-8-8 22:10 编辑 \na1294790523 发表于 2019-8-8 21:55\n是否重启了服务器？\n无用指的是什么无用？\n指插件加载了没用\n[21:18:22] [Server thread/INFO]: [AlwaysKeepInventory] Enabling AlwaysKeepInventory v1.1\n[21:18:22] [Server thread/INFO]: [AlwaysKeepInventory] 强制死亡不掉落插件已启用！\n\n\n但并未起到它该有的作用\n死亡掉落仍然保留着"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1565274360,
+            "txt_content": "qisi-jun 发表于 2019-8-8 22:08\n指插件加载了没用\n[21:18:22] [Server thread/INFO]: [AlwaysKeepInventory] Enabling AlwaysKeepInventor ...\n能给一下启动时的全文日志吗\n原版背包还是死亡掉落吗"
+        },
+        {
+            "author": "qisi-jun",
+            "timestamp": 1565275440,
+            "txt_content": "a1294790523 发表于 2019-8-8 22:26\n能给一下启动时的全文日志吗\n原版背包还是死亡掉落吗\nYES 不过,全文日志我顺手删了 你要看的话得等我之后装上插件重启 大概明天吧"
+        },
+        {
+            "author": "qq1136428600",
+            "timestamp": 1565310960,
+            "txt_content": "直接用指令感觉更方便啊！"
+        },
+        {
+            "author": "3011990854",
+            "timestamp": 1566110280,
+            "txt_content": "哈哈哈哈哈哈哈哈哈哈哈哈哈哈哈，开心死我了"
+        },
+        {
+            "author": "超人大大i",
+            "timestamp": 1566665340,
+            "txt_content": "这个插件 经验会不会掉落"
+        },
+        {
+            "author": "Fur_Xia",
+            "timestamp": 1566693600,
+            "txt_content": "1.14.4可以使用吗？"
+        },
+        {
+            "author": "奉福",
+            "timestamp": 1566699240,
+            "txt_content": "看起来不错哦，顶顶顶顶"
+        },
+        {
+            "author": "LaiPI",
+            "timestamp": 1566795180,
+            "txt_content": "支持1.14吗。"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1566795420,
+            "txt_content": "Fur_Xia 发表于 2019-8-25 08:40\n1.14.4可以使用吗？\n理论上是可以的"
+        },
+        {
+            "author": "超人大大i",
+            "timestamp": 1567180500,
+            "txt_content": "刚好用的到。。。 懒得打命令"
+        },
+        {
+            "author": "_TZ_",
+            "timestamp": 1571299080,
+            "txt_content": "非常不错，不用每个都去设置了"
+        },
+        {
+            "author": "橘萝笙",
+            "timestamp": 1574178720,
+            "txt_content": "多人联机呢？"
+        },
+        {
+            "author": "lzh5598",
+            "timestamp": 1576139520,
+            "txt_content": "1.15水龙头测试无法读取插件"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1576145400,
+            "txt_content": "lzh5598 发表于 2019-12-12 16:32\n1.15水龙头测试无法读取插件\n请给出日志"
+        },
+        {
+            "author": "lzh5598",
+            "timestamp": 1576150440,
+            "txt_content": " 本帖最后由 lzh5598 于 2019-12-12 19:37 编辑 \na1294790523 发表于 2019-12-12 18:10\n请给出日志\n请查看\n\n\n\n\n\n\n\nlatest.rar\n\n\n2019-12-12 19:37 上传\n点击文件名下载附件\n\n\n\n\n11.75 KB, 下载次数: 1\n\n\n\n\n"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1576157280,
+            "txt_content": "lzh5598 发表于 2019-12-12 19:34\n请查看\n问题已修复，请下载新版本"
+        },
+        {
+            "author": "Aroz",
+            "timestamp": 1576490400,
+            "txt_content": "没遇到这个情况但是还是是要预防！"
+        },
+        {
+            "author": "戏子南念",
+            "timestamp": 1578726420,
+            "txt_content": "请问地皮死亡掉落输入指令没用，把这个插件放进去不用改配置文件么"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1578726540,
+            "txt_content": "戏子南念 发表于 2020-1-11 15:07\n请问地皮死亡掉落输入指令没用，把这个插件放进去不用改配置文件么\n嗯，开箱即用"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578730680,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "一只宝可梦",
+            "timestamp": 1579101180,
+            "txt_content": "楼主，我开的1.7.10虚无uranium服务器，配置好了，加了你这个没有用，能不能修复下"
+        },
+        {
+            "author": "s360015305",
+            "timestamp": 1580232600,
+            "txt_content": "插件有一个编码问题，建议上传2个版本，一个window系统的，压缩包内配置好ANSI编码格式文件，另外一个配置好UTF-8格式文件，免得有些人以为这插件报错有问题！"
+        },
+        {
+            "author": "www1246507084",
+            "timestamp": 1580245740,
+            "txt_content": "非常不错的插件"
+        },
+        {
+            "author": "17511",
+            "timestamp": 1580980080,
+            "txt_content": "楼主我是虚无世界2 用了没用 还是死亡掉落，求解决方法 我用指令也掉落 死亡不掉落mod也试过 也没用"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1581382980,
+            "txt_content": "Gestapo 发表于 2020-1-15 23:13\n楼主，我开的1.7.10虚无uranium服务器，配置好了，加了你这个没有用，能不能修复下 ...\n手动设置keepAllInventory有效吗？插件配置正常加载了吗？\n建议使用新版本看看 新版本强制使用了UTF-8编码"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1581383040,
+            "txt_content": "s360015305 发表于 2020-1-29 01:30\n插件有一个编码问题，建议上传2个版本，一个window系统的，压缩包内配置好ANSI编码格式文件，另外一个配置 ...\n新版本已强制UTF-8 另外1.9开始配置文件默认都是强制UTF-8格式了"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1581383040,
+            "txt_content": "17511 发表于 2020-2-6 17:08\n楼主我是虚无世界2 用了没用 还是死亡掉落，求解决方法 我用指令也掉落 死亡不掉落mod也试过 也没用 ...\n试试新版本？"
+        },
+        {
+            "author": "gdp990",
+            "timestamp": 1581552000,
+            "txt_content": "1710 U端无法载入这个插件\n\n\n\n\nFE]`LVTZHHTRNWGW1)JN0S5.png (5.08 KB, 下载次数: 0)\n\n下载附件\n\n2020-2-13 08:00 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1581564000,
+            "txt_content": " 本帖最后由 a1294790523 于 2020-2-13 12:18 编辑 \ngdp990 发表于 2020-2-13 08:00\n1710 U端无法载入这个插件\n请问能否截图上面那段？上面那段才是最重要的信息\n请更新新版本\n"
+        },
+        {
+            "author": "wocacawo",
+            "timestamp": 1581566400,
+            "txt_content": "666666666666666666666"
+        },
+        {
+            "author": "gdp990",
+            "timestamp": 1581611340,
+            "txt_content": "a1294790523 发表于 2020-2-13 11:20\n请问能否截图上面那段？上面那段才是最重要的信息\n请更新新版本\n装了以后，生成了配置文件，里面的选项也打开了，重启还是死亡掉落"
+        },
+        {
+            "author": "xiaopanTT",
+            "timestamp": 1581611820,
+            "txt_content": "赞????66666666"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1581650760,
+            "txt_content": "gdp990 发表于 2020-2-14 00:29\n装了以后，生成了配置文件，里面的选项也打开了，重启还是死亡掉落\n那无能为力 这个应该是兼容性问题"
+        },
+        {
+            "author": "a8559039",
+            "timestamp": 1581656580,
+            "txt_content": "感谢，之前每次重启都要重新设置"
+        },
+        {
+            "author": "瑾某人",
+            "timestamp": 1581658440,
+            "txt_content": "y1s1,这插件真的好用,我服务器正在用233"
+        },
+        {
+            "author": "496860598",
+            "timestamp": 1581785700,
+            "txt_content": "谢谢分享！！！"
+        },
+        {
+            "author": "深海有鱼",
+            "timestamp": 1581900480,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "likangxin",
+            "timestamp": 1581944940,
+            "txt_content": "你好，我用的hmcl启动器下载了1.12.2版本，里面装了暮色森林和虚无世界3还有一些辅助mod，这个插件无法生效"
+        },
+        {
+            "author": "18839703038",
+            "timestamp": 1582298040,
+            "txt_content": "还是掉。。。。。。。。。。。。"
+        },
+        {
+            "author": "卡桥花生",
+            "timestamp": 1582994340,
+            "txt_content": "你好，第一次新生成的世界死亡不掉落，stop删除地图文件，开服重新生成会掉落"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1582995000,
+            "txt_content": "卡桥花生 发表于 2020-3-1 00:39\n你好，第一次新生成的世界死亡不掉落，stop删除地图文件，开服重新生成会掉落 ...\n这个的原理是监测worldloadevent的，所以理论上来说不论如何世界都是死亡不掉落的\n如果死亡掉落的话应该是兼容性问题了"
+        },
+        {
+            "author": "sutang998",
+            "timestamp": 1582997820,
+            "txt_content": "我觉得非常的nice，很有用。"
+        },
+        {
+            "author": "843077328",
+            "timestamp": 1583045640,
+            "txt_content": "问下forge服怎么用？放到mods文件夹下没用"
+        },
+        {
+            "author": "511281270",
+            "timestamp": 1583148900,
+            "txt_content": "大佬可以写个Mod形式的么，没找到1.15的死亡不掉落的Mod"
+        },
+        {
+            "author": "kuiyingyi",
+            "timestamp": 1583150100,
+            "txt_content": "感谢楼主分享"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583198220,
+            "txt_content": "843077328 发表于 2020-3-1 14:54\n问下forge服怎么用？放到mods文件夹下没用\n这是插件不是mod（"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583198280,
+            "txt_content": "新版本添加了强制设置死亡不掉落的选项，欢迎之前死亡掉落的玩家使用.jpg"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583199660,
+            "txt_content": "a1294790523 发表于 2020-3-3 09:18\n新版本添加了强制设置死亡不掉落的选项，欢迎之前死亡掉落的玩家使用.jpg\n难受了，老弟"
+        },
+        {
+            "author": "a2127407717",
+            "timestamp": 1583493840,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "GOU_JUN",
+            "timestamp": 1583559900,
+            "txt_content": "为什么还是死亡掉落啊"
+        },
+        {
+            "author": "Danty丶轩辕",
+            "timestamp": 1583560860,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1697976437",
+            "timestamp": 1583830080,
+            "txt_content": "虚无世界tslat1.1.3【1.7.10最新版】无用啊"
+        },
+        {
+            "author": "ll1050723826",
+            "timestamp": 1583830980,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "n1529905750",
+            "timestamp": 1584120240,
+            "txt_content": "玩家死亡的瞬间退出游戏会导致掉落"
+        },
+        {
+            "author": "AC_Block",
+            "timestamp": 1584350460,
+            "txt_content": "请问支持sponge端吗"
+        },
+        {
+            "author": "酒一樽",
+            "timestamp": 1584351060,
+            "txt_content": "这。好像有点鸡肋。不过当然省事，顶顶顶"
+        },
+        {
+            "author": "阿狸哥哥",
+            "timestamp": 1585440180,
+            "txt_content": "感谢dalao分享"
+        },
+        {
+            "author": "Daleyworld",
+            "timestamp": 1585442700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "KALDK",
+            "timestamp": 1585579980,
+            "txt_content": "插件还不错"
+        },
+        {
+            "author": "3331526280",
+            "timestamp": 1585611180,
+            "txt_content": "有没有1.12.2的"
+        },
+        {
+            "author": "Dseale",
+            "timestamp": 1585626360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "皮特刘",
+            "timestamp": 1585807080,
+            "txt_content": "这个插件是全图都能使用得嘛？"
+        },
+        {
+            "author": "Rixdey",
+            "timestamp": 1597654380,
+            "txt_content": "真棒真不错"
+        }
+    ]
+}

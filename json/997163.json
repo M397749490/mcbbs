@@ -1,0 +1,39 @@
+{
+    "title": "服务器卡线程",
+    "author": "EmptyLava",
+    "replyCount": 6,
+    "timestamp": 1585137360,
+    "txt_content": " 本帖最后由 EmptyLava 于 2020-3-25 20:14 编辑 \n\n害，又帮别人问问题\n\n如图，知道是因为保存玩家数据，写入文件导致的卡线程\n时间持续约三十秒，未崩溃\n\n卡服前四分钟:一位玩家进入服务器\n前两分钟:timings on命令和ac info(aegisclear插件)命令\n\nTimings内看到了此事件占用大↓\nevent:\nsave players\ncount(1)(仅执行过一次事件)\npct total(32%)(没错，一次事件占了三分之一总tick)\n事件处理时间80.889s完整的timings:\nhttps://timings.aikar.co/?id=df0dd5bbabf34df985f2747b4ed2b3b5\n(entitytick包括save players事件)\n\n\n完整日志https://c-t.work/s/e5780d9871e24a\n\n大佬能否支个招\n\n\n\n\n\n\n\n\n-63ce11dc3530cf19.png\n(66.2 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2020-3-25 19:52 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "结城希亚",
+            "timestamp": 1585137360,
+            "txt_content": " 本帖最后由 御炎Roinflam 于 2020-3-25 21:05 编辑 \nEmptyLava 发表于 2020-3-25 20:56\n问题是服务器没崩，延长watchdog，这个事件也会占用很大导致卡服\n\n不过这两天也就只出现了一次和保存玩家 ...\n出现watchdog又不是一定会崩\n想让它不出现的方法就是升级机器配置\n\n还有，世界保存插件是全版本，可能18年当时没更新选项\n应该是可以用于1.15的（API变太多，但不清楚有没有删掉）"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1585137600,
+            "txt_content": " 本帖最后由 御炎Roinflam 于 2020-3-25 20:18 编辑 \n\n村民那些什么实体就不说了，毕竟你自己会优化\n\n在Bukkit.yml里把autosave改为0\n然后装上这个插件\n[管理] AutoSave 0.2.6 —— 更好的更流畅的自动保存地图等等 [全版本]\nhttps://www.mcbbs.net/thread-775843-1-1.html\n(出处: Minecraft(我的世界)中文论坛)\n\n\n\n\n尝试在spigot.yml里把timeout-time改为9999999\n\nALLMusic一直在刷报错，估计是这个插件导致的崩服，建议直接删掉（"
+        },
+        {
+            "author": "1784234383",
+            "timestamp": 1585139700,
+            "txt_content": "AegisClear确实本身对1.15的服好像非常不友好经常出负优化\n此外，服务器的磁盘性能也是值得怀疑一下的"
+        },
+        {
+            "author": "EmptyLava",
+            "timestamp": 1585139760,
+            "txt_content": "御炎Roinflam 发表于 2020-3-25 20:00\n村民那些什么实体就不说了，毕竟你自己会优化\n\n在Bukkit.yml里把autosave改为0\n这个插件和保存玩家数据不相关吧\n要的是解决，不要屏蔽watchdog，服务器没有崩\n\n看watchdog给的堆栈式压缩和写入文件什么的，我有点怀疑是服务器或者插件问题"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1585139880,
+            "txt_content": " 本帖最后由 御炎Roinflam 于 2020-3-25 20:52 编辑 \nEmptyLava 发表于 2020-3-25 20:36\n这个插件和保存玩家数据不相关吧\n要的是解决，不要屏蔽watchdog，服务器没有崩\n玩家存档、地图存档都归autosave管的\n屏蔽watchdog？这只是延长滞后时间（直接禁用也行），屏蔽的话我为啥不用插件（\n插件问题的话\n对于这类报错，与客户端的分析方式也相同，但主要分析服务器主线程，一步步顺藤摸瓜找原因，这需要了解java相关的类库和相关的线程知识，但对于这些命名规范的包名、类名和方法名来说，你知道专有名词的意思也能猜个八 九不离十：\nPaper核心的特色报错：TileEntitySkull load（实体方块头颅加载？）-> Yggdrasil fillGameProfile（玩家游戏信息？）-> makeRequest（发送请求？）-> net read ssl（看样子在联网）\n\n联想：看起来是一个头颅加载皮肤时联网获取皮肤引起的卡顿，为正常现象\n对于非上述类型的watchdog报错，一般是因为服务器配置较低或者代码较为低效，导致处理时间过长而关闭服务器，可以通过直接禁用Watchdog功能避免此问题。\n\n对于旧版本，可以在server.properties中将max-tick-time设置为-1\n\n而对于新版本，可以在spigot.yml中将timeout-time设置为一个比较大的值\n这边建议使用99900k和39990x呢，还有你之前经常抢我watch dog问题来着"
+        },
+        {
+            "author": "EmptyLava",
+            "timestamp": 1585140960,
+            "txt_content": " 本帖最后由 EmptyLava 于 2020-3-25 20:57 编辑 \n御炎Roinflam 发表于 2020-3-25 20:38\n玩家存档、地图存档都归autosave管的\n屏蔽watchdog？这只是延长滞后时间（直接禁用也行），屏蔽的话我为啥 ...\n问题是服务器没崩，延长watchdog，这个事件也会占用很大导致卡服\n\n不过这两天也就只出现了一次和保存玩家数据相关的，如果还出现再说吧换了个世界保存插件\n"
+        }
+    ]
+}

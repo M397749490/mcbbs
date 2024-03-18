@@ -1,0 +1,99 @@
+{
+    "title": "[娱乐]RandomPermission——轻量奖励随机权限|指令|自定义抽中几率与全服公告[全版本]",
+    "author": "南外丶仓鼠",
+    "replyCount": 18,
+    "timestamp": 1587561240,
+    "txt_content": " 本帖最后由 南外丶仓鼠 于 2021-2-19 21:44 编辑 \nRandomPermission插件速览\n给予随机权限|让玩家执行随机指令|自定义抽奖的全服公告|自定义抽奖几率\n\n\n\n\nQQ截图20200422211247.png (66.88 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-22 21:13 上传\n\n\n\n\n\n插件使用方法给予随机权限设置(config.yml)：|格式独一无二的id名（随意填写）:  permission: '给予的权限'  message: '抽中该项全服的公告'  percent: 小数-抽中的几率\n|例子1:  permission: 'essentials.hat'                                                       #给予essentials.hat权限  message: '§r§l恭喜玩家%player%抽取权限-§4§l%permission%'  #公告(发送给所有玩家)  percent: 0.1                                                                           #抽中的几率\n让玩家执行随机指令设置(config.yml)：|格式独一无二的id名（随意填写）:                                                                   command: '玩家抽中此项后使用op权限执行的指令，玩家名用[玩家]代替'  message: '抽中该项全服的公告'  percent: 小数-抽中的几率\n|例子2:   command: 'points give [玩家] 200'                                                         #给玩家200点卷  message: '§r§l恭喜玩家%player%抽取到了§6§l200点卷'                          #公告(发送给所有玩家)  percent: 0.1                                                                                        #抽中的几率\n抽取指令(需要OP权限):|/rp 玩家名注意事项:\n|即使所有几率加起来小于1，还是会抽中其中一个\n|即使所有几率加起来大于1，还是只会抽中一个\n|公告中用%player%代替玩家名，用%permission%代替给予的权限名\n|权限给予有可能抽到重复内容（已抽到过的）（考验你的玩家是不是欧洲人）\n\nRandomPermission插件下载\n|下载地址：\n\n\n\nRandomPermission.jar\n(4.46 KB, 下载次数: 75, 售价: 5 粒金粒)\n\n\n\n2020-4-22 21:04 上传\n点击文件名下载附件\n\n售价: 5 粒金粒\t [记录]\n\n [购买]\n\n\n\n\n\n|插件开源：package HamsterYDS.RandomPermission;\n\nimport java.util.HashMap;\n\nimport org.bukkit.Bukkit;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.entity.Player;\nimport org.bukkit.plugin.RegisteredServiceProvider;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport net.milkbowl.vault.permission.Permission;\n\npublic class RandomPermission extends JavaPlugin {\n        private Permission permission = null;\n        private HashMap<String, String> permissionGroups = new HashMap<String, String>();\n        private HashMap<String, String> commandGroups = new HashMap<String, String>();\n        private HashMap<String, Double> percents = new HashMap<String, Double>();\n\n        @Override\n        public void onEnable() {\n                if (!initVault()) {\n                        getLogger().severe(\"Vault无法启动\");\n                        return;\n                }\n                saveResource(\"config.yml\", false);\n                for(String path:getConfig().getKeys(false)) {\n                        if(getConfig().contains(path+\".permission\")) {\n                                String permission=getConfig().getString(path+\".permission\");\n                                String message=getConfig().getString(path+\".message\");\n                                double percent=getConfig().getDouble(path+\".percent\");\n                                initPermission(permission,message,percent);\n                        }else {\n                                String command=getConfig().getString(path+\".command\");\n                                String message=getConfig().getString(path+\".message\");\n                                double percent=getConfig().getDouble(path+\".percent\");\n                                initCommand(command,message,percent);\n                        }\n                        \n                }\n                Bukkit.getPluginCommand(\"rp\").setExecutor(this);\n        }\n\n        public void initPermission(String permission, String message, double percent) {\n                permissionGroups.put(permission, message);\n                percents.put(permission, percent);\n        }\n        \n        public void initCommand(String command, String message, double percent) {\n                commandGroups.put(command, message);\n                percents.put(command, percent);\n        }\n\n        @Override\n        public boolean onCommand(CommandSender sender, Command cmd_, String label, String[] contents) {\n                if (label.equalsIgnoreCase(\"rp\")) {\n                        if (sender.hasPermission(\"rp.randomgive\")) {\n                                Player player = Bukkit.getPlayer(contents[0]);\n                                \n                                if(Math.random()<=0.5) {\n                                        String permit=goRandom();\n                                        permission.playerAdd(player, permit);\n                                        String message=permissionGroups.get(permit);\n                                        Bukkit.broadcastMessage(message.replace(\"%player%\",contents[0]).replace(\"%permission%\",permit));\n                                }else {\n                                        String cmd=goRandom(player);\n                                        String message=commandGroups.get(cmd);\n                                        Bukkit.broadcastMessage(message.replace(\"%player%\",contents[0]));\n                                        if(player.isOp())\n                                                player.performCommand(cmd.replace(\"[空格]\",\" \").replace(\"[玩家]\",player.getName()));\n                                        else {\n                                                player.setOp(true);\n                                                player.performCommand(cmd.replace(\"[空格]\",\" \").replace(\"[玩家]\",player.getName()));\n                                                player.setOp(false);\n                                        }\n                                }\n                        }\n                }\n                return true;\n        }\n\n        private String goRandom() {\n                String permission=\"\";\n                while(permission.equalsIgnoreCase(\"\")) {\n                        long random=Math.round((Math.random()*(permissionGroups.size()-1)));\n                        String index=(String) permissionGroups.keySet().toArray()[(int) random];\n                        \n                        double percent=percents.get(index);\n                        if(Math.random()<=percent) {\n                                permission=index;\n                        }\n                }\n                return permission;\n        }\n        \n        private String goRandom(Player player) {\n                String cmd=\"\";\n                while(cmd.equalsIgnoreCase(\"\")) {\n                        long random=Math.round((Math.random()*(commandGroups.size()-1)));\n                        String index=(String) commandGroups.keySet().toArray()[(int) random];\n                        \n                        double percent=percents.get(index);\n                        if(Math.random()<=percent) {\n                                cmd=index;\n                        }\n                }\n                return cmd;\n        }\n\n        private boolean initVault() {\n                boolean hasNull = false;\n                RegisteredServiceProvider<Permission> permissionProvider = getServer().getServicesManager()\n                                .getRegistration(net.milkbowl.vault.permission.Permission.class);\n                if (permissionProvider != null) {\n                        if ((permission = permissionProvider.getProvider()) == null)\n                                hasNull = true;\n                }\n                return !hasNull;\n        }\n}复制代码给个人气可好？[groupid=1701]Complex Studio[/groupid]",
+    "replies": [
+        {
+            "author": "小林最牛",
+            "timestamp": 1587561780,
+            "txt_content": "眼睛要瞎了\n但是插件还是不错啊"
+        },
+        {
+            "author": "橙柒",
+            "timestamp": 1587632880,
+            "txt_content": "/rp %player% 新的抽奖系统#滑稽"
+        },
+        {
+            "author": "z446066151",
+            "timestamp": 1587670320,
+            "txt_content": "请问楼主能改一下指令吗？  指令和我定制插件的指令冲突了"
+        },
+        {
+            "author": "南外丶仓鼠",
+            "timestamp": 1587740940,
+            "txt_content": "z446066151 发表于 2020-4-24 03:32\n请问楼主能改一下指令吗？  指令和我定制插件的指令冲突了\n使用/RandomPermission:rp 玩家名即可"
+        },
+        {
+            "author": "_xiao_yu_",
+            "timestamp": 1587743100,
+            "txt_content": "好像很厉害的样子"
+        },
+        {
+            "author": "hudie_",
+            "timestamp": 1588245060,
+            "txt_content": "很好的插件 谢谢哈 带走了"
+        },
+        {
+            "author": "jinwutao1234",
+            "timestamp": 1588248300,
+            "txt_content": "新的抽奖的东西感谢分享"
+        },
+        {
+            "author": "白化哦",
+            "timestamp": 1588256460,
+            "txt_content": "我还是不会，冒泡"
+        },
+        {
+            "author": "mohist",
+            "timestamp": 1594141980,
+            "txt_content": "[01:12:27] [Server thread/ERROR]: null\norg.bukkit.command.CommandException: Unhandled exception executing command 'rp' in plugin RandomPermission v1.0.0\n        at org.bukkit.command.PluginCommand.execute(PluginCommand.java:46) ~[PluginCommand.class:git-CatServer-1.12.2-3413a60]\n        at org.bukkit.command.SimpleCommandMap.dispatch(SimpleCommandMap.java:144) ~[SimpleCommandMap.class:git-CatServer-1.12.2-3413a60]\n        at org.bukkit.craftbukkit.v1_12_R1.CraftServer.dispatchCommand(CraftServer.java:709) ~[CraftServer.class:git-CatServer-1.12.2-3413a60]\n        at net.minecraft.network.NetHandlerPlayServer.func_147361_d(NetHandlerPlayServer.java:1594) [pa.class:?]\n        at net.minecraft.network.NetHandlerPlayServer.func_147354_a(NetHandlerPlayServer.java:1439) [pa.class:?]\n        at net.minecraft.network.play.client.CPacketChatMessage.func_148833_a(SourceFile:37) [la.class:?]\n        at net.minecraft.network.play.client.CPacketChatMessage.func_148833_a(SourceFile:9) [la.class:?]\n        at net.minecraft.network.PacketThreadUtil$1.run(SourceFile:13) [hv$1.class:?]\n        at java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source) [?:1.8.0_251]\n        at java.util.concurrent.FutureTask.run(Unknown Source) [?:1.8.0_251]\n        at net.minecraft.util.Util.func_181617_a(Util.java:50) [h.class:?]\n        at net.minecraft.server.MinecraftServer.func_71190_q(MinecraftServer.java:844) [MinecraftServer.class:?]\n        at net.minecraft.server.dedicated.DedicatedServer.func_71190_q(DedicatedServer.java:472) [nz.class:?]\n        at net.minecraft.server.MinecraftServer.func_71217_p(MinecraftServer.java:781) [MinecraftServer.class:?]\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:635) [MinecraftServer.class:?]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_251]\nCaused by: java.lang.ArrayIndexOutOfBoundsException: 0\n        at HamsterYDS.RandomPermission.RandomPermission.onCommand(RandomPermission.java:58) ~[?:?]\n        at org.bukkit.command.PluginCommand.execute(PluginCommand.java:44) ~[PluginCommand.class:git-CatServer-1.12.2-3413a60]\n        ... 15 more复制代码报错 无法使用 \n\n1: \n  command: 'givepoke [玩家] Nihilego 绑定 个体:1'\n  message: '&3AAA &7// &a恭喜玩家 &e%player% &a从 &e七日福利 &a中抽到了 &c虚吾伊德!'\n  percent: 0.4\n2: \n  command: 'givepoke [玩家] Buzzwole 绑定 个体:1'\n  message: '&3AAA &7// &a恭喜玩家 &e%player% &a从 &e七日福利 &a中抽到了 &c爆肌蚊!'\n  percent: 0.2复制代码\n"
+        },
+        {
+            "author": "表示路过",
+            "timestamp": 1596451860,
+            "txt_content": "这插件很棒！希望能更新一下 抽奖分组之类的功能 就更好了\n就是能创建多个随机组 \n然后抽奖的时候指令变成/rp 玩家名 随机组名  \n这样子"
+        },
+        {
+            "author": "chjiatai",
+            "timestamp": 1597485120,
+            "txt_content": " 本帖最后由 chjiatai 于 2020-8-15 18:21 编辑 \n\n插件不能用，报错 \n\n\n\n\nimage.png (40.24 KB, 下载次数: 0)\n\n下载附件\n\n2020-8-15 18:21 上传\n\n\n\n\n"
+        },
+        {
+            "author": "嗷嗷狼",
+            "timestamp": 1597672740,
+            "txt_content": "我觉得这是一个特别好的插件，可惜它不支持1.7.10的U端，后续会支持吗？"
+        },
+        {
+            "author": "428751434",
+            "timestamp": 1597673100,
+            "txt_content": "        MCBBS有你更精彩~"
+        },
+        {
+            "author": "流年梦浮尘",
+            "timestamp": 1597678380,
+            "txt_content": "这插件有意思qwq"
+        },
+        {
+            "author": "夏海东祭天",
+            "timestamp": 1610560620,
+            "txt_content": "明天试试，感觉应该还不错"
+        },
+        {
+            "author": "牧木目",
+            "timestamp": 1610595600,
+            "txt_content": "大佬考虑更新一下1.16嘛"
+        },
+        {
+            "author": "Sartears",
+            "timestamp": 1610630880,
+            "txt_content": "1.7.10thermos\n\n[21:26:08 INFO]: Coo issued server command: /rp Coo\n[21:26:08 ERROR]: null\norg.bukkit.command.CommandException: Unhandled exception executing command 'rp' in plugin RandomPermission v1.0.0\n        at org.bukkit.command.PluginCommand.execute(PluginCommand.java:46) ~[PluginCommand.class:1.7.10-1614.58]\n        at org.bukkit.command.SimpleCommandMap.dispatch(SimpleCommandMap.java:181) ~[SimpleCommandMap.class:1.7.10-1614.58]\n        at org.bukkit.craftbukkit.v1_7_R4.CraftServer.dispatchCommand(CraftServer.java:740) ~[CraftServer.class:1.7.10-1614.58]\n        at net.minecraft.network.NetHandlerPlayServer.func_147361_d(NetHandlerPlayServer.java:1370) [nh.class:?]\n        at net.minecraft.network.NetHandlerPlayServer.func_147354_a(NetHandlerPlayServer.java:1107) [nh.class:?]\n        at net.minecraft.network.play.client.C01PacketChatMessage.func_148833_a(C01PacketChatMessage.java:38) [ir.class:?]\n        at net.minecraft.network.play.client.C01PacketChatMessage.func_148833_a(C01PacketChatMessage.java:53) [ir.class:?]\n        at net.minecraft.network.NetworkManager.func_74428_b(NetworkManager.java:245) [ej.class:?]\n        at net.minecraft.network.NetworkSystem.func_151269_c(NetworkSystem.java:181) [nc.class:?]\n        at net.minecraft.server.MinecraftServer.func_71190_q(MinecraftServer.java:1023) [MinecraftServer.class:?]\n        at net.minecraft.server.dedicated.DedicatedServer.func_71190_q(DedicatedServer.java:432) [lt.class:?]\n        at net.minecraft.server.MinecraftServer.func_71217_p(MinecraftServer.java:841) [MinecraftServer.class:?]\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:693) [MinecraftServer.class:?]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_271]\nCaused by: java.lang.ArrayIndexOutOfBoundsException: -1\n        at HamsterYDS.RandomPermission.RandomPermission.goRandom(RandomPermission.java:100) ~[?:?]\n        at HamsterYDS.RandomPermission.RandomPermission.onCommand(RandomPermission.java:66) ~[?:?]\n        at org.bukkit.command.PluginCommand.execute(PluginCommand.java:44) ~[PluginCommand.class:1.7.10-1614.58]\n        ... 13 more"
+        },
+        {
+            "author": "kbaouo0",
+            "timestamp": 1610677140,
+            "txt_content": "还不错 现在一个测试一下"
+        }
+    ]
+}

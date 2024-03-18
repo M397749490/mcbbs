@@ -1,0 +1,504 @@
+{
+    "title": "【CBL|SPG】[1.16] ㄆㄧㄉㄧㄎㄞㄊㄜ —— 数据包的组成文件之一",
+    "author": "SPGoding",
+    "replyCount": 99,
+    "timestamp": 1569052680,
+    "txt_content": " 本帖最后由 SPGoding 于 2020-8-24 12:46 编辑 \n\n何为ㄆㄧㄉㄧㄎㄞㄊㄜ\n\nㄆㄧㄉㄧㄎㄞㄊㄜ（predicate），社区常见译名「谓词」「战利品表条件」「皮迪凯特」等，在平常交流时可以任意采用合适的、不易与其他词语产生混淆的叫法。其是在 19w38a 中加入的新内容，是数据包的组成文件之一。\n\n说是新内容，其实ㄆㄧㄉㄧㄎㄞㄊㄜ就是原先战利品表中的条件，只不过现在可以被单独抽离出来形成新的文件而已。没有接触过战利品表？没关系，本文将从零开始。\n\n简单来讲，ㄆㄧㄉㄧㄎㄞㄊㄜ储存的是一系列对实体、位置、天气、环境等上下文（context）的判定条件。首先写好一个ㄆㄧㄉㄧㄎㄞㄊㄜ，再给定一个上下文，游戏就能判定该上下文是否是你想要的。好了，我说完了，大概没什么难理解的。\n\n\n文件格式\n\n所有ㄆㄧㄉㄧㄎㄞㄊㄜ文件均为 JSON 格式，放置在数据包的 ./data/<命名空间>/predicates 文件夹下。\n\n该文件内容是一个对象。其中含有 condition 字段，指明所用条件的名称；同时还需含有该条件所需的各种附加参数：\n\n（对象）根对象。（字符串）condition：所用条件的名称。详细条件列表请见附录。（任意）参数名：该条件所指定的附加参数。\n\n应用\n\n命令 execute (if|unless) predicate <ㄆㄧㄉㄧㄎㄞㄊㄜ的命名空间 ID>\n\n该命令能够检测命令的执行者和执行位置等上下文是否满足指定的ㄆㄧㄉㄧㄎㄞㄊㄜ。在 if 模式下，只有满足指定ㄆㄧㄉㄧㄎㄞㄊㄜ时，测试才能通过；在 unless 模式下则相反。特别地，当命令执行者并不是实体（例如命令方块、控制台等），且ㄆㄧㄉㄧㄎㄞㄊㄜ中有对实体的限定条件时，在 unless 模式下也能导致测试通过。\n\n实体选择器参数 predicate\n\n通过指定该选择器参数，能够筛选出满足（或不满足）指定ㄆㄧㄉㄧㄎㄞㄊㄜ的实体。例如 @a[predicate=minecraft:test] 能够选中所有满足放置在数据包下 ./data/minecraft/predicates/test.json 的文件中条件的玩家，而在等号后方添加一个半角感叹号（!）则将选中所有不满足该ㄆㄧㄉㄧㄎㄞㄊㄜ的玩家。\n\n像 tag 等选择器参数一样，选择器中能够指定多个 predicate 参数，只有满足所有参数的实体才能被选中。例如，@e[predicate=do,predicate=!not,sort=nearest,limit=1] 会选中最近的、满足 do ㄆㄧㄉㄧㄎㄞㄊㄜ、且不满足 not ㄆㄧㄉㄧㄎㄞㄊㄜ的 1 个实体。\n\n相比于用 nbt 选择器参数，predicate 选择器参数在大多数情况下性能都会更好。这是因为，nbt 选择器参数的检测原理是，先把实体的所有数据转换为 NBT，再将转换后的 NBT 与用户输入的 NBT 进行比较，这些操作十分耗时。而ㄆㄧㄉㄧㄎㄞㄊㄜ会在游戏加载数据包以后就初始化完毕，在选择实体时会直接调用实体的各种方法进行比较，省去了转换为 NBT 的过程。\n\n战利品表\n\n战利品表的条件（conditions）数组中的每一个对象就是ㄆㄧㄉㄧㄎㄞㄊㄜ。有关战利品表的详细内容可以参阅【CBL|SPG】[1.15] 战利品表 —— 数据包的组成文件之一。\n\n\n附录 1：通用谓词\n\n说明\n\n在ㄆㄧㄉㄧㄎㄞㄊㄜ文件（以及进度的触发器、战利品表的条件）中有许多共通的 JSON 结构。这些结构能够对某个单一的输入（如物品、实体、位置等）根据指定条件做出判定，符合计算机界术语谓词（predicate）的定义，因此在本文中我将其称为谓词。\n\n本文中这些通用结构的提炼都是以游戏源代码为基础，而非以「形似」为基础的，能够保证一定的可靠性。\n\n范围谓词\n\n「范围谓词」能够判断一个数字是否在你所指定的范围之中。\n\n其格式可以是一个数字。当一个数字与你指定的数字相等时，该范围谓词判定成功。\n\n（数字）\n其格式也可以是一个对象，表明了该数字应当位于的范围。当一个数字处于你指定的范围中时，该范围谓词判定成功。\n\n（对象）根对象。（数字）min：最小值（含）。（数字）max：最大值（含）。\n以下是几个例子。\n\n用数字表示精确的「等于」\n\n\"xxx\": 5复制代码\n当 xxx 的值确实为 5 时，该谓词测试通过。\n\n用对象表示精确的「等于」\n\n\"xxx\": { \"min\": 5, \"max\": 5 }复制代码\n当 xxx 的值确实为 5 时，该谓词测试通过。\n\n用对象表示「大于等于」\n\n\"xxx\": { \"min\": 5 }复制代码\n当 xxx 的值大于等于 5 时，该谓词测试通过。\n\n用对象表示「小于等于」\n\n\"xxx\": { \"max\": 5 }复制代码\n当 xxx 的值大于等于 5 时，该谓词测试通过。\n\n用对象表示「在两数之间」\n\n\"xxx\": { \"min\": 5, \"max\": 10 }复制代码\n当 xxx 的值大于等于 5 并且小于等于 10 时，该谓词测试通过。\n\n状态谓词\n\n判断一个方块的方块状态或流体的流体状态是否满足你所指定的各个值。\n\n（对象）根对象。（字符串或布尔或数字）_名称_：状态「_名称_」对应的值。游戏在比较时会先将这一项的内容转换为字符串再进行比较。（对象）_名称_：状态「_名称_」对应的值应处的范围。（数字）min：最小值。（数字）max：最大值。\n方块谓词\n\n判断一个方块是否满足你所指定的各个条件。\n\n（对象）根对象。（字符串）block：一个方块 ID。方块需要为此处指定的方块，才能使该谓词测试通过。（字符串）tag：一个方块标签 ID。方块需要位于该方块标签当中，才能使该谓词测试通过。（字符串）nbt：一串 NBT。方块对应的方块实体要能与此处指定的 NBT 匹配，才能使该谓词测试通过。（状态谓词）state：该方块的方块状态所需满足的条件。\n流体谓词\n\n判断一个流体是否满足你所指定的各个条件。\n\n（对象）根对象。（字符串）fluid：一个流体 ID。流体需要为此处指定的流体，才能使该谓词测试通过。（字符串）tag：一个流体标签 ID。流体需要位于该流体标签当中，才能使该谓词测试通过。（状态谓词）state：该流体的流体状态所需满足的条件。\n位置谓词\n\n判断当前的位置是否满足你所指定的各个条件。\n\n（对象）根对象。（字符串）biome：该位置所属的生态群系的 ID。（字符串）dimension：该位置所属的维度的 ID。（字符串）feature：该位置所属的结构的 ID。（方块谓词）block：对处于该位置的方块的判定条件。（流体谓词）fluid：对处于该位置的流体的判定条件。（对象）light：对该位置的光照的判定条件。（范围谓词）light：该位置可见光所需满足的范围。可见光计算公式为 max{天空亮度 - 衰减, 方块亮度}。（对象）position：坐标。（范围谓词）x：X 坐标。（范围谓词）y：Y 坐标。（范围谓词）z：Z 坐标。\n物品谓词\n\n判断一个物品是否满足你所指定的各个条件。\n\n（对象）根对象。（范围谓词）count：物品数量。（范围谓词）durability：物品剩余耐久度。（数组）enchantments：魔咒列表。如果该列表为空，则任何魔咒都能成功匹配。（对象）一个魔咒。（字符串）enchantment：魔咒 ID。（范围谓词）levels：魔咒等级。（字符串）item：物品 ID。（字符串）nbt：物品 NBT。（字符串）potion：药水 ID，即物品的 Potion 标签中指定的内容。就算该物品不是药水，只要有这个标签并且内容匹配，即可通过。（字符串）tag：数据包物品标签 ID。\n实体谓词\n\n判断一个实体是否满足你所指定的各个条件。\n\n（对象）根对象。（字符串）catType：当前猫应当满足的种类。应为一个指向相应猫的材质的路径，例如 minecraft:textures/entity/cat/tabby.png。（对象）distance：entity 中指定实体所在坐标到执行位置的距离。执行位置即为命令的执行位置 [E|S]；执行位置即为击杀此实体的实体所在的坐标 [L:entity]。（范围谓词）absolute：绝对距离。（范围谓词）horizontal：水平距离。（范围谓词）x：在 X 轴方向上的距离。（范围谓词）y：在 Y 轴方向上的距离。（范围谓词）z：在 Z 轴方向上的距离。（数组）effects：检测的实体所需具有的状态效果列表。（对象）一个状态效果。（字符串）id：状态效果名称。（范围谓词）amplifier：效果倍率。（范围谓词）duration：效果持续时间，以刻为单位。（对象）equipment：检测的实体所需穿有的装备。（物品谓词）mainhand：对实体主手物品的判定条件。（物品谓词）offhand：对实体副手物品的判定条件。（物品谓词）head：对实体头部装备的判定条件。（物品谓词）chest：对实体胸部装备的判定条件。（物品谓词）legs：对实体腿部装备的判定条件。（物品谓词）feet：对实体脚部装备的判定条件。（对象）fishing_hook：对鱼钩实体的判定条件。（布尔） in_open_wate：该鱼钩实体是否位于开阔水域当中。（对象）flags：检测的实体应具备的特质。（布尔）is_on_fire：是否正在着火。（布尔）is_sneaking：是否正在潜行。（布尔）is_sprinting：是否正在疾跑。（布尔）is_swimming：是否正在游泳。（布尔）is_baby：是否是幼体。（位置谓词）location：检测的实体所在位置。（字符串）nbt：检测的实体所需有的 NBT。（对象）player：对玩家实体的各种判定条件。一旦指定了该参数，即使内容完全为空，也会要求当前实体必须为一名玩家。（对象）advancements：进度。（布尔）进度 ID：玩家是否完成了该进度。（对象）进度 ID：对该进度中各判据的完成情况进行进一步判断。（布尔）进度判据名称：玩家是否完成了该进度的该判据。（字符串）gamemode：游戏模式。可选值：adventure（冒险模式）、creative（创造模式）、spectator（旁观者模式）、survival（生存模式）。（范围谓词）level：经验等级的范围。（对象）recipes：配方。（布尔）配方 ID：玩家是否解锁了该配方。（数组）stats：统计信息。（对象）一个统计信息（字符串）type：统计信息所属种类。可选值与记分板判据中的一致，但请注意分割符号为冒号（:），而不是记分板判据中的点（.）：minecraft:custom、minecraft:crafted、minecraft:used、minecraft:broken、minecraft:mined、minecraft:killed、minecraft:picked_up、minecraft:dropped、minecraft:killed_by。（字符串）stat：统计信息的 ID。可选值与记分板判据中的一致，但请注意分割符号为冒号（:），而不是记分板判据中的点（.）。如 minecraft:leave_game 等。（范围谓词）value：玩家在该统计信息上应满足的数值范围。该数值可以通过 ESC → 「统计信息」菜单查询。（字符串）team：检测的实体需所在队伍的队伍名。（字符串）type：检测的实体需满足的 ID。如果以 # 开头，则会检测实体是否处在相应的实体类型标签当中。\n伤害类型谓词\n\n判断一个伤害的类型是否满足你所指定的各个条件。\n\n（对象）根对象。（布尔）bypasses_armor：是否破甲。（布尔）bypasses_invulnerability：是否无视无敌状态（如虚空伤害）。（布尔）bypasses_magic：是否由饥饿引起。（布尔）is_explosion：是否由爆炸引起。（布尔）is_fire：是否由火焰引起。（布尔）is_magic：是否由魔法引起。（布尔）is_projectile：是否由弹射物引起。（布尔）is_lightning：是否由闪电引起。（实体谓词）direct_entity：伤害的直接来源实体（如弹射物）。（实体谓词）source_entity：伤害的根本来源实体（如射箭的骷髅）。\n\n附录 2：条件列表\n\n该列表最终更新时间：1.15.1\n\n说明\n\n通常，ㄆㄧㄉㄧㄎㄞㄊㄜ中的参数大多是可以省略的。一旦省略该参数，表明你对该参数的值没有任何要求：即不论实际情况中该参数为何值，甚至在该参数没有值的情况下，ㄆㄧㄉㄧㄎㄞㄊㄜ都绝不会因为这个参数的原因而不通过。但是，有些参数是不能省略的，一旦省略游戏就会报错。可以在ㄆㄧㄉㄧㄎㄞㄊㄜ没有正确读取时，打开游戏日志查看报错信息，并回帖提醒本人为该参数添加注释。\n\n适用范围\n\n每个条件都只能在一定的范围下使用。在本文中，将使用 [E] 表示能在 *xecute (if|unless) predicate 命令中正常运作，用 [S] 表示能在实体选择器（selector）参数中正常运作，用 [L:xxx] 表示能在 minecraft:xxx 以及 minecraft:generic 类型的战利品表（loot table）正常运作。\n\n在不适用的地方使用某个条件，会导致该条件永远不通过。如果用在不合适的战利品表中，还会引起游戏在加载该数据包时在日志中显示警告：Found validation problem in {战利品表的命名空间 ID}.出现该错误的 JSON 路径: Parameters [<parameter 出问题的参数名>] are not provided in this context\n\nminecraft:alternative [E|S|L:*]\n\n析取范式。即，若指定的条件中只要有任一个通过，则该条件通过；如果指定的所有条件都不通过，则该条件不通过。\n\n（数组）terms：条件列表。（对象）一个条件。格式同条件的格式。\n例子：\n\n{\n    \"condition\": \"minecraft:alternative\",\n    \"terms\": [\n        {\n            \"condition\": \"minecraft:weather_check\",\n            \"raining\": false\n        },\n        {\n            \"condition\": \"minecraft:match_tool\",\n            \"predicate\": {\n                \"item\": \"minecraft:diamond_axe\"\n            }\n        }\n    ]\n}复制代码\n当玩家使用的工具为钻石斧，或当前天气为晴天时，条件通过。\n\nminecraft:block_state_property [L:block]\n\n匹配被破坏方块。\n\n（字符串）block：方块 ID。（方块状态谓词）properties：方块状态。\n例子：\n\n{\n    \"condition\": \"minecraft:block_state_property\",\n    \"block\": \"minecraft:yellow_bed\",\n    \"properties\": {\n        \"part\": \"head\"\n    }\n}复制代码\n当被破坏的方块是黄色床的头的一部分时，条件通过。床在被破坏时，头和脚两部分会分别执行战利品表。为了避免掉落两个床，Minecraft 在写床的战利品表的时候加了一个 \"part\": \"head\" 的限制。\n\nminecraft:damage_source_properties [L:entity]\n\n匹配该实体死亡时受到的伤害。\n\n（伤害类型谓词）predicate：对该伤害的判定条件。\n例子：\n\n{\n    \"condition\": \"minecraft:damage_source_properties\",\n    \"predicate\": {\n        \"taken\": {\n            \"min\": 20\n        }\n    }\n}复制代码\n当实际造成伤害大于等于 20 时，条件通过。\n\nminecraft:entity_properties [E|S|L:entity]\n\n在指定的实体满足指定条件时，该条件通过。\n\n（字符串）entity：检测的实体。使用 this 指代命令的执行者 [E]；使用 this 指代被选择的实体 [S]；使用 this 指代死亡的实体。使用 killer 指代击杀此实体的实体。使用 killer_player 指代击杀此实体的玩家 [L:entity]。（实体谓词）predicate：对 entity 中指定的实体的判定条件。\n例子：\n\n{\n    \"condition\": \"minecraft:entity_properties\",\n    \"predicate\": {\n        \"flags\": {\n            \"is_on_fire\": true\n        }\n    },\n    \"entity\": \"this\"\n}复制代码\n该条件会在 this 指定的实体着火时通过。可以在战利品表中利用它做出生物被烧死后掉落熟食的效果。\n\n{\n    \"condition\": \"minecraft:entity_properties\",\n    \"predicate\": {\n        \"equipment\": {\n            \"mainhand\": {\n                \"item\": \"minecraft:air\"\n            }\n        }\n    },\n    \"entity\": \"this\"\n}复制代码\n该条件会在 this 指定的实体主手中没有拿任何物品时通过。\n\nminecraft:entity_scores [E|S|L:entity]\n\n在指定的实体的分数满足指定条件时，该条件通过。\n\n（字符串）entity：检测的实体。使用 this 指代命令的执行者 [E]；使用 this 指代被选择的实体 [S]；使用 this 指代死亡的实体。使用 killer 指代击杀此实体的实体。使用 killer_player 指代击杀此实体的玩家 [L:entity]。（对象）scores：要检测的分数。必须全部满足，条件才能通过。（范围谓词）_分数名_：该分数的值。\n例子：\n\n{\n    \"condition\": \"minecraft:entity_scores\",\n    \"entity\": \"killer_player\",\n    \"scores\": {\n        \"foo\": {\n            \"min\": 10\n        },\n        \"bar\": 15\n    }\n}复制代码\n在击杀该实体的玩家 foo 分数大于 10，且 bar 分数等于 15 时，条件通过 [L:entity]。\n\nminecraft:inverted [E|S|L:*]\n\n取反。即，若指定的条件通过，则该条件不通过；否则，该条件通过。\n\n（对象）term：指定的条件。格式同条件的格式。\n例子：\n\n{\n    \"condition\": \"minecraft:inverted\",\n    \"term\": {\n        \"condition\": \"minecraft:random_chance\",\n        \"chance\": 0.3\n    }\n}复制代码\nterm 内指定的条件有 30% 的概率通过，因此整个 inverted 条件有 70% 的概率通过。\n\nminecraft:killed_by_player [L:entity]\n\n当前实体被玩家击杀时，条件通过。\n\n（布尔）inverse：如果设置为 true，则变为击杀者不是玩家时条件通过。\n例子：\n\n{\n    \"condition\": \"minecraft:killed_by_player\"\n}复制代码\nminecraft:location_check [E|S|L:*]\n\n当前位置满足指定条件时，条件通过。\n\n（数字）offsetX：在检测位置前，先将当前位置在 X 轴上进行的偏移数目。（数字）offsetY：在检测位置前，先将当前位置在 Y 轴上进行的偏移数目。（数字）offsetZ：在检测位置前，先将当前位置在 Z 轴上进行的偏移数目。（位置谓词）predicate：对该位置的判定条件。\n例子：\n\n{\n    \"condition\": \"minecraft:location_check\",\n    \"predicate\": {\n        \"biome\": \"minecraft:jungle\"\n    },\n    \"offsetX\": -10\n}复制代码\n将当前位置向 X 轴负方向偏移 10 米后如果处于丛林生态群系，则条件通过。\n\nminecraft:match_tool [L:block,fishing]\n\n匹配玩家使用的工具。\n\n（物品谓词）predicate：对该工具的判定条件。\n例子：\n\n{\n    \"condition\": \"minecraft:match_tool\",\n    \"predicate\": {\n        \"enchantments\": [\n            {\n                \"enchantment\": \"minecraft:silk_touch\",\n                \"levels\": {\n                    \"min\": 1\n                }\n            }\n        ]\n    }\n}复制代码\n当玩家使用的工具具有「精准采集Ⅰ」及以上的魔咒，条件通过。\n\nminecraft:random_chance [E|S|L:*]\n\n游戏会生成一个 0.0 到 1.0 的随机数，当该数字小于等于被比数时，条件通过。\n\n（数字）chance：被比数。值域 [0.0, 1.0]。\n例子：\n\n{\n    \"condition\": \"minecraft:random_chance\",\n    \"chance\": 0.3\n}复制代码\n该条件有 30% 的几率通过\n\nminecraft:random_chance_with_looting [E|S|L:entity]\n\n游戏会生成一个 0.0 到 1.0 的随机数，当该数字小于等于被比数时，条件通过 [E|S|L:entity]。\n\n击杀者的抢夺附魔等级会影响被比数的大小 [L:entity]。\n\n（数字）chance：被比数的基础值。值域 [0.0, 1.0] [E|S|L:entity]。（数字）looting_multiplier：每一级抢夺附魔所增加的被比数 [L:entity]。\n例子：\n\n{\n    \"condition\": \"minecraft:random_chance_with_looting\",\n    \"chance\": 0.3,\n    \"looting_multiplier\": 0.1\n}复制代码\n该条件有 30% 的几率通过 [E|S|L:entity]。每多一级抢夺魔咒，通过几率增加 10 个百分点 [L:entity]。\n\nminecraft:reference [E|S|L:*]\n\n引用定义的其他ㄆㄧㄉㄧㄎㄞㄊㄜ文件。\n\n（字符串）name：判据的命名空间 ID。\n例子：\n\n{\n    \"condition\": \"minecraft:reference\",\n    \"name\": \"test:abc\"\n}复制代码\n该条件将会引用定义在数据包 ./data/test/predicates/abc.json 文件中的ㄆㄧㄉㄧㄎㄞㄊㄜ。当被引用的ㄆㄧㄉㄧㄎㄞㄊㄜ能够通过时，该条件通过。\n\nminecraft:survives_explosion [E|S|L:block]\n\n如果该方块是被爆炸破坏的，该条件有 1/爆炸半径 的几率通过；如果该方块是被玩家正常挖掘的，该条件永远通过 [L:block]。\n\n该条件永远通过 [E|S]。\n\n例子：\n\n{\n    \"condition\": \"minecraft:survives_explosion\"\n}复制代码\nminecraft:table_bonus [L:block]\n\n分别定义不同级别的附魔等级下条件的通过几率。\n\n（字符串）enchantment：探测的魔咒 ID。（数组）chances：每个魔咒等级下的通过几率。（数字）无该魔咒的几率（数字）该魔咒为 1 级的几率（数字）该魔咒为 2 级的几率...（数字）该魔咒为 (n-1) 级的几率\n例子：\n\n{\n    \"condition\": \"minecraft:table_bonus\",\n    \"enchantment\": \"minecraft:fortune\",\n    \"chances\": [\n        0.05,\n        0.0625,\n        0.083333336,\n        0.1\n    ]\n}复制代码\n当玩家没有时运附魔时，有 5% 的几率通过；当玩家有 1 级时运时，有 6.25% 的几率通过；当玩家有 2 级时运时，有 8.3333336% 的几率通过；当玩家有 3 级及以上的时运时，有 10% 的几率通过。\n\nminecraft:time_check [E|S|L:*]\n\n检测当前游戏内的时间。\n\n（范围谓词）value：允许的值。（数字）period：可选。如果指定，在比较前会先将游戏的时间以该数取模。\n例子：\n\n{\n    \"condition\": \"minecraft:time_check\",\n    \"value\": 6000\n}复制代码\n该条件会在游戏内每天正午（6000）的那一刻通过。\n\n{\n    \"condition\": \"minecraft:time_check\",\n    \"value\": 6000,\n    \"period\": 12000\n}复制代码\n该条件会在游戏内每天正午（6000）或午夜（18000）的那一刻通过。\n\nminecraft:weather_check [E|S|L:*]\n\n检测当时的天气。\n\n（布尔）raining：是否下雨。（布尔）thundering：是否打雷。\n例子：\n\n{\n    \"condition\": \"minecraft:weather_check\",\n    \"raining\": true,\n    \"thundering\": false\n}复制代码\n该条件会在普通的雨天通过，在晴天或雷雨天均不会通过。\n\n\n附录 3：Datapack Helper Plus (JSON)\n\nDatapack Helper Plus (JSON)（简称 DHP (JSON)，中文名大憨批杰森）是一款优秀的 VSCode 插件，提供适用于 Minecraft 1.15 数据包 JSON 文件的自动补全与格式校验。在该款插件的帮助下，编写ㄆㄧㄉㄧㄎㄞㄊㄜ以及其他各种文件（如进度、配方、战利品表、各种标签）将变得十分方便。请您坐和放宽，前往该插件的发布帖一览究竟。\n\n\n致谢\n\nchyx - 挑错ruhuasiyu - 帮忙补充了点东西柘木铃 - 挑错\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "柘木铃",
+            "timestamp": 1569053580,
+            "txt_content": "谢谢 spg！掉落表的笔记抄完就来学这个"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1569054600,
+            "txt_content": "所以相当于把loot的判据外置之后极大丰富了内部判据"
+        },
+        {
+            "author": "2836126068",
+            "timestamp": 1569058080,
+            "txt_content": "加油............"
+        },
+        {
+            "author": "2836126068",
+            "timestamp": 1569058080,
+            "txt_content": "不知道!!!!!!"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1569064020,
+            "txt_content": " 本帖最后由 chyx 于 2019-9-21 19:09 编辑 \n\n我昨晚发现match_tool不能直接被命令用时气的要死。\n\n\n顺便为何minecraft:random_chance_with_looting [E|S|L:entity]\n\n游戏会生成一个 0.0 到 1.0 的随机数，当该数字小于等于被比数时，条件通过。\n\n击杀者的抢夺附魔等级会影响被比数的大小 [L:entity]。\n\n    （数字）chance：被比数的基础值。值域 [0.0, 1.0]。\n    （数字）looting_multiplier：每一级抢夺附魔所增加的被比数 [L:entity]。\n\n\n例子：\n\n    {\n        \"condition\": \"minecraft:random_chance_with_looting\",\n        \"chance\": 0.3,\n        \"looting_multiplier\": 0.1\n    }\n\n复制代码\n\n该条件有 30% 的几率通过。每多一级抢夺魔咒，通过几率增加 10% [L:entity]。\n上面写着[E|S|L:entity]，但整个段落全是[L:entity]？\n这个看的不是killer吗？但是指令里用的时候传的是this吧。。。"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1569064140,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-9-21 19:12 编辑 \nchyx 发表于 2019-9-21 19:07\n我昨晚发现match_tool不能直接被命令用时气的要死。\n可以用万能的 entity_properties 代替吧（\n不过写起来肯定不爽就是了\n\n\n在指令里用这个的时候，效果和 random_chance 完全一样，也就是 looting_multiplier 不会对结果产生影响。所以我在这句后面加了 [L:entity]\n击杀者的抢夺附魔等级会影响被比数的大小 [L:entity]。"
+        },
+        {
+            "author": "RF_Tar_Railt",
+            "timestamp": 1569078300,
+            "txt_content": "可以认为以前exe后面跟的一大堆if可以放在单独的文件里面了？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1569078840,
+            "txt_content": "RF_Tar_Railt 发表于 2019-9-21 23:05\n可以认为以前exe后面跟的一大堆if可以放在单独的文件里面了？\n不。是以前loottable的一些东西可以了"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1569078840,
+            "txt_content": "RF_Tar_Railt 发表于 2019-9-21 23:05\n可以认为以前exe后面跟的一大堆if可以放在单独的文件里面了？\n不太可以（\n\n因为目前 predicate 没有比较方便的表示 AND 关系的方法（只能用 inverted + alternatives），想把一系列的条件移入一个文件还是有些复杂"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1569130260,
+            "txt_content": "chyx 发表于 2019-9-21 19:07\n我昨晚发现match_tool不能直接被命令用时气的要死。\n我刚刚检查了下源码，发现 entity_properties 里面有个 equipment 参数，可以用和 match_tool 一样的格式检测玩家物品！不过可惜的是只限于六个栏位，不是背包里所有地方都能检测。\n\n另外从源码实现可以确认，predicate 选择器参数的性能会比 nbt 参数高。因为 predicate 的判定直接调用的是实体上的方法；而 nbt 的判定却是先把实体变成 NBT，再按 NBT 的那一套测试，会慢很多。\n"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1569517140,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-10-7 00:34 编辑 \nSPGoding 发表于 2019-9-21 23:14\n不太可以（\n\n因为目前 predicate 没有比较方便的表示 AND 关系的方法（只能用 inverted + alternatives） ...\n\n上次写了一个，能够像alternative一样使用and。\n把带有and的对象丢到最下面那个函数里，它就会自动把and转成not->or->not。\n这样就能被mc认了。\n\n抛砖引玉。希望大家指正或者改写。\n\n众所周知，\nA & B\n和\n!(!A | !B)\n是完全等价的（其中 ! 表示取反，& 表示且，| 表示或）\n\n因此尽管断言本身不支持写多个条件，利用 inverted（取反）和 alternative（或）我们完全可以做出「且」的效果。\n\nchyx 所给出的这段 python 代码可以帮助使用者不必手动写 inverted 和 alternative 的嵌套，可以自动生成出相应 JSON。\n\n—— SPGoding 注"
+        },
+        {
+            "author": "雷小达",
+            "timestamp": 1570154220,
+            "txt_content": "66666666666666"
+        },
+        {
+            "author": "lashidedongxi",
+            "timestamp": 1571444340,
+            "txt_content": "这断言，你说了这么多我属实不太懂"
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1571575260,
+            "txt_content": "那个好用的and转notornot的脚步可以在哪下载呢？（"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1571655540,
+            "txt_content": " 本帖最后由 chyx 于 2019-10-25 03:50 编辑 \nJokey_钥匙 发表于 2019-10-20 20:41\n那个好用的and转notornot的脚步可以在哪下载呢？（\n你是说我写的被置顶的那个吗？\n\n===================================================\n\n上传到github了。\nhttps://github.com/ch-yx/not-or-not/blob/master/m.py\n\n我已经在后面加了一个搜索同文件夹里的所有json文件并统统修改的功能了。\n把这个py放在和json文件一个文件夹里，双击运行就好了。\n\n\n（我知道数据包里的json 通常几个文件放在一个文件夹里。所以即使是装在若干层文件夹里的json也会被修改。）\n\n@Jokey_钥匙   "
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1572505740,
+            "txt_content": "chyx 发表于 2019-9-27 00:59\n上次写了一个，能够像alternative一样使用and。\n把带有and的对象丢到最下面那个函数里，它就会自动把and ...\n关于包含于我回复中的spgoding的注\n我声明我不同意其中将predicate翻译成断言的行为\n\n\n"
+        },
+        {
+            "author": "wkscb12",
+            "timestamp": 1572591600,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "121236738",
+            "timestamp": 1572678240,
+            "txt_content": "等啊等，终于等到了"
+        },
+        {
+            "author": "121236738",
+            "timestamp": 1572678300,
+            "txt_content": "1.15终于等到了"
+        },
+        {
+            "author": "临郢夏望",
+            "timestamp": 1573186140,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "MinecraftPeace",
+            "timestamp": 1573385340,
+            "txt_content": "皮迪凯特可还行awa"
+        },
+        {
+            "author": "陌上尘客",
+            "timestamp": 1573976880,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "江南一叶ye",
+            "timestamp": 1574384220,
+            "txt_content": "真的蒙批"
+        },
+        {
+            "author": "xiaoxo520",
+            "timestamp": 1574485260,
+            "txt_content": "没看明白，哪位大神帮忙解释一下？"
+        },
+        {
+            "author": "xiaoxo520",
+            "timestamp": 1574485320,
+            "txt_content": "有人吗????????????"
+        },
+        {
+            "author": "415263456",
+            "timestamp": 1574517060,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "huxianrui",
+            "timestamp": 1575432900,
+            "txt_content": "好厉害的样子，先收藏慢慢研究????"
+        },
+        {
+            "author": "妖王owo",
+            "timestamp": 1575714540,
+            "txt_content": "重拾指令"
+        },
+        {
+            "author": "873280649",
+            "timestamp": 1575715620,
+            "txt_content": "指令我学会了，恩先这样，再这样，最后天上这个（想象：美好，结果：shit），嗯就这样"
+        },
+        {
+            "author": "q491412",
+            "timestamp": 1575965580,
+            "txt_content": "其实我就是水一下,看着很厉害的样子"
+        },
+        {
+            "author": "Ohnkyta",
+            "timestamp": 1576043580,
+            "txt_content": "可以的，先码住，也许哪天开发能用到"
+        },
+        {
+            "author": "和我挺开心",
+            "timestamp": 1576145880,
+            "txt_content": "大神呀！！"
+        },
+        {
+            "author": "21100756",
+            "timestamp": 1576206720,
+            "txt_content": "666666666666666666"
+        },
+        {
+            "author": "ztmns123",
+            "timestamp": 1576818060,
+            "txt_content": "哇，大佬，看不懂看不懂，6666666"
+        },
+        {
+            "author": "浅笑半颜",
+            "timestamp": 1576908300,
+            "txt_content": "顶！顶！顶！顶！顶！顶！顶！顶！顶！顶！"
+        },
+        {
+            "author": "ZFT666",
+            "timestamp": 1576916520,
+            "txt_content": "666666666666666666666666666666"
+        },
+        {
+            "author": "一只皮皮猫",
+            "timestamp": 1577324220,
+            "txt_content": "神仙打架系列，我们喊woc吧"
+        },
+        {
+            "author": "杯具c",
+            "timestamp": 1577608500,
+            "txt_content": "大佬呀!!!!!!!!!!!"
+        },
+        {
+            "author": "kkgb23",
+            "timestamp": 1577787600,
+            "txt_content": "这里就是神仙的世界吗？忽然放弃命令方块的学习了"
+        },
+        {
+            "author": "天堂蓝",
+            "timestamp": 1578041400,
+            "txt_content": "嗯嗯，是大佬"
+        },
+        {
+            "author": "无敌Yielr",
+            "timestamp": 1578145920,
+            "txt_content": "66666666666666666666"
+        },
+        {
+            "author": "Loginzz",
+            "timestamp": 1578193080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "cailiang",
+            "timestamp": 1578210060,
+            "txt_content": "我。。。。。。"
+        },
+        {
+            "author": "YX_Tomson",
+            "timestamp": 1578268680,
+            "txt_content": "大佬牛皮（破音）"
+        },
+        {
+            "author": "fukemansite",
+            "timestamp": 1578382920,
+            "txt_content": "真的是大佬哦。佩服佩服耶"
+        },
+        {
+            "author": "YIOM",
+            "timestamp": 1578553980,
+            "txt_content": "感谢楼主分享"
+        },
+        {
+            "author": "kevinns",
+            "timestamp": 1578633480,
+            "txt_content": "666，神仙啊"
+        },
+        {
+            "author": "MIlimi",
+            "timestamp": 1578657600,
+            "txt_content": "666 表示看不懂"
+        },
+        {
+            "author": "鹌鹑茸茸",
+            "timestamp": 1578752820,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "3308972768",
+            "timestamp": 1578829320,
+            "txt_content": "鹌鹑茸茸 发表于 2020-1-11 22:27\n**** 作者被禁止或删除 内容自动屏蔽 ****\n。。。。。。\n"
+        },
+        {
+            "author": "3308972768",
+            "timestamp": 1578829320,
+            "txt_content": "一只皮皮猫 发表于 2019-12-26 09:37\n神仙打架系列，我们喊woc吧\nwoc asas**fs"
+        },
+        {
+            "author": "3308972768",
+            "timestamp": 1578829380,
+            "txt_content": "无敌Yielr 发表于 2020-1-4 21:52\n66666666666666666666\n999999999999999999999999999999999"
+        },
+        {
+            "author": "是子崎呀丶",
+            "timestamp": 1578904920,
+            "txt_content": "好好好，非常好，做得很不错，帮助很大！"
+        },
+        {
+            "author": "是子崎呀丶",
+            "timestamp": 1578905040,
+            "txt_content": "好好好，非常好，做得很不错，帮助很大！"
+        },
+        {
+            "author": "CXiu",
+            "timestamp": 1578973380,
+            "txt_content": "再学前端"
+        },
+        {
+            "author": "秋林枫叶",
+            "timestamp": 1579054080,
+            "txt_content": "？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？"
+        },
+        {
+            "author": "0-zero-0",
+            "timestamp": 1579327920,
+            "txt_content": "所以说minecraft真的是编程游戏，学完编程再来玩游戏？（其实是学完游戏不需要学编程吧）\n好吧，其实对比一下还是真正的编程要简单很多，但为什么一条指令可以那么复杂，而且和简单指令除了都是英文连一点共同之处都没有\n但确实介绍得很详细，大力支持这个帖子，否则又有一个好指令回淡出大家的视线\n"
+        },
+        {
+            "author": "wczcz",
+            "timestamp": 1579410540,
+            "txt_content": "。。。。。。。。。。。。。。。。。。。。。。。。。。"
+        },
+        {
+            "author": "wuhuang779",
+            "timestamp": 1579607100,
+            "txt_content": "嗯嗯呢，真好！"
+        },
+        {
+            "author": "方块v少年",
+            "timestamp": 1579684920,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "yysx929",
+            "timestamp": 1580022300,
+            "txt_content": "看不懂，但是感觉很厉害"
+        },
+        {
+            "author": "yaowei1029",
+            "timestamp": 1580197440,
+            "txt_content": "大佬大佬大佬大佬大佬\n"
+        },
+        {
+            "author": "WEUHF",
+            "timestamp": 1580274540,
+            "txt_content": "看不懂，太厉害了"
+        },
+        {
+            "author": "Sh1zzuko",
+            "timestamp": 1580302020,
+            "txt_content": "神乎其技！6的飞起！"
+        },
+        {
+            "author": "Sh1zzuko",
+            "timestamp": 1580353380,
+            "txt_content": "刚想研究研究，结果翻社区就看到你研究完了233333"
+        },
+        {
+            "author": "INDEX！=_=",
+            "timestamp": 1580453700,
+            "txt_content": "啊 是大佬 我死了"
+        },
+        {
+            "author": "iaoxiaogan",
+            "timestamp": 1580556180,
+            "txt_content": "Minecraft是编程游戏石锤了 技术部都是人才绝了绝了"
+        },
+        {
+            "author": "郝舰丶",
+            "timestamp": 1580615220,
+            "txt_content": "dldl懂了"
+        },
+        {
+            "author": "sweetxue",
+            "timestamp": 1588562040,
+            "txt_content": "11111111111111111111111111111111"
+        },
+        {
+            "author": "狰狞",
+            "timestamp": 1588572480,
+            "txt_content": "\n啊 是大佬"
+        },
+        {
+            "author": "T_irpitz",
+            "timestamp": 1588829520,
+            "txt_content": "不错不错mcbbs有你更精彩"
+        },
+        {
+            "author": "趙公子",
+            "timestamp": 1588833960,
+            "txt_content": "神乎其技！6的飞起！"
+        },
+        {
+            "author": "WULIAO00",
+            "timestamp": 1588840140,
+            "txt_content": "。。。。。。。。。。"
+        },
+        {
+            "author": "WULIAO00",
+            "timestamp": 1588840200,
+            "txt_content": ".........."
+        },
+        {
+            "author": "24kyu",
+            "timestamp": 1588871760,
+            "txt_content": "666666大佬就是不一样"
+        },
+        {
+            "author": "Howie211",
+            "timestamp": 1588904160,
+            "txt_content": "大佬好强啊！"
+        },
+        {
+            "author": "yangzifeng4852",
+            "timestamp": 1588996620,
+            "txt_content": "我突然发现............"
+        },
+        {
+            "author": "yangzifeng4852",
+            "timestamp": 1588996620,
+            "txt_content": "我啥也不是=-="
+        },
+        {
+            "author": "3509814166",
+            "timestamp": 1589033700,
+            "txt_content": "6666666666666666666666666"
+        },
+        {
+            "author": "DMeteor",
+            "timestamp": 1589120640,
+            "txt_content": "6666666大佬tql"
+        },
+        {
+            "author": "liuchilde",
+            "timestamp": 1589242560,
+            "txt_content": "虽然不懂这个，但是喊666准没错"
+        },
+        {
+            "author": "icey啊啊啊啊啊",
+            "timestamp": 1589258520,
+            "txt_content": "liuchilde 发表于 2020-5-12 08:16\n虽然不懂这个，但是喊666准没错\ndsadasdasdasdasdsad"
+        },
+        {
+            "author": "icey啊啊啊啊啊",
+            "timestamp": 1589258580,
+            "txt_content": "dasdasdasdasdadasasdas"
+        },
+        {
+            "author": "v3stiny",
+            "timestamp": 1589260080,
+            "txt_content": "太狠了把~~~~~~~~~~~~~~~~~~~~~"
+        },
+        {
+            "author": "1m2",
+            "timestamp": 1589288700,
+            "txt_content": "额 代码实际用起来不错 希望引用实际吧"
+        },
+        {
+            "author": "伟儿",
+            "timestamp": 1589377620,
+            "txt_content": "虽然有点看不懂 但是还是辛苦楼主了"
+        },
+        {
+            "author": "蓝天123456",
+            "timestamp": 1589427960,
+            "txt_content": "滴，打卡!作者大大真棒！\nMCBBS有你更精彩~"
+        },
+        {
+            "author": "蓝天123456",
+            "timestamp": 1589439420,
+            "txt_content": "滴，打卡!作者大大真棒！\nMCBBS有你更精彩~"
+        },
+        {
+            "author": "heckel",
+            "timestamp": 1589462040,
+            "txt_content": "说的很详细，可是听不懂\n辛苦了"
+        },
+        {
+            "author": "dianya",
+            "timestamp": 1589499360,
+            "txt_content": "大佬有没有1.8的，玩不懂1.1*.0版本"
+        },
+        {
+            "author": "dianya",
+            "timestamp": 1589499480,
+            "txt_content": "66666666666666666大佬就是牛逼"
+        },
+        {
+            "author": "金色_年华",
+            "timestamp": 1589529900,
+            "txt_content": "dianya 发表于 2020-5-15 07:36\n大佬有没有1.8的，玩不懂1.1*.0版本\n谓词1.15加的"
+        },
+        {
+            "author": "3147741808",
+            "timestamp": 1589606940,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "zzyh15",
+            "timestamp": 1589625780,
+            "txt_content": "3147741808 发表于 2020-5-16 13:29\nMCBBS有你更精彩~\n懂了懂了 学会了 全新操作"
+        },
+        {
+            "author": "天空heat",
+            "timestamp": 1589669580,
+            "txt_content": "咱看不懂"
+        },
+        {
+            "author": "Konahoo",
+            "timestamp": 1589677380,
+            "txt_content": "虽然看不懂 但是不影响我66666"
+        },
+        {
+            "author": "爱中国的伏拉夫",
+            "timestamp": 1589812620,
+            "txt_content": "辛苦了，虽然看不懂[doge]"
+        },
+        {
+            "author": "zqyswd",
+            "timestamp": 1589847120,
+            "txt_content": "water\nwater"
+        },
+        {
+            "author": "zqyswd",
+            "timestamp": 1589847120,
+            "txt_content": "water\nwater"
+        }
+    ]
+}

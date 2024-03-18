@@ -1,0 +1,44 @@
+{
+    "title": "bukkit如何储存，读取方块",
+    "author": "Seals_Tak",
+    "replyCount": 7,
+    "timestamp": 1590925980,
+    "txt_content": "bukkit如何保存一个方块的全部数据(包括容器内的物品、朝向等)到一个文件中，并且可以再次读取和放置该方块",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1591024080,
+            "txt_content": "自己手动序列化(因为没用过不清楚是不是已经有这种车轮了\n\n比如新建一个类 来保存方块的各种信息\n然后按一定规格保存起来\n\n要用的时候反向序列化一下自己的这个\n就出来了"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1591105140,
+            "txt_content": " 本帖最后由 M8_mve 于 2020-6-2 21:46 编辑 \n\nmc里保存方块是用int值id映射方块，方块特殊数据保存在区块的tileEntity里面，可以参考一下这个\npublic static void saveBlock(DataOutputStream out, Block block) throws IOException\n{\n    if (block.getType() == Material.AIR)\n    {\n        out.writeByte(0);\n        out.flush();\n        return;\n    }\n    out.writeByte(1);\n    Chunk chunk = block.getChunk();\n    int x = block.getX() & 15;\n    int y = block.getY() & 15;\n    int z = block.getZ() & 15;\n    int sectionY = block.getY() >> 4;\n    net.minecraft.server.v1_12_R1.Chunk nmsChunk = ((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle();\n    net.minecraft.server.v1_12_R1.ChunkSection section = nmsChunk.getSections()[sectionY];\n    int id = net.minecraft.server.v1_12_R1.Block.REGISTRY_ID.getId(section.getBlocks().a(x, y, z));\n    out.writeInt(id);\n    net.minecraft.server.v1_12_R1.TileEntity tileEntity = nmsChunk.getTileEntities().get(new net.minecraft.server.v1_12_R1.BlockPosition(x, y, z));\n    if (tileEntity == null)\n    {\n        out.writeByte(0);\n    }\n    else\n    {\n        out.writeByte(1);\n        net.minecraft.server.v1_12_R1.NBTTagCompound tileEntityNBT = new net.minecraft.server.v1_12_R1.NBTTagCompound();\n        tileEntity.save(tileEntityNBT);\n        net.minecraft.server.v1_12_R1.NBTCompressedStreamTools.a(tileEntityNBT, (DataOutput) out);\n    }\n    out.flush();\n}\npublic static Block loadBlock(DataInputStream in, World to, int x, int y, int z) throws IOException\n{\n    boolean noAir = in.readBoolean();\n    if (noAir)\n    {\n        int chunkX = x >> 4;\n        int chunkZ = z >> 4;\n        int sectionY = y >> 4;\n        x &= 15;\n        y &= 15;\n        z &= 15;\n        Chunk chunk = to.getChunkAt(chunkX, chunkZ);\n        net.minecraft.server.v1_12_R1.ChunkSection section = ((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle().getSections()[sectionY];\n        int id = in.readInt();\n        net.minecraft.server.v1_12_R1.IBlockData data = net.minecraft.server.v1_12_R1.Block.REGISTRY_ID.fromId(id);\n        if (data == null)\n        {\n            net.minecraft.server.v1_12_R1.Block block = net.minecraft.server.v1_12_R1.Block.getById(id >> 4);\n            if (block != null) try\n            {\n                data = block.fromLegacyData(id & 15);\n            }\n            catch (Exception ignored)\n            {\n                data = block.getBlockData();\n            }\n        }\n        section.getBlocks().setBlock(x, y, z, data);\n        boolean hasTileEntity = in.readBoolean();\n        if (hasTileEntity)\n        {\n            net.minecraft.server.v1_12_R1.NBTTagCompound tileEntityNBT = net.minecraft.server.v1_12_R1.NBTCompressedStreamTools.a(in);\n            net.minecraft.server.v1_12_R1.TileEntity tileEntity = net.minecraft.server.v1_12_R1.TileEntity.create(((org.bukkit.craftbukkit.v1_12_R1.CraftWorld)to).getHandle(), tileEntityNBT);\n            ((org.bukkit.craftbukkit.v1_12_R1.CraftChunk)chunk).getHandle().a(tileEntity);\n            }\n    }\n    else\n    {\n        to.getBlockAt(x, y, z).setType(Material.AIR);\n    }\n    return to.getBlockAt(x, y, z);\n}\n复制代码"
+        },
+        {
+            "author": "Seals_Tak",
+            "timestamp": 1591435800,
+            "txt_content": "M8_mve 发表于 2020-6-2 21:39\nmc里保存方块是用int值id映射方块，方块特殊数据保存在区块的tileEntity里面，可以参考一下这个\n ...\n谢谢dalao的回答，但我还没有详细了解NMS，请问还有用bukkit来保存方块的方法吗"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1591437780,
+            "txt_content": "Seals_Tak 发表于 2020-6-6 17:30\n谢谢dalao的回答，但我还没有详细了解NMS，请问还有用bukkit来保存方块的方法吗 ...\nTileEntity显然是最适合的\n\n说白了就是对着tile entity操作nbt\n\n当然你也可以针对具体情况去使用bk封装的\n\n比如说保存一个箱子你就可以使用chest这个接口\n\n但是本质上都是tile entity\n\n大部分方块都没有这个tile \n\n只有那些有数据的才会有tile（指的不是id数据，是其它数据）"
+        },
+        {
+            "author": "Seals_Tak",
+            "timestamp": 1591441440,
+            "txt_content": "我的NMS是net.minecraft.server.v1_14_R1，\n\nnet.minecraft.server.v1_14_R1.Block block = net.minecraft.server.v1_14_R1.Block.getById(id >> 4);里的.getById和\ndata = block.fromLegacyData(id & 15);里的.fromLegacyData方法用不了，请问要怎样解决"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1591444620,
+            "txt_content": " 本帖最后由 M8_mve 于 2020-6-6 20:14 编辑 \nSeals_Tak 发表于 2020-6-6 19:04\n我的NMS是net.minecraft.server.v1_14_R1，\n\nnet.minecraft.server.v1_14_R1.Block block = net.minecraft. ...1.14的话，区域格式好像有变，你可以自己再去看一下ChunkRegionLoader里面的代码"
+        },
+        {
+            "author": "sanqiue",
+            "timestamp": 1595623920,
+            "txt_content": "听说WE有你要的保存数据的方法，可以直接用"
+        }
+    ]
+}

@@ -1,0 +1,69 @@
+{
+    "title": "如何问玩家“吾与徐公孰美？”",
+    "author": "海螺螺",
+    "replyCount": 12,
+    "timestamp": 1581530700,
+    "txt_content": "如何问玩家“吾与徐公孰美？”\n\n本文发布于 https://izzel.io/2020/02/12/chat-with-future/\n\n使用 CompletableFuture 实现一个简单的对话。\n关于对话\n对话并不罕见，在 QuickShop 中，插件会向玩家询问“你要买几个东西”，玩家则在聊天栏中输入对应的值；在 PlotSquared 中，玩家需要不断地输入对应的命令来配置地皮生成的参数，而输入命令也是另一种形式的对话。\n对话的实现，Bukkit 为开发者准备了一套 Conversations API，编程开发板块的这篇帖子有简单的介绍。\n本篇将会介绍另一种实现它的方法，简单的可以概括为，在一个方法里流畅的处理对话，比如这样：\nimport org.bukkit.entity.Player;\n\npublic class SomeClass {\n\n    public void ask(Player player) {\n        player.sendMessage(\"吾与徐公孰美？\");\n        String answer = getAnswer(player);\n        assert answer.equals(\"徐公不若君之美也！\");\n    }\n}\n接下来的篇幅，就将讨论上文的 getAnswer 如何实现。\n\n实现对话，无非是这种逻辑：\n\n发送给玩家问题\n监听玩家的回复\n处理玩家的回复\n如果还有问题，跳到 1\n\n按照正常的方法编写，我们需要一个监听器监听 PlayerChatEvent 或者它的异步版本，需要记录玩家的状态（玩家是不是在一个对话中 / 对话进行到了哪里），如果是诸葛亮王朗量级的超长对话，那么判断状态 / 更新状态的代码量将不堪设想。你还需要考虑玩家掉线/玩家不回答的情况，这就会又引入别的监听器和定时器。\n因此，我们会想用上文代码一样的方式处理，无需记录状态，但是显然，getAnswer 不可能在调用的时候就有结果，玩家这时可能还不知道他被提了一个美不美的问题，而答案有可能会在未来提供，因此我们有了 Future 接口。\n关于 Future\n这是 Future 接口的定义：\npackage java.util.concurrent;\npublic interface Future<V> {\n    boolean cancel(boolean mayInterruptIfRunning);\n    boolean isCancelled();\n    boolean isDone();\n    V get() throws InterruptedException, ExecutionException;\n    V get(long timeout, TimeUnit unit)\n        throws InterruptedException, ExecutionException, TimeoutException;\n}\n注意到上面加粗的有可能了吗？为什么会 有可能 呢？\n\n你可能不想问了（cancel）\n玩家可能并不想理睬你（get 方法超时了）\n玩家掉线了（get 方法抛出了异常）\n齐威王突然召见你进宫（get 方法被中断了）\n玩家回答：徐公不若君之美也！\n\n可以得知，你能准确的从玩家嘴里问出有效的答案实属不易，而 Future 接口就可以表示一个可能出现异常的、会在未来得到结果的东西。Future 的泛型 V，则表示得到的值。\n因此，上面的代码可以改成这样：\npublic class SomeClass {\n\n    public Future<String> getAnswer(Player player) {\n        return // ???\n    }\n\n    public void ask(Player player) {\n        try {\n            player.sendMessage(\"吾与徐公孰美？\");\n            String answer = getAnswer(player).get();\n            assert answer.equals(\"徐公不若君之美也！\");\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n    }\n}\n但是，Future 从哪里来呢？本篇的答案是 CompletableFuture。\n关于 CompletableFuture\n望文生义，CompletableFuture 代表着可以完成的 Future，这与本篇的目的不谋而合（不然呢）：玩家输入消息后，getAnswer 方法返回的 Future 就该完成了。\n我们来了解一下 CompletableFuture 中比较重要的几个方法：\npackage java.util.concurrent;\npublic class CompletableFuture<T> implements Future<T>, CompletionStage<T> {\n    public CompletableFuture() { }\n    public T join();\n    public boolean complete(T value);\n    public boolean completeExceptionally(Throwable ex);\n}\n\nCompletableFuture 实现了 Future 接口，自然有 Future 接口的所有方法\n无参构造方法得到一个崭新出厂的 Future\njoin 方法与 get 的效果类似，但有些许不同，在使用者看来最显著的区别就是，join 并不让你强制处理异常，虽然异常永远都在\ncomplete 和 completeExceptionally 分别代表正常完成和异常完成\n\n因此，我们不难将上面的代码改成这样：\npublic class SomeClass {\n\n    public Future<String> getAnswer(Player player) {\n        CompletableFuture<String> future = new CompletableFuture();\n        // 在别的地方调用 future.complete()\n        return future;\n    }\n\n    public void ask(Player player) {\n        try {\n            player.sendMessage(\"吾与徐公孰美？\");\n            String answer = getAnswer(player).get();\n            assert answer.equals(\"徐公不若君之美也！\");\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n    }\n}\n于是，我们也就不难写出以下的代码：\npublic class SomeClass {\n\n    public void ask(Player player); // ...\n\n    public Future<String> getAnswer(Player player) {\n        CompletableFuture<String> future = new CompletableFuture<>();\n        AskLifeExperience listener = new AskLifeExperience(player.getUniqueId(), future);\n        Bukkit.getPluginManager().registerEvents(listener, plugin);\n        return future;\n    }\n\n    public class AskLifeExperience implements Listener {\n\n        private final UUID uuid;\n        private final CompletableFuture<String> future;\n\n        public AskLifeExperience(UUID uuid, CompletableFuture<String> future) {\n            this.uuid = uuid;\n            this.future = future;\n        }\n\n        @EventHandler\n        public void on(AsyncPlayerChatEvent event) {\n            if (event.getPlayer().getUniqueId().equals(uuid)) {\n                future.complete(event.getMessage());\n                HandlerList.unregisterAll(this);\n            }\n        }\n    }\n}\n逻辑清晰明了，注册一个监听器，在玩家聊天的时候完成 Future。\n转眼一想，既然 getAnswer 需要一定时间才会取得答案，那 ask 方法不就会消耗很多时间了吗？因此，我们要异步调用 ask。\n关于 Minecraft 服务器的同步与异步\n当不在主线程进行操作的时候，我们都应该想一想，这样安全吗？\n从上到下看一遍，不难问出这些问题：\n\nsendMessage 安全吗？\n异步注册事件是安全的吗？\nCompletableFuture#complete 安全吗？（不然呢）\nFuture#get 方法一定会返回吗？\n\n根据一篇写的很不错的文档（这篇文档对水桶的 scheduler 有较为详细的介绍），这几个东西是线程安全的：\n\nsendMessage （发包）\nBukkit 的 scheduler 包\nPluginManager#callEvent(event)\n\n因此应该将注册事件部分的代码通过 Scheduler 转移到主线程完成。\n最终的完整（但不完善）的方法如下，监听器与上文相同：\npublic class SomeClass {\n\n    private Plugin plugin = null;\n\n    public void ask(Player player) {\n        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {\n            try {\n                player.sendMessage(\"吾与徐公孰美？\");\n                String answer = getAnswer(player).get(15, TimeUnit.SECONDS);\n                assert answer.equals(\"徐公不若君之美也！\");\n            } catch (Exception e) {\n                e.printStackTrace();\n            }\n        });\n    }\n\n    public Future<String> getAnswer(Player player) {\n        CompletableFuture<String> future = new CompletableFuture<>();\n        Bukkit.getScheduler().runTask(plugin, () -> {\n            AskLifeExperience listener = new AskLifeExperience(player.getUniqueId(), future);\n            Bukkit.getPluginManager().registerEvents(listener, plugin);\n        });\n        return future;\n    }\n}\n当然，代码写完，还应该问自己几个问题：\n\n我们在监听器里在事件触发的时候取消注册，万一事件永远不触发呢？\n玩家离线后，Player 实例不再可用，怎么办呢？\n\n这些问题不是本篇重点，就不说了。\n总结\n可以看出，优美的写一串对话，所需代码量其实并不多，寥寥数十行就可以了。\n线程安全十分重要。\nCompletableFuture 还有许多实用的方法，可以用于各种耗时的操作，如 获取数据库的信息后，将其应用于服务器中。希望读者能够自行多加了解。\nzzzz 编写了一篇协程教程，可以写出与本篇主方法非常类似的代码，虽然背后的原理大不相同，比如它全部在主线程上运行。\ntdiant 编写了一篇十分全面的水桶教程，对 Scheduler 和其他部分都有很多讲解。\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "瑾某人",
+            "timestamp": 1581579360,
+            "txt_content": "这么优秀的教程为什么没人回复呢? (雾)   里面涉及了一些知识我没用过2333,感谢教程"
+        },
+        {
+            "author": "hhhh1014",
+            "timestamp": 1581665820,
+            "txt_content": "nbnb（我没看懂）狗头"
+        },
+        {
+            "author": "mohui666",
+            "timestamp": 1581668040,
+            "txt_content": "没看懂"
+        },
+        {
+            "author": "白叶Official",
+            "timestamp": 1581679680,
+            "txt_content": "徐公不是mi圈的佬嘛（）"
+        },
+        {
+            "author": "FireworkPolymer",
+            "timestamp": 1581688980,
+            "txt_content": "对对对，这编的多好啊，真是大佬(其实我一个都没看懂)"
+        },
+        {
+            "author": "Co2_man",
+            "timestamp": 1581735000,
+            "txt_content": "秀啊：|"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1581749100,
+            "txt_content": "既然用了CompletableFuture为啥不用then...方法"
+        },
+        {
+            "author": "2782429220",
+            "timestamp": 1581826020,
+            "txt_content": "额awa看不懂"
+        },
+        {
+            "author": "lsj59956100",
+            "timestamp": 1581844680,
+            "txt_content": "6666666666666666666666666666"
+        },
+        {
+            "author": "九仞",
+            "timestamp": 1581854220,
+            "txt_content": "我来顶一下，不错的帖子，简单明了，以例子来方便理解"
+        },
+        {
+            "author": "唯独i",
+            "timestamp": 1581910080,
+            "txt_content": "虽然没看懂 但还是感觉好厉害哈哈哈！"
+        },
+        {
+            "author": "2782429220",
+            "timestamp": 1582165500,
+            "txt_content": "没看懂"
+        }
+    ]
+}

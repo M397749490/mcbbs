@@ -1,0 +1,24 @@
+{
+    "title": "Forge EnergyStorage的迷思",
+    "author": "清华儒墨",
+    "replyCount": 3,
+    "timestamp": 1556727960,
+    "txt_content": "目前正在开发一个发电机方块，\n如果要增加能量的话，我发现用receiveEnergy()是可行的，\n但是在这情况下，那就必须把canReceive调成true，导致能量能从外部输入进来；\n而且，就算我把canReceive与canExtract调成true，在方块中的能量不会输出；\n如果不想能量从外部输入进来，只想把能量输出的话，该怎么做？\n现在有一个EnergyStorage，如下:\nimport net.minecraft.nbt.NBTTagCompound;\nimport net.minecraftforge.energy.EnergyStorage;\n\npublic class BlockEnergyStorage extends EnergyStorage {\n\n    public BlockEnergyStorage(int capacity) {\n        super(capacity);\n    }\n\n    public BlockEnergyStorage(int capacity, int maxTransfer) {\n        super(capacity, maxTransfer);\n    }\n\n    public BlockEnergyStorage(int capacity, int maxReceive, int maxExtract) {\n        super(capacity, maxReceive, maxExtract);\n    }\n\n    public BlockEnergyStorage(int capacity, int maxReceive, int maxExtract, int energy) {\n        super(capacity, maxReceive, maxExtract, energy);\n    }\n\n    @Override\n    public int receiveEnergy(int maxReceive, boolean simulate) {\n        return super.receiveEnergy(maxReceive, simulate);\n    }\n\n    @Override\n    public int extractEnergy(int maxExtract, boolean simulate) {\n        return super.extractEnergy(maxExtract, simulate);\n    }\n\n    @Override\n    public int getEnergyStored() {\n        return super.getEnergyStored();\n    }\n\n    @Override\n    public int getMaxEnergyStored() {\n        return super.getMaxEnergyStored();\n    }\n\n    @Override\n    public boolean canExtract() {\n        return true;\n    }\n\n    @Override\n    public boolean canReceive() {\n        return true;\n    }\n\n    public void readFromNBT(NBTTagCompound compound){\n        this.energy = compound.getInteger(\"Energy\");\n        this.capacity = compound.getInteger(\"Capacity\");\n        this.maxReceive = compound.getInteger(\"MaxReceive\");\n        this.maxExtract = compound.getInteger(\"MaxExtract\");\n    }\n\n    public NBTTagCompound writeToNBT(NBTTagCompound compound){\n        compound.setInteger(\"Energy\", this.energy);\n        compound.setInteger(\"Capacity\", this.capacity);\n        compound.setInteger(\"MaxReceive\", this.maxReceive);\n        compound.setInteger(\"MaxExtract\", this.maxExtract);\n        return compound;\n    }\n\n}复制代码",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1556738220,
+            "txt_content": " 本帖最后由 u.s.knowledge 于 2019-5-2 03:31 编辑 \n但是在这情况下，那就必须把canReceive调成true，导致能量能从外部输入进来；\n楼主知不知道有一种叫“装饰器”的设计模式（又叫修饰模式，英文 Decorator Pattern）？\n外部的方块是不知道你的 IEnergyStorage 的具体实现的，它们只能通过你的 TileEntity.getCapability 拿到一个 IEnergyStorage 的实例。换言之，如果你不想接受能量，那么其他方块拿到的应当是一个经过包装，只能输出不能输入的 IEnergyStorage：\n// 在你的 TileEntity 里覆写：\n@Override\npublic <T> T getCapability(Capability<T> cap, EnumFacing facing) {\n  if (cap == CapabilityEnergy.ENERGY) {\n    return CapabilityEnergy.ENERGY.cast(new IEnergyStorage {\n      @Override\n      public int receiveEnergy(int maxReceive, boolean simulate) {\n        return 0; // 拒绝接受能量，无条件返回 0 代表没有能量被接受\n      }\n      @Override\n      public int extractEnergy(int maxReceive, boolean simulate) {\n        // energy 代表你的 BlockEnergyStorage 实例字段。\n        // 这里因为我们允许能量输出，所以我们把它的实现代理给真正的 BlockEnergyStorage。\n        return this.energy.extractEnergy(maxReceive, simulate); \n      }\n      @Override\n      public int getEnergyStored() {\n        return this.energy.getEnergyStored(); // 同 extractEnergy\n      }\n      @Override\n      public int getMaxEnergyStored(int maxReceive, boolean simulate) {\n        return this.energy.getMaxEnergyStored(); // 同 extractEnergy\n      }\n      @Override\n      public boolean canExtract() {\n        return this.energy.canExtract(); // 同 extractEnergy，也可以考虑无条件返回 true\n      }\n      @Override\n      public boolean canReceive() {\n        return false; // 同 receiveEnergy，拒绝接受能量\n      }\n    });\n  }\n  return super.getCapability(cap, facing);\n}复制代码\n是的你可能会发现这个还神似代理模式（Proxy Pattern），实际上这俩长得的确也像。\n\n参考资料：Gamma, E. et al. \"Design Patterns: Elements of Reusable Object-Oriented Software\", 1995 pg. 175-184, 207-217\nISBN 978-0-201-63361-0"
+        },
+        {
+            "author": "2404540291",
+            "timestamp": 1556772120,
+            "txt_content": "u.s.knowledge 发表于 2019-5-2 03:17\n楼主知不知道有一种叫“装饰器”的设计模式（又叫修饰模式，英文 Decorator Pattern）？\n外部的方块是不知 ...\n正好需要\n真是雪中送炭,"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1556812440,
+            "txt_content": "u.s.knowledge 发表于 2019-5-2 03:17\n楼主知不知道有一种叫“装饰器”的设计模式（又叫修饰模式，英文 Decorator Pattern）？\n外部的方块是不知 ...\n还有一个优化建议就是计算这个包装后保存一下，省得每次获得cap的时候再创建实例浪费"
+        }
+    ]
+}

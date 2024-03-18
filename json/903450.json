@@ -1,0 +1,54 @@
+{
+    "title": "1.14关于尖牙实体的几个问题",
+    "author": "aa0307bb",
+    "replyCount": 9,
+    "timestamp": 1565950860,
+    "txt_content": "如何在玩家所面向的方向处一段长度内生成一列等间距尖牙\n可以的话，尽量满足以下条件\n1.让这些尖牙的Owner就是召唤尖牙的玩家（从而如果这些尖牙招惹了怪物/击杀了怪物，那么仇恨会吸引到玩家头上/视作被玩家击杀）\n2.这些尖牙不是同时召唤出的，而是生成一个尖牙后间隔一段时间才生成下一个（用schedule？）\n",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1565951460,
+            "txt_content": "schedule 在这个情景下不太好用，因为无法传递函数的执行坐标和执行者等。\n\n\n所以，不如高频增加一个分数（例如 @s time），然后这么写：\n\nexecute as @a if score @s time matches 1 at @s rotated ~ 0 positioned ^ ^ ^1 run function foo:summon_fangs\nexecute as @a if score @s time matches 10 at @s rotated ~ 0 positioned ^ ^ ^2 run function foo:summon_fangs\nexecute as @a if score @s time matches 20 at @s rotated ~ 0 positioned ^ ^ ^3 run function foo:summon_fangs\n...\n\n# 函数 foo:summon_fangs\nsummon minecraft:evoker_fangs ~ ~ ~ {Tags:[\"new\"]}\ndata modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDMost set from entity @s UUIDMost\ndata modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDLeast set from entity @s UUIDLeast\ntag @e remove new"
+        },
+        {
+            "author": "MinecraftPeace",
+            "timestamp": 1566125640,
+            "txt_content": "你可以考虑生成一排体积极小的药水云，并且这些药水云的Duration值为等差数列（差值为间隔时间）且RadiusPerTick为0，当药水云的Duration为某一固定值时令玩家在药水云的位置召唤带有某一标签尖牙，然后处理owner\nexecute as <target> at @s run summon minecraft:area_effect_cloud ^ ^ ^1 {Duration:1,RadiusPerTick:0f,Radius:0.00001f,Tags:[\"A\"]}\nexecute as <target> at @s run summon minecraft:area_effect_cloud ^ ^ ^2 {Duration:6,RadiusPerTick:0f,Radius:0.00001f,Tags:[\"A\"]}\nexecute as <target> at @s run summon minecraft:area_effect_cloud ^ ^ ^3 {Duration:11,RadiusPerTick:0f,Radius:0.00001f,Tags:[\"A\"]}\n……\n(高频)execute as <target> at @e[tag=A,nbt={Duration:1}] run summon minecraft:evoker_fangs ~ ~ ~ {Tags:[\"B\"]}\n(高频)data modify entity @e[limit=1,tag=B] Owner.OwnerUUIDMost set from entity <target> UUIDMost\n(高频)data modify entity @e[limit=1,tag=B] Owner.OwnerUUIDLeast set from entity <target> UUIDLeast\n其中<target>为目标玩家，我们可以通过给每个玩家及其生成的药水云与尖牙加不同的tag来进行区分"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1566142200,
+            "txt_content": "SPGoding 发表于 2019-8-16 18:31\nschedule 在这个情景下不太好用，因为无法传递函数的执行坐标和执行者等。\n\n\nschedule不能传递执行者与执行坐标……？execute as...at...run schedule是不行的吗？\n\ndata modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDMost set from entity @s UUIDMost\n那个limit=1是随机选择一个还是选择距离指令执行者最近的一个还是选择距离指令执行位置最近的一个？\n多个玩家同时放技能（虽然概率不高……吧），会不会有尖牙Owner出错的风险？\n\n另外rotated ~ 0是为了防止尖牙竖直方向上倾斜？？\n\nexecute as @a if score @s time matches 1 at @s rotated ~ 0 positioned ^ ^ ^1 run function foo:summon_fangs\n还有一个execute指令怎么让局部坐标与绝对坐标搭配……比如想更加模仿唤魔者的效果：尖牙与召唤者y坐标相同，在召唤者水平方向前方1、2、3米处生成尖牙 \n\n对于：data modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDMost set from entity @s UUIDMost\n发现到你没有用execute store result... run data get，是因为这个只能得到数值？"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1566142320,
+            "txt_content": "MinecraftPeace 发表于 2019-8-18 18:54\n你可以考虑生成一排体积极小的药水云，并且这些药水云的Duration值为等差数列（差值为间隔时间）且RadiusPe ...\n没想到可以用药水云实现延迟……不过“通过给每个玩家及其生成的药水云与尖牙加不同的tag来进行区分”那应该就要穷举了（？）"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1566189000,
+            "txt_content": "aa0307bb 发表于 2019-8-18 23:30\nschedule不能传递执行者与执行坐标……？execute as...at...run schedule是不行的吗？\n\ndata modify enti ...\nschedule不能传递执行者与执行坐标……？execute as...at...run schedule是不行的吗？\n不行。\n\ndata modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDMost set from entity @s UUIDMost\n那个limit=1是随机选择一个还是选择距离指令执行者最近的一个还是选择距离指令执行位置最近的一个？\n选择最早生成的那个。整个世界上应该同时永远只有一个。这里写了个 limit=1 是因为不这么写游戏不能编译这个命令（你可以试试\n\n多个玩家同时放技能（虽然概率不高……吧），会不会有尖牙Owner出错的风险？\n不可能。是以每个玩家的身份单独执行的函数，因此就算多个玩家同时放技能，该函数也是被分开执行两次的，正常情况下世界中同时最多只能存在一个 tag=new 的尖牙。\n\n另外rotated ~ 0是为了防止尖牙竖直方向上倾斜？？\n是。\n\nexecute as @a if score @s time matches 1 at @s rotated ~ 0 positioned ^ ^ ^1 run function foo:summon_fangs\n还有一个execute指令怎么让局部坐标与绝对坐标搭配……比如想更加模仿唤魔者的效果：尖牙与召唤者y坐标相同，在召唤者水平方向前方1、2、3米处生成尖牙 \n上面已经用 rotated ~ 0 解决这个问题了。\n\n对于：data modify entity @e[limit=1,tag=new,type=minecraft:evoker_fangs] Owner.OwnerUUIDMost set from entity @s UUIDMost\n发现到你没有用execute store result... run data get，是因为这个只能得到数值？\n因为 data get 命令的返回值必须在 Int32 范围内，而 UUIDMost 和 UUIDLeast 都是 Long 类型，很容易溢出。\n\n不要给本人最佳，感谢\n还有问题可以继续追问…"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1566229320,
+            "txt_content": " 本帖最后由 aa0307bb 于 2019-8-20 00:44 编辑 \nSPGoding 发表于 2019-8-19 12:30\nschedule不能传递执行者与执行坐标……？execute as...at...run schedule是不行的吗？\n不行。\n追问： 为什么不可以给最佳 \n\n先rotate再用局部坐标666，太强了学到了\n\n这几天都只能是空谈指令，开不了MC……\n\n多个玩家同时放技能（虽然概率不高……吧），会不会有尖牙Owner出错的风险？\n不可能。是以每个玩家的身份单独执行的函数，因此就算多个玩家同时放技能，该函数也是被分开执行两次的，正常情况下世界中同时最多只能存在一个 tag=new 的尖牙。\n可以这样理解吗：如果玩家A、B同时使用技能\n那么A、B身上会分别运行相同的函数\n虽然这两个函数同处于一个游戏刻内执行，但存在微观上的先后顺序，\n不妨设在这一个游戏刻内，A玩家比B玩家先执行函数\n那么A玩家的函数执行完后才会轮到B玩家\n……\n……\n？？ 可是A玩家执行完函数后，A玩家对应的尖牙不会被删除呀 \n……\n？？\n……\n……\n……\n噢……原来移除tag的指令别有用心\nA玩家所召唤的那个有new标签的尖牙虽然并不会在函数执行完后被删除（尖牙存在一定时间后才会自动消失），但是会在A玩家执行完函数后把A玩家召唤出来的尖牙移除标签，这样轮到B玩家执行函数的时候就不会选中A玩家召唤出的尖牙了\n 这么显然成立的东西我居然想了半天 \n\n正常情况下世界中同时最多只能存在一个  tag=new  的尖牙 \n 论语言的简练性与定语的重要性…… "
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1566232740,
+            "txt_content": "aa0307bb 发表于 2019-8-19 23:42\n追问： 为什么不可以给最佳 \n\n先rotate再用局部坐标666，太强了学到了\n理解正确√\n\n（不想要最佳，因为再拿到爱心的话我的爱心数就不是 500 了。我也没法再攒到 512，因为太菜了什么都不会）\n（所以为什么你会遇上我这么一个矫情的答题者啊）\n（也别再给我评分了，可能会被锤）"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1566233460,
+            "txt_content": "SPGoding 发表于 2019-8-20 00:39\n理解正确√\n\n（不想要最佳，因为再拿到爱心的话我的爱心数就不是 500 了。我也没法再攒到 512，因为太菜了 ... data get 命令的返回值必须在 Int32 范围内，而 UUIDMost 和 UUIDLeast 都是 Long 类型，很容易溢出 \n又发现一个小问题……uuid是一堆字母+数字，能够与数字类型相互转化？？？（莫非uuid不是字符串，而是数字类型的非十进制形式？）\n\n 评分也能被锤的吗orz \n 500爱心可以凑成666爱心呀 \n 好的问答区已经被我玩成闲聊区了（跑） "
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1566233700,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-8-20 01:04 编辑 \naa0307bb 发表于 2019-8-20 00:51\n又发现一个小问题……uuid是一堆字母+数字，能够与数字类型相互转化？？？（莫非uuid不是字符串，而是数 ...\n都说了我太菜攒不了那么多爱心（\n\n一般我们看到的 UUID 里的数字是 16 进制，一共占了 128 位（128 bit）。MC 在把 UUID 往 NBT 里存的时候把它拆分为了两部分来存，高位叫 UUIDMost，低位叫 UUIDLeast，这俩都是 Long 类型的标签，用 data get 让它显示出来的时候是以 10 进制显示的。\n\n\n↓ 你真要给就给吧，501 确实可以逼死不少强迫症，好像也挺有趣的（跑"
+        }
+    ]
+}

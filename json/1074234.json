@@ -1,0 +1,34 @@
+{
+    "title": "「已解决」如何检查插件中存在的内存泄漏",
+    "author": "Lucky_fish",
+    "replyCount": 5,
+    "timestamp": 1594144320,
+    "txt_content": " 本帖最后由 Lucky_fish 于 2020-7-8 18:58 编辑 \n\n如题，在编写插件的时候遇到了内存越用越多的问题，直到服务端报错崩溃\n代码位于 https://github.com/Lucky-fish/DHA 计划在未来开发完成时发布\n\n其中部分报错如下\njava.lang.OutOfMemoryError: GC overhead limit exceeded\n    at java.util.HashMap.resize(HashMap.java:704) ~[?:1.8.0_252]\n    at java.util.HashMap.putVal(HashMap.java:663) ~[?:1.8.0_252]\n    at java.util.HashMap.put(HashMap.java:612) ~[?:1.8.0_252]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork.registerAxon(NeuralNetwork.java:97) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.ComputableNeuron.createAxon(ComputableNeuron.java:93) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.ComputableNeuron.<init>(ComputableNeuron.java:34) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork$1OutputNeuronAddingUtil.addOutputNeuron(NeuralNetwork.java:70) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork$1OutputNeuronAddingUtil.access$500(NeuralNetwork.java:67) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork.addOutputNeurons(NeuralNetwork.java:87) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork.<init>(NeuralNetwork.java:23) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.neural.NeuralNetwork.breed(NeuralNetwork.java:142) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.genetic.NormalGeneticManager.lambda$applyNaturalSelection$15(NormalGeneticManager.java:162) ~[?:?]\n    at cn.mcres.luckyfish.dha.model.genetic.NormalGeneticManager$Lambda$3439/1591471007.accept(Unknown Source) ~[?:?]\n    at java.util.HashMap.forEach(HashMap.java:1289) ~[?:1.8.0_252]\n    at cn.mcres.luckyfish.dha.model.genetic.NormalGeneticManager.applyNaturalSelection(NormalGeneticManager.java:142) ~[?:?]\n    at cn.mcres.luckyfish.dha.tasks.BrainNaturalSelectionTask.run(BrainNaturalSelectionTask.java:21) ~[?:?]\n    at org.bukkit.craftbukkit.v1_15_R1.scheduler.CraftTask.run(CraftTask.java:81) ~[spigot-1.15.2.jar:git-Spigot-a03b1fd-bbe3d58]\n    at org.bukkit.craftbukkit.v1_15_R1.scheduler.CraftAsyncTask.run(CraftAsyncTask.java:54) [spigot-1.15.2.jar:git-Spigot-a03b1fd-bbe3d58]\n    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_252]\n    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_252]\n    at java.lang.Thread.run(Thread.java:748) [?:1.8.0_252]复制代码\n同时在最后一次commit中我尝试了百度到的方法，似乎没有什么用处。\n如果简单粗暴地将内存设大，只会延缓问题出现的时间，而且还有把电脑彻底卡死的风险（我没设置交换分区）\n还有一点额外的信息，在visualvm中有提到cn.mcres.luckyfish.dha.model.neural.Axon的实例和HashMap的Node实例异常的多，但我没能查出原因\n对了不要吐槽我的代码质量好不好> <\n\n问题已解决\n解决方案：\nhttps://github.com/Lucky-fish/DH ... 65f7bae04dfa0351ab2\nhttps://github.com/Lucky-fish/DH ... 1f090bb6f9083ed44f9",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1594154640,
+            "txt_content": "NeuralNetwork#registeredAxons你一直都在填入东西，没有主动remove过？"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1594167420,
+            "txt_content": "光看报错和你的描述\n感觉是一直往map里面put\n导致的内存溢出\n\n你看看这个https://www.itdaan.com/blog/2010 ... 019657675e4952.html"
+        },
+        {
+            "author": "Lucky_fish",
+            "timestamp": 1594180980,
+            "txt_content": "疾风暗影 发表于 2020-7-8 04:44\nNeuralNetwork#registeredAxons你一直都在填入东西，没有主动remove过？\n没有，因为我的想法是它一直不会减少的，除非NeuralNetwork从列表/HashMap里被削除，然后它和里头的Axon会被gc回收释放\n但正常来说每个NeuralNetwork只会有54000个（可能还会多一些）Axon和对应的HashMap$Node来着，然后NeuralNetwork数量一般不会超过百个\n但我的visualvm里头显示有接近1000个NeuralNetwork和百万级别的Axon和Node，还是刚开始运行几分钟的情况下的就出现的状况"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1594187580,
+            "txt_content": "Lucky_fish 发表于 2020-7-8 12:03\n没有，因为我的想法是它一直不会减少的，除非NeuralNetwork从列表/HashMap里被削除，然后它和里头的Axon ...\n那就要看你初始化的时候是不是有什么循环之类的东西\n可能是调用太多次了吧"
+        },
+        {
+            "author": "Lucky_fish",
+            "timestamp": 1594205880,
+            "txt_content": "南柯郡守 发表于 2020-7-8 13:53\n那就要看你初始化的时候是不是有什么循环之类的东西\n可能是调用太多次了吧 ...\n问题已解决，感谢"
+        }
+    ]
+}

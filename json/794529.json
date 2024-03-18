@@ -1,0 +1,29 @@
+{
+    "title": "scoreboard附加NBT检测时同时不能检测多个的问题",
+    "author": "Namefind",
+    "replyCount": 4,
+    "timestamp": 1525944780,
+    "txt_content": " 本帖最后由 Namefind 于 2018-5-10 17:40 编辑 \n\n首先是想做一个 选中物品栏指定位置   后延迟加入队伍的功能。\n于是使用了CB检测玩家背包栏位置，当玩家背包栏位置选中时激活并在计分板上计入1分，通过不断计分来实现计时功能。\n单个玩家使用@a或者@p这样的就可以了，但多个玩家会让计分板混乱，于是我想到了使用{SelectedItemSlot:5}这样的tag来检测玩家符不符合这个要求。\n但使用这个tag后只能在一秒中计入一个玩家分数，当两个及更多玩家手持相同格子位的物品后时间将会延长。当我和朋友手持相同格子位的物品后，我的分数先增加了30，然后朋友的增加了30，然后我又增加了30，显示加入队伍成功。\n希望能有大大提供一个好的思路_(:з」∠)_。（头发掉光了）\n目前CB构造如图：\n\n1.\n循环 不受制约 保持开启\n/testfor @a {SelectedItemSlot:5}\n检测当前地图玩家是否选中指定物品格子\n2.\n连锁 条件制约 保持开启\n/scoreboard players add @p redtime 1 {SelectedItemSlot:5}\n给附近选中指定物品格子的玩家增加选中时间\n\n循环旁边接了个比较器：\n2.\n脉冲 不受制约 红石控制\ntell @a 是否选中红队？如确认请保持选中3秒。\n比较器\n3.\n脉冲 不受制约 红石控制\n/scoreboard players reset @p redtime\n当玩家重新选中时重置选中时间\n1.\n循环 不受制约 保持开启\n/execute @p[score_redtime_min=60] ~ ~ ~ /scoreboard teams join red @p\n让选中时间足够的玩家加入红队\n2.\n连锁 条件制约 保持开启\n/scoreboard players reset @p[score_redtime_min=60]\n加入红队成功后重置红队选中时间\n3.\n连锁 条件制约 保持开启\n/testfor @a[team=!red]\n检测玩家是否是红队\n4.\n连锁 条件制约 保持开启\ntell @a 选择红队成功\n\n不是的话输出选选择队伍成功\n*这里是红队也会输出 不知道怎么回事emm\n",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1525944780,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-5-10 18:36 编辑 \n\n首先我就不明白，让玩家右键物品就可以完成的事情，为什么要自找麻烦。你现在的做法问题很多：\n1.如果玩家把格子里物品换了，检测第5格就错了\n2.需要穷举其余8个格子，处理玩家后悔的情况\n3.为了tellraw提示，需要引入不必要的tag(或其他处理等)\n不过既然你非要这么做，并且兼容多人游戏，我就瞎写了这么一大坨命令。这些命令并没有解决上面的问题。\n不制约 保持开启 连锁 顺序排下去\nscoreboard players add @a[tag=!in] red_time 1 {SelectedItemSlot:5}\ntellraw @a[score_red_time=1,score_red_time_min=1] \"是否选中红队？如确认请保持选中3秒。\"\nscoreboard teams join red @a[score_red_time_min=60]\nscoreboard players tag @a[score_red_time_min=60] add in\ntellraw @a[score_red_time_min=60] \"成功加入红队\"\nscoreboard players set @a[score_red_time_min=60] 0\n\n至于你的那一堆问题，我比较菜，一句没看懂…"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1525948980,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-5-10 18:46 编辑 \n\n至于我所推荐的，使用右键物品加入队伍的方法：\n首先建立一个判据为使用胡萝卜钓竿的记分项click_count\n然后：\nscoreboard players tag @a[score_click_count_min=1] add red {SelectedItem:{tag:{display:{Name:\"加入红队\"}}}}\nscoreboard team join red @a[tag=red]\ntell @a[tag=red] 已加入红队\nscoreboard players tag @a remove red\nscoreboard players set @a[score_click_count_min=1] 0\n你只需要右键一个名称为“加入红队”的胡萝卜钓竿即可。5条命令！多么简便！想加新的队伍也毫无难度！"
+        },
+        {
+            "author": "极光战神伍",
+            "timestamp": 1525950720,
+            "txt_content": " 本帖最后由 极光战神伍 于 2018-5-10 21:21 编辑 \n\n无版本，1.12为例。思路有很大很多的问题\n比如沙发的1，2俩点，从你想要达成的目的出发就没法避免，所以检测格子能不用就别用。\n按照你的思路，做了一个这个系统。\n首先保证你又一个叫red的team和有一个叫redtime的记分板\n\n均为不受制约>保持开启\n在循环命令方块的旁边接一个比较器，比较器接一个方块，方块上放一个红石火把，红石火把上方接一个不受制约>红石控制\n：/scoreboard players reset @a[tag=!redready] redtime\n从左往右：\n1./scoreboard players tag @a add redready {SelectedItemSlot:5}\n为在5号快键栏的玩家增加tag\n2.tellraw @a[tag=redready,score_redtime=!1] {\"text\":\"是否选中红队？如确认请保持选中3秒。\",\"color\":\"red\"}\n提示信息\n3./scoreboard players add @a[tag=redready] redtime 1\n为有该tag的玩家加分\n4./scoreboard teams join red @a[score_redtime_min=60,score_redtime=60,tag=redready]\n分值达到60的玩家加入red队伍\n5./tellraw @a[team=red,score_redtime_min=60] {\"text\":\"加入红队成功\",\"color\":\"red\"}\n提示消息\n6./scoreboard players reset @a[team=red] redtime\n重置已经加入red队伍玩家的记分板\n7./scoreboard players tag @a remove redready\n删除已经加入red队伍玩家的tag完成\n*注：沙发的1，2俩个问题并没有在该系统中解决。\n\n至于新思路，我推F键加入队伍。在保证你有一个叫red的队伍时：\n\n均为不受制约>保持开启\n从左往右：\n1./scoreboard players tag @a[team=!red] add red {Inventory:[{Slot:-106b,id:\"minecraft:wool\",Count:1b,Damage:14s}]}\n为副手为红色羊毛的玩家添加tag\n2./scoreboard teams join red @a[tag=red]\n将该tag玩家加入队伍\n3./tellraw @a[tag=red] {\"text\":\"已加入红队\",\"color\":\"red\"}\n提示信息\n4./scoreboard players tag @a remove red\n删除tag\n↑拿着红色羊毛按下F键加入队伍↑\nXDD\n\n\n"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1525977060,
+            "txt_content": "凑热闹...算了\n\n你这样写的话2和3这里站位上会可能出错\n2和4tell的对象是所有玩家，所有\n1和2的1相对来说是多余的，3和4里的3同理\n1前面就别套execute了，多余操作\n\n选择器请统一使用@a\n用@p简直在给自己添麻烦\n"
+        }
+    ]
+}

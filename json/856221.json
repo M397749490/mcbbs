@@ -1,0 +1,79 @@
+{
+    "title": "[待优化][算法求助] 如何获取定向柱型接触到的所有方块",
+    "author": "1609089074",
+    "replyCount": 14,
+    "timestamp": 1554656640,
+    "txt_content": " 本帖最后由 1609089074 于 2019-11-20 18:15 编辑 \n\n因为在做技能插件开发时获取技能覆盖时需要这样(标题)的算法，欢迎各位大佬前来交流！感激不尽！！\n假设柱型中心线为有向线段：\n        /** 起点 */\n        protected Vector startPoint;\n        /** 终点 */\n        protected Vector endPoint;\n\n        /**\n         * 获取点在此线段上的投影点<p>\n         * \n         * 投影点可以理解为，<br>\n         * 该点到线段所在直线的最短路径(垂直于直线)<br>\n         * 与直线的垂足(交点)，若垂足不在线段内则视为没有投影点<br>\n         * \n         * @param point        点\n         * @return 点在此线段上的投影点。若投影点不在线段内则返回null\n         */\n        // 我想这个方法或许会用得上故在此贴上\n        public @Nullable Vector getProjection(Vector point) {\n                Vector projection = MathUtils.getProjection(point, getDirection(), startPoint);\n                return contains(projection) ? projection : null;\n        }\n复制代码public final class MathUtils {\n    /**\n     * 计算 点 在起点为原点的 向量所处的直线上的 投影点。(点在直线上投影点)<p>\n     * \n     * 计算方法：<br>\n     * 起点到点的向量(设vec0) 与 此向量(设vec1) 的点积<br>\n     * 除以 此向量的长度(|vec1|) 乘以 此此向量的单位向量，<br>\n     * 即： dot(point, vec)/vec.length() * vec.normalize()。 <p>\n     * \n     * 点积公式： x0*x1+y0*y1+z0*z1 = |vec0|*|vec1|*cosθ<br>\n     * 此处计算：|vec0|*|vec1|*cosθ / |vec1|\n     * \n     * @param point        点\n     * @param vec        代表直线的向量\n     * @return         点 在起点为原点的 向量所处的直线上的 投影点\n     */\n    public static Vector getProjection(Vector point, Vector vec) {\n                return vec.clone().normalize().multiply(point.dot(vec)/vec.length());\n    }\n    /**\n     * 计算 点 在另有起点的 向量所处的直线上的 投影点(点在直线上投影点)\n     * \n     * @param point        点\n     * @param vec        代表直线的向量\n     * @param start 代表直线的向量的起点\n     * @return         点 在另有起点的 向量所处的直线上的 投影点\n     * @see #getProjection(Vector, Vector)\n     */\n    public static Vector getProjection(Vector point, Vector vec, Vector start) {\n            return getProjection(point, vec).add(start);\n    }\n复制代码\n\n\n那么设柱型半径为 double radius\n/** 获取以此线段为中心线、半径为radius的柱型所接触的所有方块(计算碰撞箱而非仅计算方块坐标)，返回的列表为方块碰撞箱中心坐标到线段起点距离由小到大从前往后排列 */\npublic List<Block> getTouchBlocks(double radius) { /*TODO*/ }复制代码\n\n\n求教，如何做到尽量减少判断、尽量减少运算次数、时间地实现这个方法呢？\n\n另附：\n1.我已经写有泛型(便于bukkit不同版本使用)获取方块碰撞箱的方法。返回的是我自己写的AABB类\n        /** 对角线坐标值最大的顶点 */\n        protected Vector max;\n        /** 对角线坐标值最小的顶点 */\n        protected Vector min;\n\n        /**\n         * 判断与另一个球是否有交集(存在重叠部分)\n         * \n         * @param center        球心坐标\n         * @param radius        球半径\n         * @return 与另一个球是否有交集(存在重叠部分)\n         * @see <a href=\"https://www.zhihu.com/question/24251545/answer/27184960\"> 算法参考，来自知乎</a>\n         */\n        public boolean hasIntersection(Vector center, double radius) {\n                Vector aabbCenter = getMidPoint();// aabb中心坐标\n                Vector aabbToGlobe = center.clone().subtract(aabbCenter);//v = aabb中心到球心的向量\n                aabbToGlobe.setX(Math.abs(aabbToGlobe.getX()));// 如知乎帖内所述，向量映射至第一象限\n                aabbToGlobe.setY(Math.abs(aabbToGlobe.getY()));\n                aabbToGlobe.setZ(Math.abs(aabbToGlobe.getZ()));\n                Vector diagonalHalf = getMax().subtract(aabbCenter);//h = aabb中心到顶点的向量\n                diagonalHalf.setX(Math.abs(diagonalHalf.getX()));// 向量映射至第一象限\n                diagonalHalf.setY(Math.abs(diagonalHalf.getY()));\n                diagonalHalf.setZ(Math.abs(diagonalHalf.getZ()));\n                Vector boundingToGlobe = aabbToGlobe.clone().subtract(diagonalHalf);//u = aabb边界到球心的向量\n                if ( boundingToGlobe.getX() < 0) { boundingToGlobe.setX(0);}// 如知乎帖内所述，向量坐标负数分量设为 0\n                if ( boundingToGlobe.getY() < 0) { boundingToGlobe.setY(0);}\n                if ( boundingToGlobe.getZ() < 0) { boundingToGlobe.setZ(0);}\n                return boundingToGlobe.lengthSquared() <= Math.sqrt(radius);// |u|^2 <= r^2 即u长小于等于球半径则有交集\n        }\n复制代码\n\n2.获取柱型所接触的实体的方法，存在不足\n\n        /**\n         * 获取途经的实体\n         * \n         * @param world         选取的世界\n         * @param radius        线段的粗细半径。(为柱型半径而非胶囊半径，即不包括头和尾多出的半圆)\n         * @return 途经的实体的列表\n         */\n        public List<Entity> getTouchEntities(World world, double radius) {\n                List<Entity> result = Lists.newArrayList();\n\n                Map<Double, Entity> distance = Maps.newHashMap();\n                for (Entity e : world.getEntities()) {\n                        AxisAlignedBoundingBox aabb = AxisAlignedBoundingBox.getEntityAABB(e);\n                        Vector position = aabb.getMidPoint();\n                        Vector projection = getProjection(position);\n                        if ( projection == null) { continue;}\n                        if ( aabb.hasIntersection(projection, radius)) {\n                                distance.put(position.distance(startPoint), e);\n                                \n                        }\n                }\n                //TODO 实体按距离排序后依次加入result\n                return result;\n        }\n复制代码\n此算法获取结果可能会有误判，\n因为这里思路是：因为同样有半径radius参数，所以将光柱视为球，球心取aabb中心点在光柱中心线段上的投影点，然后判断这个球与aabb是否接触。然而这样没有考虑到光柱是长条的，因为即便投影点和球在外边没有接触，但仍然存在光柱其他延长的地方会有接触的情况。\n至于改进方法，还需请教各位大佬了\n\n\n顺便提一下：\n1.之所以选用碰撞箱判断，主要是打算用作柱型激光射击并使之更合理化，当然也可能不只是用在这个地方\n2.获取柱型所接触的实体的方法已经写了(划掉划掉，测试了一下发现判断碰撞箱接触的算法有误导致结果不准确)，思路是遍历实体然后判断碰撞箱\n3.因为是射击，是有方向的，假如这个光柱被方块阻挡了部分，那么剩余投射出去的部分可能会是无规律形状的(横截面可能是不规律图形)，剩下的投射部分如何判断其与碰撞箱的接触呢？\n4.补充:我想作技能的释放，这个光柱可以模拟一种方块和实体的选择方式，获取它接触的方块和实体后可以拿来干很多事情\n5.关于距离排序问题，百度了一下有好几种方法，其各个效率、适应情况等等都没摸透，如果有大佬了解的话，欢迎赐教！十分感激\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "dust_of_heart",
+            "timestamp": 1554697020,
+            "txt_content": "柱形激光？\n如果截面形状会改变的话应该还要维护截面吧，这个算法就不好搞了\n或许可以考虑简化一下设计，\n激光碰撞箱为比实际显示小一号的柱体\n该柱体一旦碰撞即整束激光不可穿透（参考守望毛妹）\n然后关于提升效率什么的，我想可以先不急，\n在不影响使用的前提下可以先不考虑优化，如果些想法可以先记录与注释，编程复杂度--\n也可以考虑一下数据规模是否需要做优化\n如果经常考虑这样的问题的话很容易消磨精力与热情（以前这么搞过=w=）\n图形算法不太懂，只能随便扯点了#（滑稽）\n祝楼主开发顺利"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1554699360,
+            "txt_content": "好久没有看到这么高难度的提问了。总的来说，多边形碰撞箱的实现过于困难，楼主可以多发射几条光线来进行追踪。但值得注意的是，光线越多意味着效率越低。\n\n对于数学·运算有不便的部分，可以尝试使用JOML库。JOML库是专为3D图形运算而写的数学·运算库，包装了许多用于三维空间运算的类和对象。碰撞箱，光线追踪等技术在其中也有实现，不过楼主想要的多边形遮挡碰撞箱，怕是无能为力了。"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1554700620,
+            "txt_content": " 本帖最后由 754503921 于 2019-4-8 13:35 编辑 \n\n如果你的激光只有一条线而不是体积光的话，World 类里有几个 rayTraceEntities 方法完全够你用了\n\n而如果你的光是圆柱的话.... 你可能想要的是这个 https://en.wikipedia.org/wiki/Volume_ray_casting 和里面的若干链接，以及 google 出的各种算法\n\n或者你也可以把 激光发射方向的所有生物/方块的碰撞箱 投影到 激光柱体横截面 上，用 激光横截面 与 投影的碰撞箱(基本就是六边形了) 算相交，这个开销(说不定占不完1tick)\n投影的算法搜一下应该有，圆与规则凸多(六)边形相交的算法搜一下应该也有\n\n目前的3d游戏的光照/阴影是单独给出了性能选项的，但是服务器里面几百个方块和生物的光线投射可能还不是很消耗性能(我也不知道)\n\n所以你做这个功能是干什么，突突一条光爆掉所有方块杀伤生物还是咋的另，你生物的碰撞箱和圆柱相交既然都写了，那么方块的碰撞箱不也差不多吗，把代码发出来看看呢？"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1554705180,
+            "txt_content": " 本帖最后由 1609089074 于 2019-4-8 15:50 编辑 \n754503921 发表于 2019-4-8 13:17\n如果你的激光只有一条线而不是体积光的话，World 类里有几个 rayTraceEntities 方法完全够你用了\n\n而如果你 ...\n非常感谢指导思路，昨晚太赶没贴完代码，今晚回来补上。另外，与方块碰撞箱相交确实也差不多，但在判断是否接触之前应该是需要获取一定范围内的方块来给予判断，获取怎样的范围、如何获取，暂时还不太会希望指点一下。还有就是，如果遍历附近区块的所有方块会消耗许多时间，而且radius是个不确定的double(每个光柱可能不一致，或大或小)，如何快速排除不会有接触的方块而尽量减少运行时间是个难题"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1554705420,
+            "txt_content": "754503921 发表于 2019-4-8 13:17\n如果你的激光只有一条线而不是体积光的话，World 类里有几个 rayTraceEntities 方法完全够你用了\n\n而如果你 ...\n我想作技能的释放，这个光柱可以模拟一种方块和实体的选择方式，获取它接触的方块和实体后可以拿来干很多事情"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1554735840,
+            "txt_content": " 本帖最后由 754503921 于 2019-4-8 23:07 编辑 \n1609089074 发表于 2019-4-8 14:33\n非常感谢指导思路，昨晚太赶没贴完代码，今晚回来补上。另外，与方块碰撞箱相交确实也差不多，但在判断是 ...\n\n排除不接触的这个，我暂时想不到什么高效的，就用最简单的呗\n设光线起点坐标(xs, ys, zs)终点(xe, ye, ze)半径r，取(xs-r, ys-r, zs-r)到(xe+r, ye+r, ze+r)立方体里的所有方块挨个判断(投影相交或者光线投射触碰)\n\n话说投影那个方法在我这个半吊子假oi选手看来是很好的呢，又好写，复杂度好像也和方块数量成线性关系(就是对于光线接触的先后顺序不是很好确定)"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1554743340,
+            "txt_content": " 本帖最后由 1609089074 于 2019-4-9 01:30 编辑 \n754503921 发表于 2019-4-8 23:04\n排除不接触的这个，我暂时想不到什么高效的，就用最简单的呗\n设光线起点坐标(xs, ys, zs)终点(xe, ye, ze ...\n因为前阵子看了下几种寻路算法有些关于优化方面的想法，我想，比起靠模糊的范围去获取遍历的集合，带有目标性地去获取相应坐标的方块或许会更省力更精确，至于怎么实现我也还不是很有什么明确的思路。只有一些些假设不知道可不可行，而且看起来只是表面上的而非本质(个人认为)\n设置一个集合，用作遍历判断，然后获取横截面的平面圆，圆心在光柱的起始坐标，使其朝向(pitch,yaw)与光柱一致，获取这个平面圆覆盖的方块并计入遍历集合(怎么实现获取没想好)，\n然后将圆按朝向行进半个(0.5，方块边长的一半)单位向量，再次获取这个平面圆接触的方块并计入遍历集合，这样重复上两个步骤直到圆心顺着光柱中心线段到达光柱结束坐标\n\n当然您贴出来的这个获取方块的方法也是可以的，都是正常操作，不是很复杂，就是某些情况下，例如光柱比较长，且各个轴上倾斜斜率临近1的话(pitch = 45°, yaw = 45°)，读取的立方区域方块的量可能会大很多(我猜)。\n但不论怎样，非常感谢！！\n\n我写的相关代码已贴上了，可以的话还想麻烦一下帮改进或者指点一下\n\n\n还有一点想问一下(望大佬包容一下..我入门没多久，各方面都是小白)\n激光发射方向的所有生物/方块的碰撞箱 投影到 激光柱体横截面 上，用 激光横截面 与 投影的碰撞箱(基本就是六边形了) 算相交，这个开销(说不定占不完1tick)\n投影的算法搜一下应该有，圆与规则凸多(六)边形相交的算法搜一下应该也有\n(我人比较笨)：这个横截面写成类的话，设置成员变量 vector平面圆盘的中心坐标center 及 double平面圆盘的朝向pitch,yaw半径radius 是否合适呢，或者有没有其他更好的方法来表示一个平面圆盘呢？"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1554745080,
+            "txt_content": "dust_of_heart 发表于 2019-4-8 12:17\n柱形激光？\n如果截面形状会改变的话应该还要维护截面吧，这个算法就不好搞了\n或许可以考虑简化一下设计，\n嘛..一开始确实是打算一碰就结束，但这样的话躲在半砖后面释放，还没射出去就结束了，又或者，别人只用躲在单根栅栏或者半砖后面就可以完全躲掉这个光柱，这确实有点苦恼了"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1554745320,
+            "txt_content": "耗子 发表于 2019-4-8 12:56\n好久没有看到这么高难度的提问了。总的来说，多边形碰撞箱的实现过于困难，楼主可以多发射几条光线来进行追 ...\n我想是体积光，也就是光柱吧，光线太细了不合适\n不过，谢谢大佬的回复啦"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1554763740,
+            "txt_content": " 本帖最后由 754503921 于 2019-4-9 12:56 编辑 \n1609089074 发表于 2019-4-9 01:09\n因为前阵子看了下几种寻路算法有些关于优化方面的想法，我想，比起靠模糊的范围去获取遍历的集合，带有目 ...\n\n你给的这个方法相当于一个不怎么好的取样，会漏掉很多方块，也会有重复的方块。\n\n如果是非完美算法检测是否在圆柱中的话，我倒是又想到了一种，\n取方向向量v1，起始点到要检测的点(方块中心)做一个向量v2。v2的长度是可以算出来的(距离公式)，v2 v1 夹角的余弦值也能求出来。有了余弦就有了正弦，就可以求距离和半径。\n那么设 v2 长度 l，方块到发射点的垂直距离就是 l*cosθ，方块到圆柱中心线的距离就是 l*sinθ，判断一下 l*sinθ < radius 就可以判断在圆柱内(或者radius+0.5)。\n"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1554786480,
+            "txt_content": "1609089074 发表于 2019-4-9 01:09\n因为前阵子看了下几种寻路算法有些关于优化方面的想法，我想，比起靠模糊的范围去获取遍历的集合，带有目 ...\n以及你这个圆平面的表达方式，一个圆心点一个法向量一个半径就可以表达了，但是要看你怎么用"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1555292820,
+            "txt_content": "投影点？怕不是射影点"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1555334280,
+            "txt_content": "William_Shi 发表于 2019-4-15 09:47\n投影点？怕不是射影点\n有什么差别吗"
+        },
+        {
+            "author": "liamtuan",
+            "timestamp": 1555396980,
+            "txt_content": "其实这个很像是阴影投射的算法，不过用opengl来实现就很不方便了\n光柱原点实际上可以当做正交的相机，然后把方块都投射到光柱面上，具体的矩阵变换就类似相机变换。然后这里可以运用一点技巧，虽然不能做光栅化的运算，但是矩阵都只能看到三个面，而且因为光柱是正交相机，所以所有方块的这三个面形状相同。这就好办了，把光柱平面用这三个面的形状做一下划分。然后类似opengl的z-buffer，也不用排序，光柱平面每个小面记录一个z值，然后每检测一个立方体就用它的三个面找到光柱平面中覆盖的面，然后进行z值比较，如果立方体面的z值小于光柱平面小面的z值就说明能看到立方体，并且要更新光柱平面小面的z值。这样就可以获得所有能够光柱能够看到的所有立方体。\ntl:dr 具体实现的话，可以写个小程序测试一下\n"
+        }
+    ]
+}

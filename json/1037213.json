@@ -1,0 +1,74 @@
+{
+    "title": "PVPIN教程RL--BukkitRunnable的使用",
+    "author": "William_Shi",
+    "replyCount": 13,
+    "timestamp": 1588817520,
+    "txt_content": " 本帖最后由 William_Shi 于 2020-7-5 13:18 编辑 \n本教程系PVPIN教程复刻系列\n索引见https://www.mcbbs.net/thread-1034477-1-1.html\n本教程不做排版，如果你觉得不舒服，可以选择退出本页面\n本教程所有代码全部在coding开源，详见索引\n本教程可能存在一定吞代码问题，总体上以开源地址的代码为准\n\n本教程涵盖内容：\nBukkitRunnable的使用、如何将BukkitRunnable配合事件监听使用\n如果你因为排版不好粗略阅读、CV代码，你会学到如何做一把弓，这把弓射出的箭在飞行时不断播放水花的粒子效果，击中目标就会在目标处放置一格水，\n如果你认真阅读本教程并无视排版，你会学到如何架构上述程序提高效率，以及我关于Bukkit任务调度方式的经验\n学完本教程你对程序架构和BukkitRunnable的应用方面肯定会有一定提升\n\n\n介绍本节实例：\n我们需要做一把弓，这把弓射出的箭在飞行时\n不断播放水花的粒子效果，击中目标就会在目标处放置一格水\n（创意来自PVPIN）\n\n分析这个功能我们首先需要定义一把弓（为了方便，此处不会教学你应该怎么让弓与众不同）\n我们直接用物品名字判断是不是我们的弓的名字（实际开发中，如果你有很多物品需要自定义，建议你最初架构的时候就预留NBT的数据键，比如说MyPluginCustomizedItem，数据包可以是Byte数据包，然后设置为1，当你需要判断物品是不是你自定义的物品时你可以直接使用NBT混合数据包的hasKey方法以减少不必要的判断）\n其次我们需要监听箭被发射出去，此时获取箭的发射者，判断是不是玩家（当然也可以实体或者什么别的拿着你的弓，但是这里不考虑了）\n如果是，那么获取其手中的物品堆，并判断是不是你的弓如果是你的弓，接下来就需要对着这根箭进行处理了\n需要处理两个部分，一为定时播放水花粒子，二为击中则放水实现较为简单，即注册一个新BukkitRunnable\n每次生成之前都先检测你的这个箭实体 isValid 和 isInBlock，如果不再Valid就注销自身，如果inBlock就将AttachedBlock替换成水方块，如果既valid也并非inBlock就播放水花效果\n那么为什么不使用一个临时事件监听呢？\n原因很简单，如果有插件清理了实体，那么这个事件监听将永远不被注销导致性能下降，而且事件监听的本质是反射，如果你的 箭同时被发射太多次将会极大拖慢效率，但是BKRunnable本质上是不断把任务推给主线程，不存在过多效率问题\n那么为什么不使用一个永久的箭击中事件监听呢？\n如果使用事件监听势必涉及UUID的判断，比如把所有水花箭的UUID存入列表，如果你涉及很多种箭，还用UUID判断就会需要对着一个Map中的所有列表逐一进行匹配\n当然也可以对着箭实体操作PersistentDataHolder，但是这是1.14+才有的内容，低版本没有，如果使用的确可以不再涉及UUID操作而是直接读取你所定义的实体数据，具体可看海螺螺大佬教程。\n以上：架构与整体思路完整了\n\n那么，什么是BukkitRunnable呢？\nBukkitRunnable是一种任务调度器，他负责不断把一段代码推给线程来执行\n\nrunTask(Plugin plugin)\n让Bukkit任务调度器在下一个tick运行任务.\nrunTaskAsynchronously(Plugin plugin)\n在Bukkit任务调度器异步运行这个任务.\nrunTaskLater(Plugin plugin, long delay)\n在指定tick后执行该任务.        \nrunTaskLaterAsynchronously(Plugin plugin, long delay)\n让Bukkit任务调度器在指定的tick后异步执行这个任务.\nrunTaskTimer(Plugin plugin, long delay, long period)\n在指定时间后开始以指定的间隔不断执行任务.\nrunTaskTimerAsynchronously(Plugin plugin, long delay, long period)\n让Bukkit任务调度器在指定的tick后开始异步的以指定的间隔不断执行任务.\n注：所有的时间单位均为tick，以Long为类型，20L是20tick，20tick是一秒\n\n这么多的调度方法有什么区别呢？\n带有long delay的都代表了延迟（请不要随意对准主线程使用sleep！会导致整个服务器停止运作！）\n带有long period的都代表了循环\n方法名带有Async都是异步任务，其他的都是把任务推给主线程完成\n如果可能，请多使用异步任务，因为mc服务器大部分任务都在主线程完成，所以降低主线程负担是极为必要的，但是几乎任何涉及到mc的操作都不能异步，比如异步放一个方块显然不行，这也就是一直被强调的线程安全问题，如果你是在其他线程操作mc中内容，直接使用runTask方法把任务推给主线程就好\n而延迟执行也有较大的用处，比如说PlayerRespawnEvent被触发的瞬间，玩家并没有真正“复活”，因为事件监听不是回调，事件监听先传递事件给插件，插件修改事件结果，最后事件才会发生，所以在这个事件内直接操作玩家对象是不行的，必须要延迟至少1tick\n还有一些如在玩家关闭物品栏事件内让玩家打开新物品栏，那么还是如上所述，事件发生时原物品栏并未关闭，你如果这样直接打开新物品栏，势必导致现有的将被关闭但还没有被关闭的物品栏被关闭，那么又一次触发这个事件，还是相同的物品栏将要被关闭，于是死循环\n直接覆写 run 方法\n比如说new BukkitRunnable(){\n                @Override\n                public void run(){\n//To Do xxx\n                }\n            }.runTaskTimer(Bukkit.getPluginManager().getPlugin(\"PVPINDemoRL\"),0L,10L);复制代码以上是匿名内部类\n当然由此可知也可以直接写一个类继承BukkitRunnable，并覆写run方法，通过实例化这个类的方式来调度任务不过这种方法缺点在于一个类只可能有一个run方法，一旦写死不能改变，建议在某个BukkitRunnable多处被调用的时候提高复用性\n\n不过注意 如果使用匿名内部类，引用的变量必须是final或effectively final，也就是说如果你想操作外部的变量，最好把它做成一个只有一个元素的数组，或者是Map来操作\n之后我再介绍一种较为重要的思想--counter\n比如说我希望一个bkrunnable想要运行指定次数之后结束，就可以使用counternew BukkitRunnable(){复制代码通过这种方法，就可以免除一些堆砌的bukkitrunnable\n\n接下来看本实例的代码，我将通过这些代码直观呈现怎么使用BKRunnable\n\n\n\n\n\n5.png (200.4 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:41 上传\n\n\n\n\n\n主类很简单，就是注册了一个事件监听，注意我的主类和一般主类不一样，是因为这个教程我自写了模块管理\n\n\n\n\n\n6.png (283.23 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:41 上传\n\n\n\n\n\n\n\n\n7.png (312.49 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:41 上传\n\n\n\n\n\n\n\n这是事件监听，我先用一连串if做了类型检测，确保抛射物发射者是玩家，以及发射的弓有元数据、有自定义名且自定义名为镜水天音\n最后就是重中之重的BKRunnable\n检测箭是不是Valid、和是不是InBlock\n如果不Valid说明实体被清理了或者箭被人捡走了，取消bkrunnable\n如果InBlock说明击中了，此时把击中方块替换为水，取消bkrunnable\n如果都不是，那么播放水的粒子效果\n最后就是具体效果了\n\n\n\n\nfile_1588753945000.jpg (78.29 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:32 上传\n\n\n\n\n\n\n\n\n4.png (231.39 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:32 上传\n\n\n\n\n\n\n\n\n1.png (27.29 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:32 上传\n\n\n\n\n\n\n\n\n2.png (19.07 KB, 下载次数: 0)\n\n下载附件\n\n2020-5-6 16:32 上传\n\n\n\n\n需要注意，按我的代码，可能根本没有什么明显的粒子效果\n原因有二\n一是BKRunnable每10tick才运行一次，因此只有1/2秒才会播放一次粒子，相比于箭的速度肯定太慢\n二是粒子count很小，因此每次只生成一两个粒子很不明显\n解决方法很简单\n只需要把你的BKRunnable循环加快（比如5L，2L）\n以及调大粒子count就好了，如spawnParticle(xxx,xxx,10)\n\n\n如果你有任何疑问可加群讨论，我的群目前只有十几个人，只能保证每个问题都被回复（我或RainEffect），莫老的群有几百个人，不时有大佬来解答问题，讨论氛围也热烈。\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "jiajia005200",
+            "timestamp": 1588844280,
+            "txt_content": "支持支持，学到了"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1588844400,
+            "txt_content": "我一般喜欢专门开个包放Task类"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588844760,
+            "txt_content": "emmmmm\nBukkitRunnable 和 Runnable 有什么差别嘛"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1588849980,
+            "txt_content": "南柯郡守 发表于 2020-5-7 17:46\nemmmmm\nBukkitRunnable 和 Runnable 有什么差别嘛\n这个问题我不敢说能很全面的回答\n就如海螺螺大佬在关于通信的教程里说的，BKScheduler、BKRunnable都可以把任务推给主线程，以解决异步任务（Async监听、网络线程）带来的线程安全问题\n其次的话BKRunnable不需要你给线程命名，如果自写多线程需要你规范命名、统一管理调度，而BKRunnable的异步任务显然是一个实现了统一管理线程的轮子，多数情况下没必要再去重复造轮子，除非有特殊需求\n"
+        },
+        {
+            "author": "新科",
+            "timestamp": 1588898400,
+            "txt_content": "这个想法真的不错，不过希望能有个统一一点的网站，这样子查询教程会更方便"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1588903200,
+            "txt_content": "新科 发表于 2020-5-8 08:40\n这个想法真的不错，不过希望能有个统一一点的网站，这样子查询教程会更方便 ...\n感谢支持\n其实PVPIN复刻真的已经有组织的在进行了\n或许快了"
+        },
+        {
+            "author": "新科",
+            "timestamp": 1588903620,
+            "txt_content": "William_Shi 发表于 2020-5-8 10:00\n感谢支持\n其实PVPIN复刻真的已经有组织的在进行了\n或许快了\n时光貌似之前出过一个 mccreate 来着，不过最后也是无法访问为结尾了。。\n期待大佬们能成功复刻并且能开的长久一点，我也是从PVPIN才接触到真正的编程语言，希望复刻后的网站可以帮助更多的人。"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1588905780,
+            "txt_content": "新科 发表于 2020-5-8 10:07\n时光貌似之前出过一个 mccreate 来着，不过最后也是无法访问为结尾了。。\n期待大佬们能成功复刻并且能开 ...\n我可以给你一个预告：你应该先去学一下TypeScript\n当然如果你只想用用GUI编程那就不需要\n\n复刻长久应该可以做到"
+        },
+        {
+            "author": "AuroraCruiser",
+            "timestamp": 1591780140,
+            "txt_content": "干货满满啊 支持一下"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1593924840,
+            "txt_content": "(BukkitRunnable) ()-> {\n// To Do\n}.runTask();\n这是lambda？那么，可不可以麻烦你先百度一下lambda\nJava什么时候支持抽象类lambda了？\n可以请你发一下代码开源地址吗？\n我猜你连自己的代码能不能编译都不知道叭"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593925380,
+            "txt_content": " 本帖最后由 William_Shi 于 2020-7-5 13:06 编辑 \n夏雨吖 发表于 2020-7-5 12:54\n这是lambda？那么，可不可以麻烦你先百度一下lambda\nJava什么时候支持抽象类lambda了？\n可以请你发一下代 ...\n之前代码被吞掉了，我再用code修改的时候炸了，https://celestialrealm.coding.ne ... PINDemoRL/git/files\n以开源地址为准\n示例代码没有任何问题，我想"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1593926220,
+            "txt_content": "William_Shi 发表于 2020-7-5 13:03\n之前代码被吞掉了，我再用code修改的时候炸了，https://celestialrealm.coding.net/public/PVPINDemoRL/PV ...\n那可不可以麻烦你先把帖子里面的误导代码改掉？"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593926280,
+            "txt_content": "夏雨吖 发表于 2020-7-5 13:17\n那可不可以麻烦你先把帖子里面的误导代码改掉？\n全部删完了，感谢提醒，全部修改掉了"
+        }
+    ]
+}

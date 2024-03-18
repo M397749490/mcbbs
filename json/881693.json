@@ -1,0 +1,49 @@
+{
+    "title": "疑似code代码的奇异BUG",
+    "author": "ItsZeroHikari",
+    "replyCount": 8,
+    "timestamp": 1562383920,
+    "txt_content": "1                   1复制代码\n直接点击下方的\"复制代码\"，空格并不是空格而是奇怪的东西\n(notepad++无法正常识别yml格式，放进服务端会报错。选中该字符，替换成空格之后可以正常使用。)",
+    "replies": [
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1562385600,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-7-6 12:04 编辑 \n1? ?? ?? ?? ?? ?? ? 1复制代码\n上面那个就是 “复制代码” 来的。\n编辑的时候都还好好的，\n怎么发出来之后就变得这么奇怪了\n"
+        },
+        {
+            "author": "1132045859",
+            "timestamp": 1562385660,
+            "txt_content": "听不懂也看不懂"
+        },
+        {
+            "author": "qiuluwei",
+            "timestamp": 1562385960,
+            "txt_content": "不好吧，快让系统改了这个BUG"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1562386260,
+            "txt_content": "转码后\n\\u31\\ua0\\u20\\ua0\\ua0\\u20\\ua0\\ua0\\u20\\ua0\\ua0\\u20\\ua0\\ua0\\u20\\ua0\\ua0\\u20\\ua0\\u20\\u31复制代码\nua0和u20是什么字符？"
+        },
+        {
+            "author": "Hueihuea",
+            "timestamp": 1562386380,
+            "txt_content": " 本帖最后由 skpsk自己家 于 2019-7-6 12:14 编辑 \n1              1\n1              1\n1                   1复制代码\n我这里什么事都没有啊……\n就是点你的复制代码啊\n我觉得是不是你用tab而不是用空格啊"
+        },
+        {
+            "author": "2386775413",
+            "timestamp": 1562386440,
+            "txt_content": "1? ?? ?? ?? ?? ?? ? 1"
+        },
+        {
+            "author": "ItsZeroHikari",
+            "timestamp": 1562386560,
+            "txt_content": "a1294790523 发表于 2019-7-6 12:11\n转码后\n\nua0和u20是什么字符？\n对的，有两种不明字符，我替换一次之后不顶用，要替换两次\n这可一点儿也不舒服，我直接复制帖子上的配置文件放进服务端里，报错，我还研究半天\n"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1562387280,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-7-18 10:57 编辑 \n\n@混乱 \n\n原理阐述\ncode 代码块中的空格使用的是两种不同的空格：\n\n\\u00A0 NO-BREAK-SPACE &【防解析标记】nbsp;\n\\u0020 SPACE\n\n通过交替使用，能够避免浏览器将多个相邻空格合并。\n我个人认为这么做是在犯病，但谁让它是遗留代码，没人敢动呢【摊手\n\n从 code 代码块中直接复制时，浏览器会自动将 \\u00A0 转换为 \\u0020，但是论坛的「复制代码」脚本并没有进行此操作。（以前没有这个问题，因为在代码中以 FLASH 方式复制的时候进行了该替换）\n\n修复方案\n\n\n\n\n\nfile_1562392503000.jpg (267.71 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-6 13:55 上传\n\n\n\n\n\n\n本修复方案不触及封【防解析标记】建社【防解析标记】会根基，只是把一句原有代码改了个位置而已。\n\n在论坛的 common.js 中，修改函数 setCopy(text, msg)：\n\nfunction setCopy(text, msg) {\n    var cp = document.createElement('textarea');\n    cp.style.fontSize = '12pt';\n    cp.style.border = '0';\n    cp.style.padding = '0';\n    cp.style.margin = '0';\n    cp.style.position = 'absolute';\n    cp.style.left = '-9999px';\n    var yPosition = window.pageYOffset || document.documentElement.scrollTop;\n    cp.style.top = yPosition + 'px';\n    cp.setAttribute('readonly', '');\n    text = text.replace(/[\\xA0]/g, ' ');\n    cp.value = text;\n    $('append_parent').appendChild(cp);\n    cp.select();\n    cp.setSelectionRange(0, cp.value.length);\n    try {\n        var success = document.execCommand('copy', false, null);\n    } catch (e) {\n        var success = false;\n    }\n    $('append_parent').removeChild(cp);\n    if (success) {\n        if (msg) {\n            showPrompt(null, null, '<span>' + msg + '</span>', 1500);\n        }\n    } else if (BROWSER.ie) {\n        var r = clipboardData.setData('Text', text);\n        if (r) {\n            if (msg) {\n                showPrompt(null, null, '<span>' + msg + '</span>', 1500);\n            }\n        } else {\n            showDialog('<div class=\"c\"><div style=\"width: 200px; text-align: center;\">复制失败，请选择“允许访问”</div></div>', 'alert');\n        }\n    } else {\n        var msg = '<div class=\"c\"><div style=\"width: 200px; text-align: center; text-decoration:underline;\">点此复制到剪贴板</div>' + AC_FL_RunContent('id', 'clipboardswf', 'name', 'clipboardswf', 'devicefont', 'false', 'width', '200', 'height', '40', 'src', STATICURL + 'image/common/clipboard.swf', 'menu', 'false', 'allowScriptAccess', 'sameDomain', 'swLiveConnect', 'true', 'wmode', 'transparent', 'style', 'margin-top:-20px') + '</div>';\n        showDialog(msg, 'info');\n        text = text.replace(/[\\xA0]/g, ' ');\n        CLIPBOARDSWFDATA = text;\n    }\n}\n\n另见\ncode 代码块转义 bug\n（不知道这是哪里的问题，我个人给不出修复方案）\n\n其他\nMarkdown，谢谢\n"
+        }
+    ]
+}

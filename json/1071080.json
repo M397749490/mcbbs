@@ -1,0 +1,114 @@
+{
+    "title": "[Catserver][1.12]插件开发几个杂碎的问题",
+    "author": "aa0307bb",
+    "replyCount": 21,
+    "timestamp": 1593678600,
+    "txt_content": " 本帖最后由 aa0307bb 于 2020-7-2 17:01 编辑 \n\n问题多而杂，可以选择性回答OTZ\n\n①如何让掉落沙在落地瞬间被清除并播放方块破碎效果（如果你不知道我在说什么，演示在https://www.bilibili.com/video/BV1ys411y7gC的5分36秒）\n②（不要使用原版指令或dispatch）如何选中玩家半径3米内的某种生物以方便对它们执行操作\n（一种思路是，双重for循环，第一层for循环遍历地图所有在线玩家getOnlinePlayers，第二层for循环遍历地图所有实体，计算玩家到实体的距离，如果小于3米 就执行操作。但是这样似乎有点麻烦 而且会不会性能开销过大？）\n\n③如何让射出的雪球也具有攻击力\n④如何修改生物AI（比如让巨人僵尸拥有普通僵尸的寻路AI？）\n\n",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593679800,
+            "txt_content": " 本帖最后由 南柯郡守 于 2020-7-2 17:00 编辑 \n\n你有看过文档吗？\n\nhttps://papermc.io/javadocs/paper/1.12/overview-summary.html \n\n好好翻一翻\n\n\n\n另 琐碎\n\n\n\n\n\n\n\n\n1. fallingblock\n2. getNearByEntities\n3. 雪球被扔出去后是一个实体\n4. https://www.mcbbs.net/thread-1039885-1-1.html     不是教程"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593680400,
+            "txt_content": " 本帖最后由 aa0307bb 于 2020-7-2 17:07 编辑 \n南柯郡守 发表于 2020-7-2 16:50\n你有看过文档吗？\n\nhttps://papermc.io/javadocs/paper/1.12/overview-summary.html \n1.知道是fallingblock，但是以前试过用一个1tick/次的runTaskTimer来遍历所有掉落沙，如果掉落沙的onGround()==true则将其remove()，但是结果是没用呀……3.是Entity然后没有找到有接口能够设置实体造成的伤害呀\n另外catserver你为什么给我paper的orz\n"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593682140,
+            "txt_content": "aa0307bb 发表于 2020-7-2 17:00\n1.知道是fallingblock，但是以前试过用一个1tick/次的runTaskTimer来遍历所有掉落沙，如果掉落沙的onGroun ...\n1. fallingblock落地之后就是方块了  应该取它落地的location 然后getblock   再 settype  AIR\n3. 取uuid 然后当它死亡/消失的时候 取最近的玩家判断距离  或者直接监听ProjectileHitEvent 取project判断type\n为什么给paper自己悟"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593685800,
+            "txt_content": "南柯郡守 发表于 2020-7-2 17:29\n1. fallingblock落地之后就是方块了  应该取它落地的location 然后getblock   再 settype  AIR\n3. 取uuid ...\n好的，谢谢！\n遇到一个问题，产生的雪球的位置如果离玩家太近，会砸到发射者自己（特别是向下砸的时候）\n但是原版产生雪球的位置本来就离玩家很近还不会砸到发射者。这个怎么解决"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593685980,
+            "txt_content": "aa0307bb 发表于 2020-7-2 18:30\n好的，谢谢！\n遇到一个问题，产生的雪球的位置如果离玩家太近，会砸到发射者自己（特别是向下砸的时候）\n ...\n盲猜原版雪球生成时离玩家距离在碰撞箱以外"
+        },
+        {
+            "author": "雨",
+            "timestamp": 1593686460,
+            "txt_content": "aa0307bb 发表于 2020-7-2 18:30\n好的，谢谢！\n遇到一个问题，产生的雪球的位置如果离玩家太近，会砸到发射者自己（特别是向下砸的时候）\n ...\n或者你可以试着监听发射投掷物的事件 存到Map里?"
+        },
+        {
+            "author": "Ir.Nep",
+            "timestamp": 1593686940,
+            "txt_content": " 本帖最后由 Ir.Nep 于 2020-7-2 20:45 编辑 \n\n1、监听EntityChangeBlockEvent，判断事件实体类型(event.getEntityType())是否为掉落方块，是则获取实体转型为FallingBlock，获取掉落方块的材质并判断是否为沙子，是则取消事件并移除实体并执行你接下来的操作\n2、见楼下\n\n3、让雪球有命中伤害，监听ProjectileHitEvent，判断projectile类型，并判断getHitEntity是否不为空，是则对实体造成伤害\n\n4、bbs有很多关于AI的教程，传送门\n\n\n"
+        },
+        {
+            "author": "Ir.Nep",
+            "timestamp": 1593687840,
+            "txt_content": "对于雪球击中发射者的问题，可以修改雪球nms实例的属性ticksLived\n原理是投掷物(projectile)在进行实体命中判断的时候，会检查ticksLived是否小于2，如果小于2，则判断该实体是否为发射者，是的话将不会击中该实体。\n\n因此可以对ticksLived进行修改，一直令其值小于2"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593691440,
+            "txt_content": "Ir.Nep 发表于 2020-7-2 18:49\n1、监听EntityChangeBlockEvent，判断事件实体类型(event.getEntityType())是否为掉落方块，是则获取实体转 ...\n3.https://bukkit.windit.net/javado ... ileLaunchEvent.html\nhttps://bukkit.windit.net/javado ... ectileHitEvent.html\n没所谓的collide event（1.15.2Bukkit中文文档）\n而1.16的spigot官方英文文档，比起1.15\n含有projectile的类（无框架ALL classes）只增加了一个throwable Projectile\n并没有你这个事件监听\n\n所谓“往上的版本则监听ProjectileCollideEvent”，不敢苟同。"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593691740,
+            "txt_content": "Ir.Nep 发表于 2020-7-2 19:04\n对于雪球击中发射者的问题，可以修改雪球nms实例的属性ticksLived\n原理是投掷物(projectile)在进行实体命中 ...\n如果你是想要不让雪球击中发射者\n那为什么不使用\nhttps://bukkit.windit.net/javado ... e.html#getShooter--\n毕竟你都说了，是“判断该实体是不是发射者”\n那么你假设的情景显然是实体直接发射雪球了\n没必要强行动nms\n当然如果是强行spawn entity 得到的雪球\n那可以自己建立玩家UUID与雪球UUID的相关对应\n更不需要ticks lived\n也更方便"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593693180,
+            "txt_content": "William_Shi 发表于 2020-7-2 20:09\n如果你是想要不让雪球击中发射者\n那为什么不使用\nhttps://bukkit.windit.net/javadoc/org/bukkit/entity/ ...如果是强行spawn entity 得到的雪球\n自己建立玩家UUID与雪球UUID的相关对应\n这个是什么意思？雪球可以存放发射者UUID，从而避免打中发射者？\n\n如果的确如此，又该怎样做？\n查了下API，好像是        \nsetShooter(ProjectileSource source)\nSet the shooter of this projectile.\n可是这个ProjectileSource source咋填？（或者我找错API了？"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593693360,
+            "txt_content": "Ir.Nep 发表于 2020-7-2 19:04\n对于雪球击中发射者的问题，可以修改雪球nms实例的属性ticksLived\n原理是投掷物(projectile)在进行实体命中 ...对ticksLived进行修改，一直令其值小于2\n一直小于2岂不是什么实体也打不着？OTZ"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593693420,
+            "txt_content": "aa0307bb 发表于 2020-7-2 20:33\n这个是什么意思？雪球可以存放发射者UUID，从而避免打中发射者？\n\n如果的确如此，又该怎样做？\n你拿一个map存起来，监听雪球击中的时候读取\n如果是发射者，就取消事件"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593693480,
+            "txt_content": "aa0307bb 发表于 2020-7-2 20:33\n这个是什么意思？雪球可以存放发射者UUID，从而避免打中发射者？\n\n如果的确如此，又该怎样做？\n接口 ProjectileSource\n\n所有已知子接口:\nAbstractHorse, AbstractVillager, Ageable, Ambient, Animals, ArmorStand, Bat, Bee, Blaze, BlockProjectileSource, Cat, CaveSpider, ChestedHorse, Chicken, Cod, ComplexLivingEntity, Cow, Creature, Creeper, Dolphin, Donkey, Drowned, ElderGuardian, EnderDragon, Enderman, Endermite, Evoker, Fish, Flying, Fox, Ghast, Giant, Golem, Guardian, Horse, HumanEntity, Husk, Illager, Illusioner, IronGolem, LivingEntity, Llama, MagmaCube, Mob, Monster, Mule, MushroomCow, NPC, Ocelot, Panda, Parrot, Phantom, Pig, PigZombie, Pillager, Player, PolarBear, PufferFish, Rabbit, Raider, Ravager, Salmon, Sheep, Shulker, Silverfish, Skeleton, SkeletonHorse, Slime, Snowman, Spellcaster, Spider, Squid, Stray, TraderLlama, TropicalFish, Turtle, Vex, Villager, Vindicator, WanderingTrader, WaterMob, Witch, Wither, WitherSkeleton, Wolf, Zombie, ZombieHorse, ZombieVillager"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593716940,
+            "txt_content": "Ir.Nep 发表于 2020-7-2 18:49\n1、监听EntityChangeBlockEvent，判断事件实体类型(event.getEntityType())是否为掉落方块，是则获取实体转 ...\n问一下，spawnparticle()要产生blockcrack颗粒\nspawnParticle\n<T> void spawnParticle(Particle particle,\n                       double x,\n                       double y,\n                       double z,\n                       int count,\n                       double offsetX,\n                       double offsetY,\n                       double offsetZ,\n                       double extra,\n                       T data,\n                       boolean force)\n如果要产生掉落沙对应方块被破坏时的粒子效果，这个spawnParticle该怎样填？（extra和data）"
+        },
+        {
+            "author": "Ir.Nep",
+            "timestamp": 1593735780,
+            "txt_content": " 本帖最后由 Ir.Nep 于 2020-7-3 08:25 编辑 \naa0307bb 发表于 2020-7-3 03:09\n问一下，spawnparticle()要产生blockcrack颗粒\n\n如果要产生掉落沙对应方块被破坏时的粒子效果，这个spawn ...\nextra不用填，只填data\n方块被破坏的粒子是Particle.BLOCK_CRACK\n对应spawnParticle中data要填MaterialData\n\n即spawnParticle(Particle.BLOCK_CRACK, 位置, 数量, new MaterialData(Material.你的方块材质, 附加值));复制代码\n\n注意1.13开始BLOCK_CRACK的对应data改用BlockData\n建议在传入data前使用Particle.BLOCK_CRACK.getDataType()判断返回值(返回的是data应该传入的实例的类型)\n"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593767640,
+            "txt_content": "Ir.Nep 发表于 2020-7-3 08:23\nextra不用填，只填data\n方块被破坏的粒子是Particle.BLOCK_CRACK\n对应spawnParticle中data要填MaterialDat ...\nspawnParticle的参数填起来好像十分多变（？\n这些是在哪可以查到的（好像API查不到（？"
+        },
+        {
+            "author": "Ir.Nep",
+            "timestamp": 1593772740,
+            "txt_content": "aa0307bb 发表于 2020-7-3 17:14\nspawnParticle的参数填起来好像十分多变（？\n这些是在哪可以查到的（好像API查不到（？ ...\nhttps://hub.spigotmc.org/javadoc ... -double-double-int-\n\n从这里开始往下14个方法都是spawnPartcle的重载方法"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593777840,
+            "txt_content": "aa0307bb 发表于 2020-7-3 17:14\nspawnParticle的参数填起来好像十分多变（？\n这些是在哪可以查到的（好像API查不到（？ ...\nspawnParticle\n<T> void spawnParticle​(@NotNull\n                       @NotNull Particle particle,\n                       @NotNull\n                       @NotNull Location location,\n                       int count,\n                       @Nullable\n                       T data)\nSpawns the particle (the number of times specified by count) at the target location.\nType Parameters:\nT - type of particle data (see Particle.getDataType()\nParameters:\nparticle - the particle to spawn\nlocation - the location to spawn at\ncount - the number of particles\ndata - the data to use for the particle or null, the type of this depends on Particle.getDataType()\n\n人家泛型都说清楚了\nT - type of particle data (see Particle.getDataType()\n\n@NotNull Class<?>        getDataType​()        \nReturns the required data type for the particle\n\n那你看到Class<?>难道不输出一下class simplename 试试看？\n而且输出这个根本不需要开服\n你直接新建一个ant项目，main方法直接输出就行了吧，不是很快么\n再不济你写个测试插件丢服务端输出"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593778020,
+            "txt_content": "\n    /**\n     * @param args the command line arguments\n     */\n    public static void main(String[] args) {\n        System.out.println(Particle.BLOCK_CRACK.getDataType().getSimpleName());\n    }\n\nrun:\nBlockData\nBUILD SUCCESSFUL (total time: 1 second)\n\n所以泛型传参BlockData，完事了（1.15.2"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593800880,
+            "txt_content": " 本帖最后由 aa0307bb 于 2020-7-4 02:33 编辑 \nWilliam_Shi 发表于 2020-7-3 20:07\n/**\n     * @param args the command line arguments\n     */\n感谢指引\n顺着思路摸了一下瓜\nfor(Particle p : Particle.values()) {                        \n                        System.out.println(p+\":\"+p.getDataType().getSimpleName());\n                }复制代码\n\n就可以一劳永逸了\n（1.12.2）\n合着就四种不是Void\n\nEXPLOSION_NORMAL:Void\nEXPLOSION_LARGE:Void\nEXPLOSION_HUGE:Void\nFIREWORKS_SPARK:Void\nWATER_BUBBLE:Void\nWATER_SPLASH:Void\nWATER_WAKE:Void\nSUSPENDED:Void\nSUSPENDED_DEPTH:Void\nCRIT:Void\nCRIT_MAGIC:Void\nSMOKE_NORMAL:Void\nSMOKE_LARGE:Void\nSPELL:Void\nSPELL_INSTANT:Void\nSPELL_MOB:Void\nSPELL_MOB_AMBIENT:Void\nSPELL_WITCH:Void\nDRIP_WATER:Void\nDRIP_LAVA:Void\nVILLAGER_ANGRY:Void\nVILLAGER_HAPPY:Void\nTOWN_AURA:Void\nNOTE:Void\nPORTAL:Void\nENCHANTMENT_TABLE:Void\nFLAME:Void\nLAVA:Void\nFOOTSTEP:Void\nCLOUD:Void\nREDSTONE:Void\nSNOWBALL:Void\nSNOW_SHOVEL:Void\nSLIME:Void\nHEART:Void\nBARRIER:Void\nITEM_CRACK:ItemStack\nBLOCK_CRACK:MaterialData\nBLOCK_DUST:MaterialData\nWATER_DROP:Void\nITEM_TAKE:Void\nMOB_APPEARANCE:Void\nDRAGON_BREATH:Void\nEND_ROD:Void\nDAMAGE_INDICATOR:Void\nSWEEP_ATTACK:Void\nFALLING_DUST:MaterialData\nTOTEM:Void\nSPIT:Void\n\n"
+        }
+    ]
+}

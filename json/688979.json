@@ -1,0 +1,69 @@
+{
+    "title": "[CBL|玄素]17w17b 基于advancement的模块简述",
+    "author": "玄素",
+    "replyCount": 12,
+    "timestamp": 1493303340,
+    "txt_content": " 本帖最后由 玄素 于 2017-4-28 10:01 编辑 \n\n在17w17a的更新之后，我们可以通过advancement的reward直接执行命令。advancement详解帖子以前我也是抱怨过advancement的reward和命令的联动太少，要是能返回分数都是相当棒的事，结果mojang这么一搞……使得这新东西能做的事情远超过之前的想象。\nrewards返回commands的格式如下：\n{\n    \"rewards\": {\n        \"commands\": [\n            \"say 1\",\n            \"say 2\",\n            ...(command list)\n        ]\n    },\n    ...\n}复制代码commands对应的是一个list，其中的命令会被从上到下依次执行，执行者视为达成advancement的玩家，类似于execute该玩家执行list内所有命令。\n游戏会在advancement达成的瞬时执行对应的rewards，而我们可以通过\"trigger\":\"minecraft:impossible\"来使得一个advancement能且仅能被命令触发，并可以通过在commands里直接revoke这个advancement来使得这个advancement的状态被重置，可以被再次激活。\n通过合理安排criteria，我们可以用advancement的commands reward来充当命令中一个可以即时调用的模块，或是作为非常方便的对以往所不能检测的一些条件的检测手段，甚至完全通过advancement构建一个命令循环。\n\nadvancement模块\n通过上述的内容，我们可以很容易地理解，每一个rewards的command list都可以视为一个模块。它可以通过命令/advancement grant调用。\n有重复激活需求的模块，可以考虑在其command list里revoke其本身，这样就可以免去模块外重置的麻烦。\n例如命名空间cmdtest下，名为test的advancement：\n {\n    \"rewards\": {\n        \"commands\": [\n            \"advancement revoke @s only cmdtest:test\",\n            \"say this is a module and the executor is @s\",\n            \"say 3\"\n        ]\n    },\n    ...\n}复制代码这样，通过循环命令方块来高频执行\nadvancement grant @p only cmdtest:test复制代码时，就会在每次命令激活时显示say的内容。\n\n模块的特性\n首先永远记住，advancement的执行是严格基于玩家的，因为只有玩家能够完成advancement。这就使得被advancement grant的玩家事实上成为了里面所有命令的执行者，一切和执行者相关的命令都请谨慎对待。当然，在需要检测是谁达成了advancement条件的时候，执行者本身能够轻易通过@s来选中绝对不是一件坏事情。\n模块的调用是即时的。也就是说，如果我执行如下命令链：\nsay 1\nadvancement grant @p only cmdtest:test\nsay 2复制代码得到的输出将是：\n[@] 1\n[xuan_su] this is a module and the executor is xuan_su\n[xuan_su] 3\n[@] 2复制代码对多个模块之间互相调用的情况亦如是。我们创建同在cmdtest命名空间下的另一个名为main的advancement：\n{\n    \"rewards\": {\n        \"commands\": [\n            \"advancement revoke @s only cmdtest:main\"\n            \"say 0\"\n            \"advancement grant @s only cmdtest:test\"\n            \"say -1\"\n        ]\n    },\n  ...\n}复制代码在上述命令链中，修改中间命令为advancement grant @p only cmdtest:main_loop的时候，输出将是：\n[@] 1\n[xuan_su] 0\n[xuan_su] this is a module and the executor is xuan_su\n[xuan_su] 3\n[xuan_su] -1\n[@] 2复制代码简单地说，就是这样的模块间调用全部都是即时的，通过模块1中的命令中途调用模块2，那么将会先执行完模块2中的命令，再继续执行模块1中剩余的命令。\n\nadvancement模块与循环cb chain的比较\n占地上advancement完胜。\n调用方便程度上，比起需要左拐右拐的cb chain，……心疼啊。\n当然也不是全无付出，advancement不能使用conditional模式来方便地进行一些逻辑处理，往往需要借助marker……在这种情况下倒是玩家作为执行者成为了良好的marker啊（笑）\n\n在命令系统中的运用\n一个比较完善的命令系统往往对时序有着比较严格的要求，通过advancement达成的瞬间reward的特性，却也可以非常方便的通过命令来控制完成的时间，以配合系统的时序。\n对于不需要做额外检测的系统，也就是单纯用来调用的模块，可以直接设置trigger为impossible，在需要触发的时候grant之。\n{\n  \"criteria\": {\n      \"switch\": {\n          \"trigger\": \"minecraft:impossible\"\n      }\n  },\n  ...\n}复制代码对于本身就已经用criteria承担一部分检测任务的advancement来说，我们如果想在固定的时点来触发reward，就需要在criteria上多做些手脚。\n{\n    \"criteria\": {\n        \"switch\": {\n            \"trigger\": \"minecraft:impossible\"\n        },\n        \"test\": {\n            \"trigger\": \"minecraft:entity_hurt_player\"\n        }\n    },\n    ...\n}复制代码这个advancement的criteria由两部分组成，一部分为承担检测内容的test，一部分为控制激活的switch。在需要进行执行尝试的节点，advancement grant相应的criteria（本例中为switch），如果test部分的条件已被满足，那么reward被激活；如果没有满足test的条件……很抱歉，这时候你就必须得跟一条命令来revoke掉switch，避免在下次检查之前达成test内容而导致命令被提前激活。\n仅需要通过模块进行检测的另一种思路是reward达成advancement的玩家一个分数/tag并重置成就，然后就可以用正常的方式（也就是以往通过scoreboard系列操作给玩家打戳以后你所会干的事）来在主循环里对分数进行提取或处理。在大多数情况下，这样的做法比将整个检测部分作为模块中途调用更简洁，但一般也意味着这个advancement将只做为一个检测事件存在，不会承担其余的操作——那样会导致时序变得很容易混淆。\n\n模块逻辑：与/或/非\n首先你可以完全通过过去的手段来实现命令间的与或非……这样的话直接通过控制advancement grant命令执行与否，就可以很好地控制模块间的执行逻辑。但是通过对criteria做手脚，我们是否可以以更advancement的方式来实现这样的效果呢？答案是肯定的。\n与通过要求多个criteria均满足条件，即可以制造一个逻辑与的效果。\n在不写requirements的情况下，需要满足所有的critertia，整个advancement才算达成。通过建立两个有不同达成条件的criteria（不管这个达成条件是通过advancement自带的检测获得还是通过命令获取），我们可以轻易地制造一个满足两个条件才能够触发的advancement。\n上例中通过advancement对advancement达成时间的控制就可以视为一个简单的与，此时switch这个criteria所代表的条件，其实就是时间到了。 \n或达成方式就比较多了，比如通过requirements来使得多个不同criteria以逻辑或的方式控制advancement的达成，或是通过多个不同的条件来advancement grant同一个criteria来完成advancement，也能达到逻辑或的效果。\n前者在多个条件均为advancement提供的检测时相当有用。\n非一般的情况是满足一定条件grant一个criteria，在需要逻辑非的情况下，常grant而条件revoke就成为了选择。同样的，作为一个“不一定会触发”的reward，重置是需要写在主循环里的。\n\nadvancement子循环\n作为一个模块，advancement可以通过在reward的commands里revoke然后grant自己来完成tick内的命令循环。\n我们依旧在命名空间cmdtest下，创建名为loop的advancement：\n{\n    \"rewards\": {\n        \"commands\": [\n            \"advancement revoke @s only cmdtest:loop\",\n            \"scoreboard players remove @s list 1\",\n            \"tellraw @s {\"score\":{\"name\":\"*\",\"objective\":\"list\"}}\",\n            \"execute @s[score_list_min=1] ~ ~ ~ advancement grant @s only cmdtest:loop\"\n        ]\n    },\n  ...\n}复制代码通过命令方块链激活：\nadvancement grant @p only cmdtest:loop\nsay over复制代码在玩家初始list分数为3的时候，可以看到输出为\n2\n1\n0\n[@] over复制代码这就形成了一个有终止条件的命令循环。\n请注意……如果你没有设置好循环结束的条件，将会导致嵌套死循环。据pca讲，这样的嵌套会在重复到某一个常数附近时停止loop……是个很谜的东西。总之，不要轻易作死，恩，真的。\n\n纯advancement系统\n通过少量自激活的trigger（例如location或enter_block），我们可以完全通过advancement来制造一个时钟，并以这个时钟作为命令主循环来完成一个命令系统。\n但是怎么说呢……我觉得目前这两个判据都不太适合拿来做循环的核心。location是每秒检查一次的一个trigger，而enter_block会导致reward在1gt内被触发多次……\n比较折衷的一个方案是通过一个循环命令方块来grant任意一个玩家这个advancement来激活余下的命令。这样的话制造出的advancement reward loop依旧是一个发生在命令执行时段的20hz时钟，可以比较好的用旧有的逻辑去操作命令。\n嗯请不要grant @a……否则会怎么崩我可猜不到（摊手）\n\n结语\n1.12的两个更新（ccb可重复激活和advancement 的commands reward）提供了两种制造tick内loop的方式，这使得以前很多做不到的事情变成了可能；而advancement本身，也提供了对玩家行为的更多检测能力。\n都是好东西，愉快的玩吧，期待1.12新的黑科技和新作品的诞生（笑）\n从1.9开始，命令方块开始脱离于红石成为了独立的命令组件，新版本下我们是不是可以期待一下命令脱离命令方块？（笑）\n而从1.9的loot table，1.10的structure，1.12的advancement来看，这些组件直接依附于存档，它们带来的新功能是否足以对1.8开始崛起的ooc势力造成冲击呢？[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "Halcyon_Suoh",
+            "timestamp": 1493303640,
+            "txt_content": "没有cb的cb地图，贼稳"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1493307480,
+            "txt_content": "这篇教程比论坛快照发布还早1分钟"
+        },
+        {
+            "author": "Java_command",
+            "timestamp": 1493335320,
+            "txt_content": "TNT：如果生物可以获得Advencment。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1493352900,
+            "txt_content": "冲击是肯定的，然而学习难度上却没有变化，而执行效率反而会提高吧！\n"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1493370600,
+            "txt_content": "莫名心疼还被堵在1.9之前的某些伸手党。。"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1493384280,
+            "txt_content": "姚氏帅哥 发表于 2017-4-28 21:04\n你指的是。。。不适应attackspeed的人？\n不是，有些伸手党说1.9cb变了样太复杂不会玩，然后死活不升版本"
+        },
+        {
+            "author": "Yaossg",
+            "timestamp": 1493384520,
+            "txt_content": "前排(？)膜拜大佬\n照这样干脆直接弄个编程语言好了。。\n在mc中编程。。。"
+        },
+        {
+            "author": "Yaossg",
+            "timestamp": 1493384640,
+            "txt_content": "雷鸣·翾鹗 发表于 2017-4-28 17:10\n莫名心疼还被堵在1.9之前的某些伸手党。。\n你指的是。。。不适应attackspeed的人？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1493385840,
+            "txt_content": "雷鸣·翾鹗 发表于 2017-4-28 20:58\n不是，有些伸手党说1.9cb变了样太复杂不会玩，然后死活不升版本\n没关系 反正升不升级都不会玩的"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1493443320,
+            "txt_content": "姚氏帅哥 发表于 2017-4-28 21:02\n前排(？)膜拜大佬\n照这样干脆直接弄个编程语言好了。。\n在mc中编程。。。 ...\n= =\nCB从某种意义来讲已经是一种脚本语言了,以前就有,不是现在"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1493443980,
+            "txt_content": "姚氏帅哥 发表于 2017-4-28 21:02\n前排(？)膜拜大佬\n照这样干脆直接弄个编程语言好了。。\n在mc中编程。。。 ...\n然而诸多限制才是乐趣所在"
+        },
+        {
+            "author": "HimMax",
+            "timestamp": 1494053460,
+            "txt_content": "看上去就很复杂"
+        }
+    ]
+}

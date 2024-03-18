@@ -1,0 +1,19 @@
+{
+    "title": "tp @s ~ ~ ~和tp ~ ~ ~有什么区别",
+    "author": "t1546542",
+    "replyCount": 2,
+    "timestamp": 1578566280,
+    "txt_content": " 本帖最后由 t1546542 于 2020-1-9 22:09 编辑 \n\n版本：1.14.4\n如题\n为什么\nexecute as @e[type=sheep] at @s rotated as @p run tp ~ ~ ~复制代码可以改变羊的朝向\n而\nexecute as @e[type=sheep] at @s rotated as @p run tp @s ~ ~ ~复制代码却不行呢\n@Chelove_C60 @SPGoding ",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1578566280,
+            "txt_content": " 本帖最后由 SPGoding 于 2020-1-10 08:45 编辑 \n\n这题这么简单，怎么没人答呢？\n\n太长不看\ntp ~ ~ ~复制代码完全等价于tp @s ~ ~ ~ ~ ~复制代码不等价于tp @s ~ ~ ~复制代码前两者会把命令执行者的朝向修改为当前上下文中的朝向，最后一者不会。\n\n\n\n相关漏洞：MC-169660\n\n\n\n引入\n首先引入一个概念，上下文（context）。所有的命令在执行的时候都有一个上下文，这个上下文中包含了命令的执行者、执行坐标、朝向等。execute 命令中 as、at、positioned、rotated 等子命令的原理就是更改上下文中的对应的内容为指定的值。\n\n当我们的 tp 命令执行时，由前面的一串 execute 命令修改过后的上下文中的关键内容是这样的（下文将用带颜色的字表示是上下文中的内容）：\nexecute as @e[type=sheep] at @s rotated as @p run ...复制代码执行者：羊\n坐　标：羊的坐标\n朝　向：@p 的朝向\n\n下面分别叙述两种 tp 写法的大体技术细节，简化了一堆无关内容。\n\ntp @s ~ ~ ~\n该种写法在执行时，有关朝向的部分是这样处理的：\nif (rotation == null) {\n   teleport(... entity.yaw, entity.pitch ...);\n} else {\n   teleport(... rotation.y, rotation.x ...);\n}复制代码如果没有在命令里写朝向，就把实体的朝向设置为该实体原先的朝向（即不变）；\n如果写了，则把实体的朝向设置为你指定的。\n\n最终 tp @s ~ ~ ~ 的执行效果为：\n将执行者的坐标设置为坐标，执行者的朝向设置为执行者的朝向。\n替换一下：\n将羊的坐标设置为羊的坐标，羊的朝向设置为羊的朝向。即什么都不变，转向失败。\n\ntp ~ ~ ~\n通常认为，tp ~ ~ ~ 和 tp @s ~ ~ ~ 完全等价。这是在胡扯。让我们康康 tp ~ ~ ~ 这一命令是怎么注册的：\n.then(...(...(...(..., DefaultPosArgument.zero(), null))))复制代码简单明了，我们一眼就能发现，它设置了一个 DefaultPosArgument.zero() 的参数作为朝向！这一参数是一个偏移为 0 的相对坐标，相当于我们在命令里写的 ~ ~。这使得\ntp ~ ~ ~复制代码完全等价于\ntp @s ~ ~ ~ ~ ~复制代码\n我们上面说过，游戏会根据 rotation 是否为 null 来有不同的做法。此处，由于 rotation 被设置为了 ~ ~ 而不是 null，因此走的是下面的那一条分支：\nteleport(... rotation.y, rotation.x ...);复制代码\n我们还需要有一个常识：相对坐标永远是根据当前上下文中的对应内容来解析的。\n\n最终 tp ~ ~ ~，也就是 tp @s ~ ~ ~ ~ ~ 的执行效果为：\n将执行者的坐标设置为坐标，执行者的朝向设置为按照朝向解析的偏移为零的相对坐标（也就是朝向）。\n替换一下：\n将羊的坐标设置为羊的坐标，羊的朝向设置为按照@p 的朝向解析的偏移为零的相对坐标（也就是@p 的朝向）。转向成功。\n\n以上。\n\n"
+        },
+        {
+            "author": "阴阳师元素祭祀",
+            "timestamp": 1578566400,
+            "txt_content": "标题: https://minecraft-zh.gamepedia.com/%E5%91%BD%E4%BB%A4/tp 本帖最后由 阴阳师元素祭祀 于 2020-1-9 18:44 编辑 \n\ntp ~ ~ ~ [~ ~]\n[ ]为默认参数(也就是rotated as时的样子\ntp @s ~ ~ ~ []\n表示不改变视角(不确定)\n也许你可以试试\ntp @s ~ ~ ~ ~ ~\n//???\n以上是乱猜\n建议看mc代码\n\ntp .. x y z 视角 视角\n"
+        }
+    ]
+}

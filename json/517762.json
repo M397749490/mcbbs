@@ -1,0 +1,34 @@
+{
+    "title": "【TCP|Ms】1.8小游戏 吸血鬼大战-运行原理",
+    "author": "MsYqgzt",
+    "replyCount": 5,
+    "timestamp": 1446259860,
+    "txt_content": " 本帖最后由 MsYqgzt 于 2016-4-16 18:29 编辑 \n\n     点击对应标题跳转页码\n\n\n      相关链接：【TCP|chengzi_SC】1.8多人小游戏 Vampre Z-吸血鬼大战\n大家好，今天来讲解一下吸血鬼大战的运行原理\n\n\n\n\n\n1、计分板系统&游戏机制\n  增加的计分板有：死亡数、杀死生物数、幸存者和吸血鬼两个队伍、以及一个VampireZ 主计分板、还有附加一些其他的变量（人数判定、回合切换等）、商店系统必要的一些变量：shop、money和blood\n/scoreboard objectives add Vampires dummy ┣     Vampire Z    ┫复制代码/scoreboard objectives add kill totalKillCount kill复制代码/scoreboard objectives add death deathCount death复制代码\n队伍：\n/scoreboard teams add survivor复制代码/scoreboard teams add vampires复制代码\n商店计分板：\n/scoreboard objectives add shop dummy shop复制代码/scoreboard objectives add money dummy money复制代码/scoreboard objectives add blood dummy blood复制代码\n\n在主计分板加入一系列假名，实现这样的效果\n\n\n\n根据游戏规则，幸存者每杀死一个吸血鬼或僵尸，都会有金钱加成，吸血鬼同理，幸存者死亡变为吸血鬼\n\n\n\n系统为一个分支脉冲\n\n\n金钱奖励的系统为右侧的黄色和绿色羊毛处\n黄色羊毛（幸存者）\n/testfor @a[team=survivor,score_kill_min=1]复制代码不断探测是否有杀敌数为1的幸存者\n\n\n如果有，按顺序执行以下：\n/scoreboard players add @a[team=people,score_kill_min=1] money 8复制代码将钱数加8\n/scoreboard players remove @a[team=people,score_kill_min=1] kill 1复制代码将杀敌数减1\n吸血鬼部分同理\n只是多加一个/effect @a[team=vampires,score_kill_min=1] minecraft:regeneration 2 1 true复制代码\n杀死一个玩家获得短时间生命回复\n\n金钱数如何体现呢，用的是穷举法\n\n\n大约有600+穷举，用三秒一循环脉冲触发\n幸存者的金钱显示\n/replaceitem entity @a[score_blood=53,score_blood_min=53] slot.hotbar.7 minecraft:redstone 1 0 {ench:[],display:{Name:\"53 Blood\"}}复制代码\n\n吸血鬼的金钱显示\n/replaceitem entity @a[score_blood=32,score_blood_min=32] slot.hotbar.7 minecraft:redstone 1 0 {ench:[],display:{Name:\"32 Blood\"}}复制代码\n简单粗暴，以此类推。\n\n\n下一页为商店系统\n2、商店系统\n商店的物品复杂多样，如何做到没有偏差地交易呢\n其实，书本的点击事件就可以极大地减小bug\n\n\n此为商店系统，用高频控制\n\n\n 可以这么理解，每一个商品我们都给他一个独特的标号，就像教室排座号一样，将序号存储在关联玩家的shop计分板中\n书本中的点击事件，只要将选择器写成 @p 将全部判定为持有此书本者\n举书本中的例子，假设我拥有130金钱，要买一把【圣光之剑】，金钱足够，因为是第6个商品，所以标号为6.\n\n，点击购买后，书本自触发一条指令\n/scoreboard players set @p shop 6复制代码\n将购买的玩家shop变量设置为6\n\n这时系统高频输出，类似送快递的流程：/testfor @a[score_shop=6,score_shop_min=6,team=survivor]复制代码探测到shop变量为6的幸存者\n\n\n/give @a[score_money_min=130,score_shop=6,score_shop_min=6,team=survivor] minecraft:iron_sword 1 0 {display:{Name:\"圣光之剑\"},ench:[{id:17,lvl:2}]}复制代码将物品送货上门\n\n/scoreboard players remove @a[score_shop=6,score_shop_min=6,score_money_min=130,team=survivor] money 130复制代码货到付款\n\n/scoreboard players set @a[score_shop=6,score_shop_min=6,team=survivor] shop 0复制代码清除数据\n\n\n一共有30+物品，也是穷举的一部分。\n\n\n下一页为QTE系统讲解\n\n3、QTE系统\n 顺带送上QTE效果图（教程关卡）\n\n\n系统分为教程的和游戏中的，原理相同，以教程关为例子\n\n\n\n\n创建一个计分板\n/scoreboard objectives add test dummy复制代码\n\nQTE触发前，设置变量为1/scoreboard players set @a test 1复制代码\n然后进入QTE系统（重点）\n/title @a times 0 10 0复制代码将标题渐变设置为0\n\n\n按顺序触发：\n/title @a[score_test=1,score_test_min=1] title {text:\"\",extra:[{text:\"==========\",color:blue,bold:true},{text:\"▌\",color:red,bold:true}]}复制代码/title @a[score_test=1] subtitle {text:\"\",extra:[{text:\"QTE :持有砂石 ！\",color:gold,bold:true}]}复制代码\n一下每个指令接中继器来控制延迟\n/title @a[score_test=1,score_test_min=1] title {text:\"\",extra:[{text:\"=========\",color:blue,bold:true},{text:\"▌\",color:red,bold:true},{text:\"=\",color:blue,bold:true}]}复制代码/title @a[score_test=1,score_test_min=1] title {text:\"\",extra:[{text:\"========\",color:blue,bold:true},{text:\"▌\",color:red,bold:true},{text:\"==\",color:blue,bold:true}]}复制代码/title @a[score_test=1,score_test_min=1] title {text:\"\",extra:[{text:\"=======\",color:blue,bold:true},{text:\"▌\",color:red,bold:true},{text:\"===\",color:blue,bold:true}]}复制代码。\n。\n。\n直到/title @a[score_test=1,score_test_min=1] title {text:\"\",extra:[{text:\"\",color:blue,bold:true},{text:\"▌\",color:red,bold:true},{text:\"==========\",color:blue,bold:true}]}复制代码\n但是如何判定呢，重点在每个标题指令触发的同时，附上/setblock指令放置红石块，再让放置的红石块瞬间变为石头，坐出类似高频的触发效果\n\n\n\n 红石块边上放上探测指令\n/scoreboard players set @a[score_test_min=1] test 0 {SelectedItem:{id:\"minecraft:sandstone\"}}复制代码将QTE成功的玩家变量归0\n随之可以惩罚变量为1 的玩家。\n\n\n====================END======================\n\n\n\n\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "2362577123",
+            "timestamp": 1446290040,
+            "txt_content": " 本帖最后由 2362577123 于 2015-10-31 19:25 编辑 \n\n顶组长，其实运行原理也不难，相比之下我更好奇QTE所使用的随机器是什么，spreadplayers生物随机器吗?\n还是说没有随机器，直接固定每一个技能触发的QTE？"
+        },
+        {
+            "author": "MsYqgzt",
+            "timestamp": 1446291000,
+            "txt_content": "2362577123 发表于 2015-10-31 19:14\n顶组长，其实运行原理也不难，相比之下我更好奇QTE所使用的随机器是什么，spreadplayers生物随机器吗?\n还是 ...\n技能指向随机玩家，只要在技能系统基础上改造一下就好了:)"
+        },
+        {
+            "author": "QQ382009",
+            "timestamp": 1446305220,
+            "txt_content": "商品探测不用探测足够金钱么 岂不是可以刷"
+        },
+        {
+            "author": "MsYqgzt",
+            "timestamp": 1446305340,
+            "txt_content": "QQ382009 发表于 2015-10-31 23:27\n商品探测不用探测足够金钱么 岂不是可以刷\n仔细看\n/give @a[score_money_min=130,score_shop=6,score_shop_min=6,team=survivor] minecraft:iron_sword 1 0 {display:{Name:\"圣光之剑\"},ench:[{id:17,lvl:2}]}\n低于钱数是不会给的"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1446331500,
+            "txt_content": "钱数显示600多穷举有必要吗……用一个for循环也可以啊……"
+        }
+    ]
+}

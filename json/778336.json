@@ -1,0 +1,69 @@
+{
+    "title": "[18w05a]新命令/bossbar 自定义boss血条实现指向效果 [已稳定]",
+    "author": "switefaster",
+    "replyCount": 12,
+    "timestamp": 1517468640,
+    "txt_content": " 本帖最后由 switefaster 于 2018-2-2 19:57 编辑 \n\n大家好我是switefaster\n18w05a发布了\n加了一个很有意思的命令：/bossbar\n作用是自定义boss血条。至于具体教程……新闻版里已经有了，请自行翻阅。\n那么我就抢新体验一把，拿bossbar做个小东西吧：指向标听不懂嘛？先上图：从图中我们可以看到当玩家指向盔甲架的时候，TARGET这个bossbar满了。当玩家朝向和玩家指向盔甲架的向量的夹角θ超过90°时，TARGET变红，并且夹角θ越大，TARGET的值越大。过程不受抬头/低头影响。（gif中由于鼠标抖动而造成有一点不稳定）看着挺高端，其实原理超级简单。就是最基础的Vector Math：点积（dot product）我们先上命令：init.mcfunction [LOAD]# Initialization\n# Create bossbar\nbossbar create bossbar:target \"TARGET\"\n# Player's location (X,Z)\nscoreboard objectives add pos_p_x dummy\nscoreboard objectives add pos_p_z dummy\n# Target's location (X,Z)\nscoreboard objectives add pos_t_x dummy\nscoreboard objectives add pos_t_z dummy\n# Player-facing vector (X,Z)\nscoreboard objectives add vec_yw_x dummy\nscoreboard objectives add vec_yw_z dummy\n# Target-to-player vector (X,Z)\nscoreboard objectives add vec_nvt_x dummy\nscoreboard objectives add vec_nvt_z dummy\n# Current dot product\nscoreboard objectives add int_dp_vt dummy\n# Max dot product\nscoreboard objectives add int_dp_mx dummy\n# Caclation output flag (to current or  to max)\nscoreboard objectives add con_mx_bool dummy\n# Temp score when calculating abs\nscoreboard objectives add tmp_abs_swp dummy复制代码bossbar_navigation.mcfunction [TICK]# Calculation\n# Set storage flag(to max or current)\n# Max\nscoreboard players set @a con_mx_bool 1 \n# Calculate\nexecute as @a at @s facing entity @e[tag=target,sort=nearest,limit=1] eyes run function bossbar:bossbar_dotproduct_calculation\n# Store max\nexecute as @a store result bossbar bossbar:target max run scoreboard players get @s int_dp_mx\n# Current\nscoreboard players set @a con_mx_bool 0\n# Calculate\nexecute as @a at @s run function bossbar:bossbar_dotproduct_calculation\n# Set display\n# Current equals or is greater than 0\nexecute as @a[scores={int_dp_vt=0..}] run function bossbar:bossbar_positive_display\n# Current is less than 0\nexecute as @a[scores={int_dp_vt=..-1}] run function bossbar:bossbar_minus_display\n# Glow the target so that player can identify them easily\nexecute as @a at @s run effect give @e[tag=target,sort=nearest,limit=1] minecraft:glowing 1复制代码bossbar_dotproduct_calculation.mcfunction# Reset Scoreboards\n# Current case\nexecute if entity @s[scores={con_mx_bool=0}] run scoreboard players set @s int_dp_vt 0\n# Max case\nexecute if entity @s[scores={con_mx_bool=1}] run scoreboard players set @s int_dp_mx 0\n# Get player's location (X,Z)\nexecute store result score @s pos_p_x run data get entity @s Pos[0] 100\nexecute store result score @s pos_p_z run data get entity @s Pos[2] 100\n# Get player's facing vector(have not been normalized)\n# Summon length-marker\nexecute if entity @s[scores={con_mx_bool=0}] rotated ~ 0 run summon minecraft:area_effect_cloud ^ ^ ^1 {CustomName:\"[\"p_dir\"]\"}\n# Get length-marker's location\nexecute store result score @s pos_t_x run data get entity @e[name=p_dir,sort=nearest,limit=1] Pos[0] 100\nexecute store result score @s pos_t_z run data get entity @e[name=p_dir,sort=nearest,limit=1] Pos[2] 100\n# Calculate the vector\nscoreboard players operation @s vec_yw_x = @s pos_t_x\nscoreboard players operation @s vec_yw_z = @s pos_t_z\nexecute run scoreboard players operation @s vec_yw_x -= @s pos_p_x\nexecute run scoreboard players operation @s vec_yw_z -= @s pos_p_z\n# Get target-to-player vector\n# Get target's location\n\n# Summon plainizer(X,Z)\nexecute run summon minecraft:area_effect_cloud ~ ~ ~ {CustomName:\"[\"plainizer\"]\"}\n# Correct the plainizer's location(Tx,Py,Tz)\nexecute store result entity @e[name=plainizer,sort=nearest,limit=1] Pos[0] double 1 run data get entity @e[tag=target,sort=nearest,limit=1] Pos[0]\nexecute store result entity @e[name=plainizer,sort=nearest,limit=1] Pos[1] double 1 run data get entity @s Pos[1]\nexecute store result entity @e[name=plainizer,sort=nearest,limit=1] Pos[2] double 1 run data get entity @e[tag=target,sort=nearest,limit=1] Pos[2]\n\n# Summon length-marker\nexecute facing entity @e[name=plainizer,sort=nearest,limit=1] eyes run summon minecraft:area_effect_cloud ^ ^ ^1 {CustomName:\"[\"tp_dir\"]\"}\n# Get length-marker's location\nexecute store result score @s pos_t_x run data get entity @e[name=tp_dir,sort=nearest,limit=1] Pos[0] 100\nexecute store result score @s pos_t_z run data get entity @e[name=tp_dir,sort=nearest,limit=1] Pos[2] 100\n# Calculate the vector\nscoreboard players operation @s vec_nvt_x = @s pos_t_x\nscoreboard players operation @s vec_nvt_z = @s pos_t_z\nexecute run scoreboard players operation @s vec_nvt_x -= @s pos_p_x\nexecute run scoreboard players operation @s vec_nvt_z -= @s pos_p_z\n# Max case\nexecute if entity @s[scores={con_mx_bool=1}] run scoreboard players operation @s vec_yw_x = @s vec_nvt_x\nexecute if entity @s[scores={con_mx_bool=1}] run scoreboard players operation @s vec_yw_z = @s vec_nvt_z\n# Dot Product\n# Multiply the x and z of direction-vector to the x and z of target-to-player vector\nexecute run scoreboard players operation @s vec_nvt_x *= @s vec_yw_x\nexecute run scoreboard players operation @s vec_nvt_z *= @s vec_yw_z\n# Add the result to output-scoreboards\n# Current case\nexecute if entity @s[scores={con_mx_bool=0}] run scoreboard players operation @s int_dp_vt += @s vec_nvt_x\nexecute if entity @s[scores={con_mx_bool=0}] run scoreboard players operation @s int_dp_vt += @s vec_nvt_z\n# Max case\nexecute if entity @s[scores={con_mx_bool=1}] run scoreboard players operation @s int_dp_mx += @s vec_nvt_x\nexecute if entity @s[scores={con_mx_bool=1}] run scoreboard players operation @s int_dp_mx += @s vec_nvt_z复制代码※ 暂未想到办法简化第二个plainizer...感谢玄素dalao提供rotated思路bossbar_positive_display.mcfunction# Set color\nbossbar set bossbar:target color white\n# Write result to bossbar\nexecute store result bossbar bossbar:target value run scoreboard players get @s int_dp_vt复制代码bossbar_minus_display.mcfunction# Set color\nbossbar set bossbar:target color red\n# Get |int_dp_vt| by |int_dp_vt| = -int_dp_vt(int_dp_vt < 0) = int_dp_vt - 2 * int_dp_vt\nscoreboard players operation @s tmp_abs_swp = @s int_dp_vt\nscoreboard players operation @s int_dp_vt -= @s tmp_abs_swp\nscoreboard players operation @s int_dp_vt -= @s tmp_abs_swp\n# Write result to bossbar\nexecute store result bossbar bossbar:target value run scoreboard players get @s int_dp_vt复制代码※ 以上所有文件都存在于bossbar命名空间内。请根据需要自行修改※ [LOAD]为load.json内的function [TICK]为tick.json内的function※ 注意，尽管我使用了@a，但是这个命令组只支持一个玩家。因为bossbar只有一个。看着好长一大串对不对？别怕，很多工作都是重复的。但是我们先抛开mc，来考虑一下数学计算。定义几个量:u 玩家朝向的二维向量（因为朝向只存在于xz平民啊内，只考虑x和z） v 玩家指向目标的二维向量（同样存在于xz平面内）我们要干什么？是得到 u·v，为了方便操作防止超精度我们得normalize一下，所以得到normalize(u) · normalize(v)这就是我们要求的东西了现在我们知道我们要干啥了，那么怎么怎么在MC里实现呢？大家先看一下创建的记分板，我的记分板是有命名规律的：  pos_开头表示坐标 vec_开头表示向量 这两种量的第三项都是[x,y,z]以表示分量。因为在xz平面内操作所以只用到了x和z  剩下的int_ con_ tmp_都是一些常量啊整数啊临时值啊之类的东西我们把目光移向两个pos：  pos_p：存玩家的x,z坐标  pos_t：存指向目标的x,z坐标再看看两个vec：  vec_yw：存玩家的yaw向量，也就是左右看时头朝向的单位向量  vec_nvt：存玩家指向目标方向的单位向量坐标的获取已经是1.13的基本操作了我就不细讲了。重点是这两个向量的求法了。前者的获取很简单，以rotated ~ 0执行以确保平行于xz平面，然后在^ ^ ^1位置生成一个aec，获取坐标然后相减。后者的获取也不难主要过程就是，因为玩家和目标可能不在一个高度上，导致xz平面上的二维向量长度不是1。所以我们召唤一个aec，把其x,z轴设置为目标的x,z轴，把其y轴设置为玩家的y轴。这样我们就相当于拥有了和玩家在同一高度的这个实体了。然后我们获取这个aec的坐标，然后让玩家面向它在视角前方生成另一个aec。我们获取这个aec的坐标，然后获取这个aec指向玩家的向量。怎么获取呢？只要(AEC-玩家坐标)就行了。※ 我们把坐标当作向量来操作。相减就能得到两个向量的头指向另一个向量的头的向量。那么我们获取到了我们需要进行点积操作的两个向量。我们要进行点积了。这时候我们需要看一下点积的定义（最直接的）：u · v = u[sub]x[/sub]v[sub]x[/sub] + u[sub]y[/sub]v[sub]y[/sub]所以我们需要做的就是分别把两个向量的分量相乘然后相加了。\n好的！我们现在拥有了这两个向量的点积。但是只要稍加尝试就会发现点积的最大值会随玩家到目标的距离增加而增加……但是我们的bossbar需要最大值啊？所以我们只要计算最大值就行了。根据点积的定义，只要我们的 yaw向量=(-1 * 玩家-目标向量)，点积的值就是最大的。所以我们只要获取一个玩家面向目标时的点积就行了。具体做法就看我发上去的命令吧。\n核心部分已经解决了……我们现在来看看最不重要的部分——显示\n分为两种情况：1.≥0 2.＜0\n前者只需改个颜色直接写入即可。后者则得取一下绝对值\n上过初中的同学都知道|a|=-a(a≤0)，所以a-2a=-a=|a|(a≤0)，这就是取绝对值操作了……\nEXTRA这是个没什么用的额外部分……主要说一下已知bug之类的BUG:1.偶尔会闪动（已解决）2.垂直向上/下看时鬼畜（已解决）3.待发现……更新日志：2018/2/1 在玄素dalao的指点下使用了rotated以解决yaw向量normalize问题2018/2/2 通过更正大量算式以实现了预期目标，解决了所有已知bug最后一提，要被设置为目标的实体得加个target标签才行\n\n\n\n\n\n\n\nbossbar.zip\n\n\n2018-2-2 19:55 上传\n点击文件名下载附件\n\n\n\n\n4.17 KB, 下载次数: 17\n\n\n放入datapacks即可食用\n\n\n",
+    "replies": [
+        {
+            "author": "langyo_v3",
+            "timestamp": 1517469840,
+            "txt_content": "对于由于偏航或仰角到一个极值导致条子疯狂闪动的bug，你可以试试设个buffer，缓冲一定的值来修复这个bug"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1517472780,
+            "txt_content": "前者的获取很简单，以玩家的位置在视角前方summon一个aec，然后获取它的x和z。。。等等长度不是1啊？也许你可以砸一个不那么玄学的execute rotated ~ 0上去……"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1517486220,
+            "txt_content": "玄素 发表于 2018-2-1 16:13\n也许你可以砸一个不那么玄学的execute rotated ~ 0上去……\n被facing**了2333感谢指点，已修改教程\n但是貌似rotated没法解决目标到玩家的向量的计算……因为facing会被rotated覆盖啊太尴尬了"
+        },
+        {
+            "author": "繁星如梦",
+            "timestamp": 1517500740,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "ali1340653579",
+            "timestamp": 1517561760,
+            "txt_content": "大佬强！！"
+        },
+        {
+            "author": "黑兔ht",
+            "timestamp": 1517619000,
+            "txt_content": "这个很6的"
+        },
+        {
+            "author": "虫小哥",
+            "timestamp": 1534909920,
+            "txt_content": "目前血量 只有set功能，没有add 就有点可惜了不然可以配合实现更好的功能"
+        },
+        {
+            "author": "道路施工ing",
+            "timestamp": 1534998540,
+            "txt_content": "666，厉害了"
+        },
+        {
+            "author": "732137",
+            "timestamp": 1535004060,
+            "txt_content": "11111111111111111"
+        },
+        {
+            "author": "sevevss",
+            "timestamp": 1540226040,
+            "txt_content": "这个很6的6666"
+        },
+        {
+            "author": "别叫我贾蛋",
+            "timestamp": 1540378560,
+            "txt_content": "学到了学到了"
+        },
+        {
+            "author": "hehehe...li",
+            "timestamp": 1541829840,
+            "txt_content": "又学得了一样好玩的东西"
+        }
+    ]
+}

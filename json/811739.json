@@ -1,0 +1,74 @@
+{
+    "title": "1.13（虚伪的）用雪球实现不用蓄力的弓",
+    "author": "qaz1-qaz1-",
+    "replyCount": 13,
+    "timestamp": 1533375960,
+    "txt_content": " 本帖最后由 qaz1-qaz1- 于 2018-8-4 18:44 编辑 \n\n引言\n在1.13中，execute store ... 取代了 stat，我一直在想，怎么样可以实现把nbt标签与命令的返回值联系起来呢？正巧，在维基上找到了这样的一段话：\n...将返回值储存在目标坐标方块在标签路径的NBT标签上...\n卧槽，如此神奇？那么就来试一试。\n需要\n1个命令方块\n数据包里的函数\n指令\n循环型命令方块：\nfunction shoot:givedata复制代码\n函数 givedata.mcfunction\n\n\n#添加标签\ntag @a[nbt={Inventory:[{Slot:-106b,id:\"minecraft:bow\"}]}] add bow_player\ngive @a[tag=bow_player,nbt={SelectedItem:{id:\"minecraft:snowball\",Count:1b}}] snowball 1\nexecute at @a[tag=bow_player] run tag @e[type=minecraft:snowball,limit=1,distance=..2,tag=] add bow_snowball\n#生成箭\nexecute at @e[tag=bow_snowball] run summon minecraft:arrow ~ ~1 ~ {Tags:[\"bow_arrow\"],damage:4b,pickup:2b}\n#复制扔出雪球的 Motion\nexecute store result entity @e[tag=bow_arrow,limit=1] Motion[0] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[0] 100\nexecute store result entity @e[tag=bow_arrow,limit=1] Motion[1] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[1] 100\nexecute store result entity @e[tag=bow_arrow,limit=1] Motion[2] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[2] 100\n#添加新tag以防被再次选择\ntag @e[tag=bow_snowball] add bow_snowball_old\ntag @e[tag=bow_arrow] add bow_arrow_old\ntag @e[tag=bow_snowball] remove bow_snowball\ntag @e[tag=bow_arrow] remove bow_arrow\ntag @a[tag=bow_player] remove bow_player\n#清除雪球\nkill @e[type=minecraft:snowball,tag=bow_arrow_old]\n复制代码\n原理\n原理就是将雪球的Motion复制到弓箭上，使用\n<div>execute store result entity @e[tag=bow_arrow,limit=1] Motion[0] double 0.01 run data get entity @e[tag=bow_snowball,limit=1] Motion[0] 100</div><div>省略数组第一个元素以及第二个元素的复制命令，重复了\n</div>复制代码这里要注意倍率中有0.01与100，因为Motion中的元素都是双精确浮点数（就是小数啦，现在还没搞清楚数据类型d与b）但一输出就变成整数了，这时这样可以取到2位的精度。\n其他就没什么好说的了\n使用说明以及因为我没有做好的原因\n将弓放到副手，左手拿一个普通的雪球（有nbt的话就会堆叠不到一起去）\n右键丢出雪球，雪球会被立即替换成箭，会有显示bug（好像发现了什么）\n箭会顺着雪球的轨迹走，直到落地或砸在生物上\n请勿往自己脚下砸，会有伤害的\n其他想说的\n发现了一个bug，但是估计报告了也不会修复\n如果在雪球的位置生成一个弓箭，弓箭还会是雪球的材质\n在写函数的时候，开启日志，这样可以看是哪里错了（正版在启动器的设置中）\n未在多人模式下进行测试\nMojang真不用心，雪球和箭的飞行算法是一样的，阻力呢，牛顿的眼泪233\n\n参考：\nhttps://minecraft-zh.gamepedia.com/1.13#.E5.91.BD.E4.BB.A4.E6.A0.BC.E5.BC.8F_2\n中文minecraft wiki 1.13-改动-命令格式\n\n\n\nbow.zip\n(4.3 KB, 下载次数: 15)\n\n\n\n2018-8-4 17:53 上传\n点击文件名下载附件\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "有毒○贰比",
+            "timestamp": 1533377700,
+            "txt_content": "感觉高大上（数据包、函数什么的，搞得我一脸懵逼）"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1533378540,
+            "txt_content": "所以终于能用指令做凋零弓了"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1533378660,
+            "txt_content": "xmdhs 发表于 2018-8-4 18:29\n所以终于能用指令做凋零弓了\n什么叫凋零弓？？"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1533378840,
+            "txt_content": "qaz1-qaz1- 发表于 2018-8-4 18:31\n什么叫凋零弓？？\n曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。\n\n现在看用1.13的指令能轻易实现"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1533379020,
+            "txt_content": "xmdhs 发表于 2018-8-4 18:34\n曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。\n\n现在看用1.13的指令 ...\n原来如此"
+        },
+        {
+            "author": "2456309832",
+            "timestamp": 1533379680,
+            "txt_content": "xmdhs 发表于 2018-8-4 18:34\n曾经有个小游戏服，它有一个机制是游戏时间只剩30分钟时，射出的箭矢会变成凋零头。\n\n现在看用1.13的指令 ...\n那是什么小游戏，能说一下吗"
+        },
+        {
+            "author": "动画片平",
+            "timestamp": 1533380040,
+            "txt_content": "2456309832 发表于 2018-8-4 18:48\n那是什么小游戏，能说一下吗\n起床战争"
+        },
+        {
+            "author": "持斧只为皮",
+            "timestamp": 1533380220,
+            "txt_content": "整合包分享一下"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1533380280,
+            "txt_content": "2456309832 发表于 2018-8-4 18:48\n那是什么小游戏，能说一下吗\n"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1533380520,
+            "txt_content": "持斧只为皮 发表于 2018-8-4 18:57\n整合包分享一下\n数据包贴在下面了，安装论坛里有教程"
+        },
+        {
+            "author": "xiaowei233v",
+            "timestamp": 1533459480,
+            "txt_content": "1.8看着函数很无语啊awa"
+        },
+        {
+            "author": "OG_Ryu",
+            "timestamp": 1533460860,
+            "txt_content": "是准备做枪战了吗"
+        },
+        {
+            "author": "烈M煞",
+            "timestamp": 1533898860,
+            "txt_content": "感觉大佬好6（函数什么的，当然看不懂啦233333）"
+        }
+    ]
+}

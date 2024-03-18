@@ -1,0 +1,104 @@
+{
+    "title": "Mod开发小教程-涵盖一般教程没有提及的小细节",
+    "author": "kirbykirby",
+    "replyCount": 19,
+    "timestamp": 1344931980,
+    "txt_content": " 本帖最后由 kirbykirby 于 2012-12-15 18:05 编辑 \n\nszszss的mod开发教程索引帖地址\nhttp://www.mcbbs.net/thread-18949-1-2.html\n请先看完szszss大大的基础教程\n\n\n\n\n以下为教程\n\n\n矿物生成进阶教程\n\n其实有个更好的方法,以一个Chunk的基岩层到地面层为范围进行随机,如果随机到的位置是石块,就将其替换为你要的矿物,这样可以保证绝对没问题而且非常Easy!\n以上这句话出自szszss的基础教程（5）。其实World类有一个getBlockID方法，他可以获得方块的ID。以下为新的生成矿物的方法\npublic void generateSurface(World world, Random random, int chunkX, int chunkZ)\n{\nfor(int i = 0; i < 20; i++)\n{\nint randPosX = chunkX + random.nextInt(16);\nint randPosY = random.nextInt(128);\nint randPosZ = chunkZ + random.nextInt(16);\nint check = world.getBlockId(randPosX, randPosY, randPosZ);\n\nif (check == Block.stone.blockID)\n{\n    world.setBlock(randPosX, randPosY, randPosZ, mod_Block.OreTi.blockID);\n}\n\n}\n\n}复制代码             check变量检测要替换的方块ID。下边的If函数的意思是当check检测到的ID是石头的ID的时候就替换成钛矿（这是我的mod里的新矿物{:10_535:}）。这样做就避免了矿物浮空与在超平坦模式中生成大量矿物的bug出现。\n\n\n\n\n\n只能用铁镐以上才能挖到的矿物\n不推荐的方法[spoiler]\n多翻翻源代码你就能看见一个叫ItemPickaxe的类（所以说多翻翻源代码总会有新发现）\n你会看见一个叫canHarvestBlock的布尔类型\nif (par1Block == Block.obsidian)\n        {\n            return toolMaterial.getHarvestLevel() == 3;\n        }复制代码obsidian是黑曜石，根据EnumToolMaterial枚举里的注释，我们可以知道黑曜石要用getHarvestLevel等于3的稿才能打掉。\n/**\n     * The level of material this tool can harvest (3 = DIAMOND, 2 = IRON, 1 = STONE, 0 = IRON/GOLD)\n     */复制代码getHarvestLevel=3=钻石稿，getHarvestLevel=2=铁镐，getHarvestLevel=1=石镐，getHarvestLevel=0=石镐和木稿（注释应该错了）\n我们只需要添加一个if函数\nif (par1Block == mod_Block.OreTi)\n        {\n            return toolMaterial.getHarvestLevel() >= 2;\n        }复制代码这样石镐木稿和金稿就采集不了他了{:10_535:}\n \n推荐方法\n\n不用修改游戏源文件(再次说明,为了防止Mod冲突,对源文件修改一定要尽量避免,但如果迫不得已也不要吊死在一棵树上,该修改时就修改...)\n在你的方块类加入如下代码\npublic EnumToolMaterial getToolMaterial() {\n                return getToolMaterial();\n        }\n        public boolean canHarvestBlock(Block par1Block)\n    {\n        return par1Block == mod_***.OreXXX && this.getToolMaterial().getHarvestLevel() >= 2;\n        }复制代码\n\n\n\n\n\n\n[/spoiler] \n\n新地形\n这个也是在翻源代码是发现的{:10_535:}\n首先创建一个新类\npackage net.minecraft.src;\npublic class mod_newBiome extends BiomeGenBase\n        {\n        public mod_newBiome(int par1){\n                super(par1);\n                spawnableCreatureList.clear();\n                topBlock = (byte)Block.blockGold.blockID;\n                fillerBlock = (byte)Block.blockSteel.blockID;\n                theBiomeDecorator.treesPerChunk = 5;\n                theBiomeDecorator.flowersPerChunk = 0;\n                theBiomeDecorator.grassPerChunk = 0;\n}\n        }复制代码topBlock是最上边五层的方块，filler是最上面的方块和石头之间的方块，下面的treesPerChunk表示每个Chunk生成多少树，全部的变量和方法在超类BiomeGenBase可以找到。\npublic static final BiomeGenBase mod_newBiome = \n                        (new mod_newBiome(25)).setColor(0xfa9418).setBiomeName(\"新地形\");复制代码然后再你的mod主文件加入这段代码。25是ID，好像23以上的都没有占用，setColor应该是设置环境颜色，不过效果貌似不明显，setBiomeName里的“新地形”按F3可以看见。\nModLoader.addBiome(mod_newBiome);复制代码在load方法里注册新地形。\n\n\n\n\n1.jpg (17.25 KB, 下载次数: 6)\n\n下载附件\n\n2012-8-15 21:05 上传\n\n\n\n\n\n效果图{:10_535:}\n\n\n\n\n\n\n\n\n怪物手持物品\npublic ItemStack getHeldItem()\n        {\n                return defaultHeldItem;\n        }\n                \n                static\n        {\n                defaultHeldItem = new ItemStack(Item.ingotGold, 1);\n        }\n                \n        private static final ItemStack defaultHeldItem;复制代码在实体的类里添加这段代码，金锭就会渲染在他们的手上{:10_535:}\n\n\n\n\n蹦床\n\npublic AxisAlignedBB getCollisionBoundingBoxFromPool(World par1World,\n                        int par2, int par3, int par4) {\n                float var5 = 0.0625F;\n                return AxisAlignedBB.getAABBPool().addOrModifyAABBInPool(\n                                (double) ((float) par2 + var5), (double) par3,\n                                (double) ((float) par4 + var5),\n                                (double) ((float) (par2 + 1) - var5),\n                                (double) ((float) (par3 + 1) - var5),\n                                (double) ((float) (par4 + 1) - var5));\n        }\n\n\npublic void onEntityWalking(World w, int x, int y, int z, Entity entity) {复制代码getCollisionBoundingBoxFromPool 是从仙人掌的代码那里偷来的,下面的那个3.0可以自行更改\n\n\n危险！远离那方块！\n\npublic AxisAlignedBB getCollisionBoundingBoxFromPool(World par1World,\n                        int par2, int par3, int par4) {\n                float var5 = 0.0625F;\n                return AxisAlignedBB.getAABBPool().addOrModifyAABBInPool(\n                                (double) ((float) par2 + var5), (double) par3,\n                                (double) ((float) par4 + var5),\n                                (double) ((float) (par2 + 1) - var5),\n                                (double) ((float) (par3 + 1) - var5),\n                                (double) ((float) (par4 + 1) - var5));\n        }\n\n\n public void onEntityCollidedWithBlock(World par1World, int par2, int\n par3, int par4, Entity par5Entity) {\n par5Entity.attackEntityFrom(DamageSource.explosion, 1); }\n\n复制代码同样是 getCollisionBoundingBoxFromPool 这个方法{:10_535:}下面的那个DamageSource可以自己修改,不过怎么改死法都跟碰到仙人掌一样,唯一不同的就是死时的提示不同\n\n以下开坑&预告 \n堆积方块生成生物就像铁人和雪人一样~\n\n\n\n\n\n\n\n\n\n\n\n重磅推出！\n创造一个新世界\n\n研究成功了{:10_516:}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "路邊電燈泡",
+            "timestamp": 1344953160,
+            "txt_content": "恩，很好，要吐槽的事coming soon"
+        },
+        {
+            "author": "kirbykirby",
+            "timestamp": 1344955140,
+            "txt_content": " 本帖最后由 kirbykirby 于 2012-8-15 14:00 编辑 \n路邊電燈泡 发表于 2012-8-14 22:06 \n恩，很好，要吐槽的事coming soon\n{:10_535:}终于有人看了……（这样行了吧？"
+        },
+        {
+            "author": "a106929017",
+            "timestamp": 1344955140,
+            "txt_content": "。。。。。。。"
+        },
+        {
+            "author": "r951027",
+            "timestamp": 1344988920,
+            "txt_content": "木有电脑脚本知识的亲（比如我\n最好还是别看了。。。自学过一段时间，函数神马的很头痛的"
+        },
+        {
+            "author": "yan897374266",
+            "timestamp": 1344990420,
+            "txt_content": "略难，好费时间啊"
+        },
+        {
+            "author": "hkbus2007",
+            "timestamp": 1345036800,
+            "txt_content": "卡比的贴我是绝对不回复的！"
+        },
+        {
+            "author": "kirbykirby",
+            "timestamp": 1345038780,
+            "txt_content": "没人看{:10_534:}"
+        },
+        {
+            "author": "当风过时",
+            "timestamp": 1345040100,
+            "txt_content": "各路人对卡比进行了放置Play"
+        },
+        {
+            "author": "HUJIAYAO",
+            "timestamp": 1359249900,
+            "txt_content": "我是来测试人品的...."
+        },
+        {
+            "author": "流星",
+            "timestamp": 1367214180,
+            "txt_content": "我来试一试RP"
+        },
+        {
+            "author": "j1072272536",
+            "timestamp": 1367881860,
+            "txt_content": "\n我来试一试RP"
+        },
+        {
+            "author": "810109538",
+            "timestamp": 1376944140,
+            "txt_content": "有钱，我来拿钱了"
+        },
+        {
+            "author": "810109538",
+            "timestamp": 1376944140,
+            "txt_content": "人品不好，悲剧啊..."
+        },
+        {
+            "author": "1123fff",
+            "timestamp": 1384451460,
+            "txt_content": "好像··\n这是最后10枚金币了?\n\n话说刚刚那个Java教程好长啊·\n回复了8次才完毕·"
+        },
+        {
+            "author": "1123fff",
+            "timestamp": 1384452240,
+            "txt_content": "感觉自己的RP不怎么样···\n\n俩次居然都没有·"
+        },
+        {
+            "author": "蒋楷文",
+            "timestamp": 1407128520,
+            "txt_content": "创建新世界？填坑了木有"
+        },
+        {
+            "author": "5947745816",
+            "timestamp": 1414308180,
+            "txt_content": "看样子难道弃坑了？！？！{:10_522:}"
+        },
+        {
+            "author": "429426787",
+            "timestamp": 1417263780,
+            "txt_content": "求教怎么弄成放进mods文件夹的mod包"
+        },
+        {
+            "author": "123g4",
+            "timestamp": 1427520300,
+            "txt_content": "顶一个           "
+        }
+    ]
+}

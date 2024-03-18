@@ -1,0 +1,54 @@
+{
+    "title": "[20w18a] 逐个实体检测",
+    "author": "阡喏",
+    "replyCount": 9,
+    "timestamp": 1589079840,
+    "txt_content": "比如说:\n现在有一只凋零，我想让他每一次发射凋零头颅时都在凋零头颅的位置生成一个别的弹射物\n凋零第一次发射头颅，检测头颅并在此位置生成一个小火球并同步Motion值，并给这个凋零头颅标签 1,防止下一次弹射物Motion误判\n凋零第二次发射头颅，检测头颅并在此位置生成一个潜隐贝导弹并同步Motion值，并给这个凋零头颅标签 2,防止下一次弹射物Motion误判\n凋零第三次发射头颅，检测头颅并在此位置生成一个火球并同步Motion值，并给这个凋零头颅标签 3,防止下一次弹射物Motion误判\n\n\n但是由于凋零发射头颅的速度太快以至于第一次发射时生成的小火球还没消失就循环了一次\n，以至于不能继续进行循环(因为我在循环里加了 unless entity @e[type=wither_skull,tag=!1)\n\n\n\n又比如说:\n我手里有一些雪球，检测有雪球时则在雪球的位置生成火球并同步Motion值，但如果我用 unless @e[type=fireball] 则每次只能有一个雪球是带有火球的，使用[distance=x]则更奇葩\n\n\n有没有好方法可以实现这些逐个实体逐一检测的",
+    "replies": [
+        {
+            "author": "晴路卡",
+            "timestamp": 1589079840,
+            "txt_content": " 本帖最后由 晴路卡 于 2020-5-10 14:35 编辑 \n阡喏 发表于 2020-5-10 11:53\n不会，主要是书写格式\n首先 你需要开四个dummy类型的记分板用来记录UUID（老天我希望你会这个）\n假设这里这四个记分板的名称是u0-u3\n高频执行以下所有命令\nexecute as @e[type=snowball,tag=!loys] store result score @s u0 run data get entity @s UUID[0]\nexecute as @e[type=snowball,tag=!loys] store result score @s u1 run data get entity @s UUID[1]\nexecute as @e[type=snowball,tag=!loys] store result score @s u2 run data get entity @s UUID[2]\nexecute as @e[type=snowball,tag=!loys] store result score @s u3 run data get entity @s UUID[3]\n复制代码将雪球的UUID记录到雪球的记分板里，然后生成火球的同时把相同的值附到火球上\nexecute as @e[type=snowball,tag=!loys] at @s run summon fireball ~ ~ ~ {Tags:[\"loyf\"]}\nexecute as @e[type=fireball,tag=!done,tag=loyf] at @s run scoreboard players operation @s u0 = @e[type=snowball,limit=1,sort=nearest] u0\nexecute as @e[type=fireball,tag=!done,tag=loyf] at @s run scoreboard players operation @s u1 = @e[type=snowball,limit=1,sort=nearest] u1\nexecute as @e[type=fireball,tag=!done,tag=loyf] at @s run scoreboard players operation @s u2 = @e[type=snowball,limit=1,sort=nearest] u2\nexecute as @e[type=fireball,tag=!done,tag=loyf] at @s run scoreboard players operation @s u3 = @e[type=snowball,limit=1,sort=nearest] u3\ntag @e[type=fireball,tag=!done,tag=loyf] add done\ntag @e[type=snowball,tag=!loys] add loys复制代码最后将雪球的Motion的值附到与记分板值相同的火球的power上\nexecute as @e[type=snowball] at @e[tag=loyf] if score @s u0 = @e[tag=loyf,limit=1,sort=nearest] u0 if score @s u1 = @e[tag=loyf,limit=1,sort=nearest] u1 if score @s u2 = @e[tag=loyf,limit=1,sort=nearest] u2 if score @s u3 = @e[tag=loyf,limit=1,sort=nearest] u3 run data modify entity @e[tag=loyf,limit=1,sort=nearest] power set from entity @s Motion复制代码就欧克了\n只是雪球与火球的同步效果并不好，在power和motion具有相同值的时候速度表现得是不一样的\n有时雪球还会因为撞上火球而消失\n\n之前的凋零问题也可以用同样的思路解决\n扣得累死了 爱心速速速\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589080140,
+            "txt_content": " 本帖最后由 もぺもぺ 于 2020-5-10 11:16 编辑 \n我手里有一些雪球，检测有雪球时则在雪球的位置生成火球并同步Motion值，但如果我用 unless @e[type=fireball] 则每次只能有一个雪球是带有火球的，使用[distance=x]则更奇葩\n/execute as @e[type=snowball] at @s[tag=!xx] run sunmm... \n/execute as @e[type=snowball] at @s[tag=!xx] run data modify entity @e[type=fireball,distance..1,limit] ....\n\n/execute as @e[type=snowball] at @s[tag=!xx] run tag add @s xx"
+        },
+        {
+            "author": "阡喏",
+            "timestamp": 1589080500,
+            "txt_content": " 本帖最后由 阡喏 于 2020-5-10 11:19 编辑 \nもぺもぺ 发表于 2020-5-10 11:09\n/execute as @e[type=snowball] at @s[tag=!xx] run sunmm... \n/execute as @e[type=snowball] at @s[tag ...\n如果我想要的是一个火球一直同步那个雪球的Motion呢？"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589080560,
+            "txt_content": "阡喏 发表于 2020-5-10 11:15\n仨循环吗？这样出现了火焰弹桥\n最后一个改成成 /execute as @e[type=snowball] at @s[tag=!xx] run tag add @s xx\n\n写错了"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1589081520,
+            "txt_content": " 本帖最后由 晴路卡 于 2020-5-10 11:40 编辑 \n\n一直同步的话建议使用UUID匹配\n把雪球的UUID附到该雪球的记分板上，再把同样的值附到火球的记分板上\n匹配相同记分板值的雪球和火球\n再将雪球的Motion附到火球的power上\nUUID匹配可以参考这个帖子https://www.mcbbs.net/thread-990547-1-1.html\n\n\n或者你只想做个有抛物线的火球\n可以不用到fireball\n用末影珍珠替代雪球,投掷出后将末影珍珠的Owner设置成某个药水云的UUID\n修改末影珍珠的Item这一NBT改贴图再改Fire加个着火\n在药水云传送后在药水云位置模拟爆炸效果\n"
+        },
+        {
+            "author": "阡喏",
+            "timestamp": 1589082180,
+            "txt_content": "晴路卡 发表于 2020-5-10 11:32\n一直同步的话建议使用UUID匹配\n把雪球的UUID附到该雪球的记分板上，再把同样的值附到火球的记分板上\n匹配相 ...\n有点看不懂= = ，怎么把值附到火球上"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1589082420,
+            "txt_content": "阡喏 发表于 2020-5-10 11:43\n有点看不懂= = ，怎么把值附到火球上\n在火球生成的那一tick就进行操作\n假设雪球的u0-u3的记分板里已经记录了该雪球的UUID\n\nexecute as @e[type=fireball,tag=!done] at @s run scoreboard players operation @s u0 = @e[type=snowball,limit=1,sort=nearest] u0\nexecute as @e[type=fireball,tag=!done] at @s run scoreboard players operation @s u1 = @e[type=snowball,limit=1,sort=nearest] u1\nexecute as @e[type=fireball,tag=!done] at @s run scoreboard players operation @s u2 = @e[type=snowball,limit=1,sort=nearest] u2\nexecute as @e[type=fireball,tag=!done] at @s run scoreboard players operation @s u3 = @e[type=snowball,limit=1,sort=nearest] u3\ntag @e[type=fireball,tag=!done] add done复制代码"
+        },
+        {
+            "author": "阡喏",
+            "timestamp": 1589082780,
+            "txt_content": " 本帖最后由 阡喏 于 2020-5-10 11:56 编辑 \n晴路卡 发表于 2020-5-10 11:47\n在火球生成的那一tick就进行操作\n假设雪球的u0-u3的记分板里已经记录了该雪球的UUID\n不会，主要是书写格式"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1589082840,
+            "txt_content": "阡喏 发表于 2020-5-10 11:53\n然后咋弄?我不太会data这方面的指令\n记录雪球的UUID会不"
+        }
+    ]
+}

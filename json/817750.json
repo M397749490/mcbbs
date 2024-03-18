@@ -1,0 +1,59 @@
+{
+    "title": "[史上最丑]我坚决不会承认这是世界之树 函数实现 for 1.13.1",
+    "author": "qaz1-qaz1-",
+    "replyCount": 10,
+    "timestamp": 1535373540,
+    "txt_content": "\n引言\n什么，竟然你进来了，那么就别走啊，虽然说效果不怎么样，但是有一些思路还是值得借鉴的。希望能在此抛砖引玉，给大家带来一点启发。这样我就能很满足了\n材料准备\n是的，你没有听错，这个破东西还要准备材料（一下开玩笑，可以掠过）\n眼罩（必要时保护好自己的眼睛）键盘的 F3 与 A（会疯狂的按 F3 + A 来刷新）一台好一点的电脑（有循环爆炸，但是威力不大）\n效果图\n准备好了，就点开他\n正经的骨架：\n\n结果...\n\n\n\n我的思路\n先生成一个用于轨迹绘制的实体作为开始，然后每几个tick选出一些实体在两旁生成新的实体，最后再用tnt炸开，这样达到无限复制的效果，相当于在不断的分叉。\n命令实现\n检测实体是否生成（是否开始） - timecount/tick.mcfunction\n\n#测试是否开始生成树木\nexecute if entity @e[tag=tree_summoner] run function tree:timecount/timecount复制代码\n\n开始时运行 - start.mcfunction\n\n#主生成器设置\nexecute at @s run summon minecraft:pig ~ ~ ~ {Tags:[\"tree_summoner\",\"tree_first\"],NoGravity:1b,Invulnerable:1b,DeathLootTable:\"\"}\n\n#计时记分板设置\n\n#分叉随机计时设置\nscoreboard objectives add tree_branch dummy\n#存在时间设置\nscoreboard objectives add tree_age dummy\n#预留树干生长时间\nscoreboard players set @e[tag=tree_summoner] tree_branch -20\n复制代码\n\n开始后每一tick运行 - timecount/timecount.mcfunction //我知道名字取错了\n\n#加速上一个tick生成的枝条\n\n#x\nexecute as @e[tag=tree_unset] run execute store result entity @s Motion[0] double 0.001 run data get entity @s Motion[0] 1500\n#z\nexecute as @e[tag=tree_unset] run execute store result entity @s Motion[2] double 0.001 run data get entity @s Motion[2] 1500\n\n#分叉\n\n#旋转初始树干\nexecute as @e[tag=tree_first] at @s run tp @s ~ ~1 ~ ~110 ~\n#记分板设置\nscoreboard players add @e[tag=tree_summoner] tree_branch 1\n#设置所有有可能分叉的实体的  tag 为 branchable\ntag @e[scores={tree_branch=15..},tag=tree_summoner,limit=1,sort=random] add branchable\ntag @e[scores={tree_branch=5..},tag=tree_first] add branchable\n#调用分叉函数\nexecute as @e[tag=branchable] run function tree:branch/branch\n#删除tag\ntag @e[tag=branchable] remove branchable\n\n#记录痕迹\n\n#生成盔甲架\nexecute at @e[tag=tree_summoner] run summon armor_stand ~ ~ ~ {NoGravity:1b,Invulnerable:1b,Tags:[\"tree_footer\"],Attributes:[{Name:\"generic.knockbackResistance\",Base:1.0}]}\n#年龄记分板设置\nscoreboard players add @e[tag=tree_footer] tree_age 1\n\n#清场\n\n#清除实体\nexecute if entity @e[tag=tree_footer,scores={tree_age=100}] run function tree:clear/clear复制代码\n\n分叉 - branch/branch.mcfunction\n\n#生成新 summoner\n\n#左侧\nexecute at @s positioned ^0.5 ^ ^-0.5 run summon minecraft:pig ~ ~ ~ {Tags:[\"tree_summoner\",\"tree_unset\"],NoGravity:1b,Invulnerable:1b,Motion:[0d,0.05d,0d],DeathLootTable:\"\"}\n#右侧\nexecute at @s positioned ^-0.5 ^ ^-0.5 run summon minecraft:pig ~ ~ ~ {Tags:[\"tree_summoner\",\"tree_unset\"],NoGravity:1b,Invulnerable:1b,Motion:[0d,0.05d,0d],DeathLootTable:\"\"}\n#生成tnt以推进\nexecute at @s positioned ^ ^ ^-0.8 run summon tnt ~ ~ ~ {NoGravity:1b}\n\n#重置记分板\nscoreboard players set @e[tag=tree_summoner] tree_branch 0复制代码\n\n清场 - clear/clear.mcfunction\n\n#放置对应木头\n\n#2\nexecute at @e[scores={tree_age=100..}] run fill ~2 ~2 ~2 ~-2 ~-2 ~-2 minecraft:oak_wood\n#1\nexecute at @e[scores={tree_age=50..}] run fill ~1 ~1 ~1 ~-1 ~-1 ~-1 minecraft:oak_wood\n\n#放置对应树叶\n\nexecute at @e[scores={tree_age=0..50}] run fill ~2 ~7 ~2 ~-2 ~2 ~-2 minecraft:oak_leaves[persistent=true] keep\n\n#清除实体\n\n#生成器\nkill @e[tag=tree_summoner]\n#路径\nkill @e[tag=tree_footer]复制代码\n\n命令分析\n原理我已经在思路中讲过了，这里就不再赘述了，这里提一个重要的东西。\n在分叉树木的时候，因为要一下子生成2只实体，而且要让木头的粗细不一[注]，我们就不能直接setblock/fill了，而且生成的实体轨迹肯定也不能被炸飞，不然就很尴尬了，所以这时候就要清除我们的属性来了，这里采用的是抗击退属性，命令如下，\nexecute at @e[tag=tree_summoner] run summon armor_stand ~ ~ ~ {NoGravity:1b,Invulnerable:1b,Tags:[\"tree_footer\"],Attributes:[{Name:\"generic.knockbackResistance\",Base:1.0}]}复制代码这样就不会被炸飞了。\n\n\n注释：指的是先生成的树枝要比后生成的粗一点，我用了tree_age记分板来实现这个问题。\n其他想说的\n在生成时会有一些莫名其妙的向上轨迹生成，请大家能不能帮忙解决一下\n我这种生成方法其实是来自于\n坏掉的xxx不要扔，蘸上鸡蛋液，裹上面包糠，放入油锅里炸至金黄...\n所以请问大家有没有更高效，更漂亮的生成方法呢？顺带一提，1.13.1中的pack.mcmeta要求严格的json格式,\":\"前后的值都得有双引号了，好烦啊。\n\n参考\nhttps://minecraft-zh.gamepedia.com/%E5%8C%BA%E5%9D%97%E6%A0%BC%E5%BC%8F#Entity_Format 区块格式 - 中文Minecraft Wiki\nhttps://minecraft.gamepedia.com/Commands 命令 - 英文Minecraft Wiki\nhttps://minecraft-zh.gamepedia.com/%E5%B1%9E%E6%80%A7 属性 - 中文Minecraft Wiki\nhttp://www.mcbbs.net/thread-817460-1-1.html 我的问答，SPGoding 大大解决了我的疑惑\n怕被打就不 @ 了\n",
+    "replies": [
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1535374560,
+            "txt_content": "我觉得其实挺好的23333333 就是树叶一大块一大块的有点奇怪"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1535374800,
+            "txt_content": "Vinogradov 发表于 2018-8-27 20:56\n我觉得其实挺好的23333333 就是树叶一大块一大块的有点奇怪\n因为每一个tick追踪一次，然后就会一段一段的"
+        },
+        {
+            "author": "rabbit_A",
+            "timestamp": 1535375160,
+            "txt_content": "厉害了，大佬，学到了"
+        },
+        {
+            "author": "xiaowei233v",
+            "timestamp": 1535375940,
+            "txt_content": "楼主 我按照你的话\n再看你的教程之前戴上了眼罩\n然后慢慢往下翻\n翻到最底后，我心里在想：楼主你这是什么鬼帖，你以为你的建筑功底光光一个眼罩就能蒙蔽我的双眼吗awa?!"
+        },
+        {
+            "author": "Zevn",
+            "timestamp": 1535376000,
+            "txt_content": "是我的问题吗==我看不到图片？"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1535380800,
+            "txt_content": " 本帖最后由 qaz1-qaz1- 于 2018-8-27 22:44 编辑 \nxiaowei233v 发表于 2018-8-27 21:19\n楼主 我按照你的话\n再看你的教程之前戴上了眼罩\n然后慢慢往下翻\n其实本来以为能成功的，结果因为tnt太随机了，导致失败了，还有是因为我真的不怎么会命令，而且电脑卡的一比。理想hin丰满，现实很骨感"
+        },
+        {
+            "author": "qaz1-qaz1-",
+            "timestamp": 1535380860,
+            "txt_content": "Zevn 发表于 2018-8-27 21:20\n是我的问题吗==我看不到图片？\n我把图片放在 展开/收起 按钮里了，点一下就可以看了"
+        },
+        {
+            "author": "Jonjs_Dada",
+            "timestamp": 1535382840,
+            "txt_content": "额，表示\"\"很棒啊，不加才奇怪呢2333"
+        },
+        {
+            "author": "海蜇a",
+            "timestamp": 1535383980,
+            "txt_content": "厉害了骚操作，学到学到"
+        },
+        {
+            "author": "3161491812",
+            "timestamp": 1535412420,
+            "txt_content": "大佬，鼓励鼓励，感谢"
+        }
+    ]
+}

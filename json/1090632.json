@@ -1,0 +1,69 @@
+{
+    "title": "[机制[PCD]Patch1 —— 盾牌冷却 [1.9-1.16]",
+    "author": "黑",
+    "replyCount": 12,
+    "timestamp": 1596194340,
+    "txt_content": " 本帖最后由 黑 于 2020-7-31 19:21 编辑 \n\n \n \n \nPowered by TabooLib 5.0\n\n\n\n    Patch1\n        盾牌冷却\n\n\n        机制\n             我寻思你们开高版本的都是把盾牌 ban 了吗？还是说有什么其他解决办法？\n             给你服无限格挡无伤刷怪的盾牌加个冷却，配置里给不同盾牌定义不同冷却时间。\n             盾牌是在格挡后进入冷却，不是右键就冷却。\n\n\n        图片\n             \n\n\n        下载\n             \n\n\n\nPatch1-1.0-SNAPSHOT-all.jar\n(27.66 KB, 下载次数: 140)\n\n\n\n2020-7-31 19:15 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\n本插件代码全部原创不存在借鉴或抄袭。\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "名副其实",
+            "timestamp": 1596204660,
+            "txt_content": "好！实在是好啊！\nhxd们，以后打怪不可以再靠盾牌赖了\n让怪物知道什么叫硬钢！\n(玩家死亡提示无限刷屏\n\n(迫真)"
+        },
+        {
+            "author": "苏子峰",
+            "timestamp": 1596254220,
+            "txt_content": "不愧是你 解决了一个大问题"
+        },
+        {
+            "author": "66666680",
+            "timestamp": 1597577100,
+            "txt_content": "我觉得盾牌没什么用"
+        },
+        {
+            "author": "长生道长",
+            "timestamp": 1598132160,
+            "txt_content": "坏黑太强了，希望开源可以学习"
+        },
+        {
+            "author": "黑",
+            "timestamp": 1598256480,
+            "txt_content": "长生道长 发表于 2020-8-23 05:36\n坏黑太强了，希望开源可以学习package me.skymc.patch1\n\nimport io.izzel.taboolib.cronus.CronusUtils\nimport io.izzel.taboolib.module.inject.TListener\nimport me.skymc.patch1.nms.NMS\nimport org.bukkit.Material\nimport org.bukkit.Sound\nimport org.bukkit.entity.Player\nimport org.bukkit.event.EventHandler\nimport org.bukkit.event.Listener\nimport org.bukkit.event.block.Action\nimport org.bukkit.event.entity.EntityDamageEvent\nimport org.bukkit.event.player.PlayerInteractEvent\n\n/**\n * [url=home.php?mod=space&uid=1231151]@author[/url] sky\n * [url=home.php?mod=space&uid=317349]@Since[/url] 2020-07-31 17:56\n */\n@TListener\nclass PatchListener : Listener {\n\n    @EventHandler\n    fun e(e: PlayerInteractEvent) {\n        if ((e.action == Action.RIGHT_CLICK_AIR || e.action == Action.RIGHT_CLICK_BLOCK) && e.item?.type == Material.SHIELD && Patch1.isCooldown(e.player)) {\n            e.isCancelled = true\n        }\n    }\n\n    @EventHandler\n    fun e(e: EntityDamageEvent) {\n        if (e.entity is Player) {\n            if (Patch1.isCooldown(e.entity as Player)) {\n                try {\n                    e.setDamage(EntityDamageEvent.DamageModifier.BLOCKING, 0.0)\n                } catch (t: Throwable) {\n                }\n            } else if ((e.entity as Player).isBlocking) {\n                val shield = Patch1.getShield(CronusUtils.getUsingItem(e.entity as Player, Material.SHIELD)) ?: return\n                Patch1.toCooldown(e.entity as Player, shield.cooldown)\n                NMS.HANDLE.breakShield(e.entity as Player, shield.cooldown)\n                e.entity.world.playSound(e.entity.location, Sound.ITEM_SHIELD_BLOCK, 0.5f, 0.5f)\n            }\n        }\n    }\n}复制代码\npackage me.skymc.patch1.nms;\n\nimport com.google.common.collect.Lists;\nimport io.izzel.taboolib.Version;\nimport io.izzel.taboolib.module.lite.SimpleReflection;\nimport io.izzel.taboolib.module.packet.TPacketHandler;\nimport io.izzel.taboolib.util.lite.Numbers;\nimport net.minecraft.server.v1_16_R1.*;\nimport org.bukkit.Bukkit;\nimport org.bukkit.ChatColor;\nimport org.bukkit.Material;\nimport org.bukkit.World;\nimport org.bukkit.craftbukkit.v1_16_R1.CraftWorld;\nimport org.bukkit.craftbukkit.v1_16_R1.entity.CraftEntity;\nimport org.bukkit.craftbukkit.v1_16_R1.entity.CraftLivingEntity;\nimport org.bukkit.craftbukkit.v1_16_R1.entity.CraftPlayer;\nimport org.bukkit.craftbukkit.v1_16_R1.inventory.CraftItemStack;\nimport org.bukkit.enchantments.Enchantment;\nimport org.bukkit.entity.Entity;\nimport org.bukkit.entity.Player;\nimport org.bukkit.inventory.ItemStack;\nimport org.bukkit.scoreboard.Team;\n\nimport java.util.Map;\n\n/**\n * @Author sky\n * @Since 2019-12-08 17:16\n */\npublic class NMSImpl extends NMS {\n\n    private final Version version = Version.getCurrentVersion();\n\n    @Override\n    public void setItemCooldown(Player player, ItemStack itemStack, int tick) {\n        ((CraftPlayer) player).getHandle().playerConnection.sendPacket(new PacketPlayOutSetCooldown(CraftItemStack.asNMSCopy(itemStack).getItem(), tick));\n    }\n\n    @Override\n    public void breakShield(Player player, int tick) {\n        Object human = ((CraftPlayer) player).getHandle();\n        ((EntityHuman) human).getCooldownTracker().setCooldown(Items.SHIELD, tick);\n        if (version == Version.v1_9) {\n            ((net.minecraft.server.v1_9_R2.EntityHuman) human).cA();\n        } else if (version == Version.v1_10) {\n            ((net.minecraft.server.v1_10_R1.EntityHuman) human).cE();\n        } else if (version == Version.v1_11) {\n            ((net.minecraft.server.v1_11_R1.EntityHuman) human).cF();\n        } else if (version == Version.v1_12) {\n            ((net.minecraft.server.v1_12_R1.EntityHuman) human).cN();\n        } else if (version == Version.v1_13) {\n            ((net.minecraft.server.v1_13_R2.EntityHuman) human).da();\n        } else if (version == Version.v1_14) {\n            ((net.minecraft.server.v1_14_R1.EntityHuman) human).dp();\n        } else if (version == Version.v1_15) {\n            ((net.minecraft.server.v1_15_R1.EntityHuman) human).dH();\n        } else if (version == Version.v1_16) {\n            ((EntityHuman) human).clearActiveItem();\n        }\n        ((EntityHuman) human).world.broadcastEntityEffect((EntityHuman) human, (byte) 30);\n    }\n}复制代码"
+        },
+        {
+            "author": "paollk",
+            "timestamp": 1598256720,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "428751434",
+            "timestamp": 1598262960,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "白衣飘飘",
+            "timestamp": 1598878620,
+            "txt_content": "不好意思，配置文件可以说明一下吗"
+        },
+        {
+            "author": "肆火",
+            "timestamp": 1605188820,
+            "txt_content": "希望增加 盾牌右键就冷却。而不是在格挡后进入冷却。"
+        },
+        {
+            "author": "云栀幻雪",
+            "timestamp": 1605463260,
+            "txt_content": "看了配置文件\n是按lore来识别盾牌的吗\n那如果我盾牌没有lore呢\n生存服盾牌开放制作"
+        },
+        {
+            "author": "2474606",
+            "timestamp": 1605607980,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "晚风喜欢MC",
+            "timestamp": 1605610200,
+            "txt_content": "很棒 可以不ban盾牌了awa"
+        }
+    ]
+}

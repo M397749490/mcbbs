@@ -1,0 +1,29 @@
+{
+    "title": "[已解决][FORGE]论如何打开原版的GUI",
+    "author": "脏鬼鬼",
+    "replyCount": 4,
+    "timestamp": 1552102020,
+    "txt_content": " 本帖最后由 MessyGhost 于 2019-3-10 13:55 编辑 \n\n做了一个类似工作台的方块，在重载Block.onBlockActivated时尝试打开工作台的GUI，但是如果用Minecraft.displayGuiScreen的话，数据似乎不会传输到服务器，导致无法对GUI进行操作。Player.openGUI和displayGUI的话，似乎是打开自己做的GUI的（顺带问一句，IInteractionObject和Container时什么关系）？试过新实例化一个InventoryCrafting，好像可以让这个GUI闪烁1tick（估计是判断我操作的方块不是工作台，自动关闭了）。如果让我的方块类继承自BlockWorkbench，则右键该方块时鼠标出现很短时间(但是UI没出来)。教程好像都只有打开自己做的GUI的例子，有什么办法可以打开一个可以用的工作台GUI呢（难道只能自己实现了吗？）",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1552104000,
+            "txt_content": " 本帖最后由 u.s.knowledge 于 2019-3-9 12:03 编辑 \n\n我怀疑楼主认真读完了《提问的智慧》。这非常好。\n\n其实没那么复杂。\nMinecraft.displayGuiScreen 的确不会同步数据到服务器，这也是为什么 Forge 会给 EntityPlayer patch 进去一个 openGui 的方法的原因——实现 GUI 中数据的同步其实并不是件容易事，而且这样的需求会有很多 Mod 遇到，不如让 Forge 帮忙把问题解决了吧。相似地，如果你的 GUI 的确不需要服务器上有对应的 Container，大可以用 displayGuiScreen。\n\n回到原本的问题上：复用原版工作台 GUI。openGui 是对的，但 InventoryCrafting 不是 GUI，它只代表一个抽象的物品栏。我们需要的是一个在逻辑服务器上的 Container 和一个逻辑客户端上的 GuiContainer。具体来说，是 ContainerWorkbench 和 GuiCrafting。这样一来，我们只需要一个 FML 的 IGuiHandler 的实现即可：\n\n@Override\npublic Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {\n    if (...) {\n        return new ContainerWorkbench(...);\n    } else {\n        return null;\n    }\n}\n@Override\npublic Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {\n    if (...) {\n        return new GuiCrafting(...);\n    } else {\n        return null;\n    }\n}复制代码\nIInteractionObject 是原版底层中用来在打开 GUI 时获得对应的 Container 的一层抽象。Mod 开发中不需要管这个——FML 已经帮我们搞定这些问题了，用 EntityPlayer.openGui 即可。\n"
+        },
+        {
+            "author": "脏鬼鬼",
+            "timestamp": 1552104180,
+            "txt_content": " 本帖最后由 MessyGhost 于 2019-3-9 13:02 编辑 \n\ndisplayGui(new BlockWorkbench.InterfaceCraftingTable(worldIn, pos))能闪烁一下GUI\n实例化InventoryCrafting无效\n（为什么我的补充会在回答下面）"
+        },
+        {
+            "author": "脏鬼鬼",
+            "timestamp": 1552107660,
+            "txt_content": " 本帖最后由 MessyGhost 于 2019-3-9 13:06 编辑 \nu.s.knowledge 发表于 2019-3-9 12:00\n我怀疑楼主认真读完了《提问的智慧》。这非常好。\n\n其实没那么复杂。\n先感谢（回来看的时候已经解决了233）（&为什么我回来补充的时候没看到回答orz）\n不过大佬您这里还有一个问题（GUI只会闪烁一下）\n需要重写ContainerWorkbench.canInteractWith这个方法（Minecraft的实现会对目标方块进行判断）"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1552110300,
+            "txt_content": "MessyGhost 发表于 2019-3-9 13:01\n先感谢（回来看的时候已经解决了233）（&为什么我回来补充的时候没看到回答orz）\n不过大佬您这里还有一个 ...\n不好意思忘记了。的确需要覆写那个方法。\n\n实际上是这样的，Container 这个类本来是个抽象类，canInteractWith 这个方法正好也是这个类中唯一的抽象方法，按常理来说是一定要覆写的，然而…… 之前笔者写过的 Container 实现都是靠 IDE 自动补全这个方法的，然后也一直都是让它直接返回 true，所以刚才就直接忘掉了…… "
+        }
+    ]
+}

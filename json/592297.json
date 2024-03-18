@@ -1,0 +1,64 @@
+{
+    "title": "[Wiki.vg翻译计划]MOJANG官方网站API",
+    "author": "gamerteam",
+    "replyCount": 11,
+    "timestamp": 1465912920,
+    "txt_content": " 本帖最后由 gamerteam 于 2016-6-30 16:53 编辑 \n\n本翻译使用署名 - 相同方式共享 3.0协议\n\n\n更多Minecraft开发资料，请查阅Wiki.vg\n翻译By Frost Studio\n以及CthuWork开发讨论群的各位成员\n\n特别鸣谢：yushijinhun\n我们会尽力保证本文的准确性，如果你对本文的一些内容有疑议，或者有什么不对的地方，欢迎指正\n目录：\n1 注意事项2 API状态3 用户名 -> 基于时间的UUID4 UUID -> 曾用名5 玩家名 -> UUIDs6 UUID -> 用户信息 + 皮肤/披风7 修改皮肤8 上传皮肤9 重置皮肤10 账号信息11 封禁服务器12 统计13 示例\n\n",
+    "replies": [
+        {
+            "author": "gamerteam",
+            "timestamp": 1465912920,
+            "txt_content": " 本帖最后由 gamerteam 于 2016-6-28 12:17 编辑 \n\n1.注意\n注意，所有的公共API都有访问频率限制，所以你应该对结果进行缓存。目前是限制每10分钟进行600次请求，但是这可能会根据实际情况而变化。部分API，有的将可以使用Demo账号，有的则不能，MOJANG会不断的修改的。\n\n\n2.API状态\nGET https://status.mojang.com/check复制代码\n返回Mojang服务的可用性。\n可能返回的值green（没有问题），yellow（有些问题），red（服务不可用）。\n\n响应\n[\n  {\n    \"minecraft.net\": \"yellow\"\n  },\n  {\n    \"session.minecraft.net\": \"green\"\n  },\n  {\n    \"account.mojang.com\": \"green\"\n  },\n  {\n    \"auth.mojang.com\": \"green\"\n  },\n  {\n    \"skins.minecraft.net\": \"green\"\n  },\n  {\n    \"authserver.mojang.com\": \"green\"\n  },\n  {\n    \"sessionserver.mojang.com\": \"yellow\"\n  },\n  {\n    \"api.mojang.com\": \"green\"\n  },\n  {\n    \"textures.minecraft.net\": \"red\"\n  },\n  {\n    \"mojang.com\": \"green\"\n  }\n]复制代码\n3.用户名 -> 基于时间戳的UUID\n GET https://api.mojang.com/users/profiles/minecraft/<username>?at=<timestamp>复制代码\n返回在给定时间戳时，使用这个名字的玩家的UUID\n（翻译注：该时间戳是一个UNIX时间戳，按秒计算）\n?at=0可以获取该用户名的初始UUID，但是只有在该账号曾经改过名，或者是老版本Minecraft账号才会有效（这一段还有争议，建议自行阅读原文理解）?at=0 can be used to get the UUID of the original user of that username, however it only works if the name was changed at least once, or if the account is legacy.\n\n响应\n{\n  \"id\": \"7125ba8b1c864508b92bb5c042ccfe2b\",\n  \"name\": \"KrisJelbring\"\n}复制代码\n4.UUID -> 曾用名\nhttps://api.mojang.com/user/profiles/<uuid>/names复制代码\n返回该UUID曾经使用的用户名以及现在所使用的用户名。UUID务必无连字符（-）。\n响应[\n    {\n        \"name\": \"Gold\"\n    },\n    {\n        \"name\": \"Diamond\",\n        \"changedToAt\": 1414059749000\n    }\n]\n复制代码\nchangedToAt一个UNIX时间戳，按秒计算\n\n\n5.玩家名 -> UUIDs\nPOST https://api.mojang.com/profiles/minecraft复制代码\n这将返回该玩家的UUID以及一些其他信息。\n\nPayload\n[\n    \"maksimkurb\",\n    \"nonExistingPlayer\" //测试一个不存在的玩家\n]复制代码\n响应\n[\n    {\n        \"id\": \"0d252b7218b648bfb86c2ae476954d32\",\n        \"name\": \"maksimkurb\",\n        \"legacy\": true,\n        \"demo\": true\n    }\n]\n复制代码名字不区分大小写如果legacy为true，说明该账号没有迁移到mojang.com如果demo为true，说明该账号没有购买游戏如果名字为null或者\"\"，将抛出IllegalArgumentExceptionContent-Type（一个HTTP header）必须为application/json你一次性不能请求超过100个名字\n\n翻译者注释：上面的提示部分语法非常奇葩，所以可能出现翻译不太准确的情况，部分内容为我个人理解，这里我提供一下原文\n\n\nname is case-corrected\nlegacy only appears when true (profile not migrated to mojang.com)\ndemo only appears when true (account unpaid)\nIllegalArgumentException is returned when any of the usernames is null or \"\"\nThe Content-Type HTTP header must be application/json\nYou cannot request more than 100 names per request\n\n\n6.UUID -> 用户信息 + 皮肤/披风\nhttps://sessionserver.mojang.com/session/minecraft/profile/<uuid>复制代码\n返回玩家的用户名以及该账号的其他信息（例如皮肤）。例：https://sessionserver.mojang.com ... 8ee8d71d7ba5aa00d20\n\n这个API对请求频率有很严格的限制：你一分钟内只能查询同一个玩家一次，然而你却可以查询任意多的不同的玩家。\n\n{\n    \"id\": \"<账号配置标识符>\",\n    \"name\": \"<玩家名>\",\n    \"properties\": [\n        {\n            \"name\": \"textures\",\n            \"value\": \"<base64字符串>\",\n            \"signature\": \"<base64字符串; 使用Yggdrasil's 私钥进行签名>\"//只有当提供?unsigned=false 附加到url的时候才有\n        }\n    ]\n}\n复制代码\nvalue使用base64进行解密后会得到以下内容：\n{\n    \"timestamp\": \"<毫秒级Java时间戳>\",\n    \"profileId\": \"<账号配置标识符>\",\n    \"profileName\": \"<玩家名称>\",\n    \"isPublic\": \"<true 或 false>\",\n    \"textures\": {\n        \"SKIN\": {\n            \"url\": \"<玩家皮肤URL>\"\n        },\n        \"CAPE\": {\n            \"url\": \"<玩家披风URL>\"\n        }\n    }\n}\n复制代码\n\n有时候时间戳的时间是过去的（可能是因为缓存导致的？）在使用Alex皮肤的时候，SKIN类将会有\"metadata\": {\"model\": \"slim\"}，反之，Steve没有。如果你没有自定义皮肤，将不会有SKIN类。同样，如果玩家没有披风，也不会有CAPE类\n\n\n7.修改皮肤\n等待更新中\n\n\n8.上传皮肤\n等待更新中\n\n\n9.重置皮肤\n等待更新中\n\n10.账号信息\n等待更新中\n\n11.禁止玩家进入的服务器（违反EULA的服务器黑名单）\n 返回被封禁的服务器的SHA1列表。当客户端尝试连接服务器的时候，将会检查服务器地址是否在此列表中。\n\n\n客户端首先把服务器地址转换成小写的字符串，然后用ISO-8859-1来编码这段字符串，再检查列表里有没有哈希值和它相同的。同时也会检查子域名，它会依次把每一级域名替换成*（星号），再检查是否在列表中。具体就是：首先将域名以.（点）为分界分割，依次将最前面的一段剔除掉。比如mc.example.com，会依次检查mc.example.com、*.example.com、*.com。如果是ip地址（地址被.（点）分隔为3段，每一段都是0~255间的整数），则会依次从最后开始把每一段替换成*再检查。比如192.168.0.1，就会依次检查192.168.0.1、192.168.0.*、192.168.*、192.*。\n\n\n这个检查是由Netty的Bootstrap类完成的。Netty原来的Bootstrap类被版本json中的com.mojang:netty这个依赖给覆盖了。因此这会影响到所有使用Netty的mc版本（1.7+）。\n\n\n响应\n\n6f2520f8bd70a718c568ab5274c56bdbbfc14ef4\nb13009db1e2fbe05465716f67c8d58b9c0503520\n3e560742576af9413fca72e70f75d7ddc9416020\ne3985eb936d66c9b07aa72c15358f92965b1194e\nb140bec2347bfbe6dcae44aa876b9ba5fe66505b\nc005ad34245a8f2105658da2d6d6e8545ef0f0de\n11a2c115510bfa6cb56bbd18a7259a4420498fd5\nc78697e385bfa58d6bd2a013f543cdfbdc297c4f\nc645d6c6430db3069abd291ec13afebdb320714b\n073ca448ef3d311218d7bd32d6307243ce22e7d0\n33839f4006d6044a3a6675c593fada6a690bb64d\n4d303ec6c914007f3214ce9184e1891e97af71de\n266723d98e2cccb7b45c9364c7716efe4da00dfa\n复制代码\n目前该hash已经被破解，得到的结果如下：\n6f2520f8bd70a718c568ab5274c56bdbbfc14ef4 : *.minetime.com\nb13009db1e2fbe05465716f67c8d58b9c0503520 : *.endercraft.com\n3e560742576af9413fca72e70f75d7ddc9416020 : *.insanefactions.org\ne3985eb936d66c9b07aa72c15358f92965b1194e : *.insanenetwork.org\nb140bec2347bfbe6dcae44aa876b9ba5fe66505b : *.phoenixnexus.net\nc005ad34245a8f2105658da2d6d6e8545ef0f0de : *.skygod.us\n11a2c115510bfa6cb56bbd18a7259a4420498fd5 : *.slaughterhousepvp.com\nc78697e385bfa58d6bd2a013f543cdfbdc297c4f : *.mineaqua.net\nc645d6c6430db3069abd291ec13afebdb320714b : *.mineaqua.es\n073ca448ef3d311218d7bd32d6307243ce22e7d0 : *.diacraft.org\n33839f4006d6044a3a6675c593fada6a690bb64d : *.diacraft.de\n4d303ec6c914007f3214ce9184e1891e97af71de : *.menoxia.com\n266723d98e2cccb7b45c9364c7716efe4da00dfa : *.styxnetwork.net复制代码\n\n\n\n12.统计信息\n获得Minecraft销售的统计数据。该payload是一个 metricKeys key 的json列表，下面的范例使用的key是https://minecraft.net/en/stats/页面的数据\n\n{\n    \"metricKeys\": [\n        \"item_sold_minecraft\",\n        \"prepaid_card_redeemed_minecraft\"\n    ]\n}\n复制代码\n目前有用的metricKeys key有：   item_sold_minecraft\n   prepaid_card_redeemed_minecraft\n   item_sold_cobalt\n   item_sold_scrolls复制代码\n响应\n然后会返回一个目前已经销售的数量，以及24小时内和每秒销售了多少份Minecraft\n{\n    \"total\": 总共销售份数,\n    \"last24h\": 24小时内销售份数,\n    \"saleVelocityPerSeconds\":平均每秒销售份数\n}复制代码\n\n\n\n13.示例\n译者注（前面为使用的开发语言，后面为介绍）\n\nGo | 通过UUID或者玩家名，获取该玩家的皮肤、披风和历史名字（改名前的名字）\nPython | 通过UUID或玩家名获取账号信息\nPython | 通过玩家名返回玩家名+UUID信息\nPHP | 通过UUID或者玩家名获取账号信息、皮肤、披风和历史名字\nPHP | 通过UUID获取玩家名\nPHP | 通过UUID获取玩家名，或者通过玩家名获取UUID\nJavaScript | 通过UUID或者玩家名，获取账号信息、皮肤、披风和历史名字\n\n\n"
+        },
+        {
+            "author": "wadang",
+            "timestamp": 1465913220,
+            "txt_content": "这个厉害了，终于出官方API，这个是单机版的吧，服务器端会出API吗？"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1465913400,
+            "txt_content": "wadang 发表于 2016-6-14 22:07\n这个厉害了，终于出官方API，这个是单机版的吧，服务器端会出API吗？\n这个可不是用在游戏里的，准确的说，这个是MOJANG账号的API"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1465913460,
+            "txt_content": "andylizi 发表于 2016-6-14 22:16\nhttps://github.com/bangbang93/minecraft-protocol/blob/master/protocol.md\n哦好吧这个是protocol的。\n其 ...\n那是游戏里了的吧"
+        },
+        {
+            "author": "wadang",
+            "timestamp": 1465913520,
+            "txt_content": "gamerteam 发表于 2016-6-14 22:10\n这个可不是用在游戏里的，准确的说，这个是MOJANG账号的API\n啊，原来如此，谢谢了。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465913760,
+            "txt_content": "https://github.com/bangbang93/mi ... /master/protocol.md\n哦好吧这个是protocol的。\n其实mojangapi这部分不难，还是能看懂的。。"
+        },
+        {
+            "author": "鬼畜畜",
+            "timestamp": 1465913880,
+            "txt_content": "终于有人翻译这些专业的东西了，造福我们这些单身(划掉)程序汪  \n翻译者还是12岁的小萝莉 嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿嘿…别怕别怕 蜀黍不是什么好人…\n(啪)好啦不要不务正业了_(:з」∠)_ 专心回复 支持(￣ε(#￣)"
+        },
+        {
+            "author": "0x3B800001",
+            "timestamp": 1465914180,
+            "txt_content": "拾贰歲的小萝莉不容易，顶一个！"
+        },
+        {
+            "author": "lichi2050",
+            "timestamp": 1465920060,
+            "txt_content": "官方API??? 看来我得好好学习了"
+        },
+        {
+            "author": "Lne",
+            "timestamp": 1467267120,
+            "txt_content": "没有VB的实例介绍吗？"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1467273300,
+            "txt_content": "Lne 发表于 2016-6-30 14:12\n没有VB的实例介绍吗？\nAPI已经给出了，如果你真的理解了的话，相信写一个也不难"
+        }
+    ]
+}

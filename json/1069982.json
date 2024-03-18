@@ -1,0 +1,54 @@
+{
+    "title": "1.12Bukkit如何实现“对方块长按右键破坏视线首个方块且松开鼠标将该方块抛出”",
+    "author": "aa0307bb",
+    "replyCount": 9,
+    "timestamp": 1593480900,
+    "txt_content": "问题拆分成四个小问题（第四个已解决）\n①如何做“长按右键计时”以及检测“松开鼠标事件”？（似乎Bukkit不能检测空手右键？）\n②已经查到破坏方块是breakNaturally()，但是怎样设置这种行为破坏的方块不掉落物品（其它行为正常掉落）？\n③如何向玩家朝向抛出方块（关键是这个掉落沙的速度矢量该怎么给出）\n④已经查到getLineOfSight()、 getTargetBlock(), getTargetBlockExact()...可以显示视野方块",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593482100,
+            "txt_content": "1. Bukkit只是检测不到空手对空气右键，因为空手对空气右键客户端不会发包,对方块空手右键可以检测\n2. https://wiki.vg/Protocol#Block_Break_Animation\n用发包播放方块破损动画，并将该方块替换为空气\n3. 重力方块都有实体形式，API：https://hub.spigotmc.org/javadoc ... bukkit.util.Vector-"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593501600,
+            "txt_content": "疾风暗影 发表于 2020-6-30 09:55\n1. Bukkit只是检测不到空手对空气右键，因为空手对空气右键客户端不会发包,对方块空手右键可以检测\n2. http ...\n1.检测是用PlayerInteractEvent？\n2.怎么做到检测“连续长按右键”？\n3.getLocation()得到玩家的朝向后，怎么根据玩家朝向给出掉落沙的速度矢量？\n4.Protocol没用过……"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593501960,
+            "txt_content": "aa0307bb 发表于 2020-6-30 15:20\n1.检测是用PlayerInteractEvent？\n2.怎么做到检测“连续长按右键”？\n3.getLocation()得到玩家的朝向后， ...\n1. PlayerInteractEvent\n2. 每tick检测事件有无触发（实际需要latch逻辑判断是否中途断开）\n3. setVelocity接受的是vector，也就是向量，其xyz值代表了速度和方向\n速度值：sqrt(x^2+y^2+z^2)\n4. 请自行阅读protocolLib的文档库"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593508680,
+            "txt_content": "疾风暗影 发表于 2020-6-30 15:26\n1. PlayerInteractEvent\n2. 每tick检测事件有无触发（实际需要latch逻辑判断是否中途断开）\n3. setVeloci ...\n2.latch逻辑该如何实现？\n3.谢谢提供思路，但是算完敲代码时误打误撞才发现\npublic Vector getDirection()\n获取本位置所面向的方向的单位向量.\n这是有API的 :)\n4.\nBlock Break Animation\n0–9 are the displayable destroy stages and each other number means that there is no animation on this coordinate.\n\nBlock break animations can still be applied on air; the animation will remain visible although there is no block being broken. However, if this is applied to a transparent block, odd graphical effects may happen, including water losing its transparency. (An effect similar to this can be seen in normal gameplay when breaking ice blocks)\n\nIf you need to display several break animations at the same time you have to give each of them a unique Entity ID. The entity ID does not need to correspond to an actual entity on the client. It is valid to use a randomly generated number.\n\nPacket ID        State        Bound To        Field Name        Field Type        Notes\n0x09        Play        Client        Entity ID        VarInt        Entity ID of the entity breaking the block\nLocation        Position        Block Position\nDestroy Stage        Byte        0–9 to set it, any other value to remove it\n文档这么大，我该从哪看 有了这些信息之后怎样写成代码"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593535140,
+            "txt_content": "aa0307bb 发表于 2020-6-30 17:18\n2.latch逻辑该如何实现？\n3.谢谢提供思路，但是算完敲代码时误打误撞才发现\n2. 第一次右键将uuid和location添加至列表，之后每一tick check此列表直至方块被敲下（对应Destroy Stage>9），最后从列表中删除记录\n中间任一tick不满足则删除记录\n\n4. 你看的是协议文档，我上面说的是protocolLib的文档\nhttps://github.com/dmulloy2/ProtocolLib/"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593629520,
+            "txt_content": "疾风暗影 发表于 2020-6-30 15:26\n1. PlayerInteractEvent\n2. 每tick检测事件有无触发（实际需要latch逻辑判断是否中途断开）\n3. setVeloci ...\n遇到一个问题：\n每tick检测事件有无触发\n但是似乎并没有API能够让runTaskTimer每一刻去调用某个函数查看玩家是否按下右键或者触发了PlayerInteractEvent事件"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593629700,
+            "txt_content": "aa0307bb 发表于 2020-7-2 02:52\n遇到一个问题：\n\n但是似乎并没有API能够让runTaskTimer每一刻去调用某个函数查看玩家是否按下右键或者触 ...\n这就是为啥要用latch逻辑。。\n也就是每一tick检查上一tick的列表"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593664560,
+            "txt_content": "疾风暗影 发表于 2020-7-2 02:55\n这就是为啥要用latch逻辑。。\n也就是每一tick检查上一tick的列表\n这句话可以问出一堆问题\n第一次右键将uuid和location添加至列表，之后每一tick check此列表直至方块被敲下（对应Destroy Stage>9），最后从列表中删除记录\n中间任一tick不满足则删除记录\n\n列表该放在PlayerInteractListener类里还是插件主类里？\n“check此列表”具体是check什么？check这一个tick的location和uuid是否和上一个tick的一样？\n如果我设定长按右键20个tick可以敲碎一个方块，也就是这个列表第一个tick要放入第一个uuid和location，第二个tick要放入第二个uuid和location……万一我在第三个tick松开了右键，难道给列表放入一个null？\n\n害 有无例程 否则↑的奇葩问题停不下来..."
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593664920,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-7-2 12:47 编辑 \naa0307bb 发表于 2020-7-2 12:36\n这句话可以问出一堆问题\n观察mc中以下现象\n\n找一颗高一点的树，树叶恰好跳起来能够着\n\n对树叶按住鼠标左键，然后跳，会发现树叶会随着玩家挖掘逐渐出现裂缝，而实际上玩家只有跳起来才够着树叶，落地时是够不着的，也就是挖掘会有小中断\n\n这就是典型的latch逻辑\n\n\n1. 玩家右键->list中加入玩家id，挖掘方块位置，时间戳（getTimeInMillis） ，挖掘程度=0（创建latch）\n2. 之后玩家右键方块事件：检测列表中有没有entry\n若无，回步骤1\n若有，(1) 比较位置，不同回步骤1\n(2) 比较时间戳，超过某一个值，回步骤1\n(3) 更新时间戳，更新挖掘程度，发新数据包\n\n一直到方块被挖下\n\n以及别再给我加分了，被当刷分就麻烦了 "
+        }
+    ]
+}

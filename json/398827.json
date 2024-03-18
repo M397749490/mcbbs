@@ -1,0 +1,99 @@
+{
+    "title": "【紧急】glibc-幽灵漏洞检测&修复——几乎所有linux系统都受影响",
+    "author": "DarcJC",
+    "replyCount": 18,
+    "timestamp": 1422592140,
+    "txt_content": " 本帖最后由 z25096708 于 2015-1-30 13:05 编辑 \n\n关于这个漏洞的具体消息可以在RedHat看到\n大致受影响的系统：全部使用glibc库2.2-2.17版本的Linux发行版本都受到影响\n\n[bedrock]←收藏\n\n先讲检测事宜（怎么利用可以跟我买= =去死把，我不会卖的）\n检测代码由@X60发布，与我无关\n\n使用GCC编译器编译以下代码（嗯...Windows就别去编译了= =,动动自己脑洞，这是啥语言的C）\n  \n#include <netdb.h>#include <stdio.h>#include <stdlib.h>#include <string.h>#include <errno.h>#define CANARY \"in_the_coal_mine\"struct {  char buffer[1024];  char canary[sizeof(CANARY)];} temp = { \"buffer\", CANARY };int main(void) {  struct hostent resbuf;  struct hostent *result;  int herrno;  int retval;  /*** strlen (name) = size_needed - sizeof (*host_addr) - sizeof (*h_addr_ptrs) - 1; ***/  size_t len = sizeof(temp.buffer) - 16*sizeof(unsigned char) - 2*sizeof(char *) - 1;  char name[sizeof(temp.buffer)];  memset(name, '0', len);  name[len] = '\\0';  retval = gethostbyname_r(name, &resbuf, temp.buffer, sizeof(temp.buffer), &result, &herrno);  if (strcmp(temp.canary, CANARY) != 0) {    puts(\"vulnerable\");    exit(EXIT_SUCCESS);  }  if (retval == ERANGE) {    puts(\"not vulnerable\");    exit(EXIT_SUCCESS);  }  puts(\"should not happen\");  exit(EXIT_FAILURE);}//23333333333333，这个蛋疼的注释\n（终于把颜色弄好了）\n如果输出为not wulnerable则代表你的系统是安全的【目测ubuntu 14.4 应该没事。。。等下上我服务器测试下\n\n\n修复方法--ubuntu：\nsudo apt-get update \nsudo apt-get install libc6\n//讲解下，sudo apt-get update是为了更新软件包。而sudo apt-get install libc6是安装新版本的glibc。如果更新不到，请检查自己的软件源。一般外国的都会有.\n//还有，等sudo apt-get update执行完了之后再执行libc6指令\nRHEL:\nyum install update\nyum install libc6\n\n//同理\n\n\n\n好了，到了讲利用方法了.\n\n我只讲一个无关紧要的= =\n可以通过发送一个包，试探这个系统是64位的还是32位的\n\n\n@1076742624 求精\n\n\n\n哦对了，windows想玩的可以看这里",
+    "replies": [
+        {
+            "author": "lymenglei",
+            "timestamp": 1422592620,
+            "txt_content": "新人magnus绑定了，代码我都懂"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422592620,
+            "txt_content": "占楼，帖子里貌似有什么错的呢~"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422592620,
+            "txt_content": "lymenglei 发表于 2015-1-30 12:37\n新人magnus绑定了，代码我都懂\no(∩_∩)o 哈哈\n来我们技术组吧= ="
+        },
+        {
+            "author": "wdsjwzzz",
+            "timestamp": 1422592680,
+            "txt_content": "windows8.1路过。。。\n而且不懂C语言"
+        },
+        {
+            "author": "lymenglei",
+            "timestamp": 1422592680,
+            "txt_content": "lymenglei 发表于 2015-1-30 12:37\n新人magnus绑定了，代码我都懂\n{:10_523:}{:10_523:}"
+        },
+        {
+            "author": "ylmars",
+            "timestamp": 1422592860,
+            "txt_content": "windows编译不编译跟是不是C语言有毛关系"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422592980,
+            "txt_content": "ylmars 发表于 2015-1-30 12:41\nwindows编译不编译跟是不是C语言有毛关系\n你想想windows有gcc么..."
+        },
+        {
+            "author": "ylmars",
+            "timestamp": 1422593220,
+            "txt_content": " 本帖最后由 ylmars 于 2015-1-30 12:48 编辑 \nz25096708 发表于 2015-1-30 12:43\n你想想windows有gcc么...\n有啊。。版本还多的是呢，而且C语言和gcc和glibc也没有必然联系啊\n\n（我就是来挑刺的）"
+        },
+        {
+            "author": "manageryzy",
+            "timestamp": 1422593580,
+            "txt_content": "反正一般黑客也利用不了缓冲区漏洞"
+        },
+        {
+            "author": "manageryzy",
+            "timestamp": 1422593760,
+            "txt_content": "http://www.openwall.com/lists/oss-security/2015/01/27/9\n漏洞详情"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422594300,
+            "txt_content": "manageryzy 发表于 2015-1-30 12:53\n反正一般黑客也利用不了缓冲区漏洞\n我是担心我服务器了 =="
+        },
+        {
+            "author": "iSteven",
+            "timestamp": 1422595440,
+            "txt_content": "Windows就不能编译C? Windows下C语言编译工具多了。而且Windows内核就是C和C++的"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422605160,
+            "txt_content": "iSteven 发表于 2015-1-30 13:24\nWindows就不能编译C? Windows下C语言编译工具多了。而且Windows内核就是C和C++的\n这个我知道= =\n问题是你编译来有什么用先"
+        },
+        {
+            "author": "iSteven",
+            "timestamp": 1422617940,
+            "txt_content": "z25096708 发表于 2015-1-30 16:06\n这个我知道= =\n问题是你编译来有什么用先\n编译完发给Linux用户啊"
+        },
+        {
+            "author": "DarcJC",
+            "timestamp": 1422618360,
+            "txt_content": "iSteven 发表于 2015-1-30 19:39\n编译完发给Linux用户啊\n好吧，你牛，，，，，，，\n（纯属蛋疼= =）\n别找我的茬了"
+        },
+        {
+            "author": "1901803382",
+            "timestamp": 1422679320,
+            "txt_content": "iSteven 发表于 2015-1-30 19:39\n编译完发给Linux用户啊#include <netdb.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <errno.h>\n#define CANARY \"in_the_coal_mine\"\n\nstruct {\n        char buffer[1024];\n        char canary[sizeof(CANARY)];\n}\n\ntemp = {\"buffer\", CANARY};\n\nint main(void) {\n        struct hostent resbuf;\n        struct hostent *result;\n        int herrno;\n        int retval;\n        /*** strlen (name) = size_needed - sizeof (*host_addr) - sizeof (*h_addr_ptrs) - 1; ***/\n        size_t len = sizeof(temp.buffer) - 16 * sizeof(unsigned char) - 2 * sizeof(char *) - 1;\n        char name[sizeof(temp.buffer)];\n        memset(name, '0', len);\n        name[len] = '\\0';\n        retval = gethostbyname_r(name, &resbuf, temp.buffer, sizeof(temp.buffer), &result, &herrno);\n        if (strcmp(temp.canary, CANARY) != 0) {\n                puts(\"vulnerable\");\n                exit(EXIT_SUCCESS);\n        }\n        if (retval == ERANGE) {\n                puts(\"not vulnerable\");\n                exit(EXIT_SUCCESS);\n        }\n        puts(\"should not happen\");\n        exit(EXIT_FAILURE);\n}\n复制代码\n\n楼主你把代码都弄到一行里有意义么"
+        },
+        {
+            "author": "efsg",
+            "timestamp": 1422688320,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "维他命の淡蓝",
+            "timestamp": 1422777420,
+            "txt_content": "完全不懂，我是个大小白"
+        }
+    ]
+}

@@ -1,0 +1,129 @@
+{
+    "title": "【CBL】[2b] 第三人称控制器",
+    "author": "⭐✔️",
+    "replyCount": 24,
+    "timestamp": 1485087180,
+    "txt_content": " 本帖最后由 贰逼 于 2017-1-23 13:34 编辑 \n\n第三人称游戏都有一个由引擎控制的第三人称控制器，那么这在Minecraft中能否实现?\n只能说达到一半。\n\n        第三人称控制器(Third Person Controller)是角色控制器的一种，较比第一人称控制器可以反映更多信息包括角色的建模/动画/行为，以及更加多样的操作模式。第三人称控制器最近的一个例子就是Minecraft中的F5视角，即第三人称视角。\n        当然比起像Minecraft这种可以直接依赖实时演算的第三人称控制器，这篇帖子里所讲的是对于目前Minecraft原版来说依靠命令方块力所能及的控制器。具体来讲，就是没有进行三维旋转的功能。原因很简单，一是无法使用相关函数，二是穷举即使精度为5°的三维旋转也特别消耗资源。\n        总体来说，Minecraft原版最大限度可以还原一款2.5D游戏。\n        所以这篇帖子讨论的第三人称控制器是基于玩家视角不动，但是能通过自身操作操作非关联自身的实体角色（什么叫关联自身其实很明白，就是利用execute指令对玩家的原始坐标相对操作。例如你可以使用/execute @p ~ ~ ~ tp @e[tag=Character] ~ ~-5 ~制作一个最简单的关联自身的控制器）\n一个gif展示：（15.7M，耐心加载）\n\n\n\nDemo截图：\n基本实现了角色移动，角色切换。\n\n点击按钮进入游戏\n\nF1关闭游戏GUI以获得最佳体验\n\nWASD移动\n\n绿柱用于切换角色\n\n\n物品栏中单击下图的Exit退出游戏\n\n\n按键操作事件的监听\n大前提\n由于我们在此讨论的控制器固定视角，所以接下来一切方案都是建立在玩家坐标、视角都固定的情况下。\n\n在正式开始讲之前，我们先要来了解一下原理。\n而在了解原理之前，我们需要了解一个概念：事件监听\n拿一个按钮作为例子，比如你的登录器，你点击\"Play\"按钮，这个按钮就会发生这个叫做OnClick的事件。事件监听就是内部检测这个事件。进行事件监听并监听到该事件的发生即可关联或调用相关操作。\n你的鼠标按左键也有三种事件（OnMouseDown()鼠标刚按下、OnMouse()鼠标按下的状态、OnMouseUp()鼠标刚松开），这些事件都可以被内部监听。\n\n而要在Minecraft中做到各种事件监听，要结合各种各样的方法：\nWASD移动事件\n检测玩家移动，其实是非常难做到的，因为迄今为止没有一个游戏中的机制特别关联玩家移动，并且可以被指令方块检测，除了玩家坐标的变化。而检测玩家的坐标，我们自然而然想到了Detect。只是具体靠什么精确地检测，我们可以给出下面这种检测方案：\n\n假设玩家在其立足点坐标中心，也就是(x.500,y.000,z.500)，面向z+方向\n\n检测按下'W'（向前/x+方向），就是检测玩家对于前方的蓝色方块距离是否缩小，也就是要相对玩家向前检测前方距离<0.5是否为蓝色方块：\n/execute @a[tag=Controlling] ~ ~ ~ detect ~ ~ ~0.49999999999995 wool 11复制代码同理，按下'A''S''D'就是相对玩家向各方向检测距离<0.5是否为相应方块\n/execute @a[tag=Controlling] ~ ~ ~ detect ~ ~ ~-0.49999999999995 wool 4复制代码/execute @a[tag=Controlling] ~ ~ ~ detect ~0.49999999999995 ~ ~ wool 5复制代码/execute @a[tag=Controlling] ~ ~ ~ detect ~-0.49999999999995 ~ ~ wool 1复制代码至于为什么用0.49999999999995，这是因为float的限制，就相当于0.49999999999995无限接近0.5，只要玩家向前移动了0.00000000000005格就能被检测到。\n\n除了上述逐个检测的方法外，我们可以更加简化地，检测玩家向各方向的顶部是否为空气：\n\n（四个彩块都代表空气）拿前进为例，由于头顶上是一个存在的方块，玩家没有前进时检测前方空气距离<0.5为空气不成立，只有玩家向前移动后与前方空气的距离才会<0.5。以此类推，各方向都可以直接靠检测空气实现监听。\n对应的指令为：execute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~0.49999999999995 air 0\nexecute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~-0.49999999999995 air 0\nexecute @a[tag=Controlling] ~ ~ ~ detect ~0.49999999999995 ~2 ~ air 0\nexecute @a[tag=Controlling] ~ ~ ~ detect ~-0.49999999999995 ~2 ~ air 0复制代码\n有关detect之后的操作将会在后面\"移动操作\"中进一步讲解\n\nSpace空格事件\n有了之前的移动的基础，由于Space键作为Minecraft的跳跃键，本质监听方式是一样的，最后的指令即：execute @a[score_control_min=1] ~ ~ ~ detect ~ ~2.99999 ~ air 0复制代码也就是当玩家刚刚起跳检测黑块的位置是空气来实现监听\n\n为什么分开来讲？因为在第三人称控制中，Space不止作为移动的跳跃键，也可以是一个功能键，具体detect后的操作在后面\"其他操作\"中进一步讲解\n\nShift事件\nShift也是一个热门操作按键，具体方法：\n点击这篇帖子查看原理讲解\n同样检测后的操作在后面\"其他操作\"中进一步讲解\n\n移动操作\n基本操作\n监听之后最基本的操作就是添加移动的指令，如下：execute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ detect ~ ~1 ~0.9 air 0 tp @e[tag=character] ~ ~ ~0.6\nexecute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 0 ~\nexecute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~-0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ detect ~ ~1 ~-0.9 air 0 tp @e[tag=character] ~ ~ ~-0.6\nexecute @a[tag=Controlling] ~ ~ ~ detect ~ ~2 ~-0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 180 ~\nexecute @a[tag=Controlling] ~ ~ ~ detect ~0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ detect ~0.9 ~1 ~ air 0 tp @e[tag=character] ~0.6 ~ ~\nexecute @a[tag=Controlling] ~ ~ ~ detect ~0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ -90 ~\nexecute @a[tag=Controlling] ~ ~ ~ detect ~-0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ detect ~-0.9 ~1 ~ air 0 tp @e[tag=character] ~-0.6 ~ ~\nexecute @a[tag=Controlling] ~ ~ ~ detect ~-0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 90 ~复制代码具体内容就是将角色移动后再改变角色所面朝的方向（tag=character表示操作的角色）\n\n重置玩家视角和坐标\n前面提过的大前提，因此在玩家移动后我们还需要重置玩家的坐标和视角。\n首先建立一个moved计分板/dummy，并将其用stats关联到实体：/scoreboard players set @e[tag=character] moved 0\nstats entity @e[tag=character] set AffectedEntities @e[tag=character] moved复制代码这样只要对实体进行操作，moved计分板就会有分数。\n接下来就是重置的工作了tp @a[tag=Controlling] ~ ~ ~ [dx] [dy]\nexecute @e[tag=character,score_moved_min=1] ~ ~ ~ tp @a[tag=Controlling] [x] ~ [z]\ncond:scoreboard players set @e[tag=character] moved 0复制代码首先是固定玩家的视角到(dx,dy)（可自定义，即玩家视角望向的方向）。当检测到moved有分数，就传送玩家到(x,~,z)（可自定义，即玩家固定的坐标，也就是前面使用玩家头颅代表的玩家立足点中心坐标），然后重置moved。\n\n执行顺序\n重置必须在移动操作之前，这是因为假如先进行移动操作，再重置，在经过该次执行后，所表现出来的效果仍旧是重置后的，因此达不到我们的预期效果。\n并且移动操作监听其实并非并列进行，这是由于链式模块都有单向顺序，刷新周期0.05s，而Minecraft中实际的玩家移动是Update同步进行，模块执行和实际玩家移动存在时间差。总的来说如果使用了不恰当的玩家移动监听顺序，某些方向的移动监听也许会失去效果。\n最后的恰当顺序请看\"最终指令\"。\n\n其他操作\nSpace操作\n在监听完后你可以使用红石块激活指定模块：execute @a[tag=Controlling] ~ ~ ~ detect ~ ~2.99999 ~ air 0 execute @p ~ ~ ~ detect [x] [y] [z] air 0 setblock [x] [y] [z] redstone_block 0 replace复制代码检测(x,y,z)是否没有红石块再放置红石块来激活模块（这样做是为了防止一个需要延迟操作时间的模块在短时间内被反复调用。例如跳跃需要时间下落，如果在下落过程中继续跳跃，这不就等于无限续跳了吗）\n作为一个Minecraft的移动键，同样也受执行顺序影响。最后的恰当顺序请看\"最终指令\"。\n\nShift操作\n/tp @e[name=sneak] ~ ~-300 ~\n/kill @e[name=sneak]\n/summon minecraft:rabbit ~ ~ ~ {NoAI:true,Silent:true,Invulnerable:true,ActiveEffects:[{Id:14,Duration:111110,ShowParticles:false}],Age:-1000000,CustomName:sneak}\n/execute @p ~ ~ ~ /tp @e[name=sneak] @a[score_control_min=1]\n/tp @e[name=sneak] ~0.01 ~ ~\n/execute @a[score_control_min=1,score_sneak_min=1] ~ ~ ~ setblock [x] [y] [z] minecrat:redstone_block 0 replace\n/scoreboard players reset @a sneak\n/scoreboard objectives add sneak stat.sneakTime复制代码在(x,y,z)用红石块激活指定模块\n\n另外各种操作\n总之就是利用各种方法实现对应事件监听，然后再调用这些操作。\n例如右键可以靠胡萝卜钓竿的使用监听，左键可以靠对实体的伤害监听；\n数字键123456789可以靠NBT-SelectedItemSlot；\n还有等等等等都可以靠各种方法监听。\n\n优化\n视角卡顿\n如果你真的按照上述方法做了，而且你找到了合适的执行顺序，你会发现一个致命的问题——卡顿\n其实这个视角卡顿就是因为模块执行和实际玩家移动检测存在时间差，因此在你移动后因为又被tp会原始点，你的视角将疯狂摇晃。\n解决方法就是降低玩家移动速度，这就是我们需要强行让玩家穿上一个靴子：/replaceitem entity @p slot.armor.feet diamond_boots 1 0 {Unbreakable:1,display:{Name:\"Exit\"},HideFlags:63,AttributeModifiers:[{AttributeName:\"generic.movementSpeed\",Name:\"generic.movementSpeed\",Amount:-0.099999,Operation:0,UUIDMost:84265,UUIDLeast:167246,Slot:\"feet\"}]}复制代码降低玩家速度到-0.099999，这样玩家可以存在轻微的移动，但是你看不出来你的位置在变化。\n\n视角变小\n由于玩家减速，因此玩家视角变小。这没有唯一解决方案，只需要你找到一个合适的创建场景的角度。\n\n实体消失范围\n当你所控制的角色里玩家实际位置太远了将不会得到渲染，也就是消失。因此需要注意场景离玩家的最远点尽量不要超过5~6个区块。\n\n关于GUI\n你可以使用游戏自带的GUI，那么你可以用/effect @p[tag=controller] invisibility 1 1 true复制代码隐藏玩家的手\n你也可以选择让玩家F1隐藏GUI，提升游戏体验性。\n\n退出游戏\n你可以靠各种方式制作一个GUI，而Demo的退出方式就是脱下你的靴子。\n\n最终指令\n\nStart 游戏开始部分：icb:/scoreboard players tag @p add controller\n*给玩家添加一个控制者标签\n/replaceitem entity @p slot.armor.feet diamond_boots 1 0 {Unbreakable:1,display:{Name:\"Exit\"},HideFlags:63,AttributeModifiers:[{AttributeName:\"generic.movementSpeed\",Name:\"generic.movementSpeed\",Amount:-0.099999,Operation:0,UUIDMost:84265,UUIDLeast:167246,Slot:\"feet\"}]}\n*让玩家穿上前面防卡顿的靴子\n/scoreboard objectives add moved dummy\n*增加moved计分板\n//重置结束\n/setblock ~-3 ~1 ~2 minecraft:air 0\n/scoreboard objectives add control dummy\n/summon minecraft:实体名 [x] [y] [z] {Tags:[\"character\"],NoAI:1,CustomName:\"Character\",CustomNameVisible:false,Invulnerable:1,Silent:1,Rotation:[180.0f,0.0f]}\n*生成角色\n/tp @p [x] [y] [z] [dx] [dy]\n*将玩家传送到控制器的中心点（也就是\"移动监听\"中用玩家头颅代表的玩家立足点中心）\n/scoreboard players set @e[tag=character] moved 0\n*初始化stats\nstats entity @e[tag=character] set AffectedEntities @e[tag=character] moved\n*stats关联到实体\n/gamemode a @p\n*设置游戏模式复制代码\nControl 事件监听和操作：rcb:scoreboard players set @a control 0\nscoreboard players set @a control 1 {Inventory:[{id:\"minecraft:diamond_boots\",Slot:100b,Damage:0s,Count:1b,tag:{display:{Name:\"Exit\"}}}]}\n*检测玩家没有选择离开游戏，给玩家control计分板设为1，表示玩家正在操作\ntestfor @a[tag=controller,score_control=0,c=1]\ncond:testforblock ~-3 ~1 ~4 air 0\ncond:setblock ~-4 ~1 ~4 redstone_block 0\n*检测玩家退出后，激活End()模块\ntp @a[score_control_min=1] ~ ~ ~ [dx] [dy]\nexecute @e[tag=character,score_moved_min=1] ~ ~ ~ tp @a[score_control_min=1] [x] ~ [z]\ncond:scoreboard players set @e[tag=character] moved 0\n*固定和重置玩家视角和坐标\nexecute @a[score_control_min=1] ~ ~ ~ detect ~ ~2 ~-0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ detect ~ ~1 ~-0.9 air 0 tp @e[tag=character] ~ ~ ~-0.6\nexecute @a[score_control_min=1] ~ ~ ~ detect ~0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ -90 ~\nexecute @a[score_control_min=1] ~ ~ ~ detect ~0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ detect ~0.9 ~1 ~ air 0 tp @e[tag=character] ~0.6 ~ ~\nexecute @a[score_control_min=1] ~ ~ ~ detect ~ ~2 ~0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ detect ~ ~1 ~0.9 air 0 tp @e[tag=character] ~ ~ ~0.6\nexecute @a[score_control_min=1] ~ ~ ~ detect ~ ~2 ~-0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 180 ~\n*在Space操作之前移动操作可使用的顺序\n//Space事件\nexecute @a[score_control_min=1] ~ ~ ~ detect ~ ~2.99999 ~ air 0 execute @p ~ ~ ~ detect [x] [y] [z] air 0 setblock [x] [y] [z] redstone_block 0 replace\n//Space事件结束\nexecute @a[score_control_min=1] ~ ~ ~ detect ~ ~2 ~0.49999999999995 air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 0 ~\nexecute @a[score_control_min=1] ~ ~ ~ detect ~-0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ detect ~-0.9 ~1 ~ air 0 tp @e[tag=character] ~-0.6 ~ ~\nexecute @a[score_control_min=1] ~ ~ ~ detect ~-0.49999999999995 ~2 ~ air 0 execute @e[tag=character] ~ ~ ~ tp @e[tag=character] ~ ~ ~ 90 ~\n*在Space操作之后移动操作可使用的顺序\n//Shift事件\n/tp @e[name=sneak] ~ ~-300 ~\n/kill @e[name=sneak]\n/summon minecraft:rabbit ~ ~ ~ {NoAI:true,Silent:true,Invulnerable:true,ActiveEffects:[{Id:14,Duration:111110,ShowParticles:false}],Age:-1000000,CustomName:sneak}\n/execute @p ~ ~ ~ /tp @e[name=sneak] @a[score_control_min=1]\n/tp @e[name=sneak] ~0.01 ~ ~\n/execute @a[score_control_min=1,score_sneak_min=1] ~ ~ ~ setblock [x] [y] [z] minecrat:redstone_block 0 replace\n/scoreboard players reset @a sneak\n/scoreboard objectives add sneak stat.sneakTime\n//Shift事件结束\n//可选配置项目\n/effect @p[tag=controller] invisibility 1 1 true复制代码\nEnd 游戏结束部分：icb:/clear @a diamond_boots 0 10 {display:{Name:\"Exit\"}}\n/scoreboard objectives remove moved\n/scoreboard objectives remove control\n*各种重置\n/setblock ~-3 ~1 ~-2 minecraft:air\n*清除Start()模块开头的红石块\n/stats entity @e[tag=character] clear AffectedEntities\n/gamemode c @a\n*继续各种重置\n/tp @a [x] [y] [z] [dx] [dy]\n*返回大厅\n/tp @e[tag=character] ~ -100 ~\n/kill @e[tag=character]\n/scoreboard players tag @a remove controller\n*再各种重置复制代码\n如果你使用上述指令，那么模块的摆放也有相应要求，具体看\"Demo&源码资源\"\n\nDemo&源码资源\nDemo地址：百度网盘\n.pcb文件打包地址：百度网盘\n\n关于.pcb转为OOC后的摆放顺序：\n\n为了方便伸手党copy，你需要在z+方向依次摆上：Control()、Start()、End()\n每一行之间隔一格。\n\n此贴实际研究时间数个月前，而且感谢地图《A Day to Remember》给予的2.5D第三人称操作灵感。[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "langyo",
+            "timestamp": 1485092820,
+            "txt_content": " 本帖最后由 langyo 于 2017-2-8 17:00 编辑 \n\n我之前自己在草稿纸上写出的其中一个构想差不多就是这样子的，能够实现在玩家的第一视角下实现第三视角观看模型，并提供实时反馈。以下全部是自己理解+伪修改建议。\n1.事件监听\n这里你讲的onMouse等等，特别像Java中的监听器，或者是Windows中的API回调窗口消息事件，用途就是将动作部分的代码和玩家按键部分代码架桥，当玩家有动作，就能够触发动作部分代码。\n具体的实现，比如WASD和Space，都是基于玩家位置判断的，检测到玩家到了哪个方向，就执行动作部分，然后把玩家位置复位。\n如果还需要更多的按键检测，比如鼠标左键/右键，Shift/Ctrl，F键。其实stats指令也给了我们很多的途径，虽然基本没什么卵用。\n2.摄像机位移\n其实就是根据移动事件，先决定被观看实体的位置，然后再计算摄像机(也就是玩家)的位置和方向，穷举大法万岁。\n3.防止抖屏\n用减速靴子的方法的确很好，不仅能够正常移动，而且还不会由于移动太快导致CBM反应不过来，出现不断抖着屏幕被TP来TP去的现象。类似的方法，减速状态效果，甚至是在地上放水/岩浆/灵魂沙/冰/蓝冰作为缓速带都是好办法。\n4.优化玩家体验\n这里我还可以补充一点点东西。CB对角度有穷举的限制，由于角度分辨率导致的性能影响也是与玩家主机配置成反比的。所以，我们可以加入设置角度分辨率，以适应不同的等级配置。低配机就用10°会比较流畅，像乙烯那种配置的用3°吧…这种东西还可以加入进地图GUI的，比如用地图+鼠标事件，可以自如调整各种设置，只要你把GUI的各个玩家视角角度都算好就一切正常。(怎么算？极坐标转换。)\n5.环境音效\n这个可能已经超出本贴范围了，但既然是要在地图里实现五毛效果，我们就能做绝点，把它做成两元效果。好的小游戏地图，它除了图像上的精美，音乐做到身临其境也是必须得，所以就扯到了音效。\n首先是怎么加入额外音乐。\n然后，注意了，有时候角色的音效是不仅仅光播放就可以的。你不仅要学会开车，你还要学会刹车，否则遇到玩家突然按暂停停不下来就尴尬了。\n最后是对于环境音效的配置。我们可以依照角度穷举大法，如法炮制一堆的盔甲架围在玩家附近，角度密度不用太严格，因为就算隔个30°没多少人能听出来明显的声音位置变化。然后，我们必须把控制角色的位置计算并映射到这些盔甲架上，当移动到哪里时就可以粗略变换一下，把玩家为中心求得控制角色的极坐标的角度弄来，取个范围值并让负责对应范围的盔甲架执行playsound即可。\nstopplaysound可以沿用事件触发的方法，在玩家点开GUI时就触发控制事件，把粒子效果停了、把声音关了、把状态效果重置了、刷新区块等等……\n\n其实，当你的主机性能足够好时，你可以带的起3D而不是2.5D，只不过这种地图得看情况应用了。我觉得，服务器体验小游戏是最好的选择，一群玩家都以这种方式游戏，互相再控制着自己的小人，甚至LOL开黑，感觉很酷啊。\n\n大概就是这样，没想到我居然写了有半小时这样。"
+        },
+        {
+            "author": "8784",
+            "timestamp": 1485094320,
+            "txt_content": "灵感来自A day to remember吧，其实我也去看过，然后模仿了一套控制系统来。"
+        },
+        {
+            "author": "swalker",
+            "timestamp": 1485131400,
+            "txt_content": "牛牛牛，虽然我不用"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1485148740,
+            "txt_content": "langyo 发表于 2017-1-22 21:47\n我之前自己在草稿纸上写出的其中一个构想差不多就是这样子的，能够实现在玩家的第一视角下实现第三视角观看 ...\n打谁脸"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1485157980,
+            "txt_content": "我这是故意说给某人听的，他认为你这个能精\n以及，你删了我也能看见，论坛不提倡口吐脏字"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1485163620,
+            "txt_content": " 本帖最后由 林扬骐 于 2017-1-23 17:49 编辑 \n\n（看到第二节的回复）：其实潜行键1.9就有个判据是检测潜行总时间的了嗯（看到第三节的回复）：位置和视角两段tp可以合为一段"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1485164220,
+            "txt_content": "langyo 发表于 2017-1-23 15:53\n我这是故意说给某人听的，他认为你这个能精\n以及，你删了我也能看见，论坛不提倡口吐脏字\n ...\n诚信撕逼"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1485165060,
+            "txt_content": "优化到倒是挺有意思的\n其他还是可以想到的"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1485166380,
+            "txt_content": "然而 现在有潜行时间这个判据了\n不用在使用那个黑科技了\n\n\n\n按e打开物品栏可以被打开物品栏次数这个成就检测 然后放一个地狱门迅速关掉gui"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1485168480,
+            "txt_content": "chyx 发表于 2017-1-23 18:13\n然而 现在有潜行时间这个判据了\n不用在使用那个黑科技了\n有个小问题，放地狱门之后，玩家是否会立即被传送进地狱？如果不是，需要在多长时间内把地狱门消除，才能保证不传送？"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1485186720,
+            "txt_content": "以前看过一个吃豆人的也是用的这种方法，不过视角还是一抖一抖的，减速优化这个挺不错的。\n再来我之前也有个第三人称的脑洞，不过方法用的是直接teleport，控制的人物跟随玩家移动，然后玩家是在船上控制方向的，这样可以解决视角固定不动的问题但相应的很多按键监听不到，以及三维旋转依旧不能实现，不知道这个脑洞对改进有没有帮助w\n顺便再唠叨一句，渲染距离不够那个问题大概可以通过检测人物离玩家距离，过远了直接把玩家丢过去解决√"
+        },
+        {
+            "author": "1134443057",
+            "timestamp": 1485427440,
+            "txt_content": "用积分榜检测跳会不会更快"
+        },
+        {
+            "author": "TNT嘉音",
+            "timestamp": 1485662520,
+            "txt_content": "那个在动图里的图标亮了。"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1485674640,
+            "txt_content": " 本帖最后由 langyo 于 2017-1-29 19:01 编辑 \n\n啊，我的脸好疼啊\n我以反讽的方式成功让乙烯给了你精华\n"
+        },
+        {
+            "author": "xiongxin",
+            "timestamp": 1485675060,
+            "txt_content": "可以关联其他玩家吗……"
+        },
+        {
+            "author": "1635519573",
+            "timestamp": 1485681240,
+            "txt_content": "00000000000000000000000000000000000"
+        },
+        {
+            "author": "元晨风雪",
+            "timestamp": 1485824100,
+            "txt_content": "赞赞赞赞赞 好东西 谢谢分享"
+        },
+        {
+            "author": "love_Xue",
+            "timestamp": 1485831420,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "hongxiangyu",
+            "timestamp": 1485934920,
+            "txt_content": "腻害了  这么说不用玩第一人称的LOL地图了"
+        },
+        {
+            "author": "KLI21",
+            "timestamp": 1486047600,
+            "txt_content": "不错不错 作者加油啊"
+        },
+        {
+            "author": "箱箱",
+            "timestamp": 1486214760,
+            "txt_content": "可以，加油"
+        },
+        {
+            "author": "17777268265@163",
+            "timestamp": 1486394040,
+            "txt_content": "此插件强大······（然而我并不会用）"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1486429920,
+            "txt_content": "17777268265@163 发表于 2017-2-6 23:14\n此插件强大······（然而我并不会用）\n原版单人命令非插件"
+        },
+        {
+            "author": "NTSS",
+            "timestamp": 1486553040,
+            "txt_content": "一看到.pcb想起的不是懒癌卫士，而是印制电路板"
+        }
+    ]
+}

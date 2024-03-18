@@ -1,0 +1,39 @@
+{
+    "title": "[日志教程]如何使用ELK日志分析系统",
+    "author": "Ariy",
+    "replyCount": 6,
+    "timestamp": 1557051720,
+    "txt_content": " 本帖最后由 tian_wc 于 2019-5-5 18:36 编辑 \n\nELK日志分析系统\n           一般我们需要进行日志分析场景：直接在日志文件中 grep、awk 就可以获得自己想要的信息。但在规模较大的场景中，此方法效率低下，面临问题包括日志量太大如何归档、文本搜索太慢怎么办、如何**度查询。需要集中化的日志管理，所有服务器上的日志收集汇总。常见解决思路是建立集中式日志收集系统，将所有节点上的日志统一收集，管理，访问。\n       一般大型系统是一个分布式部署的架构，不同的服务模块部署在不同的服务器上，问题出现时，大部分情况需要根据问题暴露的关键信息，定位到具体的服务器和服务模块，构建一套集中式日志系统，可以提高定位问题的效率。\n       ELK提供了一整套解决方案，并且都是开源软件，之间互相配合使用，完美衔接，高效的满足了很多场合的应用。目前主流的一种日志系统。\n\n\n如何安装ELK日志系统\n       我建议大家尽量使用docker安装这些服务，如果你不知道docker如何安装，那么请参考这些教程安装好docker和docker-compose\nwindows：https://www.cnblogs.com/kevinlia0/articles/10391220.html\ncentos：https://www.cnblogs.com/rookie404/p/5965518.html\nubuntu: https://www.cnblogs.com/lighten/p/6034984.html\n       首先我们需要安装elasticsearch，这是elastic stack的核心，Elasticsearch 是一个分布式、RESTful 风格的搜索和数据分析引擎，能够解决不断涌现出的各种用例。作为 Elastic Stack 的核心，它集中存储您的数据，帮助您发现意料之中以及意料之外的情况。\n       然后我们安装kibana，kibana是Elastic Stack 的窗口。通过 Kibana，您能够对 Elasticsearch 中的数据进行可视化并在 Elastic Stack 进行操作，因此您可以在这里解开任何疑问：例如，为何会在凌晨 2:00 收到传呼，雨水会对季度数据造成怎样的影响。\n       这里我们使用docker-compose安装他们，新建一个文件夹，在其中新建一个docker-compose.yml文件，输入以下内容：\nversion: '2'\nservices:\n  elasticsearch: \n    image: docker.elastic.co/elasticsearch/elasticsearch:7.0.1\n    environment: \n      - discovery.type=single-node\n    ports: \n      - \"9200:9200\"\n      - \"9300:9300\"\n  kibana:\n    image: docker.elastic.co/kibana/kibana:7.0.1\n    environment: \n      SERVER_NAME: kibana\n      ELASTICSEARCH_URL: http://127.0.0.1:9200\n    ports:\n      - \"5601:5601\"复制代码\n保存后，在当前目录执行这个指令启动他们\ndocker-compose up -d复制代码启动完成后访问相应ip的5601端口，如果打开了kibana的网页就说明安装成功了。\n\n接下来我们安装logstash和filebeat，在这个页面下载你系统对应的\nhttps://www.elastic.co/cn/downloads/logstash\nhttps://www.elastic.co/cn/downloads/beats/filebeat\n下载后解压，并进入filebeat的目录内，修改其配置文件filebeat.yml，改成如下内容：\nfilebeat.inputs:\n- type: log\n  paths:\n    - /usr/local/server/spigot-1.14/logs/latest.log #这里改为你自己的log文件路径\n\noutput.logstash:\n  hosts: [\"localhost:5044\"]复制代码同时我们进入logstash目录内，新增一个配置文件first-pipeline.conf，输入以下内容：\ninput {\n    beats {\n        port => \"5044\"\n    }\n}\n\noutput {\n    elasticsearch {\n        hosts => [ \"localhost:9200\" ]\n    }\n}复制代码接着我们在logstash目录内执行指令检查配置文件是否正确\nbin/logstash -f first-pipeline.conf --config.test_and_exit #若为windows则将/改为\\即可复制代码出现“Configuration OK”就可以执行下一步指令启动logstash了\nbin/logstash -f first-pipeline.conf --config.reload.automatic复制代码\n启动后，进入filebeat目录内，输入以下指令启动\n./filebeat -e -c filebeat.yml -d \"publish\"复制代码\n       到这里，所有的服务就已经启动成功了，filebeat会监听配置文件中记载的log文件，当log文件发生变化时，会将其发送到logstash，然后logstash处理后存到elasticsearch中。\n\n\n\n\n\n在kibana中分析日志\n\n       现在我们在浏览器中打开ip:5601，ip上文中kibana所在的服务器ip，打开后你会看到kibana的管理界面，在这里你可以分析你的日志，根据指示新建一个名为\"logstash-*\"的索引，你就能看到所有的filebeat采集到的日志。\n\n\n\n\n\n\n最后\n\n       如上图所示，kibana中展示了一条log的采集时间、所在文件（这对于多个服务器的日志采集来说是很有用的）、消息本体等内容。当然，大家都看出来这里面有很多无用的信息，消息本地也没有做处理，这些其实在logstash中都能做到，具体怎么做，如果有人看我再更新。\n\n",
+    "replies": [
+        {
+            "author": "在杰难逃",
+            "timestamp": 1557054780,
+            "txt_content": "已经帮楼主申请茶馆优质贴了（在这里：http://www.mcbbs.net/thread-856425-1-1.html ）\n"
+        },
+        {
+            "author": "jianpeiguo",
+            "timestamp": 1557058920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "在杰难逃",
+            "timestamp": 1557490500,
+            "txt_content": "拿到C了hhh\n恭喜恭喜\n\n\n\n\nQQ图片20190325190454.jpg (1.49 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-10 20:15 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "Zapic",
+            "timestamp": 1557493920,
+            "txt_content": "额…日志这种东西我都当垃圾删掉的…顶多就留下auth.log,mysql.log.其他的全部丢掉…\n还有我觉得journalctl也不错啊基于systemd的服务日志都会被记录而且也很方便.\n所以我没搞明白这个东西优势在哪…\n不过还是支持一下,茶馆技术帖~"
+        },
+        {
+            "author": "Ariy",
+            "timestamp": 1557494340,
+            "txt_content": "Zapic 发表于 2019-5-10 21:12\n额…日志这种东西我都当垃圾删掉的…顶多就留下auth.log,mysql.log.其他的全部丢掉…\n还有我觉得journalctl ...\n监控日志、分析日志是运维的必修课"
+        },
+        {
+            "author": "Zapic",
+            "timestamp": 1557496200,
+            "txt_content": "tian_wc 发表于 2019-5-10 21:19\n监控日志、分析日志是运维的必修课\n我大概只是个业余玩家…\n+强迫症就会想把什么乱七八糟的删掉"
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "title": "【LAY Studio|CAM开发随笔】关于实现自定义同种多物品无序合成的讨论",
+    "author": "CR_019",
+    "replyCount": 7,
+    "timestamp": 1587827940,
+    "txt_content": " 本帖最后由 CR_019 于 2020-5-1 14:19 编辑 \n\n20/5/1\n待讨论问题：如何免穷举解决可互换物品（如木头的不同变种）的检测\n\n\n本帖讨论主题如题，一般的自定义配方中都是使用探测指定容器nbt的方式检查容器内物品是否符合配方要求，比如：\n\nexecute if block ~ ~ ~ minecraft:barrel{Items:[{id:\"minecraft:yellow_dye\",tag:{saccharomyce:1b}},{id:\"minecraft:wheat\"},{id:\"minecraft:wheat\"},{id:\"minecraft:glass_bottle\"}]} if entity @s[scores={CAM_table_count=4}] unless data block ~ ~ ~ {Items:[{id:\"minecraft:apple\",tag:{id:\"cam:red_string\"}}]} run replaceitem block ~ ~ ~ container.16 string{display:{Name:\"{\"translate\":\"item.cam.red_string\",\"italic\":\"false\"}\"},CustomModelData:9102027,CAM_output:1b,id:\"cam:red_string\"}复制代码\n但这样不能检测符合条件的nbt项的个数，这样就使在不能指定slot标签辅助判定的无序合成配方的判定中，对多个同种物品检测增加了难度。\n直接用上方代码会出现问题：\n\n\n\n\n2020-04-25_22.45.32.png (193.85 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 22:45 上传\n\n\n\n\n\n这是原定配方\n\n\n\n\n\n2020-04-25_22.45.35.png (194.01 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 22:45 上传\n\n\n\n\n\n这是意外情况\n\n\n\n\n\n为此，一周前我想了一个较为繁琐的方法，见下方隐藏内容中。但实际上可以简便地判定。见下。\n20/4/30\n感谢@VCS-Official 的方案，可以使用execute if 来判定符合条件的NBT项个数，利用这一性质可以简易地判定容器里的所需的物品个数\n例：探测容器内有2个小麦：\nexecute store result score @s CAM_SLout if data block ~ ~ ~ Items[{id:\"minecraft:wheat\"}]复制代码当返回2时，判定成功。\n结合@chyx 的建议：当有多个可换用物品时，结合制作合成系统，这一类物品总个数不会太多的特点，可利用穷举，将最终分数相加。当然有关木头的变种。。。。暂无很好的解决方案\n\n\n此方法1.13-1.15通用。\n\n\n\n\n20/4/25\n以下为我的原始的，较繁琐的方案：\n由于使用了storage，因此此方法只能在1.15及以上版本中使用，要兼容至1.14，请将有关storage的部分改成其他类型标签\n\n\n\n在论坛内搜索无果，在有关合成的原版模组贴中，比如这里，还有这里，都没有相应做法\n支持无序合成，但不支持多项同种物品的无序合成\n所以，我自己想出了一个相对简单的方法。需使用两条函数。\n以下为思维导图\n\n\n\n\n无序合成.png (41.76 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 23:12 上传\n\n\n\n\n\n使用时，以合成台处的盔甲架执行以下两条指令：\ndata modify storage cam:craft target set value \"minecraft:wheat\"←（这里填需要的物品ID）\nfunction cam:machine/crafting_table/shapeless/main←（这里填下面主函数所在路径）复制代码\n在合成的具体命令中加入分数判断即可，这里是@s[scores={CAM_SLout=2}]\n0、在load函数预置3个计分板（名称随意）\nscoreboard objectives add CAM_shapeless dummy\nscoreboard objectives add CAM_SLtemp dummy\nscoreboard objectives add CAM_SLout dummy复制代码\n\n1、主函数\n#初始化\ndata remove storage cam:craft out\ndata modify storage cam:craft temp set from block ~ ~ ~ Items\ndata modify storage cam:craft target1 set from storage cam:craft target\ndata remove storage cam:craft temp[{tag:{CAM_bg:1b}}]\n#递归\nfunction cam:machine/crafting_table/shapeless/loop←（这里填递归函数所在路径）\n#输出\nexecute store result score @s CAM_SLout run data get storage cam:craft out复制代码2、递归函数\n#检测列表长度\nexecute store result score @s CAM_SLtemp run data get storage cam:craft temp\n#判断id是否符合\nexecute unless score @s CAM_SLtemp matches 0 store result score @s CAM_shapeless run data modify storage cam:craft target1 set from storage cam:craft temp[0].id\nexecute if score @s CAM_shapeless matches 0 run data modify storage cam:craft out append from storage cam:craft temp[0]\n#删除本项，为下一项的判断作准备\ndata remove storage cam:craft temp[0]\n#复位与递归\ndata modify storage cam:craft target1 set from storage cam:craft target\nexecute unless score @s CAM_SLtemp matches 0 run function cam:machine/crafting_table/shapeless/loop复制代码宏观原理：见思维导图\n\n具体判断：利用data get和data modify命令返回值：\nget\n当指定的为实体/方块实体时\nList        该 列表 包含的 项 个数（可能溢出）modify\n\n当成功编辑时，返回 1；\n当编辑失败，或是编辑后的值和之前完全一致时，返回 0。\n来判断列表长度和元素是否匹配。\n结果\n\n\n\n\n2020-04-25_23.18.56.png (200.71 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 23:19 上传\n\n\n\n\n\n\n\n\n2020-04-25_23.19.00.png (201.47 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 23:19 上传\n\n\n\n\n\n参考资料：\n[命令] 【CBL|SPG】[1.14.4] 命令返回值列表\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "chyx",
+            "timestamp": 1587828660,
+            "txt_content": "可是一旦有煤啊 木炭啊这样可以互换的东西就很难受了。"
+        },
+        {
+            "author": "VCS-Official",
+            "timestamp": 1587829560,
+            "txt_content": "似乎有点麻烦...\n现在头脑不太清醒，不怎么理解。\n\n我们是使用store获取同种物品的数量、总被占据的槽数来判定是否通过的。\n相比起这种传统做法，这种新方法有什么优势吗？"
+        },
+        {
+            "author": "sonter",
+            "timestamp": 1588294080,
+            "txt_content": "感觉好麻烦根本看不懂如果用store得到同样的数量，没啥意思啊"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1588294380,
+            "txt_content": " 本帖最后由 CR_019 于 2020-5-1 09:16 编辑 \nsonter 发表于 2020-5-1 08:48\n感觉好麻烦根本看不懂如果用store得到同样的数量，没啥意思啊\n\n我一开始没有想到（我太菜了），前面是昨天编辑的内容。一个问题的解决，效果相同时，当然要从简。不过论坛内没有相关做法，就填一下"
+        },
+        {
+            "author": "woaibaihu",
+            "timestamp": 1594692300,
+            "txt_content": "鹅鹅鹅饿鹅鹅鹅鹅鹅鹅饿"
+        },
+        {
+            "author": "kunkun520",
+            "timestamp": 1596026400,
+            "txt_content": "mcbbs有你更精彩！！！"
+        },
+        {
+            "author": "私‘’恋",
+            "timestamp": 1596289140,
+            "txt_content": "\n感觉好麻烦根本看不懂"
+        }
+    ]
+}

@@ -1,0 +1,79 @@
+{
+    "title": "建议修复/关闭论坛软防御机制",
+    "author": "langyo",
+    "replyCount": 14,
+    "timestamp": 1545192300,
+    "txt_content": "相信大家也看到了，论坛虽然已经恢复了正常访问，但却出现了部分内容乱码的情况，诸如评分等这类功能无法正常使用\n\n更确切的讲，是所有动态从服务器加载的内容都不能正常使用，诸如评分、举报、异地登录提示的窗口都在此范畴\n\n为什么会这样呢？\n\n先不提乱码的事，在此之前必须先提起论坛另一个不太正常的地方，所有的 PHP 页面都需要额外刷新几次才展示真实内容\n\n\n\n这是我在页面自动刷新时的某一瞬间截的图，我们可以清晰地看到，右侧的 DevTool 展示的 DOM 元素中根本没有 body 标签，只有个 head 标签\n\n我来不及保存，也没时间专门去找工具把这个中间页面扣下来解析，不过有点常识的人应该都知道，只写个 head 还能自动刷新，只能是往 head 里写了点额外的代码使页面重新加载\n\n等正式出来页面后，我们还能看到右下角的“乱码”\n\n\n\n这其实是提示异地登录的信息，但没正常加载\n\n为什么呢？其实这也和之前所说的 PHP 页面自动刷新有关系\n\n看过 Discuz! 源码的人应该都知道，所有的动态页面加载，以及表单的提交，其实并没有使用诸如 XMLHttpRequest 或 Fetch 这类库，而是用 iframe：\n\nfunction _ajaxget(url, showid, waitid, loading, display, recall) {\n    waitid = typeof waitid == 'undefined' || waitid === null ? showid : waitid;\n    var x = new Ajax();\n    x.setLoading(loading);\n    x.setWaitId(waitid);\n    x.display = typeof display == 'undefined' || display == null ? '' : display;\n    x.showId = $(showid);\n    if (url.substr(strlen(url) - 1) == '#') {\n        url = url.substr(0, strlen(url) - 1);\n        x.autogoto = 1;\n    }\n    var url = url + '&inajax=1&ajaxtarget=' + showid;\n    x.get(url, function(s, x) {\n        var evaled = false;\n        if (s.indexOf('ajaxerror') != -1) {\n            evalscript(s);\n            evaled = true;\n        }\n        if (!evaled && (typeof ajaxerror == 'undefined' || !ajaxerror)) {\n            if (x.showId) {\n                x.showId.style.display = x.display;\n                ajaxinnerhtml(x.showId, s);\n                ajaxupdateevents(x.showId);\n                if (x.autogoto)\n                    scroll(0, x.showId.offsetTop);\n            }\n        }\n        ajaxerror = null;\n        if (recall && typeof recall == 'function') {\n            recall();\n        } else if (recall) {\n            eval(recall);\n        }\n        if (!evaled)\n            evalscript(s);\n    });\n}\nfunction _ajaxpost(formid, showid, waitid, showidclass, submitbtn, recall) {\n    var waitid = typeof waitid == 'undefined' || waitid === null ? showid : (waitid !== '' ? waitid : '');\n    var showidclass = !showidclass ? '' : showidclass;\n    var ajaxframeid = 'ajaxframe';\n    var ajaxframe = $(ajaxframeid);\n    var curform = $(formid);\n    var formtarget = curform.target;\n    var handleResult = function() {\n        var s = '';\n        var evaled = false;\n        showloading('none');\n        try {\n            s = $(ajaxframeid).contentWindow.document.XMLDocument.text;\n        } catch (e) {\n            try {\n                s = $(ajaxframeid).contentWindow.document.documentElement.firstChild.wholeText;\n            } catch (e) {\n                try {\n                    s = $(ajaxframeid).contentWindow.document.documentElement.firstChild.nodeValue;\n                } catch (e) {\n                    s = '内部错误，无法显示此内容';\n                }\n            }\n        }\n        if (s != '' && s.indexOf('ajaxerror') != -1) {\n            evalscript(s);\n            evaled = true;\n        }\n        if (showidclass) {\n            if (showidclass != 'onerror') {\n                $(showid).className = showidclass;\n            } else {\n                showError(s);\n                ajaxerror = true;\n            }\n        }\n        if (submitbtn) {\n            submitbtn.disabled = false;\n        }\n        if (!evaled && (typeof ajaxerror == 'undefined' || !ajaxerror)) {\n            ajaxinnerhtml($(showid), s);\n        }\n        ajaxerror = null;\n        if (curform)\n            curform.target = formtarget;\n        if (typeof recall == 'function') {\n            recall();\n        } else {\n            eval(recall);\n        }\n        if (!evaled)\n            evalscript(s);\n        ajaxframe.loading = 0;\n        if (!BROWSER.firefox || BROWSER.safari) {\n            $('append_parent').removeChild(ajaxframe.parentNode);\n        } else {\n            setTimeout(function() {\n                $('append_parent').removeChild(ajaxframe.parentNode);\n            }, 100);\n        }\n    };\n    if (!ajaxframe) {\n        var div = document.createElement('div');\n        div.style.display = 'none';\n        div.innerHTML = '<iframe name=\"' + ajaxframeid + '\" id=\"' + ajaxframeid + '\" loading=\"1\"></iframe>';\n        $('append_parent').appendChild(div);\n        ajaxframe = $(ajaxframeid);\n    } else if (ajaxframe.loading) {\n        return false;\n    }\n    _attachEvent(ajaxframe, 'load', handleResult);\n    showloading();\n    curform.target = ajaxframeid;\n    var action = curform.getAttribute('action');\n    action = hostconvert(action);\n    curform.action = action.replace(/\\&inajax\\=1/g, '') + '&inajax=1';\n    curform.submit();\n    if (submitbtn) {\n        submitbtn.disabled = true;\n    }\n    doane();\n    return false;\n}复制代码\n\n这是取自 ajax.js 里的内容\n\n我们可以从中看出，页面每当要发送表单或获取信息时，会动态往页面中插入个 iframe 标签，然后等 iframe 加载完成后直接获取其中的内容作为结果，稍微处理下就可以改写父页面的 DOM 显示出来了\n\n而在目前的状态来看，此时获取到的内容真的不正常……它获取到的内容大概是这样的：\n\nvar v='61b023cc1899590fa1ce2ca8171ffbd2'; document.cookie='ccdefend='+v+'; path=/'; window.location.reload();复制代码\n\n看到最后那句 location.reload 了么？这句其实就是重新加载页面用的\n\n现在算是搞明白了，论坛里所有的 PHP 页面似乎都加上了某种防御机制，请求、不断刷新页面个若干次才能正常显示页面\n\n（普通用户看到这里应该能明白如何解决不能正常评分、举报的问题了吧？其实解决方案就是多点几下，直到把它刷出来）\n\n\n\n但这样不行诶\n\n如果是为了防御外来 DDOS 的话，只要定位下攻击者主要攻击哪个页面，然后只对对应页面加入防御脚本就行了，不必全部都加入这种东西\n\n而诸如 misc.php 、 home.php 这类页面，请求这些页面的一般都是 Ajax 请求，这些部分如果加入防御，就会出现所谓的乱码现象，十分影响论坛用户的正常操作\n\n如果这个并不是管理员们主动加入的，也请尽快修复下，谢谢！\n\n@混乱 @gamerteam",
+    "replies": [
+        {
+            "author": "2693149792",
+            "timestamp": 1545193080,
+            "txt_content": "怪不得最近站访问很慢\n同感+1"
+        },
+        {
+            "author": "2693149792",
+            "timestamp": 1545193080,
+            "txt_content": " 本帖最后由 2693149792 于 2018-12-19 12:20 编辑 \n\n用户体验感极差"
+        },
+        {
+            "author": "1723624171",
+            "timestamp": 1545194760,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "gamerteam",
+            "timestamp": 1545196380,
+            "txt_content": "该脚本为很多年前站长所写，经过检查确实是与dz自带的机制冲突（dz这么写主要是为了兼容IE，IE老版本没有XMLHttpRequest2是没法进行Post部分内容的）\n但是暂时没有什么好的解决方案（你提到的那个方案本质上依然是一个巨大的漏洞），不开的话连网页都没法正常开启\n正在联系相关的部门解决"
+        },
+        {
+            "author": "Abraham511",
+            "timestamp": 1545196380,
+            "txt_content": "现在又开始大量404了"
+        },
+        {
+            "author": "Abraham511",
+            "timestamp": 1545196440,
+            "txt_content": "现在又开始大量404了"
+        },
+        {
+            "author": "Jager_Izlife",
+            "timestamp": 1545199560,
+            "txt_content": "同感+2\n签不上到难受的一批\n被攻击说明论坛名声大\n但是还是希望相关部门能够尽快解决，现在的状况连登录都不太现实（大号断签3天了啊！）"
+        },
+        {
+            "author": "1139365029",
+            "timestamp": 1545199620,
+            "txt_content": "var v='61b023cc1899590fa1ce2ca8171ffbd2'; document.cookie='ccdefend='+v+'; path=/'; window.location.reload();复制代码\n这段代码其实是一种非常有效的防御方式，\n它的主要原理就是让浏览器执行一段js，将一段指定的字符串加入cookie当中，\n并在下次请求页面的时候，将这段cookie一起发送到服务器，然后重新请求当前的页面，\n由于一般的攻击软件只是一味的请求页面，并不会执行页面当中的js，\n所以服务器就可以根据这段cookie是否存在 来判断对方是浏览器还是攻击软件。\n\n那么它的问题在哪里？主要是两点：\n1.被滥用了。其实用户只需要首次访问的时候验证一次，之后就不需要验证了，这样反复验证，反而降低用户体验。\n2.就算是浏览器，也必须放在js里面，才能执行。看到点击“签到”弹出来的不是签到界面而是一段代码了吗？浏览器请求那个界面，但服务器突然[数据删除]想要再验证几次，于是返回了一段js，让浏览器执行一下，但浏览器并不知道那是js，以为和以前的一样 是一个界面，所以就直接展示出来了。\n\n另外这种防御不适合一直开启，会让各大搜索引擎无法正常抓取，没被攻击就最好及时关掉。"
+        },
+        {
+            "author": "Shangyulin",
+            "timestamp": 1545217080,
+            "txt_content": "这难道是上古脚本？"
+        },
+        {
+            "author": "咸鱼气功王",
+            "timestamp": 1545219120,
+            "txt_content": "Shangyulin 发表于 2018-12-19 18:58\n这难道是上古脚本？\n少年我看你骨骼惊奇,这有一段祖传脚本传授于你"
+        },
+        {
+            "author": "琉璃糖",
+            "timestamp": 1545225480,
+            "txt_content": "老古董了吧........\n这几天签不了到，还在为寒假正式开服没金粒而犯愁\n望早日解决吧......"
+        },
+        {
+            "author": "west.myth",
+            "timestamp": 1545225540,
+            "txt_content": "Jager_Izlife 发表于 2018-12-19 14:06\n同感+2\n签不上到难受的一批\n被攻击说明论坛名声大\n被攻击和名声大没有必然联系。前几次都是某些人违规被**，心理不平衡来报复"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1546079580,
+            "txt_content": "这问题被搁置了半个月还没有得到解决么……\n\n虽然不知道顶一下是不是违规，但我希望这个帖子能再重归反馈版帖子列表的开头，所以就再回一次……\n\n@gamerteam 顺带问下，为什么不这么弄，连网页都无法正常开启？"
+        },
+        {
+            "author": "混乱",
+            "timestamp": 1546505940,
+            "txt_content": "在攻击停止前不能关闭这个脚本，否则服务器立刻CPU100%只能说进行部分修改，让部分固定页面不展现这个，但是Ajax这一问题，展示没有解决办法。"
+        }
+    ]
+}

@@ -1,0 +1,64 @@
+{
+    "title": "[1.9]道具冷却补给系统（例）",
+    "author": "秋一",
+    "replyCount": 11,
+    "timestamp": 1455612120,
+    "txt_content": " 本帖最后由 acordome 于 2016-5-27 18:22 编辑 \n\n大家好~今天心血来潮发一个小玩意儿……就像标题说的那样，是1.9版本可用的道具冷却系统\n这个系统的核心只有两个字：穷举\n没错……其实就是个苦力活儿，因为不同的道具的冷却时间不一样，所以要单独计算时间\n首先来举个例子吧，这是最近在做的一个小玩意儿\n\n实现的功能就是，每种箭上限只有3支，当使用了以后，每10秒补给1支。\n\n箭是其中的一个例子，其实基本上所有的道具都有类似的方法来制作冷却补给。\n\n这里，主要给大家讲讲我的思路……我不知道有没有其他人发过类似的，但我没搜到，所以我按我自己的思路来做。\n\n首先，要判断使用了箭的方法，毫无疑问需要使用记分板，这是第一步，也是变化最多的一步，为什么这么说呢？\n因为有的道具是主动道具，需要你去“使用”它；而有的道具则是投掷型（按Q使用之类的），还有的是利用副手的位置等等\n在做补给之前，你需要判断这个道具是如何使用的，例如我这里是，弓在副手，选中对应的箭拉弓即可，所以我选择了判断弓的使用\n在贴指令之前，贴一下文中可能用到的简写和前缀：\n默认不加前缀是CCB, Chain Command Block\nicb前缀代表是ICB, Impulse Command Block\nrcb前缀代表是RCB, Repeating Command Block\ninit前缀代表该指令只在激活OOC时执行一次\n指令的话，肯定是添加记分板了，这里会把用到的记分板写出来\ninit:scoreboard objectives add bowUse stat.useItem.minecraft.bow 使用了弓\ninit:scoreboard objectives add arrowCoolDown1 dummy 属性箭1冷却\ninit:scoreboard players add @a arrowCoolDown1 0复制代码\nbowUse是用于判断玩家是否使用了弓（箭）\narrowCoolDown1是给属性箭1用的冷却时间记分板\n\n当玩家使用了弓、选择了属性箭1号并且冷却时间不超过400刻（20秒）的时候，添加200刻（10秒）的冷却时间\nrcb:scoreboard players add @a[score_bowUse_min=1,score_arrowCoolDown1=400] arrowCoolDown1 200 {SelectedItemSlot:1}复制代码在上图可以看见，属性箭1实际上位于2号快捷栏，在Inventory中，2号快捷栏的编号是1（0~8，以此类推）\n注意到这里的“冷却时间不超过400刻”，为什么要这么设定呢？这个问题放到后面一些解答。\n\n然后看下一条：\nscoreboard players reset @a[tag=archer,score_bowUse_min=1] bowUse复制代码重置使用弓次数的记分板，这条没什么好说吧？不过注意的是执行顺序问题，就是这个需要放在比较后面来执行\n\n接下来就是倒计时部分\nscoreboard players remove @a[tag=archer,score_arrowCoolDown1_min=0] arrowCoolDown1 1\nreplaceitem entity @a[score_arrowCoolDown1_min=0,score_arrowCoolDown1=0] slot.hotbar.1 tipped_arrow 3 0 {相关NBT}\nreplaceitem entity @a[score_arrowCoolDown1_min=200,score_arrowCoolDown1=200] slot.hotbar.1 tipped_arrow 2 0 {相关NBT}\nreplaceitem entity @a[score_arrowCoolDown1_min=400,score_arrowCoolDown1=400] slot.hotbar.1 tipped_arrow 1 0 {相关NBT}复制代码解释一下每一条的意思，首先当冷却大于等于0的时候，会自动减1——所以，最后的数字会停留在-1\n前面说了，每用一次该道具，冷却时间+200刻（10秒），而每10秒需要补一次，上限3支；\n于是我们可以简单算出来，在倒计时到0的时候替换成3，在倒计时到200的时候替换成2，400的时候替换成1\n超过400意味着什么？意味着此时这个槽位是空的，没有那个道具\n\n那么问题来了，如果这个时候选中这个槽位使用弓，会怎么样？\n很明显，冷却加10秒√\n于是就需要设定，当冷却时间不超过400的时候使用弓，才能加冷却时间\n\n以上就是“一个道具”要用到的指令\n……当有多个道具的时候，就需要设定多个记分板（例如我这里有8种属性箭，所以是arrowCoolDown1,2,3,……,8）\n简单来说，就是前面的指令*8\n\n而我自己在写的时候，因为个人的一些强迫症，必须添加颜色黑科技以及防止扔道具误操作这样的系统，所以最后写出来的源指令就不短了，大概就是这个样子——\n\n中间那段超长的就是8种属性箭的补给（replaceitem对应的那3条指令）\n\n这里推荐一下我用的生成器，是@pca006132 写的懒癌卫士，非常好用哦，传送门：http://www.mcbbs.net/thread-533943-1-1.html\n欢迎提出问题 && 指出文中的错误！\n\n最后引用一句至理名言：不穷举你会变得更强吗？！\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "928231678",
+            "timestamp": 1455612600,
+            "txt_content": "做的不错，冷却放在RPG里面感觉更好，还能自动补充的"
+        },
+        {
+            "author": "龙腾猫跃",
+            "timestamp": 1455612660,
+            "txt_content": "不穷举你会变更强吗"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1455612720,
+            "txt_content": "928231678 发表于 2016-2-16 16:50\n做的不错，冷却放在RPG里面感觉更好，还能自动补充的\n嗯，是给pvp和rpg用的……"
+        },
+        {
+            "author": "Cth_Can阿残",
+            "timestamp": 1455613740,
+            "txt_content": "话说回来，直接判断玩家身上是不是还有箭是不是会好一点……"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1455614040,
+            "txt_content": "Cth_Can阿残 发表于 2016-2-16 17:09\n话说回来，直接判断玩家身上是不是还有箭是不是会好一点……\n我也考虑过这个问题，然后发现要加个非门，就不太适用于多人模式了"
+        },
+        {
+            "author": "懒虫哥",
+            "timestamp": 1455615240,
+            "txt_content": "好像很高大上的样子=.="
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1455615780,
+            "txt_content": "懒虫哥 发表于 2016-2-16 17:34\n好像很高大上的样子=.=\n并不2333，就是一堆穷举"
+        },
+        {
+            "author": "CL_coin",
+            "timestamp": 1455761640,
+            "txt_content": "这是PCB？？？？？！[bone_meal]"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1455765060,
+            "txt_content": "CL_coin 发表于 2016-2-18 10:14\n这是PCB？？？？？！\n嗯，是用懒癌卫士写的，然而由于某些原因……就不放pcb出来了"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1456114380,
+            "txt_content": "穷举了电脑会变得更卡（手动滑稽）\n\n我们需要更好的电脑\n\n要不要考虑增加显示道具返回时间（继续滑稽）"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1456119060,
+            "txt_content": "840196733mw 发表于 2016-2-22 12:13\n穷举了电脑会变得更卡（手动滑稽）\n\n我们需要更好的电脑\n穷举卡是优化问题2333\n返回时间嘛多一点clear+replaceitem就可以了"
+        }
+    ]
+}

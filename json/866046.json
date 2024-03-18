@@ -1,0 +1,64 @@
+{
+    "title": "关于实体渲染的问题",
+    "author": "YZL314159265",
+    "replyCount": 11,
+    "timestamp": 1558019100,
+    "txt_content": "写的一个武器发射出去的实体似乎没有渲染（透明的看上去啥也没有，但确实发射出去并造成伤害了）。参照那个什么Harbinger教程写的渲染。。。代码如下\n\n以下是RenderJavelin.java的内容\npublic class RenderJavelin extends Render<EntityJavelin> {\n    public RenderJavelin(RenderManager manager) {\n        super(manager);\n    }\n\n    @Override\n    public void doRender(EntityJavelin entity, double x, double y, double z, float entityYaw, float partialTicks) {\n        bindEntityTexture(ENTITY_JAVELIN);\n        //这里教程说要 bindEntityTexture（func_180548_c） 但这个func_182548_c完全不知道是啥，写上去IDEA就报错，只好用这个作为参数\n        GlStateManager.pushMatrix();\n        GlStateManager.translate((float)x, (float)y, (float)z);\n        GlStateManager.enableRescaleNormal();\n        GlStateManager.rotate(-this.renderManager.playerViewY, 0.0F, 1.0F, 0.0F);\n        GlStateManager.rotate((float)(this.renderManager.options.thirdPersonView==2? -1 : 1)*this.renderManager.playerViewX, 1.0F, 0.0F, 0.0F);\n        GlStateManager.rotate(180.0F, 0.0F, 1.0F, 0.0F);\n        this.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);\n        if (this.renderOutlines)\n        {\n            GlStateManager.enableColorMaterial();\n            GlStateManager.enableOutlineMode(this.getTeamColor(entity));\n        }\n        if (this.renderOutlines)\n        {\n            GlStateManager.disableOutlineMode();\n            GlStateManager.disableColorMaterial();\n        }\n\n        GlStateManager.disableRescaleNormal();\n        GlStateManager.popMatrix();\n        super.doRender(entity, x, y, z, entityYaw, partialTicks);\n    }\n\n    @Override\n    protected ResourceLocation getEntityTexture(EntityJavelin entity) {\n        return JAVELIN_TEXTURE;\n    }\n\n    private static final ResourceLocation JAVELIN_TEXTURE=new ResourceLocation(\"czq\", \"textures/entity/javelin.png\");\n}\n\n以下是其他一个类里负责注册实体和绑定render的代码段\n    public static World worldIn;\n    public static final EntityJavelin ENTITY_JAVELIN=new EntityJavelin(worldIn);\n    \n    @SubscribeEvent\n    public static void onEntityRegistation(RegistryEvent.Register<EntityEntry> event) {\n        event.getRegistry().register(EntityEntryBuilder.create()\n                .entity(EntityJavelin.class)\n                .id(new ResourceLocation(\"czq\", \"javelin\"), 233)\n                .name(\"Javelin\")\n                .tracker(80, 3, false)\n                .build()\n        );\n    }\n\n    @SubscribeEvent\n    public static void bindEntityRenderer(ModelRegistryEvent event) {\n        RenderingRegistry.registerEntityRenderingHandler(EntityJavelin.class, manager -> new RenderJavelin(manager));\n    }\n来解答一下谢了。。。帮助特别大的我不介意支付个位数CNY的报酬。。。",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1558027140,
+            "txt_content": "bindEntityTexture(ENTITY_JAVELIN);\n        //这里教程说要 bindEntityTexture（func_180548_c） 但这个func_182548_c完全不知道是啥，写上去IDEA就报错，只好用这个作为参数复制代码\n\nfunc_182548_c 是 bindEntityTexture 这个方法的 Searge 名。https://harbinger.covertdragon.team/chapter-01/mcp.html\n\n public static World worldIn;\n    public static final EntityJavelin ENTITY_JAVELIN=new EntityJavelin(worldIn);\n复制代码\n这两行没有必要（某种意义上还是错的——静态字段持有 World 除了可能会引发内存泄漏好像没有什么实质性作用）。\nbindEntityTexture 需要的参数实际上就在 doRender 里：\npublic void doRender(EntityJavelin entity, double x, double y, double z, float entityYaw, float partialTicks) {\n}\n// 注意第一个参数——那个代表要被渲染的实体。复制代码\n也可以考虑直接使用 bindTexture，它接受一个 ResourceLocation，可能对某些人来说比 bindEntityTexture 可读性更高。\n\n\n整个 doRender 看上去没有问题——不，其实有一个大问题，那就是缺少往 Tessellator 的 BufferBuilder（Tessellator.getInstance().getBuffer()）中绑定渲染坐标（X、Y）及纹理坐标（U、V）的过程。你可以参考一下原版的箭（RenderArrow）是怎么写的。\n\n最后：没错，是我的锅，因为 https://harbinger.covertdragon.team/chapter-11/entity-model/ 是我写的。给我一点时间我去补上。\n\n有疑问请持续跟进。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558064280,
+            "txt_content": "u.s.knowledge 发表于 2019-5-17 01:19\nfunc_182548_c 是 bindEntityTexture 这个方法的 Searge 名。https://harbinger.covertdragon.team/chapt ...\n仿照RenderArrow加了坐标似乎还是不行。。Throwable类型的实体。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558162560,
+            "txt_content": "YZL314159265 发表于 2019-5-17 11:38\n仿照RenderArrow加了坐标似乎还是不行。。Throwable类型的实体。\n我可能没说清楚，真正负责模型绘制的是 Tessellator，你再仔细看一下 RenderArrow 应该能找到这样的东西：\n        bufferbuilder.begin(7, DefaultVertexFormats.POSITION_TEX);\n        bufferbuilder.pos(-7.0D, -2.0D, -2.0D).tex(0.0D, 0.15625D).endVertex();\n        bufferbuilder.pos(-7.0D, -2.0D, 2.0D).tex(0.15625D, 0.15625D).endVertex();\n        bufferbuilder.pos(-7.0D, 2.0D, 2.0D).tex(0.15625D, 0.3125D).endVertex();\n        bufferbuilder.pos(-7.0D, 2.0D, -2.0D).tex(0.0D, 0.3125D).endVertex();\n        tessellator.draw();复制代码\n这些才是真正的绑定纹理并指定最终渲染位置的调用。其他大部分 GlStateManager 的调用都是调整 GL 上下文及变换矩阵的。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558164180,
+            "txt_content": "u.s.knowledge 发表于 2019-5-18 14:56\n我可能没说清楚，真正负责模型绘制的是 Tessellator，你再仔细看一下 RenderArrow 应该能找到这样的东西 ...\n要不我在楼下把现在的RenderJavelin重新发一遍算了，麻烦了。。。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558164240,
+            "txt_content": "public class RenderJavelin extends Render<EntityJavelin> {\n\n    public RenderJavelin(RenderManager manager) {\n        super(manager);\n    }\n\n    @Override\n    public void doRender(EntityJavelin entity, double x, double y, double z, float entityYaw, float partialTicks) {\n        this.bindEntityTexture(entity);\n        \n        GlStateManager.pushMatrix();\n        GlStateManager.translate((float) x, (float) y, (float) z);\n        GlStateManager.enableRescaleNormal();\n        GlStateManager.rotate(-this.renderManager.playerViewY, 0.0F, 1.0F, 0.0F);\n        GlStateManager.rotate((float) (this.renderManager.options.thirdPersonView == 2 ? -1 : 1) * this.renderManager.playerViewX, 1.0F, 0.0F, 0.0F);\n        GlStateManager.rotate(180.0F, 0.0F, 1.0F, 0.0F);\n\n        Tessellator tessellator = Tessellator.getInstance();\n        BufferBuilder bufferbuilder = tessellator.getBuffer();\n\n        if (this.renderOutlines) {\n            GlStateManager.enableColorMaterial();\n            GlStateManager.enableOutlineMode(this.getTeamColor(entity));\n        }\n\n        GlStateManager.glNormal3f(0.05625F, 0.0F, 0.0F);\n        bufferbuilder.begin(7, DefaultVertexFormats.POSITION_TEX);\n        bufferbuilder.pos(-7.0D, -2.0D, -2.0D).tex(0.0D, 0.15625D).endVertex();\n        bufferbuilder.pos(-7.0D, -2.0D, 2.0D).tex(0.15625D, 0.15625D).endVertex();\n        bufferbuilder.pos(-7.0D, 2.0D, 2.0D).tex(0.15625D, 0.3125D).endVertex();\n        bufferbuilder.pos(-7.0D, 2.0D, -2.0D).tex(0.0D, 0.3125D).endVertex();\n        tessellator.draw();\n        \n        if (this.renderOutlines) {\n            GlStateManager.disableOutlineMode();\n            GlStateManager.disableColorMaterial();\n        }\n\n        GlStateManager.disableRescaleNormal();\n        GlStateManager.popMatrix();\n        super.doRender(entity, x, y, z, entityYaw, partialTicks);\n    }\n\n    @Override\n    protected ResourceLocation getEntityTexture(EntityJavelin entity) {\n        return JAVELIN_TEXTURE;\n    }\n\n    private static final ResourceLocation JAVELIN_TEXTURE=new ResourceLocation(\"czq\", \"textures/entity/javelin.png\");\n}"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558165380,
+            "txt_content": "YZL314159265 发表于 2019-5-18 15:24\npublic class RenderJavelin extends Render {\n\n    public RenderJavelin(RenderManager manager) {\npos tex 的坐标确定都是对的？\npos 代表实际渲染的世界中的坐标（相对于“零点”，具体是什么取决于上下文）。\ntex 代表纹理的坐标。\n直接复制是绝对不可能正常渲染的。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558166100,
+            "txt_content": "u.s.knowledge 发表于 2019-5-18 15:43\npos tex 的坐标确定都是对的？\npos 代表实际渲染的世界中的坐标（相对于“零点”，具体是什么取决于上下 ...\n反正我也不懂这个渲染系统，所以就先抄过来一段看看，再根据实际运行结果决定下一步如何。。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558178160,
+            "txt_content": "u.s.knowledge 发表于 2019-5-18 15:43\npos tex 的坐标确定都是对的？\npos 代表实际渲染的世界中的坐标（相对于“零点”，具体是什么取决于上下 ...\n或者说。。只差最后一步就是改这几个坐标了是吗？"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558198920,
+            "txt_content": "YZL314159265 发表于 2019-5-18 19:16\n或者说。。只差最后一步就是改这几个坐标了是吗？\n对。\n不过你可能需要多试几次找到效果最好的数值……"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558236540,
+            "txt_content": "u.s.knowledge 发表于 2019-5-19 01:02\n对。\n不过你可能需要多试几次找到效果最好的数值……\nx,y,z  -9~9，u,v  0~1,试了几十组数，一直都是透明啥都没有（我图片故意换了一张全图黑，就算画的地方不对也总应该看见个黑疙瘩吧），然后我开F3+b发现这个发射出去的东西看不见碰撞箱。。会不会是这里的问题。。"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1558534020,
+            "txt_content": "u.s.knowledge 发表于 2019-5-19 01:02\n对。\n不过你可能需要多试几次找到效果最好的数值……\n然后发现其实RenderJavelin.javahe和注册实体绑定render的代码根本就没运行。。。"
+        }
+    ]
+}

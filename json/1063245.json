@@ -1,0 +1,19 @@
+{
+    "title": "bukkit 插件如何调整农作物生长速度？",
+    "author": "蕾米洛伊",
+    "replyCount": 2,
+    "timestamp": 1592387280,
+    "txt_content": "RT, 想知道 bukkit 插件能否调整作物的生长速度?这里指的是动态调整, spigot.yml 里那个貌似不能够动态应用...\n调整随机刻的话, 虽然可以加速但是同时也会影响到很多诸如流水等的特性所以不考虑在内.\n我比较菜只能想到遍历世界找农作物然后手动调整, 不过这也太浪费性能了遂直接 pass 掉\n希望有大佬能够抛砖引玉一下QAQ 非常感谢",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1592394720,
+            "txt_content": " 本帖最后由 南柯郡守 于 2020-6-17 19:53 编辑 \n\n可以尝试监听 BlockGrowEvent\nhttps://papermc.io/javadocs/pape ... BlockGrowEvent.html"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1592404620,
+            "txt_content": "应该是不能针对单个农作物方块进行调整的，详见NMS类: net.minecraft.server.v1_8_R3.BlockCrops类，以下是其生长代码:\n    @Override\n    public void b(final World world, final BlockPosition blockposition, final IBlockData iblockdata, final Random random) {\n        super.b(world, blockposition, iblockdata, random);\n        if (world.getLightLevel(blockposition.up()) >= 9) {\n            final int i = iblockdata.get((IBlockState<Integer>)BlockCrops.AGE);\n            if (i < 7) {\n                final float f = a(this, world, blockposition);\n                if (random.nextInt((int)(world.growthOdds / world.spigotConfig.wheatModifier * (25.0f / f)) + 1) == 0) {\n                    final IBlockData data = iblockdata.set((IBlockState<Comparable>)BlockCrops.AGE, i + 1);\n                    CraftEventFactory.handleBlockGrowEvent(world, blockposition.getX(), blockposition.getY(), blockposition.getZ(), this, this.toLegacyData(data));\n                }\n            }\n        }\n    }复制代码\n\n可以看到其仍然是调用spigotConfig的，你可以在代码里对spigotConfig(org.spigotmc.SpigotWorldConfig)内的农作物生长速度成员进行实时修改, 这是1.8所有农作物的modifier: \n    private void growthModifiers() {\n        this.cactusModifier = this.getAndValidateGrowth(\"Cactus\");\n        this.caneModifier = this.getAndValidateGrowth(\"Cane\");\n        this.melonModifier = this.getAndValidateGrowth(\"Melon\");\n        this.mushroomModifier = this.getAndValidateGrowth(\"Mushroom\");\n        this.pumpkinModifier = this.getAndValidateGrowth(\"Pumpkin\");\n        this.saplingModifier = this.getAndValidateGrowth(\"Sapling\");\n        this.wheatModifier = this.getAndValidateGrowth(\"Wheat\");\n        this.wartModifier = this.getAndValidateGrowth(\"NetherWart\");\n    }复制代码\n\n以下是一个example:\n public static void modify(World world){\n        // 强转为NMS World实例，如果你的插件是公开插件，请针对不同版本写不同的NMS适配类，或者直接反射\n        net.minecraft.server.v1_8_R3.World targetWorld = ((CraftWorld)world).getHandle();\n        // 获得SpigotWorldConfig实例\n        SpigotWorldConfig worldConfig = targetWorld.spigotConfig;\n        // 修改西瓜生长速度\n        worldConfig.melonModifier = 100;\n        // 修改胡萝贝生长速度\n        worldConfig.carrotModifier = 100;\n    }复制代码"
+        }
+    ]
+}

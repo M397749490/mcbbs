@@ -1,0 +1,504 @@
+{
+    "title": "自定义方块(玩家头颅)",
+    "author": "ruhuasiyu",
+    "replyCount": 99,
+    "timestamp": 1539916140,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2019-8-23 13:36 编辑 \n\n由于1.14可以使用CustomModelData了，请不要再使用头颅方法了，转到 https://www.mcbbs.net/thread-825546-1-1.html 查看。\n虽然大致原理仍然是一样的。\n\n\n我们手上有一些奇怪的方块，我们可以把它们放到地上然后挖掉……嗯，就这样……\n\n\n\n\n实际上这些方块是头颅。\n\n资源包\n我们首先修改头颅在背包的大小显示，但是注意我们无法修改头颅的方块模型。我们创建一个资源包，添加文件\ncustom_block_resources\\assets\\minecraft\\models\\item\\template_skull.json\n将头颅在背包的大小放大为1.25倍，在第三人称左手持有放大4倍并对其到网格。\n{\n    \"parent\": \"builtin/entity\",\n    \"display\": {\n        \"gui\": {\n            \"rotation\": [ 30, 45, 0 ],\n            \"translation\": [ 0, 4.5, 0 ],\n            \"scale\": [ 1.25, 1.25, 1.25 ]\n        },\n        \"fixed\": {\n            \"rotation\": [ 0, 180, 0 ],\n            \"translation\": [ 0, 4, 0],\n            \"scale\":[ 1, 1, 1 ]\n        },\n        \"ground\": {\n            \"rotation\": [ 0, 0, 0 ],\n            \"translation\": [ 0, 3, 0 ],\n            \"scale\": [ 0.5, 0.5, 0.5 ]\n        },\n        \"thirdperson_righthand\": {\n            \"rotation\": [ 45, 45, 0 ],\n            \"translation\": [ 0, 3, 0 ],\n            \"scale\": [ 0.5, 0.5, 0.5 ]\n        },\n        \"thirdperson_lefthand\": {\n            \"rotation\": [ 90, 180, 0 ],\n            \"translation\": [ -6, -2, 20 ],\n            \"scale\": [ 4, 4, 4 ]\n        }\n    }\n}复制代码\n我们略微缩小圆石的模型大小，使得副手持有头颅的盔甲架刚好能覆盖它。实测大约1/1000即可保证不出现材质闪烁。\ncustom_block_resources\\assets\\minecraft\\models\\block\\cobblestone.json\n{\n    \"parent\": \"block/block\",\n    \"elements\": [\n        {   \"from\": [ 0.001, 0.001, 0.001 ],\n            \"to\": [ 15.999, 15.999, 15.999 ],\n            \"faces\": {\n                \"down\":  { \"texture\": \"#all\", \"cullface\": \"down\" },\n                \"up\":    { \"texture\": \"#all\", \"cullface\": \"up\" },\n                \"north\": { \"texture\": \"#all\", \"cullface\": \"north\" },\n                \"south\": { \"texture\": \"#all\", \"cullface\": \"south\" },\n                \"west\":  { \"texture\": \"#all\", \"cullface\": \"west\" },\n                \"east\":  { \"texture\": \"#all\", \"cullface\": \"east\" }\n            }\n        }\n    ],\n    \"textures\": {\n        \"particle\": \"block/cobblestone\",\n        \"all\": \"block/cobblestone\"\n    }\n}复制代码\n然后添加上必要的翻译文件和pack.mcmeta和pack.png等，将资源包创建好。\ncustom_block_resources\\assets\\cbk\\lang.json\n{\n        \"item.cbk.white_block\":\"§r白色方块\",\n        \"item.cbk.copper_ore\":\"§r铜矿\",\n        \"item.cbk.ruby_ore\":\"§r红宝石\"\n}复制代码\n\n数据包\n我们创建一个名为custom_block_data的数据包，添加必要的minecraft函数标签以激活循环和加载函数。\n\n在主循环函数中输入\ncustom_block_data\\data\\cbk\\functions\\tick.mcfunction\nexecute as @e[tag=cbk_custom_block] at @s unless block ~ ~ ~ minecraft:cobblestone run function cbk:head/break_custom_block复制代码\n创建放置头颅的进度\ncustom_block_data\\data\\cbk\\advancements\\head\\root.json\n{\n        \"criteria\": {\n                \"root\": {\n                        \"trigger\": \"minecraft:impossible\"\n                }\n        }\n}复制代码\ncustom_block_data\\data\\cbk\\advancements\\head\\ruby_ore.json\n{\n        \"parent\": \"cbk:head/root\",\n        \"criteria\": {\n                \"ruby_ore\": {\n                        \"trigger\": \"minecraft:placed_block\",\n                        \"conditions\": {\n                                \"item\": {\n                                        \"item\":\"minecraft:player_head\",\n                                        \"nbt\":\"{id:\"cbk:ruby_ore\"}\"\n                                }\n                        }\n                }\n        },\n        \"rewards\": {\n                \"function\": \"cbk:head/ruby_ore\"\n        }\n}复制代码\n创建放置后视线追踪的函数\ncustom_block_data\\data\\cbk\\functions\\head\\ruby_ore.mcfunction\nexecute at @s positioned ~ ~1.62 ~ run function cbk:head/ruby_ore_ray\nadvancement revoke @s only cbk:head/ruby_ore复制代码\ncustom_block_data\\data\\cbk\\functions\\head\\ruby_ore_ray.mcfunction\nexecute if entity @s[distance=..5] unless block ~ ~ ~ #cbk:player_heads{Owner:{Id:\"8dff6f40-c82f-4ce8-b8df-40b421e7fe9d\"}} positioned ^ ^ ^0.005 run function cbk:head/ruby_ore_ray\nexecute if block ~ ~ ~ #cbk:player_heads{Owner:{Id:\"8dff6f40-c82f-4ce8-b8df-40b421e7fe9d\"}} run function cbk:head/ruby_ore_done复制代码\ncustom_block_data\\data\\cbk\\functions\\head\\ruby_ore_done.mcfunction\nexecute align xyz run summon minecraft:armor_stand ~0.5 ~ ~0.5 {Invulnerable:1b,Invisible:1b,Marker:1b,Small:1b,NoGravity:1b,DisabledSlots:7967,Tags:[\"cbk_custom_block\",\"cbk_ruby_ore\"],HandItems:[{},{id:\"minecraft:player_head\",Count:1b,tag:{SkullOwner:{Id:\"8dff6f40-c82f-4ce8-b8df-40b421e7fe9d\",Properties:{textures:[{Value:\"eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vZWR1Y2F0aW9uLm1pbmVjcmFmdC5uZXQvd3AtY29udGVudC91cGxvYWRzL3VzZXItYXZhdGFycy93YXluZS1jcnlzdGFsLzEyM18xNS5wbmcifX19\"}]}}}}],Pose:{LeftArm:[0f,0f,0.0f]}}\nsetblock ~ ~ ~ cobblestone\nkill @e[type=item,nbt={Item:{id:\"minecraft:player_head\",tag:{SkullOwner:{Id:\"8dff6f40-c82f-4ce8-b8df-40b421e7fe9d\"}}},Age:0s},distance=..5,sort=nearest,limit=1]复制代码\n我们将地面和墙面的头颅放在一个方块标签中\ncustom_block_data\\data\\cbk\\tags\\blocks\\player_heads.json\n{\n        \"replace\": false,\n        \"values\": [\n                \"minecraft:player_head\",\n                \"minecraft:player_wall_head\"\n        ]\n}复制代码\n最后创建破坏方块的函数\ncustom_block_data\\data\\cbk\\functions\\head\\break_custom_block.mcfunction\nexecute as @s[tag=cbk_ruby_ore] at @s run data merge entity @e[type=item,nbt={Item:{id:\"minecraft:cobblestone\",Count:1b},Age:0s},sort=nearest,limit=1,distance=..3] {Item:{id:\"minecraft:player_head\",Count:1b,tag:{display:{Name:\"{\"translate\":\"item.cbk.ruby_ore\"}\"},id:\"cbk:ruby_ore\",SkullOwner:{Id:\"8dff6f40-c82f-4ce8-b8df-40b421e7fe9d\",Properties:{textures:[{Value:\"eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vZWR1Y2F0aW9uLm1pbmVjcmFmdC5uZXQvd3AtY29udGVudC91cGxvYWRzL3VzZXItYXZhdGFycy93YXluZS1jcnlzdGFsLzEyM18xNS5wbmcifX19\"}]}}}}}\nkill @s复制代码\n最后添加上数据包必要的pack.mcmeta文件。我们重新进入游戏或reload，输入/function cbk:head/ruby_ore_done即可放置该方块，然后可使用镐破坏(生存模式)并掉落相应方块。\n\n\n更多内容\n一般而言，我们可以使用的头颅材质只能是预设的，例如 Minecraft Heads 中的各种头颅，并且材质只能是8×大小。然而，如果我们能够将头颅的材质图片上传至minecraft.net网址下，然后使用 【CBL·K_bai】 盗版福音!！指令黑科技创建头颅！再也不用担心没有自己想要的头颅啦！ 帖子的方法，生成SkullOwner和头颅材质地址对应的base64码即可。\n\n所以我们要做的就是将我们的图片传到minecraft.net的网上。例如，我们可以在Minecraft Education Edition网站注册一个账号并将图片作为头像上传，但是似乎头像图片会被压缩，所以我还没有找到特别好的手段将图片传上去。如果你有更好的办法，请在下方留言。\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "大谷传奇",
+            "timestamp": 1539933420,
+            "txt_content": "手机版本可以用吗"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1539946500,
+            "txt_content": "红……红宝石为啥是紫色的"
+        },
+        {
+            "author": "chenwei2098",
+            "timestamp": 1540119540,
+            "txt_content": "        神乎其技，不服不行！"
+        },
+        {
+            "author": "2279273166",
+            "timestamp": 1540787160,
+            "txt_content": "水经验233333333333"
+        },
+        {
+            "author": "425548797",
+            "timestamp": 1540936920,
+            "txt_content": "哈哈哈这很可以 话说用矿车也可以  --------“你的眼睛是为了相互认可而存在”             “你的呼唤是为了传达思念而存在”             “你的双手是为了握紧挚爱之人而存在”"
+        },
+        {
+            "author": "1031304676",
+            "timestamp": 1541178720,
+            "txt_content": "厉害厉害"
+        },
+        {
+            "author": "1780448408",
+            "timestamp": 1541211660,
+            "txt_content": "水经验23333"
+        },
+        {
+            "author": "hehehe...li",
+            "timestamp": 1541828580,
+            "txt_content": "水经验233333333"
+        },
+        {
+            "author": "梦无痕",
+            "timestamp": 1541836680,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "大咸鱼666",
+            "timestamp": 1541840280,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "大咸鱼666",
+            "timestamp": 1541841180,
+            "txt_content": "涨姿势了"
+        },
+        {
+            "author": "XHXP",
+            "timestamp": 1541842440,
+            "txt_content": "66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666"
+        },
+        {
+            "author": "liangye741251",
+            "timestamp": 1542205260,
+            "txt_content": "好评！ MCBBS有你更精彩~"
+        },
+        {
+            "author": "Miracle_Cara",
+            "timestamp": 1542208440,
+            "txt_content": "可以可以66666"
+        },
+        {
+            "author": "玲舟_呢",
+            "timestamp": 1542265500,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1542366660,
+            "txt_content": "天狼星black 发表于 2018-10-19 18:55\n红……红宝石为啥是紫色的\nemmmm\n红宝石一定是红色的\n但是蓝宝石不一定是蓝色的。。。\n\n我记得红色的刚玉叫红宝石\n其他的不管啥颜色都叫蓝宝石"
+        },
+        {
+            "author": "非道",
+            "timestamp": 1542427440,
+            "txt_content": "get，感谢楼主教学"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525720,
+            "txt_content": "牛逼啊兄弟6666"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525720,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525780,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525840,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525900,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542525960,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "小光棍",
+            "timestamp": 1542526140,
+            "txt_content": "金金金金金粒粒粒粒粒"
+        },
+        {
+            "author": "l4m2",
+            "timestamp": 1542792900,
+            "txt_content": "目前URL的合法性是RegExp /^https?:\\/\\/.*minecraft\\.net\\/.*$/吗？"
+        },
+        {
+            "author": "DGai",
+            "timestamp": 1543127400,
+            "txt_content": "这个紫色的材质莫名觉得好漂亮"
+        },
+        {
+            "author": "GUjiMsk",
+            "timestamp": 1543183740,
+            "txt_content": "这，电脑班群吧"
+        },
+        {
+            "author": "langwanmc",
+            "timestamp": 1543627560,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "RF_Tar_Railt",
+            "timestamp": 1543630200,
+            "txt_content": "...\n可以用石质橡木台阶。。。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1543637820,
+            "txt_content": "RF_Tar_Railt 发表于 2018-12-1 10:10\n...\n可以用石质橡木台阶。。。\n1.13版本，只能用一次……"
+        },
+        {
+            "author": "Qi_Guang",
+            "timestamp": 1544248200,
+            "txt_content": "这个技能，Get到了"
+        },
+        {
+            "author": "2016133456",
+            "timestamp": 1544282580,
+            "txt_content": "天狼星black 发表于 2018-10-19 18:55\n红……红宝石为啥是紫色的\n2333\n紫色可还行"
+        },
+        {
+            "author": "zhouaixue1212",
+            "timestamp": 1544424120,
+            "txt_content": "很好看  弄建筑不错  是不是什么服务器都能用啊？"
+        },
+        {
+            "author": "Cheng_N",
+            "timestamp": 1544449740,
+            "txt_content": "看不懂系列，但是好想学"
+        },
+        {
+            "author": "TATTATQWQ",
+            "timestamp": 1544458620,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "Jin_dou",
+            "timestamp": 1544792880,
+            "txt_content": "谢谢作者解决了我建筑问题"
+        },
+        {
+            "author": "QWQQWQTAT",
+            "timestamp": 1544888400,
+            "txt_content": "或许将图片格式更改能解决问题？"
+        },
+        {
+            "author": "小残情",
+            "timestamp": 1545741900,
+            "txt_content": " 本帖最后由 小残情 于 2018-12-25 20:47 编辑 \n\n好难啊、有没有手把手教学加我QQ1317237588"
+        },
+        {
+            "author": "小残情",
+            "timestamp": 1545741960,
+            "txt_content": "太复杂了把？一般人根本不会"
+        },
+        {
+            "author": "LoeGamingJoker",
+            "timestamp": 1545913200,
+            "txt_content": "好帖学到了，感谢感谢，最近服务器正要做一个PVP获得对方头颅的，找了好久"
+        },
+        {
+            "author": "thinker233",
+            "timestamp": 1546094160,
+            "txt_content": "楼主超腻害，不过我懒不想做....(滑稽)"
+        },
+        {
+            "author": "冷面日",
+            "timestamp": 1546344360,
+            "txt_content": "新萌381表示：看不懂json只懂很大佬聊天不懂OOC指令。。。。。。。。"
+        },
+        {
+            "author": "冷面日",
+            "timestamp": 1546344360,
+            "txt_content": "新萌381表示：看不懂json只懂很大佬聊天不懂OOC指令。。。。。。。。"
+        },
+        {
+            "author": "冷面日",
+            "timestamp": 1546344540,
+            "txt_content": "新萌381表示：看不懂json只懂很大佬聊天不懂OOC指令。。。。。。。。"
+        },
+        {
+            "author": "冷面日",
+            "timestamp": 1546344600,
+            "txt_content": "新萌381表示：看不懂json只懂很大佬聊天不懂OOC指令。。。。。。。。"
+        },
+        {
+            "author": "冷面日",
+            "timestamp": 1546344840,
+            "txt_content": "381表示：看不懂"
+        },
+        {
+            "author": "805647438",
+            "timestamp": 1546656960,
+            "txt_content": "很不错 了哈啊啊啊啊啊"
+        },
+        {
+            "author": "wqbnb23",
+            "timestamp": 1547427480,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Tommer",
+            "timestamp": 1547446080,
+            "txt_content": "看起来还不错 试试弄"
+        },
+        {
+            "author": "a3277989",
+            "timestamp": 1547496780,
+            "txt_content": "这个有点厉害啊，不过头颅换起来好麻烦的感觉"
+        },
+        {
+            "author": "轨迹消失",
+            "timestamp": 1547514180,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "timeset1800",
+            "timestamp": 1548067680,
+            "txt_content": "想做好久了看到这里才想起来..."
+        },
+        {
+            "author": "风筱墨",
+            "timestamp": 1548238800,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "Tensins",
+            "timestamp": 1548295740,
+            "txt_content": "手机版能否使用"
+        },
+        {
+            "author": "PYM3124888593",
+            "timestamp": 1548309900,
+            "txt_content": "手机也一样兼容么？"
+        },
+        {
+            "author": "ye2580559183",
+            "timestamp": 1548310860,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "a鲁浩龙233",
+            "timestamp": 1550027820,
+            "txt_content": "感谢楼主，知道制作地图时如何表示作者名单了"
+        },
+        {
+            "author": "Wrsat",
+            "timestamp": 1550745060,
+            "txt_content": "我想做一个him的头~"
+        },
+        {
+            "author": "Zhaozy666",
+            "timestamp": 1550749920,
+            "txt_content": "大佬钻研的好深。。"
+        },
+        {
+            "author": "j237130777",
+            "timestamp": 1550793600,
+            "txt_content": "66666666666666666666"
+        },
+        {
+            "author": "皇明天子",
+            "timestamp": 1550833680,
+            "txt_content": "那在服务器里就厉害了"
+        },
+        {
+            "author": "皇明天子",
+            "timestamp": 1550980860,
+            "txt_content": "非常优秀"
+        },
+        {
+            "author": "cooocooo",
+            "timestamp": 1551023880,
+            "txt_content": "文字样式的头呢"
+        },
+        {
+            "author": "1328994559",
+            "timestamp": 1551085020,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "PiのPiのliang",
+            "timestamp": 1551089700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Wrsat",
+            "timestamp": 1551172800,
+            "txt_content": "可以可以学到了很棒"
+        },
+        {
+            "author": "七七YI",
+            "timestamp": 1551576660,
+            "txt_content": "还行，支持作者啊"
+        },
+        {
+            "author": "七七YI",
+            "timestamp": 1551576660,
+            "txt_content": "作者那么聪明的吗"
+        },
+        {
+            "author": "最后一只qwq",
+            "timestamp": 1551790800,
+            "txt_content": "哇 这个可以的"
+        },
+        {
+            "author": "一只可爱狸",
+            "timestamp": 1551932700,
+            "txt_content": "好棒棒！"
+        },
+        {
+            "author": "suereadhedges",
+            "timestamp": 1552824540,
+            "txt_content": "66666666666666666666666666666666666"
+        },
+        {
+            "author": "suereadhedges",
+            "timestamp": 1552911900,
+            "txt_content": "有点懵，看得不是很懂"
+        },
+        {
+            "author": "冰封万年",
+            "timestamp": 1553071740,
+            "txt_content": "感谢LZ，我做地图正好用的到"
+        },
+        {
+            "author": "TRS·天热",
+            "timestamp": 1553077440,
+            "txt_content": "大谷传奇 发表于 2018-10-19 15:17\n手机版本可以用吗\n改材质可以，但是只能改原版的，我见过把头颅改成家具的"
+        },
+        {
+            "author": "lovegky",
+            "timestamp": 1553080920,
+            "txt_content": "从三大法师法就开始不放假啊"
+        },
+        {
+            "author": "Jimmy_kmi",
+            "timestamp": 1553250900,
+            "txt_content": "可以可以，可以造一些奇奇怪怪的方块了"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1553252640,
+            "txt_content": "话说为什么要cbk:head/root这个进度？我看完全没有必要，而且其它的例如cbk:head/ruby_ore的进度完全不需要parent"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1553252820,
+            "txt_content": "liach 发表于 2019-3-22 19:04\n话说为什么要cbk:head/root这个进度？我看完全没有必要，而且其它的例如cbk:head/ruby_ore的进度完全不需要 ...\n是的，可以去掉"
+        },
+        {
+            "author": "穗之影",
+            "timestamp": 1553260260,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "好嗨哟。",
+            "timestamp": 1553299080,
+            "txt_content": "66666666666666"
+        },
+        {
+            "author": "520djk521",
+            "timestamp": 1553314140,
+            "txt_content": "基岩版可以用吗\n求解答？？？"
+        },
+        {
+            "author": "Grass__Crap",
+            "timestamp": 1553314800,
+            "txt_content": "6666666666666666"
+        },
+        {
+            "author": "MC红石骨灰",
+            "timestamp": 1553320440,
+            "txt_content": "nb围观围观大佬"
+        },
+        {
+            "author": "scpcaocao2333",
+            "timestamp": 1553350740,
+            "txt_content": "emmm。。指令渣的福利？"
+        },
+        {
+            "author": "天空y666",
+            "timestamp": 1553426160,
+            "txt_content": "学习一下"
+        },
+        {
+            "author": "Esq_Jei",
+            "timestamp": 1553525160,
+            "txt_content": "厉害，大佬加油。"
+        },
+        {
+            "author": "w3118313636",
+            "timestamp": 1553529420,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "novembe",
+            "timestamp": 1553924580,
+            "txt_content": "大谷传奇 发表于 2018-10-19 15:17\n手机版本可以用吗\n不可以的"
+        },
+        {
+            "author": "连点qi",
+            "timestamp": 1553938200,
+            "txt_content": "哇我终于找到这些头颅了awa"
+        },
+        {
+            "author": "1916114012",
+            "timestamp": 1553960400,
+            "txt_content": "建筑党的福音"
+        },
+        {
+            "author": "Abby1207",
+            "timestamp": 1553996280,
+            "txt_content": "我看不懂············"
+        },
+        {
+            "author": "linda007",
+            "timestamp": 1554361380,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "☆娜娜★",
+            "timestamp": 1554429480,
+            "txt_content": "谢谢分享"
+        },
+        {
+            "author": "JohnBB",
+            "timestamp": 1554477120,
+            "txt_content": "为史蒂夫**"
+        },
+        {
+            "author": "koko.",
+            "timestamp": 1554514740,
+            "txt_content": "ssssssssssssss"
+        },
+        {
+            "author": "chencheng666",
+            "timestamp": 1554693960,
+            "txt_content": "大谷传奇 发表于 2018-10-19 15:17\n手机版本可以用吗\n我觉得不可以"
+        },
+        {
+            "author": "chencheng666",
+            "timestamp": 1554694020,
+            "txt_content": "666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666"
+        },
+        {
+            "author": "chencheng666",
+            "timestamp": 1554712740,
+            "txt_content": "那红宝石为啥是紫色的？"
+        },
+        {
+            "author": "chencheng666",
+            "timestamp": 1554712860,
+            "txt_content": "不错不错666"
+        }
+    ]
+}

@@ -1,0 +1,34 @@
+{
+    "title": "怎样写出一个1.12.2 - 1.15.2 通用支持的插件",
+    "author": "Karlatemp",
+    "replyCount": 5,
+    "timestamp": 1587275220,
+    "txt_content": " 本帖最后由 Karlatemp 于 2020-5-2 17:44 编辑 \n\n\n怎样写出一个1.12.2 - 1.15.2 通用支持的插件\n\n前言\n如果你没有使用以下的任何内容，恭喜你，你的插件是1.12.2-1.15.2都能使用的\n使用了 Inventory#getTitle()String;使用了 Block#getType()Material;使用了 ItemStack#getType()Material;使用了 Material.**\n\n在写支持的时候应该使用 Spigot1.12.2作为依赖核心, 而不是Spigot1.15.2, 并且不要标记 api-version\n\n物品栏(Inventory的判断\n你还在用 inv.getTitle().equals(\"§bMy inventory\") 进行判断吗，噢，老兄，那可太不妙了，如果我是你的合作人，我一定会用我那油亮的皮鞋狠狠的踢你的屁股\n而且Inventory#getTitle()String在高版本中已经删除了，你要是直接用的话准 java.lang.NoSuchMethodError\n\n我们创建一个物品栏的时候都是使用 Server.createInventory(null, 9 * 3, \"§bKarlatemp's public repo\")\n可你是否有想过最前面的null可以换什么东西呢, 这个地方就直接引用 [PCD]关于Inventory的判断与数据的传递了, 这边只给出示例代码\nclass InvHolder implements InventoryHoder {\n    static InvHolder INSTANCE = new InvHolder();\n    // [implement code]\n}\npublic static MyInv implements Listener {\n    public static final Inventory INVENTORY = Bukkit.createInventory(InvHolder.INSTANCE, 9 * 3, \"§c\");\n    @EventHandler(ignoreCancelled = true) void onPlayerClick(InventoryClickEvent event) {\n        if(event.getInventory().getHolder() instanceof InvHolder) event.setCancelled(true);\n    }\n}\n复制代码\n\n物品/方块材质判断\n如果只是简单的判断这个方块是不是水, 火, 比如\nif(block.getType() == Material.FIRE)复制代码\n那就继续用，没必要对其做怎么，但是！如果这个材质是作为一个主键，加载配置的值的时候！就不应该直接getType了！\n如果你直接getType(), 将会导致各种数据错误！\n我推荐使用 ItemFactory.java, 这是我项目的对于这块数据的各种操作, 我想你会需要他。\n下面是来着该项目的部分代码片段\n\n    public static void loadBlockTemperatures() {\n        for (String path : Temperature.yaml.getKeys(true)) {\n            if (path.startsWith(\"blockTemperature.\")) {\n                int tem = Temperature.yaml.getInt(path);\n                path = path.replace(\"blockTemperature.\", \"\");\n                Material material = ItemFactory.valueOf(path);\n                Logging.getLogger().info(UTEi18n.parse(\n                        \"cap.tem.provider.block.tem.rule\",\n                        ItemFactory.toString(material) + \"(\" + path + \")\",\n                        String.valueOf(tem)\n                ));\n                blockTemperatures.put(material, tem);\n            }\n        }\n    }\n\n    public static double getBlockTemperature(Location loc) {\n// ............................\n                    Block b = l.getBlock();\n                    if (b == null) continue;\n                    Material mt = ItemFactory.getType(b);\n                    final Integer tmp = blockTemperatures.get(mt);\n// ............................\n    }\n\n复制代码\n可能有人会问: new ItemStack 不需要吗??????? 我在这里回答, 不需要, 因为 Bukkit 在处理这个的时候已经对其作出了兼容, 直接 new ItemStack 是ok的\n然后判断两个物品是否一样请使用 ItemFactory.isSame 方法 =>\n",
+    "replies": [
+        {
+            "author": "南外丶仓鼠",
+            "timestamp": 1587282180,
+            "txt_content": "本人已经多次试水，在此澄清：\n用了Inventory.getTitle().equals(\"\")的会被该人屑死（逃\n\n支持教程\n不如你做个前置算了（我爬了"
+        },
+        {
+            "author": "wnk",
+            "timestamp": 1587887640,
+            "txt_content": "老哥github链接炸了"
+        },
+        {
+            "author": "南外丶仓鼠",
+            "timestamp": 1588339560,
+            "txt_content": "wnk 发表于 2020-4-26 15:54\n老哥github链接炸了\n用coding的：\nhttps://untiltheend.coding.net/p ... al/ItemFactory.java"
+        },
+        {
+            "author": "虎牙教授",
+            "timestamp": 1588412340,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1588412580,
+            "txt_content": "虎牙教授 发表于 2020-5-2 17:39\n用\nInventory.getview()这个吧。。\nSpigot-1.12.2并没有Inv#getView()"
+        }
+    ]
+}

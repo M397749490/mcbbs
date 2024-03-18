@@ -1,0 +1,39 @@
+{
+    "title": "█某(并不)正经的BungeeCord插件开发教程█ 0",
+    "author": "erry64",
+    "replyCount": 6,
+    "timestamp": 1534238340,
+    "txt_content": " 本帖最后由 berry64 于 2019-12-9 01:40 编辑 \n\n进入目录\n\n没错，新坑2333\nChapter 0环境构建&准备编程!\n\n什么是BungeeCord  - BungeeCord（以下简称BC）相信各服主多少都有听说过，说的简单点就是把不同服务器拼到一起去的一个代理，玩家通过连接到bungeecord可以像在同一服务器内体验到实际上是不同服务器的内容（好拗口）。使用bungeecord代理的好处也有不少，但我在这里就不多说了(明明是自己懒得写)\n\n要开始写BungeeCord插件需要先大概了解一下他的工作原理:\n祖传的windows画图\n\n\n\n\n无标题.png (77.68 KB, 下载次数: 1)\n\n下载附件\n\n2018-8-14 16:35 上传\n\n\n\n\n\n所以玩家在换服的时候保持连接到bc但是BC把玩家的数据从一个服务器断开连接，再连接到另一个服务器，而这时玩家客户端并不会发送登陆请求（因为玩家客户端以为自己仍然保持连接），所以BC会虚拟一个玩家登录请求并发送往下一个服务器\n\n而从上图可以看出，玩家发送给BC的数据包≠BC发送给服务器的数据包，这是因为BC在代理过程对数据包做了些须修改（比如多版本），这也是为什么许多mod不能在BC代理的服务器上运行(没错，神秘，说你呢)，因为mod会更改数据包的一部分，而如果bc不认识这个数据包，那么轻则无法流畅的玩♂耍，严重的话有可能导致客户端或者服务端崩溃\n\n\nBungeeCord插件教程前言\n首先，你需要安装jdk&ide: 教程\n也可以用javac?epad\n本教程将会用到IntelliJ 我也入大法了，不过因为和eclipse同为ide，所以可以不安装\n本教程后期将会用到maven，前期并不会对(这种恶心奇奇怪怪不好用)有过多讲解。\n本教程将不会对IDE的安装和操作做任何介绍，有问题可以看这里   <---mmp厚颜无耻自卖自夸\n如果对本教程的内容有任何疑问那你给我憋着可以回复帖子，请尽量不要私聊\n\n\n插件基本结构BungeeCord插件的结构和Bukkit插件可以说几乎一样，因为BC作者md_5受到了很多BukkitAPi的影响，所以如果有时间可以阅读一下我的Bukkit插件教程：这里   <---mmp厚颜无耻自卖自夸x2\n本教程写作将假设你已经阅读完了我的Bukkit教程。\n\n言归正传，BC插件主类将继承net.md_5.bungee.api.plugin.Plugin类，类似Bukkit插件继承的JavaPlugin, 在服务器启动的时候也会调用主类中的onEnable()方法。\n\n而BC插件加载的方式也和Bukkit插件类似，会读取jar根目录下的plugin.yml。\n这时候你有可能会问了：如果和Bukkit一样都是读取plugin.yml的话，那么如果我想要写一个同时支持Bukkit和BC的jar要怎么办？Java又不能同时继承两个类(其实可以但是很麻烦)。\nmd_5也考虑到了这一点，所以BungeeCord也支持相同格式的根目录下的bungee.yml，而这时候你就可以写出同一个jar支持多个核心的插件了。\n\n这里举个栗子，比如我有一个插件我希望同时支持BC, Bukkit,Sponge,还有forge(虽然我不知道为什么你要这么干) 那么我可以这样设置结构:\njar root\n┠net.berry64.myallpurposeplugin\n┃ ┠Bukkit\n┃ ┃  ┗BukkitMain.java\n┃ ┠Bungee\n┃ ┃  ┗BungeeMain.java\n┃ ┠Sponge\n┃ ┃  ┗SpongeMain.java\n┃ ┗Forge\n┃    ┗ForgeCommonProxy.java\n┃ \n┠mcmod.info\n┠bungee.yml\n┗plugin.yml\n\n然后文件各个文件:\nbungee.yml: main: net.berry64.myallpurposeplugin.Bungee.BungeeMain\nauthor: berry64\nname: PluginsForEveryone-Bungee\nversion: ULTIMATE复制代码BungeeMain.java: package net.berry64.myallpurposeplugin.Bungee;\n\nimport net.md_5.bungee.api.plugin.Plugin;\n\npublic class BungeeMain extends Plugin{\n        public void onEnable(){\n              getLogger().info(\"My All purpose plugin has loaded on Bungee! hooray!\");\n        }\n}复制代码\n至此，你已经准备好了BC插件开发\n以下是支持Bukkit/Sponge/Forge 的文件设置\nplugin.yml: main: net.berry64.myallpurposeplugin.Bukkit.BukkitMain\nauthor: berry64\nname: PluginsForEveryone-Bukkit\nversion: ULTIMATE复制代码BukkitMain.java: package net.berry64.myallpurposeplugin.Bukkit;\n\nimport org.bukkit.plugin.java.JavaPlugin;\n\npublic class BukkitMain extends JavaPlugin{\n        public void onEnable(){\n              getLogger().info(\"My All purpose plugin has loaded on Bukkit! hooray!\");\n        }\n}复制代码SpongeMain.java: package net.berry64.myallpurposeplugin.Sponge;\n\nimport org.spongepowered.api.event.Listener;\nimport org.spongepowered.api.plugin.Plugin;\nimport org.spongepowered.api.event.game.state.GameInitializationEvent;\n\nimport com.google.inject.Inject;\n\nimport org.slf4j.Logger;\n\n@Plugin(id=\"myallpurposeplugin\", name=\"PluginsForEveryone-Sponge\", authors={\"berry64\"}, version=\"ULTIMATE\")    //Sponge使用annotation\npublic class SpongeMain{\n        @Inject\n        public Logger logger;\n\n        @Listener\n        public void onEnable(GameInitializationEvent evt) {\n                logger.info(\"My All purpose plugin has loaded on Sponge! hooray!\");\n        }\n}复制代码\nmcmod.info & ForgeCommonProxy.java: 你真的是来看插件教程的吗?\n\n如果你看不懂plugin.yml或者bungee.yml的格式可以看 这个教程的plugin.yml部分\n关于怎么导入包（eclipse上红线）请查看Bukkit教程，在本阶段核心文件可以和bukkit插件教程以一样的方法导入，只不过导入的是BungeeCord.jar\n关于BungeeCord.jar的下载地址... https://ci.md-5.net/job/BungeeCord/\n\n\n总结：\n在本章节里讲述了如何架构一个基本BungeeCord插件和一些基本概念，并且至此你应该已经可以开始准备编写BungeeCord插件的代码了\n\n\n如果本教程有帮到你请考虑给个好评评价/回复一下本帖，P.S. 给人气不会损失金币的哦\n\n\n进入目录",
+    "replies": [
+        {
+            "author": "AzureHanChen",
+            "timestamp": 1534490400,
+            "txt_content": "支持\n不过催更Spiogot系列(小声"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1534771620,
+            "txt_content": "请修改一下最后的高亮字体，在修改后请以任意方式联系我撤销负面评分"
+        },
+        {
+            "author": "erry64",
+            "timestamp": 1534814040,
+            "txt_content": "gooding300 发表于 2018-8-20 21:27\n请修改一下最后的高亮字体，在修改后请以任意方式联系我撤销负面评分\n已修改 , 不过因为不重要所以其实没啥关系=,="
+        },
+        {
+            "author": "739378469",
+            "timestamp": 1535240640,
+            "txt_content": "支持支持大佬"
+        },
+        {
+            "author": "404565377",
+            "timestamp": 1535311680,
+            "txt_content": "8/14的 滋磁一下"
+        },
+        {
+            "author": "GhostGuJI_Dada",
+            "timestamp": 1548595380,
+            "txt_content": "感谢分享~"
+        }
+    ]
+}

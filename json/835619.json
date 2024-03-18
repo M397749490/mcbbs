@@ -1,0 +1,124 @@
+{
+    "title": "防攻击脚本",
+    "author": "匿名",
+    "replyCount": 23,
+    "timestamp": 1546003740,
+    "txt_content": "root_need() {\n    if [[ $EUID -ne 0 ]]; then\n        echo \"Error:This script must be run as root!\" 1>&2\n        exit 1\n    fi\n}\n\ncheck_release() {\n    if uname -a | grep el7  ; then\n        release=\"centos7\"\n    elif uname -a | grep el6 ; then\n        release=\"centos6\"\n        yum install ipset -y\n    elif cat /etc/issue |grep -i ubuntu ; then\n        release=\"ubuntu\"\n        apt install ipset -y\n    fi\n}\n\nget_china_ip() {\n        (wget)\n        rpm --help >/dev/null 2>&1 && rpm -qa |grep wget >/dev/null 2>&1 ||yum install -y wget ipset >/dev/null 2>&1 \n        dpkg --help >/dev/null 2>&1 && dpkg -l |grep wget >/dev/null 2>&1 ||apt-get install wget ipset -y >/dev/null 2>&1\n\n        [ -f china_ip_list.txt ] && mv china_ip_list.txt china_ip_list.txt.old\n        wget https://github.com/17mon/china_i ... r/china_ip_list.txt\n        cat china_ip_list.txt |grep 'js-file-line\">' |awk -F'js-file-line\">' '{print $2}' |awk -F'<' '{print $1}' >> china_ip.txt\n        rm -rf china_ip_list.txt\n        #wget https://qiniu.wsfnk.com/china_ip.txt\n\n        echo \"192.168.0.0/18\" >> china_ip.txt\n        echo \"10.0.0.0/8\" >> china_ip.txt\n        echo \"172.16.0.0/12\" >> china_ip.txt\n}\n\nipset_only_china() {\n        echo \"ipset create whitelist-china hash:net hashsize 10000 maxelem 1000000\" > /etc/ip-black.sh\n        for i in $( cat china_ip.txt )\n        do\n                echo \"ipset add whitelist-china $i\" >> /etc/ip-black.sh\n        done\n        echo \"iptables -I INPUT -m set --match-set whitelist-china src -j ACCEPT\" >> /etc/ip-black.sh\n        echo \"iptables  -A INPUT -p tcp --syn -m connlimit --connlimit-above 0 -j DROP\" >> /etc/ip-black.sh\n        echo \"iptables  -A INPUT -p icmp -m icmp --icmp-type 8 -j DROP\" >> /etc/ip-black.sh\n        #echo \"iptables -A INPUT -j DROP\" >> /etc/ip-black.sh\n        rm -rf china_ip.txt\n}\n\nrun_setup() {\n        chmod +x /etc/rc.local\n        sh /etc/ip-black.sh\n        rm -rf /etc/ip-black.sh\n        ipset save whitelist-china -f /etc/ipset.conf || ipset save whitelist-china > /etc/ipset.conf\n        [ $release = centos7 ] && echo \"ipset restore -f /etc/ipset.conf\" >> /etc/rc.local\n        [ $release = centos6 ] && echo \"ipset restore < /etc/ipset.conf\" >> /etc/rc.local\n        echo \"iptables -I INPUT -m set --match-set whitelist-china src -j ACCEPT\" >> /etc/rc.local\n        echo \"iptables  -A INPUT -p tcp --syn -m connlimit --connlimit-above 0 -j DROP\" >> /etc/rc.local\n        echo \"iptables  -A INPUT -p icmp -m icmp --icmp-type 8 -j DROP\" >> /etc/rc.local\n        #echo \"iptables -A INPUT -j DROP\" >> /etc/rc.local\n}\n\nmain() {\n        check_release\n        get_china_ip\n        ipset_only_china\n\ncase \"$release\" in\ncentos6)\n        run_setup\n        ;;\ncentos7)\n        chmod +x /etc/rc.d/rc.local\n        run_setup\n        ;;\nubuntu)\n        sed -i '/exit 0/d' /etc/rc.local\n        run_setup\n        echo \"exit 0\" >> /etc/rc.local\n        ;;\nesac\n}\nmain",
+    "replies": [
+        {
+            "author": "xmdhs",
+            "timestamp": 1546005060,
+            "txt_content": "还行，不太懂 iptables \n\n不知道是不是屏蔽除中国以外的所有ip，不过这样似乎很不实用。\n\n因为国内也有大量的代理来着。\n\n（用了一下显身卡，我知道你是谁了）"
+        },
+        {
+            "author": "一手汗",
+            "timestamp": 1546005240,
+            "txt_content": "楼上说的也不是没有道理\n但是在这种非常时期\n这种办法并不是不可行"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546005780,
+            "txt_content": "弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“印度”这些发包机地方，反正拉黑**们不可能去到的地方就对了，这样能屏蔽一点是一点，光靠防火墙还是不够的，虽说秒解，但有何用？就如在阿里云开一服务器，一来攻击玩家就全掉线，指不定用户就流失不到哪去了。\n\n论坛好像回复不到..统一在这艾特了233\n最后你知道我是谁了233？\n@xmdhs @一手汗"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546005900,
+            "txt_content": "454475906 发表于 2018-12-28 22:03\n弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“ ...\n@xmdhs 补一句，若能用大量中国鸡发包的也不简单，是个豪！所以一般惹上这些就只能靠机房了。"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1546005960,
+            "txt_content": "454475906 发表于 2018-12-28 22:03\n弃车保帅，也好过拉上国内用户一起死，若实在顾及国外用户，也可优先屏蔽国外**们不可能留学到的地方，如“ ...\n可是也可能是在国内发起的攻击"
+        },
+        {
+            "author": "zyjking",
+            "timestamp": 1546006380,
+            "txt_content": "如果系统不是CentOS或者Ubuntu怎么办？"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546006860,
+            "txt_content": "@xmdhs 不存在的，你去问，十个有8个攻击ip都是属国外的，国内鸡能打出什么流量？除非那些手里就有黑产的人，或者是有机房的，可那些人一来你就不是进论坛进的慢的事，而是直接瘫痪了，如一些企业的竞争就有此资本。反正打和防都费钱，拉黑国外**，这就是为什么有些国内服号称打不死的秒招。"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546006920,
+            "txt_content": "zyjking 发表于 2018-12-28 22:13\n如果系统不是CentOS或者Ubuntu怎么办？\nwindows？"
+        },
+        {
+            "author": "二哈大魔王",
+            "timestamp": 1546007100,
+            "txt_content": "防攻击？防御什么攻击。。"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546007400,
+            "txt_content": "@二哈大魔王 tcp syn啊"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1546008180,
+            "txt_content": "454475906 发表于 2018-12-28 22:21\n@xmdhs 不存在的，你去问，十个有8个攻击ip都是属国外的，国内鸡能打出什么流量？除非那些手里就有黑产的人 ...\n你都没at到。。。。。。\n\n回复右键新页面就行。\n\n好吧，杀敌一千"
+        },
+        {
+            "author": "zyjking",
+            "timestamp": 1546008720,
+            "txt_content": "454475906 发表于 2018-12-28 22:22\nwindows？\nwindows server也有可能\n而且你没有考虑到Debian"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546008720,
+            "txt_content": "xmdhs 发表于 2018-12-28 22:43\n你都没at到。。。。。。\n\n回复右键新页面就行。\n还是建议bbs能搞一个收集正常用户地址的东西，在往后推理出哪些国家是没有任何访问的，然后直接拉黑掉那国家的IP段即可，这也算顾及了国外留学的用户，为下一次被攻击做预备吧！毕竟bbs还没火到全球都在访问的地步。\n\n通常简单暴力的行为都最有效，就如一逗逼持续骚扰别人服务器，还是动态ip的时（重启路由器就换IP了），没有什么是比拉黑那人IP段更强的，虽然误杀大！（临时搞搞还行，233）不然就只能禁别人机器码了。"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546009440,
+            "txt_content": "zyjking 发表于 2018-12-28 22:52\nwindows server也有可能\n而且你没有考虑到Debian\nwget https://raw.githubusercontent.co ... master/block-ips.sh\nsh block-ips.sh\n其实这脚本也适用，只不过要手动添加国家名罢了\nwww.ipdeny.com/ipblocks\n这是国家名\n\n"
+        },
+        {
+            "author": "454475906",
+            "timestamp": 1546009560,
+            "txt_content": "zyjking 发表于 2018-12-28 22:52\nwindows server也有可能\n而且你没有考虑到Debian\nwindows默认防火墙是个好东西"
+        },
+        {
+            "author": "UNlost",
+            "timestamp": 1546017780,
+            "txt_content": "我来听听大佬的见解"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1546044840,
+            "txt_content": "可能这就是大佬吧...\n是不是可以发到反馈版？"
+        },
+        {
+            "author": "MC_tingfeng",
+            "timestamp": 1546045320,
+            "txt_content": "非常时期采用非常手段，可以理解"
+        },
+        {
+            "author": "Abraham511",
+            "timestamp": 1546051620,
+            "txt_content": "为什么要匿名"
+        },
+        {
+            "author": "caiden",
+            "timestamp": 1546055520,
+            "txt_content": "emmmmmmmm ，看不懂，膜拜下大佬，能说下这个是用来干嘛的吗？楼上有说是用来屏蔽国外ip的，不知道真相如何"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1546056300,
+            "txt_content": "@454475906 我觉得你不应该匿名……\n\n真要匿名，在反馈区发似乎更好些……\n\n以及，你这个防攻击脚本分明就是直接屏蔽了所有国外 IP 嘛……虽然可能有点作用……"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1546061580,
+            "txt_content": "行了吧，攻击的人是用家用宽带 + 代理单机打的，才 1000 线程就打死了，说明不是攻击太强而是防御太差。\n据说代理还是从各大代理平台收的辣鸡代理，这样都能打死。\n我为什么知道？我群里有人告诉我的"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1546079820,
+            "txt_content": "Akkariin 发表于 2018-12-29 13:33\n行了吧，攻击的人是用家用宽带 + 代理单机打的，才 1000 线程就打死了，说明不是攻击太强而是防御太差。\n据 ...\n听说一般来自被黑的家用路由器"
+        }
+    ]
+}

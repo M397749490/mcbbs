@@ -1,0 +1,84 @@
+{
+    "title": "[管理|信息|安全]WebAPI —— 为你的海绵服务端提供管理面板和数据API[1.8-1.14]",
+    "author": "Jovel",
+    "replyCount": 15,
+    "timestamp": 1568143080,
+    "txt_content": " 本帖最后由 Jovel 于 2019-9-13 06:32 编辑 \n\n\n\n\n\n\nwebapi logo.png (57.54 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 01:40 上传\n\n\n\n\nWebAPI\nWebAPI提供了一个非常强大的用于管理和监视Sponge服务器的RESTful API和网页面板，你可以在其提供的面板中查看服务器资源占用率、玩家聊天记录、指令使用记录并通过网页端进行插件的禁用、重载以及配置文件的编辑。同时，您还可以通过网页端进行不同世界的规则配置，并对去进行卸载等操作。如果您安装了一些其他的插件，比如Universal Market等，该网页同时可以进行插件的物品更新等操作。\n\n功能\n\n\n\n\n\nfile_1568144204000.jpg (246.88 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:36 上传\n\n\n\n\n\n关于基础：查看当前内存占用、CPU占用、生成TPS趋势图与玩家报表、记录后台回显关于记录：查看并筛选聊天记录、命令使用记录关于插件：禁用、启用、修改插件配置文件关于多世界：修改配置信息（实体限制、视距限制 etc.）、禁用、启用世界（联动Nucleus）关于权限：查看用户、用户组权限信息（联动Nucleus）关于联动：对MMCRestrict\\Tickets、UniversalMarket etc. 有较好的支持，可以直接提供页面进行插件配置。\n\n\n关于面板配置您可以通过两种方式进行面板的搭建。\n     A.集成配置：将前端集成于插件中，通过插件自带Web服务器进行访问。     B.独立配置：将前端搭建于独立Web服务器，通过RESTFul API进行通信。（未实测）\nA.集成配置教程将插件放置在 mods 文件夹中并重启。如果你需要远程访问，找到插件配置文件，编辑 webapi/config.conf，找到 host=localhost 项并修改为 host=\"0.0.0.0\"。在服务器内使用 /sponge plugins 命令进行插件重载。此时访问 服务器IP:8080 应该可以看到面板主页，但无法登陆。回到插件所在config文件夹，找到 webapi/permissions.conf 中的 whitelist 项，将访问IP添加至白名单，或修改 useWhitelist = false。使用命令 /webapi users add <用户名> <密码> 添加用户，或者您也可以使用 /webapi users add <用户名> 添加一个拥有随机密码的用户。\n\nB.独立配置教程将插件放置在 mods 文件夹中并重启。找到插件配置文件，编辑 webapi/config.conf，找到 adminPanel=true 修改为 false 关闭自带Web服务器。下载前端文件并搭建在独立Web服务器上，测试访问。编辑前端目录中 config.json 并对所有要进行监控的服务器进行配置。（注意是apiUrl，端口不同默认为8081，同样在config.conf中配置。）\n window.config = {\n     \"servers\": [\n         {\n             \"name\": \"要监控的服务器A\",\n             \"apiUrl\": \"https://server1.my-mc-servers.com:8081\",\n         },\n         {\n             \"name\": \"要监控的服务器B (可选)\",\n             \"apiUrl\": \"http://localhost:8080\"\n         }\n     ]\n }</font>复制代码\n\n关于插件配置插件指令\n创建用户：/webapi users add <用户名> <密码> 或 /webapi users add <用户名> (随机生成密码)\n更改密码：/webapi users pw [name] [newpassword]命令。\n删除用户：/webapi users remove [name]。\n所有涉及 /webapi * 的权限节点均为 webapi.users.add\n\n用户权限\n更改面板用户的权限，需要编辑 /config/webapi/user.conf 配置文件。（推荐直接通过面板进行权限配置）\nusers {\n}\ntest {\npassword=\"就不给你看\"\npermissions { #在此处修改权限节点，种类在后面会讲到\n\"*\"=true\n}\n}\nrateLimit=10 #rateLimit可以指定某个用户每秒可执行的操作数。\n}</font>复制代码如果您希望某个用户不能访问信息页面，比如我现在不允许test访问info页面，那么配置是这样的。\nusers {\n}\ntest {\npassword=\"就不给你看\"\npermissions { #在此处修改权限节点，种类在后面会讲到\n\"*\"=true</font>复制代码\n配置文件详解 #开发模式\ndevMode = false\n#服务器运行地址\nhost = \"localhost\"\n#面板端口\nport = 8080\n#指令等待时间\ncmdWaitTime = 10000\n#单个数据包大小\nmaxBlockGetSize = 1000000\n#单个更新数据包大小\nmaxBlockUpdateSize = 1000000\n#数据包更新频率\nmaxBlocksPerSecond = 10000复制代码\n\n关于API的配置\n数据类型声明HTTP content-type标头应设置为application/json或application/xmlHTTP accept标头应设置为 application/json或application/xml\nNodeJS为例进行API数据的调取const req = require(\"request\"); #导入请求模块\n\nconst BASE_API_URL = \"http://localhost:8080/api/v5\"; #设置ApiURL\n\nconst callback = (err, response, body) => { #构建函数用于处理API返回的信息\nconsole.log(err);\nconsole.log(response.statusCode);\nconsole.log(JSON.stringify(body, null, 2));\n};复制代码返回api回调的服务器基础信息。null\n200\n{\n  \"motd\": \"A Minecraft Server\",\n  \"players\": 1,\n  \"maxPlayers\": 20,\n  \"uptimeTicks\": 85404,\n  \"hasWhitelist\": false,\n  \"minecraftVersion\": \"1.11.2\",\n  \"game\": {\n    \"id\": \"minecraft\",\n    \"name\": \"Minecraft\",\n    \"version\": \"1.11.2\",\n    \"description\": \"Minecraft is a game about placing blocks and going on adventures\",\n    \"url\": \"1.11.2\",\n    \"authors\": [\"Mojang\"]\n  },\n  \"api\": {\n    \"id\": \"spongeapi\",\n    \"name\": \"SpongeAPI\",\n    \"version\": \"6.0.0-SNAPSHOT-8aabd12\",\n    \"description\": \"A Minecraft plugin API\",\n    \"url\": \"6.0.0-SNAPSHOT-8aabd12\",\n    \"authors\": []\n  },\n  \"implementation\": {\n    \"id\": \"sponge\",\n    \"name\": \"SpongeVanilla\",\n    \"version\": \"1.11.2-6.0.0-BETA-229\",\n    \"description\": \"The SpongeAPI implementation for Vanilla Minecraft\",\n    \"url\": \"1.11.2-6.0.0-BETA-229\",\n    \"authors\": []\n  }\n}复制代码同理，调整 const BASE_API_URL = \"http://localhost:8080/api/v5\";  即可实现对于不同数据信息的请求。For instance, 获取多世界信息的js实例。const req = require(\"request\");\nconst _   = require(\"lodash\");\n\nconst BASE_API_URL = \"http://localhost:8080/api/v5\";\n\nconst HEADERS = {\n    \"x-webapi-key\": \"ADMIN\",\n};\n\nreq.get({ url: BASE_API_URL + \"/world\", json: true, headers: HEADERS }, (err, res, body) => {\n    console.log(\"--- WORLDS ---\");\n    console.log(err);\n    console.log(res.statusCode);\n    console.log(JSON.stringify(body, null, 2));\n    \n    const world = _.first(body.worlds);\n    if (!world) {\n        console.log(\"No worlds!\");\n        return;\n    }\n    \n    req.get({ url: BASE_API_URL + \"/world/\" + world.uuid, json: true, headers: HEADERS }, (err, res, body) => {\n        console.log(\"--- WORLD \" + world.name + \" ---\");\n        console.log(err);\n        console.log(res.statusCode);\n        console.log(JSON.stringify(body, null, 2));\n    });\n});复制代码如果需要通过第三方进行服务器信息读取，或者二次开发，应该说直接造了轮子，非常方便。\n\n关于面板的使用基础页面一览\n1.Info页面，读取服务器相关信息，包括TPS曲线、在线玩家曲线等。\n\n\n\n\nfile_1568141893000.jpg (496.14 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 02:58 上传\n\n\n\n\n\n\n2.Chat页面，记录玩家聊天信息与Console回显。\n\n\n\n\nfile_1568142002000.jpg (452.12 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:00 上传\n\n\n\n\n\n\n3.Command页面，记录玩家指令。\n\n\n\n\nfile_1568142091000.jpg (410 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:01 上传\n\n\n\n\n\n\n4.World页面，进行多世界操作。\n\n\n\n\nfile_1568142128000.jpg (540.02 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:02 上传\n\n\n\n\n\n\n5.Player页面，记录在线玩家信息。\n\n\n\n\nplayer.png (254 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:03 上传\n\n\n\n\n\n\n6.Permission页面，进行权限查看与修改。\n\n\n\n\nWEBAPI-Permission.png (226.96 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:03 上传\n\n\n\n\n\n\n\n\nWebAPI-Permission2.png (255.82 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:03 上传\n\n\n\n\n\n\n7.Plugins页面，进行插件操作。\n\n\n\n\nfile_1568142265000.jpg (491.61 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-11 03:04 上传\n\n\n\n\n\n\n8.同时，如果您的服务器安装了被WEBAPI支持的插件，可能会有单独的页面进行插件配置。\n\n\n\n\nWebAPI-Universal.png (18.53 KB, 下载次数: 0)\n\n下载附件\n\n2019-9-11 03:05 上传\n\n\n\n\n\n\n关于Fiter的使用在部分页面中引入Fiter，可以通过关键词进行查询。结合Console回显的话Fiter蛮有意思的，可以做数据分析，后面再更吧。\n\n插件更新记录\n*                  V5.4.1* 更新依赖项\n* 修复了编辑插件配置文件的问题（修复＃21）\n\n\n*                  V5.2.1\n* 修复了重新加载导致重定向到仪表板的问题\n* 添加了新的MMCRestrict选项\n\n\n*                  V5.2.0\n* 更新为新的库存结构\n* 更新依赖项\n\n\n*                  v5.1.3\n* 修复表格的一些显示问题\n* 开始为CmdScheduler [WIP]添加页面\n\n\n*                  V5.1.2\n* IE的更多修复\n* 修复命令历史记录时间戳\n\n\n*                  V5.1.1\n* 添加用户页面以管理Web-API用户\n* 修复命令自动完成不在IE中工作\n\n\n*                  v5.0.5\n* 默认情况下折叠创建和过滤表单以节省空间\n* 添加类型到插件。允许过滤插件列表\n* 在页面加载时加载主题以避免重复闪烁\n* 改善主题中按钮的颜色\n* 删除实体和平铺实体视图\n* 改善显示“位置”的视图\n* 改善聊天和命令历史记录\n转载授权\n\n\n\n\nlicence.png (206.51 KB, 下载次数: 1)\n\n下载附件\n\n2019-9-13 06:32 上传\n\n\n\n\n\n\n捐赠\n支持作者，请点击下方链接进行捐赠。\nhttps://www.paypal.me/Valandur\n\n资源下载\n插件下载地址：原帖下载 | Github下载\n独立前端下载地址：Github下载\n",
+    "replies": [
+        {
+            "author": "xsfcaDcsa",
+            "timestamp": 1568175600,
+            "txt_content": "这样可以更直观了解服务器状况 支持"
+        },
+        {
+            "author": "向文",
+            "timestamp": 1568177100,
+            "txt_content": "界面不错 简洁"
+        },
+        {
+            "author": "2431267050",
+            "timestamp": 1568182620,
+            "txt_content": "直接搭建mu面板不就好了，何必还加个插件=="
+        },
+        {
+            "author": "Jovel",
+            "timestamp": 1568186100,
+            "txt_content": " 本帖最后由 Jovel 于 2019-9-11 15:16 编辑 \n2431267050 发表于 2019-9-11 14:17\n直接搭建mu面板不就好了，何必还加个插件==\n仔细看帖，很多针对Sponge特性是其他面板没有的，API更不用说。"
+        },
+        {
+            "author": "12321wangjiawei",
+            "timestamp": 1569155580,
+            "txt_content": "可以更直观了解服务器信息，支持！"
+        },
+        {
+            "author": "湖边走神",
+            "timestamp": 1571067120,
+            "txt_content": "更新到546咯,希望楼主尽快更新哦！"
+        },
+        {
+            "author": "小悠酱",
+            "timestamp": 1572523380,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1214090013",
+            "timestamp": 1572530760,
+            "txt_content": "非常不错的插件"
+        },
+        {
+            "author": "昊天QWQ",
+            "timestamp": 1579505280,
+            "txt_content": "楼主大大为啥插件要放mods里啊"
+        },
+        {
+            "author": "e_mirai",
+            "timestamp": 1580474340,
+            "txt_content": "支持一下！"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589799060,
+            "txt_content": "好想要！可惜是海绵端的"
+        },
+        {
+            "author": "含笑甲醛",
+            "timestamp": 1604720940,
+            "txt_content": "bc可以不"
+        },
+        {
+            "author": "屁兜小康康",
+            "timestamp": 1606721880,
+            "txt_content": "昊天QWQ 发表于 2020-1-20 15:28\n楼主大大为啥插件要放mods里啊\n因为这是Sponge服务端的插件，Sponge服务端的所有插件和MOD都要放进mods文件夹里"
+        },
+        {
+            "author": "k35462",
+            "timestamp": 1612071540,
+            "txt_content": "楼主，在家用电脑上开服，这个插件在本机上可以访问网页控制面板，换一台机器，不论电脑还是手机都打不开网页，是怎么回事？"
+        },
+        {
+            "author": "1091692594",
+            "timestamp": 1612076760,
+            "txt_content": "我喜欢这个界面"
+        }
+    ]
+}

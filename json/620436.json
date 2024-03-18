@@ -1,0 +1,54 @@
+{
+    "title": "[Cauldron插件]已获取FlansMod子弹，如何获取到射击的玩家？",
+    "author": "微笑的诈欺师",
+    "replyCount": 9,
+    "timestamp": 1471107540,
+    "txt_content": "我之前只有编写Spigot插件的经验，今天需要做一个调用到FlansMod来禁止PVP的插件\n\n尝试监听了Bukkit的EntityDamageByEntityEvent，通过event.getDamager()成功获取到了FlansMod的子弹实体FLANSMOD_BULLET，如图\n\n\n\n\n然后我找到了CraftCustomEntity这个类，里面是这样的:public class CraftCustomEntity extends CraftEntity {\n    public Class<? extends sa> entityClass;\n    public String entityName;\n\n    public CraftCustomEntity(CraftServer server, sa entity) {\n        super(server, entity);\n        this.entityClass = entity.getClass();\n        this.entityName = EntityRegistry.getCustomEntityTypeName(this.entityClass);\n        if(this.entityName == null) {\n            this.entityName = entity.b_();\n        }\n\n    }\n\n    public sa getHandle() {\n        return this.entity;\n    }\n\n    public String toString() {\n        return this.entityName;\n    }\n\n    public EntityType getType() {\n        EntityType type = EntityType.fromName(this.entityName);\n        return type != null?type:EntityType.UNKNOWN;\n    }\n}复制代码然后那个getHandle()返回的sa不知道是哪国东西= =\n\n所以……求救……OJZ",
+    "replies": [
+        {
+            "author": "a8105",
+            "timestamp": 1471127280,
+            "txt_content": "\n\n\n\n\n1111.png (170.48 KB, 下载次数: 0)\n\n下载附件\n\n2016-8-14 06:27 上传\n\n\n\n\n\n\n\n\n2222.png (120.02 KB, 下载次数: 0)\n\n下载附件\n\n2016-8-14 06:35 上传\n\n\n\n\n\nsa=Entity\n"
+        },
+        {
+            "author": "微笑的诈欺师",
+            "timestamp": 1471150560,
+            "txt_content": " 本帖最后由 微笑的诈欺师 于 2016-8-13 22:38 编辑 \n810587921 发表于 2016-8-13 15:28\nsa=Entity\n刚刚睡醒……sa是在minecraft server的哪个包下面？ 这边IDE都没提示噗……\n好叭找到了，直接就在jar里面不在任何包下……\n\n更新:\n好叭刚刚发现可以把他直接cast成FlansMod 的 EntityBullet, 里面有owner这个值，是一个Entity\n问题就来了……这个Entity的包是net.minecraft.entity.Entity,并不是Bukkit的那个。怎么把这个Entity转换成Bukkit的Entity呢……"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1471192980,
+            "txt_content": "微笑的诈欺师 发表于 2016-8-14 12:56\n刚刚睡醒……sa是在minecraft server的哪个包下面？ 这边IDE都没提示噗……\n好叭找到了，直接就在jar里面 ...\nsa类其实.......有个getBukkitEntity()的方法\n直接entity.getBukkitEntity()就可以的了......."
+        },
+        {
+            "author": "w44225769",
+            "timestamp": 1471486440,
+            "txt_content": "810587921 发表于 2016-8-14 06:28\nsa=Entity\n大佬。。。并不是这样，flan枪械子弹并不是与受害者为 骑乘或者车辆的关系。"
+        },
+        {
+            "author": "w44225769",
+            "timestamp": 1471488360,
+            "txt_content": "微笑的诈欺师 发表于 2016-8-14 12:56\n刚刚睡醒……sa是在minecraft server的哪个包下面？ 这边IDE都没提示噗……\n好叭找到了，直接就在jar里面 ...\n我的一生立志于用插件控制mod控制电脑控制挖掘机炒菜。对这些东西略有研究。  这个问题在去年我就帮寂灭战争服服主搞过。不过我现在又觉得有更好的方法。 没有实践过但是理论是可行的，撸主可以一试。\n\n在bukkit或者spigot中运行的服务端代码都来自于游戏中服务端部分，全部是混淆且难看的代码。 bukkit就是一个中介。   比如服务端内的EntityPlayer  我们想修改他的某个属性 通过bukkapi各种set/get  。实际上  bukkit内部先生成一个 CraftPlayer()对象  对象里面的Handle  就是服务端内部本身的EntityPlayer。 \n\n而CraftPlayer又实现了bukkitApi中的接口。  就是我们熟知的Player。 所以我们拿到了Player对象各种set/get   实际上调用的是CraftPlayer里面的各种方法  CraftPlayer 再调用自己的Handle(EntityPlayer)里面的各种方法。\n\n那么，问题来了，各种实体都有bukkit搭的各种桥Craft猫 Craft狗等等  但是mod里面的各种实体谁来搭桥让bukkit各种不轨行为呢？    就是mcpc作者自己加的 CraftCustomEntity  就是撸主提到的东西。\n\n接下来就好理解了  getHandle() 实际上获得的就是mod的实体本身，也就是打到玩家的子弹实体。\n\n而flanmod子弹实体类是EntityBullet，里面有个一个 entity类型的名为owner的字段表示子弹的射击者。\n\n理论代码:\n\n//需要导入1.7.10 spigot/bukkit 服务端,不能是Cauldron,因为mcpc和大锅运行后 会使用魔法吧服务端类变成bukkit那种形式。不知道作用也不知道为何这样，反正就是鬼畜。 \n\nEntity zidan = ((CraftEntity)evt.getDamager()).getHandle();//获取flan子弹实体,Entity是.net.minecraft.serxxx包下的类 不是bukkit 的。\n\nEntity 射击者 = zidan.getClass().getDeclaredField(\"owner\").get(zidan);//反射获得字段。\n\n(Player)射击者.getBukkitEntity() //获得玩家bukkit包装对象。\n\n\n\n\n\n"
+        },
+        {
+            "author": "微笑的诈欺师",
+            "timestamp": 1471496220,
+            "txt_content": "w44225769 发表于 2016-8-18 10:46\n我的一生立志于用插件控制mod控制电脑控制挖掘机炒菜。对这些东西略有研究。  这个问题在去年我就帮寂灭 ...\n感谢！\n结果我一直一根筋撞死在CraftCustomEntity上面……完全没想到用反射噗\n编译成功了，正在等待测试"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1471539120,
+            "txt_content": "w44225769 发表于 2016-8-18 10:14\n大佬。。。并不是这样，flan枪械子弹并不是与受害者为 骑乘或者车辆的关系。 ...\n←_←然而我又没回答过他这问题,我只回答了sa类等于什么而已"
+        },
+        {
+            "author": "魔族宝",
+            "timestamp": 1472033040,
+            "txt_content": "微笑的诈欺师 发表于 2016-8-14 12:56\n刚刚睡醒……sa是在minecraft server的哪个包下面？ 这边IDE都没提示噗……\n好叭找到了，直接就在jar里面 ...\nBukkit是一个接口，由CraftBukkit实现。\nCraftBukkit则封装了NMS。\n\n一般在CraftBukkit的封装类中，都会存在一个名叫getHandle()的方法来获取封装的实例（即NMS的实例）\n而由于Bukkit只是一个接口，那么Bukkit的实例可以直接强转为CraftBukkit。再通过getHandle()方法就可以获取到NMS实例了。"
+        },
+        {
+            "author": "Big_Sailing",
+            "timestamp": 1482038640,
+            "txt_content": "直接entity.getBukkitEntity()就可以的了"
+        }
+    ]
+}

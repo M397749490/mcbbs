@@ -1,0 +1,64 @@
+{
+    "title": "如何优化MC服务器的1.7.10forge服务端呢？",
+    "author": "MIKAZE3",
+    "replyCount": 11,
+    "timestamp": 1541046840,
+    "txt_content": " 本帖最后由 MIKAZE3 于 2019-3-10 00:48 编辑 \n\n大家开MOD服的时候，总为内存苦恼，内存不够用啊，服务端对CPU的优化不好啊，之类的。今天给大家讲讲，服务端启动代码所能做到的内存优化。\n以下内容 都是在MCBBS，CSDN了解到的，如果有错，请纠正，不要做 杠 精\n-XX:+AggressiveOpts\n加快编译（一种JAVA加速机制）\n\n-XX:+UseCompressedOops\n对于锁机制的性能改善\n（我也不太理解这个的意思）\n（也可以理解是性能的优化吧）\n\n-XX:+UseParallelGC\n使用并行垃圾回收机制\n\n-XX:+UseParNewGC设置内存为并行收集\n可以和CMS收集同时使用\n\n-XX:+UseParallelOldGC\n设置内存垃圾为并行收集\n\n-XX:ParallelGCThreads\n设置并行垃圾回收机制的线程数\n(这个等会下面会讲)\n\n-XX:+UseConcMarkSweepGC\n使用CMS内存收集\n也就是并发内存收集，应该也是内存的优化机制\n使用此参数就无法使用-XX:NewRatio=4\n\n-XX:+AggressiveHeap\n尝试使用大量的物理内存\n(好像是榨干你的所有性能)\n\n-XX:CMSFullGCsBeforeCompaction\n多少次回收垃圾的时候进行内存压缩\nCMS是不会移动内存的。\n因此， 这个非常容易产生碎片， 导致内存不够用。\n因此， 内存的压缩这个时候就会被启用。\n增加这个参数是个好习惯。\n可能会影响性能,但是可以消除碎片\n\n-XX:+UseSerialGC\n使用串行垃圾处理器\n\n-XX:MaxTenuringThreshold\n垃圾的最大值，正确的设置可以减少内存占用\n(该参数只有在串行GC时才有效)\n\n\n-Xnoclassgc禁用垃圾回收机制\n可以减少因为JAVA回收垃圾会导致程序卡顿代码\n（不可与垃圾回收代码共同运行）\n\n串行，我也不怎么了解到这个东西，好像是老时代JAVA的东西了，适合核心数少的人\n并发，不需要多个CPU核心，单个核心按照一定的时间顺序来处理（这个时间很短）让这些程序看起来像是同时进行的\n并行，使用多个CPU核心，可以让多个程序同时运算（缩短处理时间，也就是所谓的多线程）\nA：那么，串行、并发、并行的区别是什么？\n楼主：我找到了串行和并行的处理对比的网址，可以自己看看，最后是说并行比串行好，并行和并发的话，自行查看\nB：(暂无，等待提问）\n\n-Xss256k\n每个线程的堆栈大小\n一般小的应用， 如果栈不是很深， 应该是128k够用的 大的应用建议使用256k。\n这个选项对性能影响比较大，需要严格的测试。\n\n-XX:+UseG1GC -XX:MaxGCPauseMillis=50\n内存回收的一种。\n某个大佬给我的建议\n我也不知道是什么鬼\n\n-XX:+UseFastAccessorMethods\n原始类型的JAVA自带的快速优化 \n\n-server\n启动JAVA的Server（服务器）模式吧？\n使用的内存跟随着处理器的增加而增加\n这个只推荐大型生存服和MOD服务器使用\n\n-d64\n启动JAVA的64位数据模型运行\n\nuseSMPAPI=true\n多线程启用 添加到server.properties文件里（复制粘贴）\nMCBBS学到的，觉得没多大用处\n是否支持多线程还是看你的服务端是否支持的\n\n这也就是我所知道的代码启动\n那么就有的同学问了：该怎么添加呢？\n\n下面是一个一般的服务器启动代码\nJAVA -Xincgc -Xmx8G -Xms1G -jar 服务端名字.jar\n这个呢，是有一个小小的优化的地方的，修改-Xmx8G -Xms1G这一段，也可以稍微提高点性能（对JAVA使用的物理内存得到一个控制）， -Xmx8G是最大内存 -Xms1G是最小内存 VPS或者自家电脑可以稍微做调整。-Xmx(大小)G           -Xms(大小)G 最大内存最好调到你VPS的物理内存大小，最小内存最好是最大内存的一半。\n\n如果说是要添加以上所有优化的话就变成这样（仅允许64位 JAVA8使用）：\n这个是一段适合4核8G的VPS用\nJAVA -Xmx8G -Xms4G -server -XX:+AggressiveOpts  -XX:+UseCompressedOops -Xss1m  -XX:ParallelGCThreads=8 -XX:+UseConcMarkSweepGC -XX:+UseFastAccessorMethods -d64 -jar 服务端名字.jar\n\n\n这个是一段适合8核16G的VPS用\nJAVA -Xmx16G -Xms8G -server -XX:+AggressiveOpts  -XX:+UseCompressedOops -Xss1m  -XX:ParallelGCThreads=16 -XX:+UseConcMarkSweepGC -XX:+UseFastAccessorMethods -d64 -jar 服务端名字.jar\n以上的暂时使用就行，垃圾回收还是要看你自己调整\n\n接下来是插件优化\n\n\n大家现在比较熟悉的就是\nNeverLag LaggRemover ProtectPlugin各大功能，都很好用，最好是全安装了，在这我也就不多说什么了，自己去本站帖子看。（嘻嘻嘻）\n\n对于服务端的选择，分别有：\nCauldron(原MCPC+) KCauldron Thermos Contigo UraniumCauldron是最原始的1.7.10forge服务端，但是漏洞很多，不推荐使用。Thermos只是比KCauldron更好，也只是修复了KCauldron的部分BUG，也拥有了更低的延迟。KCauldron因官网关闭，更新会报错。而且还自带了许多的问题，例如主线程卡死。Contigo是一款最新开发出的一个服务端，个人觉得也没多好吧，也没详细说明修复了什么，多了什么功能。\nUranium是结合了KCauldron和Thermos进行一个的修复的服务端，修复和优化了很多东西。\n我个人推荐Uranium，因为他结合了KCauldron和Thermos，也做了很多的优化。\n\n\n\n如果那里不对，还请大家多提提意见，在下方多提一些实用的优化方式\n\n\n\n\n\n持续更新中。。。 （2019.3.10）\n",
+    "replies": [
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1541050260,
+            "txt_content": "1139365029 发表于 2018-11-1 13:42\n我觉得，这几个应该和垃圾回收有关，不是控制服务器多线程运行的，加上后，对服务器的优化程度也不高 ...\n垃圾回收的话，JAVA的机制不好，而且一般人都知道 各大类服务端大部分都是使用的双核运行，也有很多服主烦恼服务器使用的CPU不多导致TPS低，这个就是让服务端使用多核心运行的"
+        },
+        {
+            "author": "彼岸花落尽",
+            "timestamp": 1541050440,
+            "txt_content": "膜拜英语十级大佬"
+        },
+        {
+            "author": "MC_tingfeng",
+            "timestamp": 1541050620,
+            "txt_content": "我感觉spigot和bukkit中的参数调整带来的性能提升要比启动代码来打大"
+        },
+        {
+            "author": "1139365029",
+            "timestamp": 1541050920,
+            "txt_content": "-Xss256k  -XX:ParallelGCThreads=16\n一个线程使用256K内存 16线程运行服务器\n\n-XX:ParallelGCThreads=10\n多线程脚本 这里是十个线程 1核心2线程\n\n-XX:ParallelGC 这个脚本 可以对服务器使用CPU核心数量的使用进行一个控制 （也就是所说的一般服务器只能使用到1个核心两个线程）\n我觉得，这几个应该和垃圾回收有关，不是控制服务器多线程运行的，加上后，对服务器的优化程度也不高"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1541050980,
+            "txt_content": "MC_tingfeng 发表于 2018-11-1 13:37\n我感觉spigot和bukkit中的参数调整带来的性能提升要比启动代码来打大\nspigot和bukkit当中是限制服务器的参数来达到优化的作用，我是想让你们不需要限制的得到优化"
+        },
+        {
+            "author": "二哈大魔王",
+            "timestamp": 1541060940,
+            "txt_content": "从启动脚本上还能优化服务器？"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1541062980,
+            "txt_content": "二哈大魔王 发表于 2018-11-1 16:29\n从启动脚本上还能优化服务器？\n这个我个人觉得应该是可行的，因为我试过，确实有提高"
+        },
+        {
+            "author": "二哈大魔王",
+            "timestamp": 1541064420,
+            "txt_content": "MIKAZE3 发表于 2018-11-1 17:03\n这个我个人觉得应该是可行的，因为我试过，确实有提高\n那看来不能小瞧这个bat啊  有空我也得去研究研究 一直都没在意这东西。。"
+        },
+        {
+            "author": "502mc",
+            "timestamp": 1541079720,
+            "txt_content": "收藏备用2333"
+        },
+        {
+            "author": "efsg_",
+            "timestamp": 1541079900,
+            "txt_content": "通用解决方案:加钱"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1541237460,
+            "txt_content": "502mc 发表于 2018-11-1 21:42\n收藏备用2333\n感谢收藏"
+        }
+    ]
+}

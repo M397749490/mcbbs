@@ -1,0 +1,44 @@
+{
+    "title": "[18w03b]如何实现击杀者判定系统",
+    "author": "switefaster",
+    "replyCount": 7,
+    "timestamp": 1517229660,
+    "txt_content": " 本帖最后由 switefaster 于 2018-1-29 20:42 编辑 \n\n唔大家好我是潜水一年的switefaster\n因为昨天有人问到，又因为我实现了这个系统，所以决定发这个贴子\n好，进入正题※警告：此文内容为18w03b实现，其他版本不生效作者概不负责  有人看到这个标题可能会问我，击杀判定不是已经被MC内部代码实现了吗？确实，但是那是玩家死亡的击杀判定。有些情况我们不希望玩家死亡，但是在特定条件下判定击杀。就比如我们为了节省玩家掉进虚空死亡的时间，在玩家坐标小于1的时候就判定击杀，那么我们就需要知道谁击杀了玩家。我们这次只考虑玩家击杀的情况。一个很简单的思路就是，我们只要知道谁最后击中了玩家，就判定谁是击杀者（当然可以根据自己的游戏规则更改）为了记录攻击者，我们创建一个lastHitter记分板init.mcfunctionscoreboard objectives add lastHitter dummy复制代码所以我们先考虑近战击中的情况：很容易就能想到，只要知道谁是攻击者，谁是被攻击者，就能给被攻击者的最后攻击者记分板赋予一个值...等等，玩家还能作为记分板的值？\n为了解决上述问题我们插入一个略显无关的教程。为了解决记录玩家的问题我们需要赋予每个玩家一个特有的id以方便在记分板中记录。我们创建一个id记分板scoreboard objectives add id dummy复制代码那么怎么赋予玩家id呢？很显然，我们只要给没有id的玩家赋予最高id+1的分数就行了但是考虑到最高id分数玩家可能正好不在，所以我们需要一个东西来记录最高id那为了方便我们干脆召唤一个盔甲架来持有一些特有量吧execute unless entity @e[name=constants] run summon minecraft:armor_stand ~ ~ ~ {CustomName:\"[\"constants\"]\",Invisible:1,NoGravity:1,Marker:1}\nscoreboard players add @e[name=constants] id 0\nscoreboard players add @e[name=constants,scores={id=0}] id 1复制代码从上述命令我们可以看到我们召唤了一个名为costants的盔甲架。给它加上分数0以让他拥有id记分板，随后如果他的id是0那么就加上1所以如果这个盔甲架不存在的情况就会被召唤一个并且赋予id=1我之前说这是最高值其实不准确，用\"next\"可能更能贴切地表达这个盔甲架的用途。它承载着会被赋予下一个玩家的id分数我们把这几个命令写进init.mcfunction里并且放到#minecraft:load这个function tag内，以便在datapack加载时运行这时候我们写一个allocid.mcfunctionscoreboard players operation @s id = @e[name=constants,limit=1] id\nscoreboard players add @e[name=constants] id 1复制代码这两行命令的意图显而易见我就不解释了然后在ticks.mcfunction内scoreboard players add @a id 0\nexecute as @a[scores={id=0},limit=1] run function namespace:allocid复制代码※ 命名空间什么的你们就随意啦同样我们让玩家拥有id记分板然后让所有id=0的玩家执行allocid至于为什么要limit=1，是防止多个玩家同时没有id的情况，同时执行会出现多个玩家分得同一个id的尴尬情况，所以一个一个来把ticks.mcfunction放进#minecraft:ticks这个function tag内，以便每tick执行一次至此，id分配内容结束好了，既然id已经分配到了我们可以继续考虑攻击者的问题了。我们知道advancement（以下简称adv）可以触发攻击和被攻击事件，但是……他们只能把触发者（攻击者或被攻击者）传入reward function里面可是我们两个都需要啊？？？不过这个问题我们稍后再解决，我们先把adv写好stickhit.json{\n    \"display\": {\n        \"announce_to_chat\": false,\n        \"hidden\": true,\n        \"show_toast\": false,\n        \"icon\": {\n            \"item\":\"minecraft:stick\"\n        },\n        \"description\":\"\",\n        \"title\":\"\"\n    },\n    \"criteria\": {\n        \"bow_hit\": {\n            \"trigger\": \"minecraft:player_hurt_entity\",\n            \"conditions\": {\n                \"damage\": {\n                    \"direct_entity\": {\n                        \"type\":\"player\"\n                    }\n                }\n            }\n        }\n    },\n    \"rewards\": {\n        \"function\":\"namespace:stickhit\"\n    }\n}复制代码bestickhit.json{\n    \"display\": {\n        \"announce_to_chat\": false,\n        \"hidden\": true,\n        \"show_toast\": false,\n        \"icon\": {\n            \"item\":\"minecraft:stick\"\n        },\n        \"description\":\"\",\n        \"title\":\"\"\n    },\n    \"criteria\": {\n        \"bow_hit\": {\n            \"trigger\": \"minecraft:entity_hurt_player\",\n            \"conditions\": {\n                \"damage\": {\n                    \"direct_entity\": {\n                        \"type\":\"player\"\n                    }\n                }\n            }\n        }\n    },\n    \"rewards\": {\n        \"function\":\"namespace:bestickhit\"\n    }\n}复制代码※ 好像对齐有点怪……不管了忍一下吧前者是击中判定，后者是被击中判定。因为我的小游戏里的武器是stick所以就叫bestickhit之类的了这两个adv也没什么稀奇的我就不解释了然后我们正式把目光移向重点——reward functionstickhit.mcfunctiontag @s add stickhit\nadvancement revoke @s only namespace:stickhit复制代码※ 超短的没错我们干的事很简单，就是tag了一下这个玩家并且移除这个adv以重复触发而已同样的，bestickhit.mcfunctiontag @s add bestickhit\nscoreboard players set @s fromDamaged 0 #请先忽视它\nadvancement revoke @s only namespace:bestickhit复制代码干的事也一样，至于第二行后面会提到的，先忽视就好现在我们拥有了两个玩家的标记……但是还是没法配对啊？不要怕，先看命令：stickhitrecord.mcfunctionscoreboard players operation @a[sort=nearest,tag=bestickhit,limit=1,distance=0.3..] lastHitter = @s id\ntag @s remove stickhit\ntag @a[sort=nearest,tag=bestickhit,limit=1,distance=0.3..] remove bestickhit复制代码ticks.mcfunction# ...Previous Commands...\nexecute as @a[tag=stickhit] run function namespace:stickhitrecord复制代码我们现在看看都干了些什么我们在每tick内以所有stickhit tag拥有着的名义执行stickhitrecord，在其中我们先把离这位执行者最近的bestickhit拥有者的lastHitter记分板标为自己的id，并且移除这两人的tag。distance=0.3...意为选中玩家的距离离执行者得≥3，防止选到自己，因为自己也有可能是bestickhit拥有者啊2333至于选择最近的玩家，是因为我们只能认为通常被击中者是离攻击玩家最近的了尽管这个判定可能会造成误差，但是至少能基本确定近战的击中者了好的，我们进阶，来考虑一下如何判断远距离武器击杀吧距离肯定是行不通了，不然怎么叫远距离武器呢？所以，我们来转换一下思维如果箭拥有其主人的id，那不就好判断了吗？循着这种思路，我们先创建两个记分板init.mcfunctionscoreboard objectives add owner dummy\nscoreboard objectives add lifeTime dummy复制代码为什么是两个？过会就知道了我们总得赋予这两个记分板拥有着啊ticks.mcfunctionscoreboard players add @e[type=arrow] lifeTime 1\nexecute as @e[type=arrow,scores={lifeTime=1}] at @s run scoreboard players operation @s owner = @a[sort=nearest,limit=1] id复制代码我们每tick所有箭的lifeTime+1，然后让刚出生（？）的箭把离自己的owner附上最近的人的id，很好理解吧※ 其实这个lifeTime本来是其他作用的正好能用上我就用了然后我们就可以adv触发被箭攻击事件，然后开开心心地赋予owner……等等，等adv被触发结束箭已经击中玩家消失了啊？你的笑容是不是凝固在脸上？没关系，我们还有解决的办法init.mcfunctionscoreboard objectives add possiblyArrowHit dummy复制代码※ 啊不要吐槽这个命名我们创建一个新记分板（以下简称poss），板如其名，可能被箭击中。文字表述比较难表达它的作用，我们直接贴一下调用ticks.mcfunctionexecute as @e[type=arrow,scores={lifeTime=2..},nbt={inGround:0b}] at @s run scoreboard players operation @a[distance=0.1..3] possiblyArrowHit = @s owner复制代码我们以所有还在飞行并且出生过了一段时间（？）的箭的位置，把周围3格内的玩家的poss标记成自己的owner这有什么用？先继续看bearrowhit.json{\n    \"display\": {\n        \"announce_to_chat\": false,\n        \"hidden\": true,\n        \"show_toast\": false,\n        \"icon\": {\n            \"item\":\"minecraft:bow\"\n        },\n        \"description\":\"\",\n        \"title\":\"\"\n    },\n    \"criteria\": {\n        \"bow_hit\": {\n            \"trigger\": \"minecraft:player_hurt_entity\",\n            \"conditions\": {\n                \"damage\": {\n                    \"direct_entity\": {\n                        \"type\":\"arrow\"\n                    }\n                }\n            }\n        }\n    },\n    \"rewards\": {\n        \"function\":\"namespace:bearrowhit\"\n    }\n}复制代码※ 直接vscode复制过来竟然带特效 duangduangduang 前面的懒得重新复制了凑合着吧\nbearrowhit.mcfunction\nscoreboard players operation @s lastHitter = @s possiblyArrowHit\nscoreboard players set @s fromDamaged 0 # 忽视复制代码是不是有一种茅塞顿开的感觉？\n没错我们把沿途所有可能击中的玩家全部标上，但是只有最终击中的那个才会被正式计入击中者\n然后远程攻击判定也就到这里了\n不过最后我们解决几个无关紧要的问题\n1.玩家自杀怎么判断？\n这个我们真没办法，但是你可以用上那个fromDamaged，每tick增加1，到一定值归位并且把满值的玩家的lastHitter清零\n2.偶尔判定lastHitter就是死亡者自身，怎么办？\nexecute as @a run scoreboard players operation @s lastHitter -= @s id\nexecute as @a[scores={lastHitter=1..}] run scoreboard players operation @s lastHitter += @s id\nexecute as @a[scores={lastHitter=..-1}] run scoreboard players operation @s lastHitter += @s id复制代码这样解决……至于是什么意思，请自己揣摩吧。实在不懂的话我会在评论区解答，算一个小小的作业\n3.怎么选择器选择击杀者？分数没法动态导入选择器里啊？\n那就把击杀玩家分数特化（快记笔记）\nscoreboard players operation @a[distance=0.3..] id -= @s lastHitter\ntellraw @a [{\"color\":\"red\",\"selector\":\"@s\"},{\"color\":\"grey\",\"text\":\" 被 \"},{\"color\":\"gold\",\"selector\":\"@a[scores={id=0}]\"},{\"color\":\"grey\",\"text\":\" 击杀了\"}]\nscoreboard players operation @a[distance=0.3..] id += @s lastHitter复制代码像这样……我把id特化成0了。具体自己研究吧\n\n这个贴就发到这了，欢迎优化即提问哦!",
+    "replies": [
+        {
+            "author": "Deing",
+            "timestamp": 1517284440,
+            "txt_content": "mc的指令系统越来越像一套内置api，也许干脆搞成factorio那样会更好一点（虽然估计非常困难）\n\n老了老了，1.12的时候还能搞清楚个大概，1.13已经完全看不懂了，，还是继续造工厂打虫子吧"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1517286600,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2018-1-29 19:59 编辑 \n\n小声地说...id可以考虑data get UUIDLeast/Most...这就心疼了..."
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1517290740,
+            "txt_content": "⊙v⊙ 发表于 2018-1-30 12:30\n小声地说...id可以考虑data get UUIDLeast/Most...\n那是long (i64)\nmc命令返回值只支持 int (i32)\n不行"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1517297160,
+            "txt_content": "⊙v⊙ 发表于 2018-1-30 12:30\n小声地说...id可以考虑data get UUIDLeast/Most...这就心疼了...\n正如pca所说，我在exe的这个功能刚出现时我就试过了。显然是存不下UUID的……并且当遇到超出数据范围或无法获取的类型（string）或错误的路径时，我没记错的话会存入0值"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1517533860,
+            "txt_content": "switefaster 发表于 2018-1-30 15:26\n正如pca所说，我在exe的这个功能刚出现时我就试过了。显然是存不下UUID的……并且当遇到超出数据范围或无 ...\nstring会存入字符串长度\n直接存UUIDLeast的话会直接到记分板可存储的最大值\n↑wiki说的\n可以乘0.0000000001来存 但这样有可能撞id 233\nexecute as @a store result score @s thrower run data get entity @s UUIDMost 0.0000000001复制代码"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1517536440,
+            "txt_content": "kongbaiyo 发表于 2018-2-2 09:11\nstring会存入字符串长度\n直接存UUIDLeast的话会直接到记分板可存储的最大值\n↑wiki说的\n这么看来还是我的id系统稳定一点……毕竟UUID*10^-10碰撞率太平均23333"
+        },
+        {
+            "author": "ali1340653579",
+            "timestamp": 1517561760,
+            "txt_content": "好贴啊好贴"
+        }
+    ]
+}

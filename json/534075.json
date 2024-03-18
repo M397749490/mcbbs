@@ -1,0 +1,254 @@
+{
+    "title": "[插件]解决1.7.5后的服务器配置文件中文变Unicode码问题",
+    "author": "andylizi",
+    "replyCount": 49,
+    "timestamp": 1451020320,
+    "txt_content": " 本帖最后由 andylizi 于 2016-4-19 14:08 编辑 \n1.9服务器已修复这个bug，所以此问题只限于1.7.5-1.8.8服务器\n正题\n我的ColorMOTD插件在1.7.2服务器里，自动生成的配置文件：（版主别说我广告之类的……不举个梨子哪成）\n\n我的ColorMOTD插件在1.8服务器里，自动生成的配置文件：\n\n大概除了机器，只有鬼能看懂了。不止是我的ColorMOTD，所有的插件的配置文件里的中文全部都会变成这样。\n现在我的ColorMOTD的发布贴有一堆反馈这问题的，各种看不懂\n郁闷。1.7.5以前的服务器完全没这问题\n于是经过我九九八十一天的追查，终于找到了罪魁祸首并将其逮捕归案\n\n多了一行代码。\n这就是原因。\n【解决办法 - 对于插件开发者】\npublic void reloadCustomConfig() throws Throwable {\n        if (!dataFolder.exists()) {\n            dataFolder.mkdirs();\n        }\n        File configFile = new File(dataFolder, \"config.yml\");\n        if (!configFile.exists()) {\n            configFile.createNewFile();\n        }\n        config = YamlConfiguration.loadConfiguration(configFile);  //加载配置文件\n        DumperOptions yamlOptions = null;\n        try{\n            Field f = YamlConfiguration.class.getDeclaredField(\"yamlOptions\");   //获取类YamlConfiguration里的匿名yamlOptions字段\n            f.setAccessible(true);\n            \n            yamlOptions = new DumperOptions(){  //将yamlOptions字段替换为一个DumperOptions的匿名内部类，里面替换了setAllowUnicode方法让其永远无法设置为true\n                @Override\n                public void setAllowUnicode(boolean allowUnicode) {\n                    super.setAllowUnicode(false);\n                }\n\n                @Override\n                public void setLineBreak(DumperOptions.LineBreak lineBreak) {\n                    super.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());\n                }\n            };\n            \n            yamlOptions.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());\n            f.set(config, yamlOptions); //把新的yamlOptions偷梁换柱回去\n        }catch(ReflectiveOperationException ex){\n        }\n    }复制代码\n这是我的ColorMOTD插件内配置文件夹加载器中的一个方法\n平常插件加载配置文件都是使用\nsaveDefaultConfig();\nreloadConfig();复制代码\n然后通过getConfig()访问\n我这个方法代替了saveDefaultConfig()、reloadConfig()和getConfig()的功能，\n其中使用了2个全局变量需要说明：\nFile dataFolder;  //也就是主类中getDataFolder()的返回值\nFileConfiguration config;  //替代getConfig()，读取配置文件时就操作它好了复制代码\n这个方法关键是把YamlConfiguration里的yaml设置DumperOptions里面的setAllowUnicode方法覆盖掉，使其无法被设为true\n然后就解决了╮(╯▽╰)╭\n\n如果你不想把getConfig()替代掉，还想使用旧的方法，可以在reloadConfig()后，get内容之前运行这段代码\nDumperOptions yamlOptions = null;\n        try{\n            Field f = YamlConfiguration.class.getDeclaredField(\"yamlOptions\");   //获取类YamlConfiguration里的匿名yamlOptions字段\n            f.setAccessible(true);\n            \n            yamlOptions = new DumperOptions(){  //将yamlOptions字段替换为一个DumperOptions的匿名内部类，里面替换了setAllowUnicode方法让其永远无法设置为true\n                @Override\n                public void setAllowUnicode(boolean allowUnicode) {\n                    super.setAllowUnicode(false);\n                }\n\n                @Override\n                public void setLineBreak(DumperOptions.LineBreak lineBreak) {\n                    super.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());\n                }\n            };\n            \n            yamlOptions.setLineBreak(DumperOptions.LineBreak.getPlatformLineBreak());\n            f.set(getConfig(), yamlOptions); //把新的yamlOptions偷梁换柱回去\n        }catch(ReflectiveOperationException ex){\n        }复制代码\n也是一样的。不过如果再次调用reloadConfig()方法则又需要执行该段代码\n【解决办法 - 对于服主】\n\n\n\n\nDumperOptions.rar\n(12.28 KB, 下载次数: 239)\n\n\n\n2016-4-19 14:08 上传\n点击文件名下载附件\n阅读权限: 10\n\n\n\n\n\n关闭服务器，将上面那个rar解压，里面有个DumperOptions.class文件，把你的服务器核心jar用压缩文件管理工具打开，进入\n\\org\\yaml\\snakeyaml复制代码文件夹内，替换旧的DumperOptions.class。\n",
+    "replies": [
+        {
+            "author": "尘曲",
+            "timestamp": 1451070360,
+            "txt_content": "{:10_553:}码字辛苦了。"
+        },
+        {
+            "author": "RecursiveG",
+            "timestamp": 1451088060,
+            "txt_content": "于是不得不继续面对编码问题，为了可读性放弃可移植性，\n个人认为这种方式不可取。\n（另一群人跑过来问你：本地配置好的服务端上传到服务器怎么不能跑了呀？）"
+        },
+        {
+            "author": "1QAZ3EDCS",
+            "timestamp": 1451093940,
+            "txt_content": "RecursiveG 发表于 2015-12-26 08:01\n于是不得不继续面对编码问题，为了可读性放弃可移植性，\n个人认为这种方式不可取。\n（另一群人跑过来问你： ...\n事实上转码还是很方便的= =\n但是....中文全部变成U码是很痛苦的一件事..\n每次我都要转换来转换去\n麻烦程度可想而知\n所以\n给梨子赞一个\n我是梨子的脑残粉~"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1451099100,
+            "txt_content": "RecursiveG 发表于 2015-12-26 08:01\n于是不得不继续面对编码问题，为了可读性放弃可移植性，\n个人认为这种方式不可取。\n（另一群人跑过来问你： ...\n至少我解决了2333对于小白来说这是很头疼滴"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1451100300,
+            "txt_content": "RecursiveG 发表于 2015-12-26 08:01\n于是不得不继续面对编码问题，为了可读性放弃可移植性，\n个人认为这种方式不可取。\n（另一群人跑过来问你： ...\n话说google的common.io包里面貌似有编码判断的API，我知道这种判断不一定准，不过应该还是有用的，只是不知道好不好用，也不知道服务端核心文件里的common包有没有加进来这部分"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1451107500,
+            "txt_content": "splt 发表于 2015-12-26 11:25\n话说google的common.io包里面貌似有编码判断的API，我知道这种判断不一定准，不过应该还是有用的，只是不 ...\n加了commons.io、codec和lang。话说这个编码跟unicode没关系，unicode严格来说又不是编码"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1451109360,
+            "txt_content": "andylizi 发表于 2015-12-26 13:25\n加了commons.io、codec和lang。话说这个编码跟unicode没关系，unicode严格来说又不是编码 ...\n他说的是可移植性，应该是说的编码问题吧？用你的方法解决中文变u码的问题，可移植性用这个解决，不知可以否"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1451109600,
+            "txt_content": "splt 发表于 2015-12-26 13:56\n他说的是可移植性，应该是说的编码问题吧？用你的方法解决中文变u码的问题，可移植性用这个解决，不知可 ...\n我覆盖的DumperOptions类里面并没有任何跟编码有关系的内容"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1451109960,
+            "txt_content": "andylizi 发表于 2015-12-26 14:00\n我覆盖的DumperOptions类里面并没有任何跟编码有关系的内容\n嗯确实是这样……\n那个人说可移植性应该是说Linux和Windows要上使用带中文的配置文件需要不同的编码吧？而没有中文的u码就能解决这个问题，或许这也是bukkit强制设为u码的原因？\n\n他的意思是本地配好的服务端由于编码不同无法直接在服务器使用，那么我就想或许可以用判断编码的方式给配置文件自动转个码，解决这个问题？"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1451625240,
+            "txt_content": "Unicode转码网站：http://sandbox.runjs.cn/show/p0wqxbgx"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1451625360,
+            "txt_content": "cauldron服主咋办QAQ"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1451702400,
+            "txt_content": "Viosin 发表于 2016-1-1 13:14\nUnicode转码网站：http://sandbox.runjs.cn/show/p0wqxbgx\n如果你喜欢编辑一次配置文件转码一次，请便"
+        },
+        {
+            "author": "123mbcz123",
+            "timestamp": 1454745060,
+            "txt_content": "强转我不反对。\n你能不给我转错行么？\n转完直接乱码[翻译成gbk]\n我都不能汉化了！"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1454745300,
+            "txt_content": "123mbcz123 发表于 2016-2-6 15:51\n强转我不反对。\n你能不给我转错行么？\n转完直接乱码[翻译成gbk]\n请问你在说啥啊我没听懂\n另外为什么你不试试utf-8"
+        },
+        {
+            "author": "123mbcz123",
+            "timestamp": 1454745900,
+            "txt_content": "java.lang.NoSuchMethodError: org.yaml.snakeyaml.DumperOptions.getExplicitRoot()L\norg/yaml/snakeyaml/nodes/Tag;\n        at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:262)\n        at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:234)\n        at org.yaml.snakeyaml.Yaml.dump(Yaml.java:209)\n        at org.bukkit.configuration.file.YamlConfiguration.saveToString(YamlConf\niguration.java:40)\n        at org.bukkit.configuration.file.FileConfiguration.save(FileConfiguratio\nn.java:103)\n        at org.github.paperspigot.PaperSpigotConfig.readConfig(PaperSpigotConfig\n.java:98)\n        at org.github.paperspigot.PaperSpigotConfig.init(PaperSpigotConfig.java:\n62)\n        at org.github.paperspigot.PaperSpigotConfig.<clinit>(PaperSpigotConfig.j\nava:40)\n        at net.minecraft.server.v1_7_R4.ItemBucket.<init>(ItemBucket.java:18)\n        at net.minecraft.server.v1_7_R4.Item.l(Item.java:114)\n        at net.minecraft.server.v1_7_R4.DispenserRegistry.b(SourceFile:358)\n        at net.minecraft.server.v1_7_R4.MinecraftServer.main(MinecraftServer.jav\na:821)\n        at org.bukkit.craftbukkit.Main.main(Main.java:199)\npaperspigot-1.7.10"
+        },
+        {
+            "author": "123mbcz123",
+            "timestamp": 1454748120,
+            "txt_content": " 本帖最后由 123mbcz123 于 2016-2-6 16:53 编辑 \nandylizi 发表于 2016-2-6 15:55\n请问你在说啥啊我没听懂\n另外为什么你不试试utf-8\n第一个。\n把汉化文件放进去[gbk编码]\n假设第一行为\nname: 商店\n自动转化结果为\nname: \"\\u935f\\u55d7\\u7c35\"\n我很好奇。他是如何把两个字转化成3个字\n\\u935f\\u55d7\\u7c35转成gbk为 \"鍟嗗簵\"\n然后就乱码了。。自动转换有问题。。手动转码没问题。\n还有。按照你的方法替换报错了。。1。8.7没问题1.7.10报错。。\n详见另一条留言uft-8 都试了多少遍\n\n"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1455273180,
+            "txt_content": "今天才想起来，去翻了api，FileConfiguration发现了SYSTEM_UTF，是在public final static修饰并在static块初始化的，我觉得吧_(:зゝ∠)_直接用反射去掉final修饰然后把值改了，就OK了=￣ω￣="
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1455275640,
+            "txt_content": "splt 发表于 2016-2-12 18:33\n今天才想起来，去翻了api，FileConfiguration发现了SYSTEM_UTF，是在public final static修饰并在static块 ...\n似乎final static是无法修改的？@RecursiveG  "
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1455278820,
+            "txt_content": "andylizi 发表于 2016-2-12 19:14\n似乎final static是无法修改的？@RecursiveG\n可以的，你field.setModifier把final修饰去掉就好了"
+        },
+        {
+            "author": "914554688wyt",
+            "timestamp": 1455416700,
+            "txt_content": "其实不打紧啊..  放进这玩意里去转一下就可以了\n\n\n\n\nQQ截图20160214102421.png (6.94 KB, 下载次数: 0)\n\n下载附件\n\n2016-2-14 10:23 上传\n\n\n\n\n"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1455421800,
+            "txt_content": "914554688wyt 发表于 2016-2-14 10:25\n其实不打紧啊..  放进这玩意里去转一下就可以了\n你要不嫌麻烦我也无所谓233\n对于开发者来说，用户第一是最重要的"
+        },
+        {
+            "author": "X_mingyu",
+            "timestamp": 1457772600,
+            "txt_content": "插件开发者一次性解决好多插件的U码也会累死的吧"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1458526500,
+            "txt_content": "在启动程序后门加上-Dfile.encoding=UTF-8不就得了吗？\n如：JAVA -Xmx256M -jar spigot-1.8.8.jar -Dfile.encoding=UTF-8"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458530760,
+            "txt_content": "芒果苦力怕 发表于 2016-3-21 10:15\n在启动程序后门加上-Dfile.encoding=UTF-8不就得了吗？\n如：JAVA -Xmx256M -jar spigot-1.8.8.jar -Dfile.e ...\n这是控制“字符编码”，但unicode编码指的又不是。。别弄混了"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1458530940,
+            "txt_content": "andylizi 发表于 2016-3-21 11:26\n这是控制“字符编码”，但unicode编码指的又不是。。别弄混了\n同是解决方法！"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458531180,
+            "txt_content": "芒果苦力怕 发表于 2016-3-21 11:29\n同是解决方法！\n\nUTF-8跟unicode是不一样的，utf-8指的是把字符编码为byte[]并把byte[]解码为字符的方式，然而unicode跟这个没有直接关系\n例如：\n\n\n\n\nQQ截图20160321113426.png (3.32 KB, 下载次数: 0)\n\n下载附件\n\n2016-3-21 11:33 上传\n\n\n\n\n\n\n\n\n\nQQ截图20160321113502.png (36.54 KB, 下载次数: 0)\n\n下载附件\n\n2016-3-21 11:33 上传\n\n\n\n\n\n我也不知道该怎么形容好了\n\n对了，你的-Dfile.encoding=UTF-8有错误，jvm参数必须加在-jar前面，不然就变成了jar参数了"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1458531900,
+            "txt_content": "andylizi 发表于 2016-3-21 11:33\nUTF-8跟unicode是不一样的，utf-8指的是把字符编码为byte[]并把byte[]解码为字符的方式，然而unicode跟这 ...\n难道不是解决方法吗？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458532020,
+            "txt_content": "芒果苦力怕 发表于 2016-3-21 11:45\n难道不是解决方法吗？\n我说了utf-8跟unicode不一样，那你加上utf-8怎么可能解决unicode编码的问题？\n你这人是不是跟我有仇，一边私信跟我扯一边回帖跟我扯"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1458533820,
+            "txt_content": "andylizi 发表于 2016-3-21 11:47\n我说了utf-8跟unicode不一样，那你加上utf-8怎么可能解决unicode编码的问题？\n你这人是不是跟我有仇， ...\n我记得我之前测试过\n我用llinux主机的时候\n编码UTF-8,不会出现unicode编码的问题\n服务器版本是1.8.8"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458533880,
+            "txt_content": "芒果苦力怕 发表于 2016-3-21 12:17\n我记得我之前测试过\n我用llinux主机的时候\n编码UTF-8,不会出现unicode编码的问题\n好吧，不争了，你自己去windows环境下试试你的代码吧"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1458534060,
+            "txt_content": " 本帖最后由 芒果苦力怕 于 2016-3-21 12:24 编辑 \nandylizi 发表于 2016-3-21 12:18\n好吧，不争了，你自己去windows环境下试试你的代码吧\n嗯，你也可以去试试\n@andylizi嗯，我去试(别生气哈)\n"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1459069140,
+            "txt_content": "弄了这个以后，我之前的插件config会自动变成中文的吗，还是会出现错误无法使用？需要把之前的config重新建一遍吗？"
+        },
+        {
+            "author": "18278436235",
+            "timestamp": 1459069560,
+            "txt_content": "spigot1.8替换完之后泵崩服 -"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1461008820,
+            "txt_content": "---- Minecraft Crash Report ----\n// Why did you do that?\n\nTime: 16-4-19 上午3:42\nDescription: Exception in server tick loop\n\njava.lang.NoSuchMethodError: org.yaml.snakeyaml.DumperOptions.getSplitLines()Z\n        at org.yaml.snakeyaml.emitter.Emitter.<init>(Emitter.java:198)\n        at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:237)\n        at org.yaml.snakeyaml.Yaml.dumpAll(Yaml.java:206)\n        at org.yaml.snakeyaml.Yaml.dump(Yaml.java:181)\n        at org.bukkit.configuration.file.YamlConfiguration.saveToString(YamlConfiguration.java:40)\n        at org.bukkit.configuration.file.FileConfiguration.save(FileConfiguration.java:103)\n        at org.bukkit.craftbukkit.v1_8_R3.CraftServer.saveConfig(CraftServer.java:272)\n        at org.bukkit.craftbukkit.v1_8_R3.CraftServer.<init>(CraftServer.java:212)\n        at net.minecraft.server.v1_8_R3.PlayerList.<init>(PlayerList.java:71)\n        at net.minecraft.server.v1_8_R3.DedicatedPlayerList.<init>(SourceFile:14)\n        at net.minecraft.server.v1_8_R3.DedicatedServer.init(DedicatedServer.java:176)\n        at net.minecraft.server.v1_8_R3.MinecraftServer.run(MinecraftServer.java:525)\n        at java.lang.Thread.run(Unknown Source)\n\n\nA detailed walkthrough of the error, its code path and all known details is as follows:\n---------------------------------------------------------------------------------------\n\n-- System Details --\nDetails:\n        Minecraft Version: 1.8.8\n        Operating System: Windows Server 2008 R2 (amd64) version 6.1\n        Java Version: 1.8.0_73, Oracle Corporation\n        Java VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation\n        Memory: 179200744 bytes (170 MB) / 245891072 bytes (234 MB) up to 954728448 bytes (910 MB)\n        JVM Flags: 3 total; -Xmx1G -XX:+AggressiveOpts -XX:+UseCompressedOops\n        IntCache: cache: 0, tcache: 0, allocated: 0, tallocated: 0\n        CraftBukkit Information: \n   Running: CraftBukkit version git-Spigot-5f38d38-9d7764c (MC: 1.8.8) (Implementing API version 1.8.8-R0.1-SNAPSHOT) \n   Failed to handle CraftCrashReport:\njava.lang.NullPointerException\n        at net.minecraft.server.v1_8_R3.MinecraftServer.getOnlineMode(MinecraftServer.java:1285)\n        at org.bukkit.craftbukkit.v1_8_R3.CraftCrashReport.call(CraftCrashReport.java:20)\n        at net.minecraft.server.v1_8_R3.CrashReportSystemDetails.a(SourceFile:78)\n        at net.minecraft.server.v1_8_R3.CrashReport.h(CrashReport.java:127)\n        at net.minecraft.server.v1_8_R3.CrashReport.<init>(CrashReport.java:34)\n        at net.minecraft.server.v1_8_R3.MinecraftServer.run(MinecraftServer.java:577)\n        at java.lang.Thread.run(Unknown Source)\n\n        Profiler Position: N/A (disabled)\n        Is Modded: Definitely; Server brand changed to 'Spigot'\n        Type: Dedicated Server (map_server.txt)\n替换完后开服，没开起来，就崩掉了，然后就生成了蹦服报告"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1461030660,
+            "txt_content": "芒果苦力怕 发表于 2016-4-19 03:47\n替换完后开服，没开起来，就崩掉了，然后就生成了蹦服报告\nwoc。。。难道每个服务端版本都升级一次snakeyaml吗。。。稍等，马上解决"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1461040080,
+            "txt_content": "andylizi 发表于 2016-4-19 09:51\nwoc。。。难道每个服务端版本都升级一次snakeyaml吗。。。稍等，马上解决\n好了吗？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1461040080,
+            "txt_content": "芒果苦力怕 发表于 2016-4-19 12:28\n好了吗？\n请发出你使用的服务端核心"
+        },
+        {
+            "author": "芒果苦力怕",
+            "timestamp": 1461043560,
+            "txt_content": "andylizi 发表于 2016-4-19 12:28\n请发出你使用的服务端核心\nhttp://pan.baidu.com/s/1dFnZziD"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1461046020,
+            "txt_content": "芒果苦力怕 发表于 2016-4-19 13:26\nhttp://pan.baidu.com/s/1dFnZziD\n\n\n\nDumperOptions.rar\n(12.28 KB, 下载次数: 14)\n\n\n\n2016-4-19 14:03 上传\n点击文件名下载附件\n\n\n\n\n\n"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463643720,
+            "txt_content": "123mbcz123 发表于 2016-2-6 16:42\n第一个。\n把汉化文件放进去[gbk编码]\n假设第一行为\n报错已解决。重下"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1484410800,
+            "txt_content": "KC端核心里，怎么没这个文件，也没\\yaml\\snakeyaml"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1484436120,
+            "txt_content": "haixing 发表于 2017-1-15 00:20\nKC端核心里，怎么没这个文件，也没\\yaml\\snakeyaml\n你不会打开了minecraft.server.jar吧"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1484463240,
+            "txt_content": "andylizi 发表于 2017-1-15 07:22\n你不会打开了minecraft.server.jar吧\n不是啊，你看\n\n\n\n\n\n\n[0E14ABTL$CXMV8_{U$%0UA.png\n(26.37 KB, 下载次数: 2)\n\n\n\n\n下载附件\n\n\n2017-1-15 14:40 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1484636760,
+            "txt_content": "andylizi 发表于 2017-1-15 07:22\n你不会打开了minecraft.server.jar吧\n怎么办，难道是我有什么搞错了"
+        },
+        {
+            "author": "刘在石",
+            "timestamp": 1484986500,
+            "txt_content": "请问KC端怎么解决,代码也改了还是不行,代替文件也不行,因为服务端本体里没有那个文件。。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1484987580,
+            "txt_content": "刘在石 发表于 2017-1-21 16:15\n请问KC端怎么解决,代码也改了还是不行,代替文件也不行,因为服务端本体里没有那个文件。。 ...\n你不会打开了minecraft.server.jar吧"
+        },
+        {
+            "author": "刘在石",
+            "timestamp": 1484994600,
+            "txt_content": "andylizi 发表于 2017-1-21 16:33\n你不会打开了minecraft.server.jar吧\n真没有 = ="
+        },
+        {
+            "author": "Innovators",
+            "timestamp": 1486204140,
+            "txt_content": "即使替换了 还是会自动转码啊..\n版本是1.8.8PaperSpigot"
+        },
+        {
+            "author": "mcbbs2050",
+            "timestamp": 1520766240,
+            "txt_content": "Thermos 模组服的核心文件里没有那个 \\org\\yaml\\snakeyaml 目录，该肿么办呢？"
+        }
+    ]
+}

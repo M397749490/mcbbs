@@ -1,0 +1,129 @@
+{
+    "title": "「四月旧番」真正的从零基础学Bukkit开发！——贰.插件文件结构和Java基本类型",
+    "author": "贺兰兰",
+    "replyCount": 24,
+    "timestamp": 1586542380,
+    "txt_content": " 本帖最后由 贺兰星辰 于 2020-6-20 22:57 编辑 \n\n上一期：https://www.mcbbs.net/thread-990193-1-1.html\n前言：\n\n咕了差不多一个月，终于又打开MCBBS准备更新了，之所以想起来要更新是因为今天我看到乙烯大佬给咱发绿宝石了（再不更新对不起大家咳咳）\n\n\n\n\nimage.png (10.02 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-10 22:39 上传\n\n\n\n\n\n顺带一提：\n今天我的IDEA给我推送了2020.1版本，如果可以的话，建议各位都升级到该版本，MinecraftDevelopment和Material Theme均已支持到该版本（值得一提是的，Material Theme似乎把主题和图标分开了，更新后图标会变成原版图标，要想显示Material Theme的Atom图标需要安装额外的Atom Material Icons插件）\n另外，IntelliJ IDEA自2020.1版本后开始支持简体中文！只需在Markcetplace安装Chinese ?(Simplified)? Language Pack EAP这个插件即可（我试了一下，汉化还算完整，但为了确保教程质量我并不准备用）\n继续上一期讲：\n  当我们的插件继承(extend)org.bukkit.plugin.java.JavaPlugin(1.15.2包路径，其他版本可能有所不同，但类名应当都叫JavaPlugin)以后，插件便会又此入口开始执行插件操作。但是问题来了：\n  插件怎么知道我们的主类名是啥，知道我们的插件名字叫啥？\n  这就需要用到plugin.yml文件了，plugin.yml就和Forge里的mcmod.info，BungeeCord里的bungee.yml功能一样，就像一个标签的作用一样，向Bukkit传递插件主类路径，插件名，前置插件信息，作者信息，启动方式等等等等....\n  在maven中，plugin.yml存于src\\main\\resource文件夹内（这是IDEA的设置，处于resource文件夹内的文件最后会随插件一起编译到插件根目录，而plugin.yml也确实是在插件jar的根目录运作的。\n\n\n\n\n1.PNG (18.24 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-10 23:00 上传\n\n\n\n\n\n一个插件内置的plugin.yml的例子（你可能发现我是用解压缩软件打开jar的，事实上，Java的jar就是把zip改了个拓展名）\n\n\n\n\n2.PNG (7.83 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-10 23:02 上传\n\n\n\n\n\nplugin.yml在IDEA中自动生成的位置（由MinecraftDevelopement插件自动生成)\n\n接下来我们看一下plugin.yml的内容：\nname: Hellominecraftplugin\nversion: ${project.version}\nmain: cn.lingyuncraft.hellominecraftplugin.Hellominecraftplugin\napi-version: 1.13复制代码   你可能发现了plugin.yml的结构都是key: vaule这样的结构，这种结构被称为YAML结构，他们普遍都是由键值对组成的（左边那个key被称为键，右边的vaule被称为值，vaule可以重复但key在一个配置文件中只能有一个）在Bukkit中，默认的配置文件管理FileConfiguration类便是使用YAML来存取数据的。YAML结构文件的文件后缀一般为.yml。如果你开过服，你应该经常跟这种文件打交道。在以后的开发中，我们会发现Java有一种叫做Map的东西存储方式和YAML的键值对方式差不多，这我之后会提到。    接下来介绍每一个key的作用：\n\nname: Hellominecraftplugin复制代码 指定了插件名称，插件名称会传递到logger（之后会说到）以在控制台中输出带插件前缀的报告信息。同时还可用来获取你的插件实例（高级操作，现在用不到）version: ${project.version}复制代码 指定了插件版本，在插件主类中可通过this.getDescription().getVersion()方法获取到插件版本，可以用来检查更新啥的（Bukkit不自带检查更新，你得自己写）;${project.version}是一个变量，指向了pom.xml文件（位于项目根目录）的project.version中（默认值为1.0-SNAPSHOT,SNAPSHOT是快照的意思）（还记得吗，pom.xml是Maven的配置文件），当然你也可以不用这个变量，改为自己写\nmain: cn.lingyuncraft.hellominecraftplugin.Hellominecraftplugin复制代码 指定了插件主类位置，Bukkit会根据此处加载插件主类，保持默认就好，没必要改\napi-version: 1.13复制代码 【旧版BukkitAPI没有】指定了插件使用的API版本，然而这个键唯一的值只有1.13，而且这个配置是在1.13+的BukkitAPI才有的，以前不会有，也没必要写这个。设计这个的原因是自1.13以后，BukkitAPI出现了大改动（比如代表一个玩家的Player对象路径从org.bukkit.Player修改到了org.bukkit.entity.Player，代表物品ID的Material枚举进行了扁平化修改)，导致绝大多数使用1.12.2等BukkitAPI开发的插件无法使用，当未标注api-version的插件运行于1.13+服务端时，Bukkit会给出警告。\n\n  以上是默认生成的的plugin.yml文件，其实你还可以增加其他键值，比如：\n「depend: 插件名称（即对应插件的name值）」指定了该插件依赖于某个插件（值可以是多个，格式例如depend: [A, B])，此操作会使本插件在加载时晚于指定插件加载；同时「soft-depend: 插件名称」同样支持以上操作，不同的是，如果服务端未安装depend所指定的插件，服务器会拒绝加载本插件以免引起未知错误（当然，这不是必要的，你完全可以不写这些然后手动在插件中判断是否有什么插件，甚至如果你懒你可以不写判断（就是可能会报错），这随你便）。\n「author: 字符串」指定了该插件的作者，同样可以在插件主类中使用this.getDescription().getAuthors()方法获取（此方法返回了一个List<String>，d在以的教程中我们会讲述这个叫做List的东西并学习如何读取里头的东西）。\n「description: \"你好，Minecraft！\"」指定了该插件的描述，同样可以在插件主类中使用this.getDescription().getDescription())方法获取。\n其实this.getDescription()方法可以几乎获取到plugin.yml的所有内容\n说了这么多，其实你会发现如果你很懒，其实你默认啥都不用改，MinecraftDevelopment已经把必要的设置给你设置好了\n\nJava是一门“面向对象”的语言，那么什么是对象？（重难点）  对象的本质其实就是一个类（Class），你的主类其实是一个主类对象，对象可以被“实例化”，相当于赋予他生命，实例化时往往可以通过实例化的“构造函数”对对象进行设置。\n  是不是听的一头雾水？其实简单的来讲，对象是一个罐子，可以用来存东西。\n  还记得第一节中，我曾经写过一个示例：\npublic static void sendMessage(){\n  Bukkit.getPlayer(\"shaokeyibb\").sendMessage(\"1\");\n  Bukkit.getPlayer(\"shaokeyibb\").sendMessage(\"2\");\n}复制代码然而在你的主类中，onEanble()方法是这么写的：\n@Override\n    public void onEnable() {\n        // Plugin startup logic\n    }复制代码我们看一下他们的方法声明（也就是public开头那一行），发现什么本质上不同了吗？（先想，想好了再打开下面）\n\n前者多了一个“static”关键词\n不会有人回答一个叫onEnable一个叫sendMessage吧.....他们只是名字不同罢了\n\n多了一个static关键词有什么不同吗？有，太有了\n使用static方法声明的关键词，可以直接通过输入这个方法的路径进行调用，直接哪来就用\n因为他是static（静态的）\n它就像是一个钱一样，任何人想用就用，没有什么特殊的标识（认真的说，其实钱有包括价值，大小这样的变量，在这里我们暂时先忽略）\n那么如果不声明static呢（不写就行，不存在一个叫做“non-static”或诸如此类的关键词）\n如果不声明，你就必须先实例化这个类（对象）才能使用\n实例化对象的代码如下：\n//实例化对象\nSomeObject obj = new SomeObject();\n//调用非静态方法\nobj.xxxx();复制代码SomeObject即该对象类名。\n那么这么设计有什么必要吗，为什么我要搞实例化，这是不是太麻烦了？\n\n  做个假设，我们想做一个叫做Human（人类）的类，很显然人类有姓名，年龄等等属性，于是张三设计了如下Java代码：Tips:在Java中，我们使用一个等号来进行赋值操作，即A=B意为把B赋值给A，进行比较操作应该是用两个等号，如A==B，返回一个布尔值（即boolean，如果不知道boolean是什么请见下）\npublic class Human{\n  //定义一个私有的，叫做age（年龄），值为16的静态int（整型）变量（下面会详细讲这类基本数据类型）\n  private static int age = 16;\n  //定义一个私有的，叫做name（姓名），值为ZhangSan的静态字符串\n  private static String name = \"ZhangSan\";\n  //声明一个公开的，叫做setName的，要求传入一个String的，无返回值的静态方法\n  public static void setName(String toName){\n  //将toName赋值给name\n  name = toName;\n  }\n  //声明一个公开的，叫做getName的，无需传参的，返回一个String的静态方法\n  public static String getName(){\n  //返回 name;\n  return name;\n  }\n}\n复制代码于是我们可以通直接调用getName和setName方法来设置name值的名称（值得一提的是，这两种方法通常被称为setter和getter，是很常见的开发手段，用来规范设置某变量的值而不是拿着变量直接改（在本例中，name和age都是private的，所以你无法直接修改他们，只能通过getter和setter修改，当然，本例中由于没有为age设计getter和setter所以你这辈子都别想在其他地方改他）\nTips: return关键字用于方法体中，可返回一个给定值给调用者，返回值类型必须与方法体上声明的返回值类型一致。特殊的，当声明返回值为void时，可以使用return;不返回任何东西，这么做主要是因为return以后便不会继续执行下面的语句，可用来快速结束方法调用。\n调用方法获取和修改name代码如下：\n//此时before被赋值为“ZhangSan\"\nString before = Human.getName();\n//将name设置为“WangWu”\nHuman.setName(\"WangWu\");\n//此时after被赋值为“WangWu\"\nString after = Human.getName();复制代码后来你发现了奇怪的问题：这个世界又不是只有一个年龄16，名字叫张三的人，应该还有其他人类啊？于是你试着修改这些值为别人，可是你修改完了以后发现原来的变量又不见了（因为name已经被set成别的了）\n出现这种问题是因为变量都是“静态的”，这就说明他们是公共的（比喻意义，不是指他是public的），任何人都可以修改这个量，很显然世界上有很多人，而不是只有一个公共的人。\n这时我们就需要引入“对象”了\n对象是什么？如果说静态的都是公共的，那么非静态的对象內的变量遍都是私有的，是属于这个对象的，如果需要修改这些变量，那么你改的是每个对象的变量，而不是公共变量。\n示例代码：\npublic class Human{\n  //声明一个值为null（空），名为name的String\n  String name;\n  //声明一个值为0，名为age的int（为何值为0请见下“基本数据类型”）\n  int age;\n  //声明Human对象构造方法，格式基本如下，声明后实例化该对象便需要提供对应参数才可实例化，同时可执行语句块內代码\n  public Human(String name, int age){\n  this.name = name;\n  this.age = age;\n  }\n   //声明一个公开的，叫做setName的，要求传入一个String的，无返回值的非f静态方法\n  public void setName(String toName){\n  //将toName赋值给name\n  name = toName;\n  }\n  //声明一个公开的，叫做getName的，无需传参的，返回一个String非静态方法\n  public String getName(){\n  //返回 name;\n  return name;\n  }\n}\n复制代码值得一提的是，你发现构造函数中也有一个叫做name的String，顶上也有一个，但此时两者因为并未声明在同一内部关系（顶上那个name在外面，构造函数的name在构造函数里面），所以并不冲突，但我们需要使用this.name来表示这个类上面的name，而不是里面那个（外面的那个被称为“成员变量”\n通过创建对象修改和获取不同对象的name的值的代码如下：\n//实例化张三\nHuman zhangSan = new Human(\"ZhangSan\",16);\n//实例化王五\nHuman wangWu = new Human(\"WangWu\",18);\n//调用zhangSan的setName方法\nzhangSan.setName(\"A\");\n//调用zhangSan的getName方法\nString name1 = zhangSan.getName();\n//调用wangWu的getName方法\nString name2 = wangWu.getName();\n复制代码\n然后动动脑子想想，name1和name2的值分应当是什么？\nname1为A，name2为WangWu\n这便是对象的用途了\n【家庭作业】\n这时就有聪明的，会给咱评分回复的人就问了：那我能不能写一个静态方法，返回一个实例化对象呢？\n答案是，可以，这种方法被称为“工厂方法”，通过调用静态方法返回一个实例化对象。\n（Tips：一个类是可以即有静态方法又有非静态方法，此时前者可直接调用，后者需实例化对象才能调用，当然，一个对象不能调用其类中的静态方法，反过来你也不能直接调用非静态方法）\n\n\n\n接下来我们来认识一下Java这门语言的各种基本语句和基本数据类型：先说基本数据类型\n首先，String（注意大小写，在其他语言中String被写作string）代表一串字符，它其实不算基本数据类型，他其实是一个叫做java.lang.String的对象（还记得对象是什么吗，本质上对象是一个类，但是是一个被实例化的类）也就是说，事实上字符串是一个对象，他甚至可以调用一些方法（如，toLowCase()方**让字符串的所有英文字符变为小写）。声明一个字符串：\nString a = \"Hello\"; //正确，a为“Hello”\nString b = Hello //错误，因为Hello是一个变量，不存在一个叫做Hello的变量\nString c; //正确，c为null，即空值\n复制代码注意到了吗，“Hello”被双引号包围，只有这样Java才能分清这是一个“Hello”字符串而不是一个叫做“Hello”的变量。值得一提的是如果你真的想表示一个引号，而不是把字符串扩起来的那个玩意，你应该使用转义，即使用\\\"来表示一个\"，类似的，也有很多令Java难以分辨到底是字符还是标记的字符需要使用反斜杠（\\）来转义。当然，还有类似于\\n这样的换行符和\\u0000这样的Unicode字符（关于Unicode字符，Java默认是UTF16的，这也就意味着字符串默认是支持Unicode字符（中文，特殊符号，etc.)的，所以你并没有必要把中文转成Unicode码再扔到字符串里，没这个必要）\n然后，int,long,short,byte,float,double,boolean,char都是基本数据类型，在这里我只讲几个关键的，要想了解更多有关基本数据类型的信息请前往菜鸟教程—Java基本数据类型。\nint：代表一个整数，默认值为0（这也就是为何上面int为0而不是null的原因）\nint a = 3 //正确，a为3\nint b = \"3\" //错误，因为\"3\"是一个字符串而不是一个数字\nint b; //正确，b为0\n复制代码double: 代表一个浮点数（小数），默认值为0.0d(数字尾加d代表这是一个浮点数）\ndouble a = 12345.5d\ndouble b = 1.0\ndouble count = a+b //加法运算\ndouble count2 = a-b //减法运算\ndouble count3 = a*b //乘法运算\ndouble count4 = a/b\n//除法中除数不能为0，否则会报错；如果运算中超精度，那么超出部分会被直接删去（而不是四舍五入）复制代码char：代表单个字符什么是单个字符？一个字，一个字符就是单个字符\nchar a = '@'; //这里是单引号而不是双引号复制代码\n在很多语言中，不存在String这种东西，在这些语言中表示字符串要用到char[]数组，数组表示了一堆同一个人东西，Java也支持数组，这我们以后会讲\nboolean：代表是或否\nboolean是个很重要的东西，他的中文名叫做布尔值，他只有两个量，即true（真）和false（假），常用来表示是否，在Java中，boolean默认值是false（注意大小写，因为在Python中，其布尔值bool的值写法为True和False）\n注意，基本数据类型虽不同于对象，但他们都有着对应的对象类封装（即，包装）用来执行一些操作（如double有对应的Double对象，其中有parseDouble(String double)方法，可以将字符串内的double转为真正的double数值）\n事实上，这些基本数据类型都有大小限制，即不能超出给定值，也不能定义精度，若想实现这些操作，可以尝试使用Java的大数对象  \n问题来了，我能不能把int转为double，或是反过来？\n答案是可以，你可以在值前使用括号进行强转（cast），在对象中，一个父类对象可以和子类对象相互强转（你可能想到了，从上到下强转可能会丢失精度或者数据，这种强转是被允许的，被叫做向下转换，相对的，还有向上转换）\ndouble b = 2.2222222;\nint a = (int)b; //可，a值为2，丢失了精度\ndouble c = (double)a; //可，c值为2.0，未损失精度\n复制代码\n进行加减法运算时，一个int值能加一个double值吗\n答案依然是可以，那么我们需要强转吗，答案是不需要\n\nint a = 100;\ndouble b = 233.333333;\ndouble c = a+b //可，c值为333.333333\n复制代码\n\n那么我们不妨来实战一个向服务器说Hello的插件吧\n这里我们要提到刚才说到的logger，logger是服务器用来记录服务器信息的工具，你可以在主类中使用this.getLogger()获取到这种工具，它提供了info(String info),warn(String warn),error(String err)三个方法，分别对应着“消息，警告，错误”三种消息等级，在Bukkit控制台中分别对应着白色的普通消息，黄色的警告，红色的错误三种消息形式。一般情况下我们使用this.getLogger().info()方法发送消息即可。（注意，以上info(String info)是方法的声明方式，String代表需要提供的数据类型（这里String就是指字符串），info是这个值的名称，用来向调用者简单解释这里应该填啥东西同时标识这个数据叫啥（在这里msg即message，消息的意思）。声明方法时必须提供这两样。（当然，一个方法可以请求提供多个参数，格式类似于sendMessage(Player player,String message)，此时调用者需要提供两个参数才能完成调用（上面那个方法并不存在，只是我瞎编的，别去试）））\nTips：还记得调用是什么吗，调用就是执行这个方法的方法体（就是语句块，那俩大括号里头的）里的更多方法。按照上面说的，getLogger().info()方法要求提供一个String字符串，因此我们就传给他一个叫做“Hello，Server”的字符串\ngetLogger().info(\"Hello，Server\"); \n复制代码完整代码\n\npackage cn.lingyuncraft.hellominecraftplugin;\n\nimport org.bukkit.plugin.java.JavaPlugin;\n\npublic final class Hellominecraftplugin extends JavaPlugin {\n\n    @Override\n    public void onEnable() {\n        // Plugin startup logic\n        getLogger().info(\"Hello，Server\");\n    }\n\n    @Override\n    public void onDisable() {\n        // Plugin shutdown logic\n    }\n}\n复制代码接下来我们需要编译插件，对于Maven来讲，编译插件十分简单，我们只需要打开IDEA右侧的“Maven”侧边栏，选择插件名称—LifeCycle—install或是直接选择Run Configiuarions內的“插件名称 Build”（相当于执行了clean和install，clean的意思是清理上次的编译代码，install就是编译当底部控制台显示BUILD SUCCESS时，你便可在项目根目录/target文件夹下找到你的插件jar（不用管前缀orginal和后缀shaded的那俩，现在用不着（如果没有就那没事））\n如果底部控制台显示BUILD FAILED，那么也许你应该检查检查你的代码是否有红色错误，或者你的依赖没有自动下载完\n\n\n\n\n3.PNG (129.22 KB, 下载次数: 1)\n\n下载附件\n\n2020-4-11 02:11 上传\n\n\n\n\n\n\n下一节会讲：数组，API和Javadoc，List，Map，Set，for，while，switch语句，pom.xml\n\n后记：\n不知不觉的，写完这个帖子已经两点一刻了，我差不多快写了四个小时，两万多个字，算是良心了，本来说这节要讲的有的没讲拖到下一节了望大家见谅\n\n如果可以的话，请务必给我评评分回回复，让我知道你们在看\n\n还有，帖子里有个家庭作业记得写咳咳（可以回复到下面）\n\n下一章： https://www.mcbbs.net/thread-1015705-1-1.html\n\n\n\n\n[groupid=1511]Server CT[/groupid]",
+    "replies": [
+        {
+            "author": "LightiNike",
+            "timestamp": 1586543700,
+            "txt_content": "屑贺兰终于更新了"
+        },
+        {
+            "author": "CyghTor",
+            "timestamp": 1586545440,
+            "txt_content": "u1s1,贺兰大佬的教程非常棒。然而OOP思想的掌握可不只是看看文章教程就能解决的了的。虽然大家不至于跟我一样傻，但是我在初学OOP时着实很懵，因为以前是写函数式语言嘛，所以就对对象非常懵。这些东西着实气人。个人不是很喜欢相对于现实的举例，因为这样就相当于隔了一层障碍，可能会需要先将某个东西对应到现实中的例子然后再去对应概念，这样很不好。我接下来简单说下，这些概念可能会帮助你了解OOP思想\n我运用简单的术语（可能都不是术语）。大家应该都知道什么是“抽象”（就是无法“具体”描述的东西，或者说是“不具体”的东西）。\n“类” 就是对 “对象” 的抽象。你可能看不懂，没关系，事实上，我们认为 “范围大” 的东西一定比 “范围小” 的东西抽象 （相对而言）。\n其实这就是个包括与被包括的问题。A 包括 B,那么 A 就是比 B 抽象。\n现在可以理解“类”与“对象”间的关系了吗？说白了不就是“类”的范围大，“对象”的范围小嘛，所以才说“类” 就是对 “对象” 的抽象。\n先说这么多吧。到时候看贺兰更新多快，我尽量多补充，帮助大家理解。有问题或者有意见请回复。\n"
+        },
+        {
+            "author": "CyghTor",
+            "timestamp": 1586548440,
+            "txt_content": "还有强转那块，那应该不是自动装拆箱吧？而是隐转吧？装拆箱是包装类型和解包类型啊，值->引用 和 引用->值 那个吧？"
+        },
+        {
+            "author": "索菲缇娅",
+            "timestamp": 1586565420,
+            "txt_content": "帖子链接失效了"
+        },
+        {
+            "author": "暗影月赎",
+            "timestamp": 1586574240,
+            "txt_content": "伪前排支持（XD）"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1586588520,
+            "txt_content": "在Bukkit中，默认的配置文件管理FileConfigiuation类便是使用YAML来存取数据的。\n拼写错误，是FileConfiguration\n在1.15.2的spigot核心就是org.bukkit.configuration.file.FileConfiguration"
+        },
+        {
+            "author": "Tribunny",
+            "timestamp": 1586857320,
+            "txt_content": "写的非常好"
+        },
+        {
+            "author": "2975370283",
+            "timestamp": 1586867220,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "_XuanFsant_",
+            "timestamp": 1586944620,
+            "txt_content": " 本帖最后由 _XuanFsant_ 于 2020-4-15 17:58 编辑 \n\n第一次到这么前，讲得很好很仔细，我这种只有一点编程基础的人也能看懂，i了i了 XD"
+        },
+        {
+            "author": "时空掌控者",
+            "timestamp": 1587430320,
+            "txt_content": "身为一个萌新，目前我对对象、类、实例化的理解是，“狗有XXXX的特点，举个例子，我家的那条白毛犬……”“有XXXX特点的狗就是类”，“举个例子”就是在进行实例化，“我家的那条白毛犬……”就是实例化之后的类——对象\n我也不知道我的理解对不对"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1587468600,
+            "txt_content": "时空掌控者 发表于 2020-4-21 08:52\n身为一个萌新，目前我对对象、类、实例化的理解是，“狗有XXXX的特点，举个例子，我家的那条白毛犬……”“ ...\n差不多，但不够严谨\n按你的比喻来说，类应该是形容“有这么条狗”，但究竟是哪条，有没有我不知道;实例化是指“我按照有这么条狗的样子搞了一条狗”这个动作，对象就是指“我搞到的这条狗”"
+        },
+        {
+            "author": "HYFan_Meng",
+            "timestamp": 1587723540,
+            "txt_content": "问下这个Maven怎么添加本地的依赖啊"
+        },
+        {
+            "author": "怜生",
+            "timestamp": 1587782880,
+            "txt_content": "谢谢老板已经买了，很好用"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1587805800,
+            "txt_content": "HYFan_Meng 发表于 2020-4-24 18:19\n问下这个Maven怎么添加本地的依赖啊<dependency>\n            <groupId>com.io</groupId>\n            <artifactId>MythicMobs</artifactId>\n            <version>1.0</version>\n            <systemPath>${project.basedir}/lib/MythicMobsApi.jar</systemPath>\n            <scope>system</scope>\n        </dependency>复制代码\n主要是填好systemPath，groupID和artifactID，版本倒是无所谓\n${project.basedir}即为项目根目录（pom.xml的所在目录）"
+        },
+        {
+            "author": "HYFan_Meng",
+            "timestamp": 1587817500,
+            "txt_content": "贺兰星辰 发表于 2020-4-25 17:10\n主要是填好systemPath，groupID和artifactID，版本倒是无所谓\n${project.basedir}即为项目根目录（pom.x ...\n好的谢谢啦"
+        },
+        {
+            "author": "上杉夏相",
+            "timestamp": 1591087500,
+            "txt_content": "发现一点小问题\n实例代码中的getLogger.info(\"Hello，Server\");\n应该为getLogger().info(\"Hello，Server\");\n再次感谢贺兰大佬的教程~"
+        },
+        {
+            "author": "NameEMCC",
+            "timestamp": 1591516860,
+            "txt_content": "看了几个了，还是不理解，（doge）"
+        },
+        {
+            "author": "天不生我阿瑾",
+            "timestamp": 1591687740,
+            "txt_content": "好家伙，基础内容教的这么详细，支持。"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1591764780,
+            "txt_content": "上杉夏相 发表于 2020-6-2 16:45\n发现一点小问题\n实例代码中的\n应该为\n\n感谢指正，已修改"
+        },
+        {
+            "author": "IceCC",
+            "timestamp": 1592633820,
+            "txt_content": "private static String name = ZhangSan;\n那边没双引号\nprivate static String name = \"ZhangSan\";\n\n万万没想到刚好下面要讲到String用法的时候\n你自己都失误了"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1592664900,
+            "txt_content": "All.Hail.CCC 发表于 2020-6-20 14:17\nprivate static String name = ZhangSan;\n那边没双引号\nprivate static String name = \"ZhangSan\";\n\n写的时候是纯意淫的根本没往IDE上面跑马上就去改"
+        },
+        {
+            "author": "砚澜",
+            "timestamp": 1593580200,
+            "txt_content": "贺兰老师一直再追你的贴贴"
+        },
+        {
+            "author": "浅念ICE",
+            "timestamp": 1598235120,
+            "txt_content": "怎么设置字体的颜色哇"
+        },
+        {
+            "author": "彭应琪",
+            "timestamp": 1598235540,
+            "txt_content": "66666666666666666666666"
+        }
+    ]
+}

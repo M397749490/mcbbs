@@ -1,0 +1,124 @@
+{
+    "title": "[编程][SCT]AITool——通用怪物自定义AI的API[1.7-1.13]",
+    "author": "Zeus_2333",
+    "replyCount": 23,
+    "timestamp": 1566304200,
+    "txt_content": " 本帖最后由 Zeus_2333 于 2019-9-11 12:04 编辑 \n\n\n\n\n\n\n\n\n\n                            AITool\n为什么写这个：很多开发者对于生物AI，都很感兴趣。但是AI(Pathfinder)这个东西呢，Bukkit并没有提供，只能用到NMS，而NMS对版本极其不友好，于是我为了方便写了这个前置API，为了方便版本兼容，和防止与那些诡异的abcde方法打交道(懒)。\n\n\n可以干什么:\n这个插件是个前置API，需要有编程基础的人来操作，不仅可以实现许多原版没有的怪物AI，还提供了一些Bukkit没有提供的怪物操作(跳跃，自定义仇恨表)。\n并且还利用AI写了一个技能施放的AI接口，这里的AI(Pathfinder)实质上是一个计时器，但是比Bukkit提供的高级且性能更好，所以你可以利用这个前置写出令人满意的怪物。超远距离找人，破坏方块，跳着走路等奇葩(强大)怪物，都可以自己来创造\n\n这个API开源的,随便魔改：https://github.com/za233/AITool/tree/master/src\n\nAPI教程：\n1.新建AI\n这个API将Pathfinder重新命名了(AbstractAIItem)，这是个基本类，你需要实现\nshouldExecute()，startExecute()，continueExecute()，upDate()，resetAI()方法 \n\n\n\n\n\nTIM图片20190820193611.png (3.61 KB, 下载次数: 1)\n\n下载附件\n\n2019-8-20 19:39 上传\n\n\n\n\n\n\nshouldExecute()：当AI需要开始执行时的条件\nstartExecute()：满足条件后开始执行时的代码\ncontinueExecute()：是否继续执行AI，若果是true则执行upDate()，否则执行resetAI()\n当你重写完成这三个方法后肯定想将它赋予给生物，这是直接使用AIManager(有四个Manager：AIManager,AttributeManager,ControlManager和NavigationManager)，new一个AIManager对象，里面填写LivingEntity，直接使用addAI(或者addTargetAI(这个建议在写设置生物攻击目标AI的时候使用))的方法，即可将AI添加给指定生物了，记得写优先值int(越小越优先(0到2147483647)).。。。。。\nAIManager下还有许多方法，都是字面意思,值得注意的是有两种AI(寻找目标的和普通的)。\n\n\n2.内置AI\n当然不完全要你自己来写AI，要是你对这些AI的机制搞不明白的话，可以直接用一些内置的AI，其实就是我直接写的，还在不断扩充中\n这里分为两种.\n第一个是MC原版AI，我直接将原版AI加入进去(实现了几个方法)，在AIManager下，返回一个布尔值，反应是否成功加入AI:\n    1.boolean addFleeSunAI(double speed,int prop)     这个方法能让生物躲避阳光，speed就是移动速度，prop就是优先级\n    2.boolean addMeleeAttackAI(double speed,boolean flag,int prop)     这个方法能让生物可以攻击，包括原版友好怪物，但要设置目标\n    3.boolean addOpenDoorAI(boolean flag,int prop)     这个方法能让生物自己开门\n    4.boolean addBreakDoorAI(int prop)    这个方法能让生物破坏门\n     (未完待续)\n第二个是我自己写的AIItem，你可以去学习一下，这个是AIItem，用AIManager下的addAI或addTargetAI来加入 \n    1.WatchNearByPlayerAIItem(LivingEntity le,double distance)    le就是目标生物，distance就是距离，这个方法让生物看向附近玩家\n    2.ExistTimeAIItem(Entity target,int ticks)    target就是目标生物，ticks就是时间，让生物自行消失\n    3.RemoteAttackAIItem(LivingEntity target,IRangedAttackWrapper wrapper,double speed,int attackInterval,int maxAttackTime,float maxAttackDistanceIn)    这个有点复杂，可以让生物实现远程攻击，但是你要先自定义一个IRangeAttackWrapper，这个将会决定生物的攻击方式，speed生物走位速度，attackInterval攻击间隔，maxAttackTime攻击的持续时间，maxAttackDistanceIn就是攻击范围    \n    4.ActiveCastSkillAIItem    下面进行介绍\n    （未完待续）\n\n3.技能类\nAItem包下面实现了几个AI，其中有个ActiveCastSkillAIItem，就是一个定时施放技能的AI\n你只需要自己写好技能(继承Skill类,实现cast(使用者,攻击目标，伤害)方法)，然后利用AIManager.addAIItem(new ActiveCastSkillAIItem(new 你的技能类(),获得技能的生物,施法周期,伤害)，0)；即可添加技能(比计时器更加高效)\n\n\n\n\nTIM图片20190820195302.png (2.94 KB, 下载次数: 0)\n\n下载附件\n\n2019-8-20 19:56 上传\n\n\n\n\n\n\n4.内置生物包装类\n当然，也许你也不想这么复杂，想直接弄个更好用的Entity对象，这里实现了一个MyEnitity的类:MyEntity(EntityType e,Location loc)，你只要这样填入两个参数，然后spawnEntity()就ok，这个包装类里面内置有一些我自己写的AI，但是你不用对其直接操作，你可以通过setTargetLocation来控制生物走向什么地方，通过setSpeedToLocation来设置生物走向目标地点的速度，通过setTarget来设置生物攻击目标，setFollowTarget来设置生物的跟随目标，也可以通过getBukkitEntity()来得到Bukkit下的生物实体对象\n这些功能的AIItem(具体实现)放置于com.zeus.pathfinder.AI.AIItem.Special包下\n\n\n\n\n图片.png (9.9 KB, 下载次数: 0)\n\n下载附件\n\n2019-9-3 07:42 上传\n\n\n\n\n\n\n\n5.生物行为操作\n要是只有这样那和计时器有什么区别，当然不止.\n之前提到了四个Manager(用法和AIManager一类似)，AttributeManager随着Bukkit功能的强化没啥用了。但是还有NavigationManager和ControlManager\n1->NavigationManager：用于寻路\n你主要关注navigationTo方法，这个是设置生物的寻路目标，设置后生物就会自己努力走向目的位置(太远了会达不到)\n而tick方法不需要管，noPath就是返回现在生物是否有寻路目标，stop就是清空生物寻路目标\n2->ControlManager：用于生物身体控制\ndoJump就是设置生物跳跃，设置后生物就会跳跃一次，setMoveTo(emmmm)和NavigationManager一样，不要管它，而lookTicks就是设置生物望向哪个地方，推荐在AIItem的upDate或者放到startExecute下使用(由于startExtcute是每tick检验后执行的，效果差不多)，因为这个只能设置一瞬间(tick)，如果想要时时盯着目标，那么就必须这么做\n例如：\n\n\n\n\nTIM图片20190820200540.png (23.56 KB, 下载次数: 1)\n\n下载附件\n\n2019-8-20 20:09 上传\n\n\n\n\n\n3->AIManager用于添加AIItem，设置生物仇恨值或者获得一些属性\nkillXXAI方法是用于删除AI或者TargetAI(仇恨AI)\nsetGoalTarget设置生物攻击的目标(设置为Null停止攻击),getGoalTarget获得此时生物攻击目标,若不存在就是Null\ngetLastDamageTicks获取生物上次收到攻击的距离现在的时间(单位是tick，20tick是一秒)\n\n\n若果不知道Pathfinder的机制是什么的，这里有教程\nhttps://www.mcbbs.net/forum.php?mod=viewthread&tid=775757\n你可以自己写，但是版本兼容和混淆后的方法真的让人爆炸\n\n\n更新日志:\n---->2019-8-31:\n        -->实现了一些原版的AI,在AIManager下可发现一些新增方法\n        -->实现了远程攻击的AI(RemoteAttackAIItem),通过自定义IRangedAttackWrapper里的方法实现自定义攻击手段\n        -->修正了NavigationManager下误导性的方法名\n        -->自定义了一系列AI(ExistTimeAIItem,ProtectPlayerAIItem,WatchNearByPlayerAIItem)\n        -->更新了PaintLib,更加方便的进行技能绘制,创造自己的怪物(教程即将完成)\n\n\n\n\nAPI下载:\n\n\n\nAITool_For_1.14.4.jar\n(214.61 KB, 下载次数: 238)\n\n\n\n2019-9-11 12:04 上传\n点击文件名下载附件\nAPI本体，已经兼容1.14.4\n\n\n\n\n\n\n\n\n\n[groupid=1511]Server CT[/groupid]",
+    "replies": [
+        {
+            "author": "Krito",
+            "timestamp": 1566325980,
+            "txt_content": "看不懂啊~~"
+        },
+        {
+            "author": "Zeus_2333",
+            "timestamp": 1566341700,
+            "txt_content": "Krito 发表于 2019-8-21 02:33\n看不懂啊~~\n这个是前置api，需要编程基础的"
+        },
+        {
+            "author": "Nicekill",
+            "timestamp": 1567468380,
+            "txt_content": "很好很强大qwq"
+        },
+        {
+            "author": "苏子峰",
+            "timestamp": 1567492800,
+            "txt_content": "很强 假装看得懂"
+        },
+        {
+            "author": "a984044480",
+            "timestamp": 1568523000,
+            "txt_content": "支持一下原创，而且很需要这种API，正在做minez插件，其他都差不多了，就生物ai是个短板"
+        },
+        {
+            "author": "Zeus_2333",
+            "timestamp": 1568523780,
+            "txt_content": "a984044480 发表于 2019-9-15 12:50\n支持一下原创，而且很需要这种API，正在做minez插件，其他都差不多了，就生物ai是个短板 ...\n加油吧 我也会跟进版本"
+        },
+        {
+            "author": "a984044480",
+            "timestamp": 1568560260,
+            "txt_content": "Zeus_2333 发表于 2019-9-15 13:03\n加油吧 我也会跟进版本\n你这个AIManager中的LivingEntity是具体的一个实体吗?也就是每生成一个实体都要给他添加我要的AI?"
+        },
+        {
+            "author": "Zeus_2333",
+            "timestamp": 1568592600,
+            "txt_content": "a984044480 发表于 2019-9-15 23:11\n你这个AIManager中的LivingEntity是具体的一个实体吗?也就是每生成一个实体都要给他添加我要的AI? ...\n是的 不然只有原版的ai 还有一种办法就是继承nms下的实体 在构造函数里修改 并且注册到nms的表里面去 这样只要生成这个生物就可以自带你要的ai"
+        },
+        {
+            "author": "MikuScarlet",
+            "timestamp": 1571557080,
+            "txt_content": "最近在了解这些东西，十分感谢楼主的分享。希望能够继续更新。"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578555000,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578573540,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "我才是Joy",
+            "timestamp": 1578711660,
+            "txt_content": "这个能用于单机版吗？"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578730980,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "564775297",
+            "timestamp": 1580790300,
+            "txt_content": "感谢楼主分享！"
+        },
+        {
+            "author": "MikuScarlet",
+            "timestamp": 1582560120,
+            "txt_content": "给牛加上攻击好像会导致崩服"
+        },
+        {
+            "author": "弥猫うた",
+            "timestamp": 1584164820,
+            "txt_content": "AIManager ai = new AIManager(entity);\nai.addTargetAI(new ExistTimeAIItem(treeman,60), 0);\naddTargetAI这样些会报错求助qwq\norg.bukkit.plugin.InvalidPluginException: java.lang.NoClassDefFoundError: com/zeus/pathfinder/AI/AIItem/AbstractAIItem\n        at org.bukkit.plugin.java.JavaPluginLoader.loadPlugin(JavaPluginLoader.java:138) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.plugin.SimplePluginManager.loadPlugin(SimplePluginManager.java:334) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.plugin.SimplePluginManager.loadPlugins(SimplePluginManager.java:255) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.craftbukkit.v1_13_R2.CraftServer.loadPlugins(CraftServer.java:331) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at net.minecraft.server.v1_13_R2.DedicatedServer.init(DedicatedServer.java:235) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at net.minecraft.server.v1_13_R2.MinecraftServer.run(MinecraftServer.java:787) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_211]\nCaused by: java.lang.NoClassDefFoundError: com/zeus/pathfinder/AI/AIItem/AbstractAIItem\n        at java.lang.Class.forName0(Native Method) ~[?:1.8.0_211]\n        at java.lang.Class.forName(Class.java:348) ~[?:1.8.0_211]\n        at org.bukkit.plugin.java.PluginClassLoader.<init>(PluginClassLoader.java:64) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.plugin.java.JavaPluginLoader.loadPlugin(JavaPluginLoader.java:134) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        ... 6 more\nCaused by: java.lang.ClassNotFoundException: com.zeus.pathfinder.AI.AIItem.AbstractAIItem\n        at java.net.URLClassLoader.findClass(URLClassLoader.java:382) ~[?:1.8.0_211]\n        at org.bukkit.plugin.java.PluginClassLoader.findClass(PluginClassLoader.java:140) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.plugin.java.PluginClassLoader.findClass(PluginClassLoader.java:86) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at java.lang.ClassLoader.loadClass(ClassLoader.java:424) ~[?:1.8.0_211]\n        at java.lang.ClassLoader.loadClass(ClassLoader.java:357) ~[?:1.8.0_211]\n        at java.lang.Class.forName0(Native Method) ~[?:1.8.0_211]\n        at java.lang.Class.forName(Class.java:348) ~[?:1.8.0_211]\n        at org.bukkit.plugin.java.PluginClassLoader.<init>(PluginClassLoader.java:64) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        at org.bukkit.plugin.java.JavaPluginLoader.loadPlugin(JavaPluginLoader.java:134) ~[Paper_1.13.2.jar:git-Paper-\"2153ca47\"]\n        ... 6 more\n\n\n"
+        },
+        {
+            "author": "acnull",
+            "timestamp": 1585553160,
+            "txt_content": "十分感谢！楼主能详细说下IRangeAttackWrapper接口吗"
+        },
+        {
+            "author": "浅谈时光",
+            "timestamp": 1585723260,
+            "txt_content": "你是真的厉害 实在佩服 最近我还想着moba类游戏的小兵怎么搞 看到你这个感觉稳了"
+        },
+        {
+            "author": "MayDayMemory",
+            "timestamp": 1597211640,
+            "txt_content": "希望提供Maven地址"
+        },
+        {
+            "author": "星痕Ink",
+            "timestamp": 1597219020,
+            "txt_content": "下载下载"
+        },
+        {
+            "author": "我为woziji",
+            "timestamp": 1603446420,
+            "txt_content": "Krito 发表于 2019-8-21 02:33\n看不懂啊~~\n同感啊啊啊"
+        },
+        {
+            "author": "乃是叶落",
+            "timestamp": 1603473060,
+            "txt_content": "先研究下，谢谢大佬"
+        },
+        {
+            "author": "jzspma",
+            "timestamp": 1603510920,
+            "txt_content": "感觉很nb的样子"
+        }
+    ]
+}

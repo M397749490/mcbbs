@@ -1,0 +1,69 @@
+{
+    "title": "[18w05a][持续更新]在MC里实现数学库",
+    "author": "switefaster",
+    "replyCount": 12,
+    "timestamp": 1518084480,
+    "txt_content": " 本帖最后由 switefaster 于 2018-2-8 18:16 编辑 \n\n大家好，我是switefaster。1.13预览版发布以后，相关的帖子都出现了相当量的数学计算。为了减少编写datapack时的工作量，我突发奇想，开始实现一个数学库。\n记分板/函数规范\n同时为了开发者和使用者的方便，我在这里提供记分板命名规范。\n记分板名称：<函数名>_<参数名>_<下标>\n例子：abs_arg_0\n函数名即是使用此记分板的函数的名称，参数名代表这个记分板的作用，下标在此参数名不止一个的时候防止冲突。\n在此定死参数名类型：arg, out和tmp\n※ arg即输入，out为输出，tmp是在计算过程中需要处理到的临时量。\n在我们的规范中，输入的arg不会因计算改变。调用者只允许写入arg读取out，tmp不允许外部函数或者调用者操作。\n\n我们的函数放置位置和命名也是有规范的\n所有函数必须存在于math命名空间内math空间下存在函数的子目录，每个子目录内有与目录同名的.mcfunction文件。调用者调用这个文件。如果需要拆分function内容为多个文件的，皆放在相应函数的子目录下。例：math/functions/sqrt/sqrt.mcfunction调用math/functions/sqrt/iteration.mcfunction所需的记分板必须统一创造在math:init.mcfunction中，此function必须被load.json引用，且命名符合上述命名规范如果需要给函数功能分类，创建功能名子文件夹，并在文件夹下创建相应的函数文件夹\n\n\n框架\n目前我们实现了以下函数：\n- abs\n- pow\n- sqrt\n- vector:\n  - length\n  - normalize复制代码abs：\n  描述：取绝对值\n  参数：abs_arg_0 一个实数\n  输出：abs_out_0 |abs_arg_0| 一个>=0的实数\npow：\n  描述：求幂\n  参数：pow_arg_0 底数，一个实数    pow_arg_1 指数，一个实数\n  输出：pow_out_0 pow_arg_0的pow_arg_1次幂，一个实数\n  注意：当指数为0时输出1，当指数<=0时输出0，而非1/n^m。主要是由于精度问题……\nsqrt：\n  描述：求平方根\n  参数：sqrt_arg_0 被开方数，一个实数\n  输出：sqrt_out_0 输入数的算术平方根*10^2，一个实数\n  注意：输入为0时输出sqrt(abs(sqrt_arg_0))*10^2，输出sqrt(sqrt_arg_0)*10^2（精度所需）。为了保留精度在开始计算时会将输入*10^4。此值在                           init.mcfunction中以常量precision形式定义。必须满足precision=10^2n。默认为10^4，能求出4位数的平方根而不溢出。\nvector/length:\n  描述：计算三维向量的长度\n  参数：leng_arg_0 输入向量的x    leng_arg_1 输入向量的y    leng_arg_2 输入向量的z\n  输出：sqrt_out_0 输入向量的长度*10^2，一个实数\n  注意：为了精度，此结果也被*10^2\nvector/normalize\n  描述：规格化三维向量\n  参数：norm_arg_0 输入向量的x    norm_arg_1 输入向量的y    norm_arg_2 输入向量的z\n  输出：norm_out_0 输出向量的x*10^2   norm_out_1 输出向量的y*10^2    norm_out_2 输出向量的z*10^2\n  注意：为了精度，此结果为normalize(u)*10^2。并且因为精度，输出向量的长度并不严格为1\n\n实现\n我们将在这里阐述各个函数的实现\n\n\nInitialization\ninit.mcfunction\n# Abs Start\nscoreboard objectives add abs_arg_0 dummy\nscoreboard objectives add abs_out_0 dummy\n# Abs End\n\n# Sqrt Start\nscoreboard objectives add sqrt_arg_0 dummy\n# Different\nscoreboard objectives add sqrt_tmp_0 dummy\n# Devide Result\nscoreboard objectives add sqrt_tmp_1 dummy\nscoreboard objectives add sqrt_out_0 dummy\n# Sqrt End\n\n# Pow Start\n# Base Number\nscoreboard objectives add pow_arg_0 dummy\n# Exponent\nscoreboard objectives add pow_arg_1 dummy\n# Counter\nscoreboard objectives add pow_tmp_0 dummy\nscoreboard objectives add pow_out_0 dummy\n# Pow End\n\n# Vector Start\n# Normalize Start\nscoreboard objectives add norm_arg_0 dummy\nscoreboard objectives add norm_arg_1 dummy\nscoreboard objectives add norm_arg_2 dummy\nscoreboard objectives add norm_out_0 dummy\nscoreboard objectives add norm_out_1 dummy\nscoreboard objectives add norm_out_2 dummy\n# Normalize End\n# Length Start\nscoreboard objectives add leng_arg_0 dummy\nscoreboard objectives add leng_arg_1 dummy\nscoreboard objectives add leng_arg_2 dummy\nscoreboard objectives add leng_out_0 dummy\n# Length End\n# Vector End\n\n# Constants Start\nscoreboard objectives add constants dummy\nscoreboard players set minus_one constants -1\nscoreboard players set zero constants 0\nscoreboard players set one constants 1\nscoreboard players set two constants 2\nscoreboard players set three constants 3\nscoreboard players set four constants 4\nscoreboard players set five constants 5\nscoreboard players set six constants 6\nscoreboard players set seven constants 7\nscoreboard players set eight constants 8\nscoreboard players set nine constants 9\nscoreboard players set ten constants 10\n# Precision 10^-4\nscoreboard players set precision constants 10000\nscoreboard players set pi constants 31415\nscoreboard players set e constants 27182\nscoreboard players set sqrt_out_prec constants 100\nscoreboard players set sqrt_diff constants 1\n# Constants End复制代码主要负责记分板的创建和设置各种常量……很乱，并且其中一些常量根本没有用到。\n\n\nAbs\nabs.mcfunction\n# Absolute x=-x(x<0) || x=x(x>=0)\nscoreboard players operation @s abs_out_0 = @s abs_arg_0\nexecute if entity @s[scores={abs_out_0=..-1}] run scoreboard players operation @s abs_out_0 *= minus_one constants复制代码当a>=0时，|a|=a，反之|a|=-a\n\nPow\npow.mcfunction\n# Pow\nscoreboard players operation @s pow_tmp_0 = @s pow_arg_1\nscoreboard players operation @s pow_out_0 = @s pow_arg_0\nscoreboard players remove @s pow_tmp_0 1\nexecute if score @s pow_tmp_0 >= one constants if score @s pow_arg_1 > one constants run function math:pow/iteration\nexecute if score @s pow_arg_1 = zero constants run scoreboard players set @s pow_out_0 1\nexecute if score @s pow_arg_1 < zero constants run scoreboard players set @s pow_out_0 0复制代码pow/iteration.mcfunction\nscoreboard players operation @s pow_out_0 *= @s pow_arg_0\nscoreboard players remove @s pow_tmp_0 1\nexecute if score @s pow_tmp_0 >= one constants run function math:pow/iteration复制代码我们在主函数中做第一次处理，随后判断条件进入迭代。在迭代中我们每次都将结果*底数，并且将临时量-1。随后判断条件继续迭代。最后我们回到主函数，对指数为0或指数<0的情况做特殊处理。\n\nSqrt\nsqrt.mcfunction\n# SquareRoot\n# Newton Iteration f(x1)=(f(x0)+r/f(x0))/2\n# For precision, r=r*10^4, so we get result*100\nscoreboard players operation @s abs_arg_0 = @s sqrt_arg_0\nfunction math:abs/abs\nscoreboard players operation @s sqrt_out_0 = @s abs_out_0\nscoreboard players operation @s sqrt_out_0 *= precision constants\nscoreboard players operation @s sqrt_tmp_0 = @s sqrt_out_0\nscoreboard players operation @s sqrt_out_0 /= two constants\nscoreboard players operation @s sqrt_tmp_0 -= @s sqrt_out_0\nexecute if score @s sqrt_tmp_0 > sqrt_diff constants run function math:sqrt/iteration\nscoreboard players set @s sqrt_tmp_0 0\nscoreboard players set @s sqrt_tmp_1 0复制代码sqrt/iteration.mcfunction\nscoreboard players operation @s sqrt_tmp_1 = @s sqrt_arg_0\nscoreboard players operation @s sqrt_tmp_1 *= precision constants\nscoreboard players operation @s sqrt_tmp_1 /= @s sqrt_out_0\nscoreboard players operation @s sqrt_tmp_1 += @s sqrt_out_0\nscoreboard players operation @s sqrt_tmp_1 /= two constants\nscoreboard players operation @s sqrt_tmp_0 = @s sqrt_out_0\nscoreboard players operation @s sqrt_out_0 = @s sqrt_tmp_1\nscoreboard players operation @s sqrt_tmp_0 -= @s sqrt_out_0\nexecute if score @s sqrt_tmp_0 > sqrt_diff constants run function math:sqrt/iteration复制代码我们对平方根的处理使用了牛顿迭代法(Newton Iteration)。即f(x[sub]n+1[/sub])=(f(x[sub]n[/sub])+a/f(x[sub]n[/sub]))/2迭代，直到f(x[sub]n-1[/sub])-f(x[sub]n+1[/sub])<规定的精度为止。至于具体推导等，请自行百度。\n我们在主函数中对 输入数/2 随后检测误差，如果不满足条件，进入迭代。在迭代中我们对上次的输出进行运算，计算误差，判断条件并进入迭代直至满足条件为止。由于我们将输入*10^4，所以输出是 原本输出*10^2。故常量sqrt_diff实际为 规定值/10^2。\n\nVector/Length\nlength.mcfunction\nscoreboard players set @s sqrt_arg_0 0\nscoreboard players operation @s leng_out_0 = @s leng_arg_0\nscoreboard players operation @s leng_out_0 *= @s leng_out_0\nscoreboard players operation @s sqrt_arg_0 += @s leng_out_0\nscoreboard players operation @s leng_out_0 = @s leng_arg_1\nscoreboard players operation @s leng_out_0 *= @s leng_out_0\nscoreboard players operation @s sqrt_arg_0 += @s leng_out_0\nscoreboard players operation @s leng_out_0 = @s leng_arg_2\nscoreboard players operation @s leng_out_0 *= @s leng_out_0\nscoreboard players operation @s sqrt_arg_0 += @s leng_out_0\nfunction math:sqrt/sqrt\nscoreboard players operation @s leng_out_0 = @s sqrt_out_0复制代码向量长度计算公式为 √x[sup]2[/sup]+y[sup]2[/sup]+z[sup]2[/sup]，并且由于sqrt的结果是*10^2的，所以我们的length算出来自然也是*10^2的\n\nVector/Normalize\nnormalize.mcfunction\nscoreboard players operation @s leng_arg_0 = @s norm_arg_0\nscoreboard players operation @s leng_arg_1 = @s norm_arg_1\nscoreboard players operation @s leng_arg_2 = @s norm_arg_2\nscoreboard players operation @s norm_out_0 = @s norm_arg_0\nscoreboard players operation @s norm_out_1 = @s norm_arg_1\nscoreboard players operation @s norm_out_2 = @s norm_arg_2\nfunction math:vector/length/length\nscoreboard players operation @s pow_arg_0 = sqrt_out_prec constants\nscoreboard players set @s pow_arg_1 2\nfunction math:pow/pow\nscoreboard players operation @s norm_out_0 *= @s pow_out_0\nscoreboard players operation @s norm_out_1 *= @s pow_out_0\nscoreboard players operation @s norm_out_2 *= @s pow_out_0\nscoreboard players operation @s norm_out_0 /= @s leng_out_0\nscoreboard players operation @s norm_out_1 /= @s leng_out_0\nscoreboard players operation @s norm_out_2 /= @s leng_out_0复制代码规格化向量的公式为 normalize(u)=(u[sub]x[/sub]/||u||,u[sub]y[/sub]/||u||,u[sub]z[/sub]/||u||)\n※ ||u||=length(u)\n所以我们只需要 分量/向量的长度就可以了。但是由于length结果是*10^2的，所以我们需要将分量*(10^2)^2才能得到正确的精度……\n要问为什么这么麻烦就得去怪Mjsb了\n\n等待添加……QwQ\n还有，更改精度的时候记得把precision和sqrt_out_prec一起改了……   sqrt_out_prec=√precision\n致datapack开发者\n这个数学库并不是我的私人项目，而是一个公共维护的项目（至少我希望如此）。有自己需要用到而这个数学库里没有这个功能的开发者可以留言，我们将会尽力实现。如果帮我们实现好了……那就更好了!\n更新日志\n\n2018/2/8 发布了第一个版本\n\n目前努力实现三角函数中……欢迎发现bug，给予建议以及合作开发哦！\n\n\n\n\n\n\n\nMath.zip\n\n\n2018-2-8 18:08 上传\n点击文件名下载附件\n\n\n\n\n5.34 KB, 下载次数: 4\n\n\n放入datapacks文件夹即可食用\n\n\n",
+    "replies": [
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1518084840,
+            "txt_content": "第一个轮子XD"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1518084900,
+            "txt_content": "已经到了数学不好连游戏都玩不起的地步了吗 XD"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1518085020,
+            "txt_content": "emm可以试试实现std规范hh\nstd规范可以保证数学库在调用它的datapack之前被加载…【逃"
+        },
+        {
+            "author": "switefaster",
+            "timestamp": 1518085140,
+            "txt_content": " 本帖最后由 switefaster 于 2018-2-8 18:21 编辑 \nSPGoding 发表于 2018-2-8 18:17\nemm可以试试实现std规范hh\nstd规范可以保证数学库在调用它的datapack之前被加载…【逃 ...\npca甚至已经在实现这玩意了"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1518085380,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-2-8 18:28 编辑 \nswitefaster 发表于 2018-2-8 18:19\npca甚至已经在实现这玩意了\n我说的就是pca那个hhh"
+        },
+        {
+            "author": "Namefind",
+            "timestamp": 1518090360,
+            "txt_content": "mojang讲科学 系列"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1518091560,
+            "txt_content": "你有没有意识到反而这样更麻烦了，本质上工作量更大了\n真正适合的工序是按需制作。你这个我之所以说不行是因为mc本身的原因。\n此外，1.13了还要靠这样的旧版本形式去算，还想这样算三角函数丢人"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1518092820,
+            "txt_content": "乙烯_中国 发表于 2018-2-8 20:06\n你有没有意识到反而这样更麻烦了，本质上工作量更大了\n真正适合的工序是按需制作。你这个我之所以说 ...\n他非要无实体…"
+        },
+        {
+            "author": "2759159258",
+            "timestamp": 1518096300,
+            "txt_content": "看了这个帖，我觉得我是时候跟1.13说再见了\n辣鸡bugjump，欺负我数学偏科，哼~"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1518202800,
+            "txt_content": " 本帖最后由 pineapple_ 于 2018-2-10 03:03 编辑 \n\n检测到不明卖萌生物\n记分板名称：<函数名>_<参数名>_<下标>\n准备实施打击\n气氛再次数学"
+        },
+        {
+            "author": "dwch",
+            "timestamp": 1518231600,
+            "txt_content": "pow不是快速幂差评差评\n你这样在我们oier这里会tle的"
+        },
+        {
+            "author": "wity",
+            "timestamp": 1518241260,
+            "txt_content": "\n感谢教程....."
+        }
+    ]
+}

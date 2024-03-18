@@ -1,0 +1,24 @@
+{
+    "title": "JVM沙箱技术 - I - 反射重定向 - JDK 8",
+    "author": "Karlatemp",
+    "replyCount": 3,
+    "timestamp": 1589694660,
+    "txt_content": " 本帖最后由 Karlatemp 于 2020-5-17 13:54 编辑 \n\n\n\nJVM沙箱技术 - I - 反射重定向 - JDK 8\n\n本人目前在做关于JVM沙箱的内容, 感觉可能会有其他人有需要, 于是便将此技术分享出来\n\n本技术适用于\n 需要重定向反射 需要让远程代码操作部分服务器但是不允许完整操作 (因此不能使用docker的) ....\n\n\n注: 本项目的JDK 8版本使用Kotlin编写\n要不是JDK 13没找到让kotlin访问jdk.internal的方法才不会去用java呢\n\n项目仓库: GitHub\n开源协议: GNU AFFERO GENERAL PUBLIC LICENSE version 3\n\n本章只说出接管重点, 具体实现细节请自己看README&源代码\n\n不要喷 Java & Kotlin 混用, src唯一的java文件是属于代码自动生成, jdk13目前未找到让kotlin访问jdk.internal.*的方法\n\n没用mvn/gradle, 因为懒得用, 别吐槽\n\nStep 0. 生成ReflectionFactory模型\n\n参考 ApplicationStartup#makeModel\n生成一个ReflectionFactory的模型, 至于为啥不直接继承ReflectionFactory, 因为\n private ReflectionFactory() {} 复制代码\n\n执行上述代码后, 我们可以得到一个 ReflectionFactoryModel.java, 如果不想让kotlin项目混入一个java文件, 可以选择使用IDEA直接将其转换为kotlin代码\n\nStep 1. 准备一个Instrumentation对象\n\n我们需要准备一个 Instrumentation 以实现更加底层的操作. 修改字节码\n\n准备好你的 ASM + javaagent.jar\n\n关于 Instrumentation 的传递可以参照 JvmAgent\ninstrumentation = Thread.currentThread().threadGroup.let {\n    val count = it.activeCount()\n    val array = Array<Thread?>(count) { null }\n    it.enumerate(array)\n    return@let array\n}.let {\n    it.forEach { thread ->\n        if (thread == null) return@forEach\n        if (thread.name == \"InstrumentationThread\") {\n            if (thread is Supplier<*>) {\n                return@let thread.get() as Instrumentation\n            }\n        }\n    }\n    error(\"Instrumentation not found! Please add -javaagent:JvmAgent.jar\")\n}复制代码\n\nStep 2. 动态修改字节码\n\n通过 Instrumentation 把所有 extends ReflectionFactoryModel 转成 extends sun.misc.ReflectionFactory\n\n\nunsafe.ensureClassInitialized(ClassNode::class.java) // Preload ASM\ninstrumentation.addTransformer { loader, className, classBeingRedefined, protectionDomain, classfileBuffer ->\n    ClassReader(classfileBuffer).let { reader ->\n        ClassNode().also {\n            reader.accept(it, 0)\n        }\n    }.let {\n        // If the class is the model, ignore it\n        if (it.name == \"io/github/karlatemp/jll/ReflectionFactoryModel\")\n            return@addTransformer classfileBuffer\n        val writer = ClassWriter(0)\n        it.accept(\n            ClassRemapper(\n                writer, SimpleRemapper(\n                    \"io/github/karlatemp/jll/ReflectionFactoryModel\",\n                    \"sun/reflect/ReflectionFactory\"\n                )\n            )\n        )\n        writer\n    }.toByteArray()\n}\n复制代码\n\nStep 3. 编写接管\n\n好, 我们随便写个类继承ReflectionFactoryModel\nclass MyCustomReflectionFactory : ReflectionFactoryModel() {}复制代码\n\n然后alloc我们自己的RF, 并替换JVM内部的RF\n\nval customReflectionFactory = unsafe.allocateInstance(MyCustomReflectionFactory::class.java)\nif(customReflectionFactory !is ReflectionFactory) {\n    error(\"Oops. This is not working!\")\n}\ninstrumentation.allLoadedClasses.forEach {\n    kotlin.runCatching {\n        it.declaredFields.forEach { field ->\n            if (Modifier.isStatic(field.modifiers)) {\n                if (field.type == ReflectionFactory::class.java) {\n                    unsafe.putObject(unsafe.staticFieldBase(field), unsafe.staticFieldOffset(field), customReflectionFactory)\n                }\n            }\n        }\n    }\n}\n复制代码\n并且清空JVM反射数据缓存\nval classReflectionDataOffset = unsafe.objectFieldOffset(Class::class.java.getDeclaredField(\"reflectionData\"))\ninstrumentation.allLoadedClasses.forEach {\n    unsafe.putObjectVolatile(it, classReflectionDataOffset, null)\n}复制代码\n然后我们把MyCustomReflectionFactory随便改改，以确认他是否正常工作\n\n// Don't use object, it is not support\nclass MyCustomReflectionFactory private constructor() : ReflectionFactoryModel() {\n    override fun newMethodAccessor(var0: Method): MethodAccessor {\n        println(var0)\n        return super.newMethodAccessor(var0)\n    }\n}复制代码\n\n然后运行\n\nRunnable::class.java.getDeclaredMethod(\"run\").invoke(Runnable {\n    println(\"Hello\")\n})复制代码\n\n如果你能看到以下输出，恭喜，你已经成功接管反射了\npublic abstract void java.lang.Runnable.run()\nHello复制代码\n\n如果没有工作, hum? 看看开源仓库的 ApplicationStartup 吧\n\n完整文档请参阅 README\n\n/*\n * Copyright (c) 2018-2020 Karlatemp. All rights reserved.\n * @author Karlatemp <karlatemp@vip.qq.com> <https://github.com/Karlatemp>\n * @create 2020/05/17 13:48:43\n */\n\n",
+    "replies": [
+        {
+            "author": "套你瘊子",
+            "timestamp": 1589698740,
+            "txt_content": "看不懂啊我靠，java好难学"
+        },
+        {
+            "author": "崔博凯",
+            "timestamp": 1590017340,
+            "txt_content": "看起来好麻烦"
+        },
+        {
+            "author": "yunyifenghao",
+            "timestamp": 1590033600,
+            "txt_content": "楼主能解释下这是要干什么嘛"
+        }
+    ]
+}

@@ -1,0 +1,114 @@
+{
+    "title": "简洁的Java NIO教程",
+    "author": "NaturalSharp",
+    "replyCount": 21,
+    "timestamp": 1592110740,
+    "txt_content": " 本帖最后由 NaturalSharp 于 2020-6-14 17:35 编辑 \n\nWhat is NIO？\nNIO全称non-blocking，是Java的新IO API\n同时支持非阻塞和阻塞模式\n\nNIO 与 BIO 的区别\nNIO与BIO最大的区别是支持非阻塞模式，这使得NIO无须像BIO一样为每个Channel(流)\n创建一个Thread阻塞地读，完全可以使用一个Thread完成对多个Channel的读操作\n\nNIO与BIO的效率对比\n我分别用NIO和BIO实现了一个短连接Web Server(同时这也是教程的示例程序)\n以下是使用ab测试的结果\n\nBIO：\n\n\n\n\nBIO.png (63.51 KB, 下载次数: 0)\n\n下载附件\n\nBIO测试结果\n2020-6-14 09:52 上传\n\n\n\n\n\nQPS 5014\nNIO:\n\n\n\n\nBasicReactor.png (83.7 KB, 下载次数: 0)\n\n下载附件\n\nNIO测试结果\n2020-6-14 09:58 上传\n\n\n\n\n\nQPS 26670\n\n从测试结果看来NIO比BIO快了约4倍\n\n多线程的NIO与Go(Iris)和C++对比\n多线程NIO:\n\n\n\n\nMultiReactor.png (78.7 KB, 下载次数: 1)\n\n下载附件\n\n2020-6-14 10:07 上传\n\n\n\n\n\n\nQPS 30340\nGo(Iris):\n\n\n\n\nIris.png (90.41 KB, 下载次数: 0)\n\n下载附件\n\n2020-6-14 10:02 上传\n\n\n\n\n\n\nQPS 30355\nC++:\n\n\n\n\nMyCppServer.png (65.31 KB, 下载次数: 0)\n\n下载附件\n\nC++测试结果\n2020-6-14 10:15 上传\n\n\n\n\n\nQPS 30709\n多线程NIO与Go和C++的效率相差较小\n\nNIO的三大核心组件 ByteBuffer & Channel & Selector 类\nWhat is ByteBuffer?\nByteBuffer 实际上是一块连续的内存块，它是对byte[]的封装,Java提供了几个新的方法使这个byte[]更易于使用\n所以ByteBuffer可以看成是一个大小固定的容器\n创建ByteBuffer的方法:\npublic static ByteBuffer allocate(int capacity) //在JVM托管堆上分配一个容量为capacity的新的字节缓冲区\npublic static ByteBuffer allocateDirect(int capacity) //在非托管堆上分配一个容量为capacity的新的字节缓冲区(Java Zero Copy)\npublic static ByteBuffer wrap(byte[] array)  //将 byte 数组包装到缓冲区中\n复制代码\nByteBuffer的容器操作:\npublic abstract byte get(int index)  //读取指定索引处的字节\npublic abstract ByteBuffer put(byte b) //将b插入到buffer的尾部,Buffer必须可写且容量足够\npublic final byte[] array() //返回实现此缓冲区的 byte 数组，在调用此操作之前必须确保此ByteBuffer有byte[]\npublic final boolean hasArray() //判断是否可通过一个可访问的 byte 数组实现此缓冲区\n复制代码\nDocument: https://tool.oschina.net/uploads/apidocs/jdk-zh/java/nio/ByteBuffer.html\n更详细的讲解:https://blog.csdn.net/xialong_927/article/details/81044759\n\nWhat is Channel?\nChannel实际上是双向的\"流\",它同时支持Read和Write并且支持非阻塞模式\nSocketChannel的坑:\n非阻塞模式下SocketChannel的Write操作不一定会把数据全部写入，如果此时底层socket缓冲区已满或者对端网络状况过于糟糕，写入的数据大小可能小于需要写入的大小不要调用Socket和ServerSocket的Channel方法SocketChannel在客户端关闭时进行Read和Write会抛出异常如果使用Selector一定要将Channel设置成非阻塞模式\n\nServerSocketChannel的用法基本与ServerSocket相同\n不同的是需要使用静态的open方法来创建Channel\n并且调用bind方法是用户的责任\n//新建ServerSocketChannel并监听指定端口\nserverSocketChannel = ServerSocketChannel.open();\nserverSocketChannel.bind(new InetSocketAddress(port));\n复制代码\naccept方法返回的将是SocketChannel\n //使用accept获取客户端\n SocketChannel client = channel.accept();\n复制代码\nDocument:https://docs.oracle.com/javase/7 ... /SocketChannel.html\n更详细的讲解:https://www.cnblogs.com/lxyit/p/9209407.html\n\nWhat is Selector?\nSelector对应底层的IO多路复用，它能让你在一个线程中监听多个Channel,当被监听的Channel有事件时Selector通知select方法的调用者\nSelector在底层调用了select/poll/epoll的相关函数\n例如在Windows中JVM的Selector底层调用select函数(这将导致大量非活跃连接时效率低下)\n在Linux 2.6+中JVM的Selector底层调用epoll的相关函数(LT模式)\n尽可能让你的NIO程序运行在Linux 平台上\nSelector的坑:\nepoll的空轮询bugSelector的select和register之间不是线程安全的 如果其他线程调用了select方法 另一线程在这时调用了register 被注册的channel有事件到达时并不会select方法返回\n\nSelector的用法:\nSelector selector = Selector.open();//使用open方法创建Selector\n//新建ServerSocketChannel\n//并监听指定的端口\nServerSocketChannel serverSocketChannel = ServerSocketChannel.open();\nserverSocketChannel.bind(new InetSocketAddress(port));\n//设置非阻塞模式\nserverSocketChannel.configureBlocking(false);\n//将Channel注册到Selector\n//并监听ACCEPT操作是否能够完成\nserverSocketChannel.register(_selector, SelectionKey.OP_ACCEPT);\n//循环调用select方法获取事件\nwhile(true)\n{\n    //num_ev是事件个数\n    int num_ev = _selector.select();\n    if(num_ev > 0)\n    {\n        //获取发生的事件集\n        Set<SelectionKey> keys = _selector.selectedKeys();\n        //遍历事件集\n        Iterator<SelectionKey> iter = keys.iterator();\n        while(iter.hasNext())\n        {\n            SelectionKey key = iter.next();\n            //从事件集中删除是用户的责任\n            iter.remove();\n            //处理IO事件\n            //必须先判断key是否有效\n            //在处理之前它可能被取消\n            if(key.isValid())\n            {\n                //Channel可读\n                if(key.isReadable())\n                {//TODO}\n                //Channel可写\n                else if(key.isWritable())\n                {//TODO}\n                //ServerSocketChannel的accept方法可以返回了\n                //我们以这个为例\n                else if(key.isAcceptable())\n                {\n                     //获取ServerSocketChannel\n                     ServerSocketChannel channel = (ServerSocketChannel)key.channel();\n                     //使用accept获取客户端\n                     SocketChannel client = channel.accept();\n                     //TODO\n                }\n            }\n        }\n    }\n}\n复制代码\nDocument:https://docs.oracle.com/javase/6/docs/api/java/nio/channels/Selector.html\n\n直接使用NIO的Selector略显困难,我们通常使用Reactor模型对Selector进行二次封装\n示例的Reactor封装\npackage cc.sfclub.io.network;\n\nimport java.io.IOException;\nimport java.nio.ByteBuffer;\nimport java.nio.channels.Channel;\nimport java.nio.channels.ClosedChannelException;\nimport java.nio.channels.SelectionKey;\nimport java.nio.channels.Selector;\nimport java.nio.channels.ServerSocketChannel;\nimport java.nio.channels.SocketChannel;\nimport java.util.Iterator;\nimport java.util.LinkedList;\nimport java.util.Set;\nimport java.util.function.BiConsumer;\nimport java.util.function.Consumer;\n\nimport cc.sfclub.io.SpinLock;\n//反应器\n//在构造函数中传入回调后调用run方法\n//run方法将会导致线程阻塞直到反应器关闭\n//注意: 在客户端连接回调中将SocketChannel注册到Reactor是用户的责任\npublic class Reactor {\n    //selector\n    private Selector _selector;\n    //数据到达回调\n    private BiConsumer<byte[],SocketChannel> _readCb;\n    //客户端关闭回调\n    private Consumer<SocketChannel> _closeCb;\n    //客户端连接回调\n    private Consumer<SocketChannel> _acceptCb;\n    //cancel token\n    private volatile boolean _token;\n    //tasks\n    private LinkedList<Runnable> _tasks;\n\n    //自旋锁\n    //用于保护_tasks\n    private SpinLock _lock;\n\n    public Reactor(BiConsumer<byte[],SocketChannel> readCb,Consumer<SocketChannel> closeCb,Consumer<SocketChannel> acceptCb) throws IOException\n    {\n        _selector = Selector.open();\n        _readCb = readCb;\n        _closeCb = closeCb;\n        _token = false;\n        _acceptCb = acceptCb;\n        _tasks = new LinkedList<>();\n        _lock = new SpinLock();\n    }\n\n    //用于其他线程向Reactor线程投递任务\n    private void runInLoop(Runnable task)\n    {\n        //将任务放到_tasks里\n        _lock.lock();\n        try {\n            _tasks.add(task);\n        } \n        finally\n        {\n            _lock.unlock();\n        }\n        //唤醒Reactor线程\n        _selector.wakeup();\n    }\n\n    //获取其他线程投递的任务\n    private LinkedList<Runnable> getTasks()\n    {\n        //交换taks和_tasks\n        LinkedList<Runnable> tasks = new LinkedList<>(),tmp = tasks;\n        _lock.lock();\n        try {\n            tasks = _tasks;\n            _tasks = tmp;\n        } \n        finally\n        {\n            _lock.unlock();\n        }\n        return tasks;\n    }\n\n    //执行其他线程投递的操作\n    //返**oolean是为了甄别是否出现了epoll空轮询bug\n    private boolean handleTasks()\n    {\n        //遍历调用run\n        LinkedList<Runnable> tasks = getTasks();\n        for(Runnable task:tasks)\n        {\n            task.run();\n        }\n        return tasks.size() != 0;\n    }\n\n    //JVM bug:\n    //https://bugs.java.com/bugdatabase/view_bug.do?bug_id=2147719\n    //https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6403933\n    //重建selector\n    private void rebuildSelector() throws IOException\n    {\n        //创建新selector\n        Selector selector = Selector.open();\n        //将原来selector的key移动到新建的selector上\n        for(SelectionKey key:_selector.keys())\n        {\n            key.channel().register(selector,key.interestOps());\n            key.cancel();\n        }\n        //交换两个selector\n        Selector tmp = _selector;\n        _selector = selector;\n        //关闭旧的selector\n        tmp.close();\n    }\n\n    //注册客户端连接\n    //注意: selector的register和select都不是线程安全的\n    //如果其他线程调用了select方法\n    //另一线程在这时调用了register\n    //被注册的channel有事件到达时并不会select方法返回\n    public void register(SocketChannel channel) throws IOException\n    {\n        //在Reactor线程中注册\n        runInLoop(()->\n        {\n            try {\n                //设置为非阻塞\n                channel.configureBlocking(false);\n                //将Channel注册到Selector\n                 //在生产环境中您可能要监听OP_WRITE来支持非阻塞的写操作\n                 //在有数据需要写时监听OP_WRITE\n                 //无数据需写入时必须将OP_WRITE移除\n                 //否则将导致忙循环\n                channel.register(_selector, SelectionKey.OP_READ);\n            } catch (Exception e) {\n                e.printStackTrace();\n            }\n        });\n    }\n\n    //注册服务器监听器\n    public void register(ServerSocketChannel channel) throws IOException\n    {\n        //在Reactor线程中注册\n        runInLoop(()->\n        {\n            try {\n                //设置为非阻塞\n                channel.configureBlocking(false);\n                //将Channel注册到Selector\n                channel.register(_selector, SelectionKey.OP_ACCEPT);\n            } catch (Exception e) {\n                e.printStackTrace();\n            }\n        });\n    }\n\n    //处理IO事件\n    private void handleIoEvent(SelectionKey key) throws IOException\n    {\n        //必须先判断key是否有效\n        //在处理之前它可能被取消\n        if(key.isValid())\n        {\n             //可读事件\n            if(key.isReadable())\n            {\n                SocketChannel channel = (SocketChannel) key.channel();\n                //4096是系统Socket读缓冲区的大小\n                //这意味着您一次最多读取4096字节\n                ByteBuffer buf = ByteBuffer.allocate(4096);\n                try \n                {\n                    //可能在读的过程中对端关闭\n                    //导致read出错\n                    int r = channel.read(buf);\n                    if(r > 0)\n                    {\n                        //调用数据到达回调\n                        _readCb.accept(buf.array(),channel);\n                    }\n                    else\n                    {\n                        //对端关闭了\n                        //调用客户端断开回调\n                        _closeCb.accept(channel);\n                    }\n                }    \n                catch (ClosedChannelException ex) \n                {\n                    //对端关闭了\n                    //调用客户端断开回调\n                    _closeCb.accept(channel);    \n                }\n            }\n            //客户端连接事件\n            else if(key.isAcceptable())\n            {\n                //获取ServerSocketChannel\n                ServerSocketChannel channel = (ServerSocketChannel)key.channel();\n                //使用accept获取客户端\n                SocketChannel client = channel.accept();\n                //调用客户端连接回调\n                //注意: 在回调中注册到Reactor是用户的责任\n                _acceptCb.accept(client);\n            }\n            //可能是客户端关闭\n            else\n            {\n                Channel ch = key.channel();\n                //客户端关闭\n                if(ch instanceof SocketChannel)\n                {\n                    SocketChannel channel = (SocketChannel)ch;\n                    _closeCb.accept(channel);\n                }\n            }\n        }\n    }\n\n    //获取并处理事件\n    private void run_once() throws IOException\n    {\n        //获取发生的事件\n        int num_ev = _selector.select();\n        //判断事件个数大于0\n        if(num_ev > 0)\n        {\n            //获取有事件的Channel\n            Set<SelectionKey> keys = _selector.selectedKeys();\n            //遍历Channel\n            Iterator<SelectionKey> iter = keys.iterator();\n            while(iter.hasNext())\n            {\n                SelectionKey key = iter.next();\n                iter.remove();\n                //处理IO事件\n                handleIoEvent(key);\n            }\n        }\n        boolean r = handleTasks();\n        //如果发生的事件为0\n        //且handleTasks返回false\n        //则可能发生了空轮询bug\n        //也可能是其他线程调用了close方法来关闭了selector\n        if(!r && num_ev == 0 && !_token)\n        {\n            rebuildSelector();\n        }\n    }\n\n    //运行直到Reactor关闭\n    public void run() throws IOException\n    {\n        while(!_token)\n        {\n            run_once();\n        }\n    }\n\n    //关闭Reactor\n    public void stop() throws IOException\n    {\n        _token = true;\n        _selector.close();\n    }\n}\n复制代码\nSimpleWebServer同时提供了4种并发模型\nMultithread Model Server - one connection per thread - BIO模型 - 每个连接一个线程Reactor Model Server - basic reactor - 最简单的Reactor模型使用单线程处理所有连接Reactor Model Server With Thread Pool - reactor + thread pool - 单线程Reactor+多个Worker线程MultiReactor Model Server - one loop per thread - 多个Reactor多线程模型\n\n\n下面主要介绍MultiReactor模型\n这个模型会创建多个Reactor(个数为CPU核心数)并分配给相应的Worker线程\n确保每一个线程都有一个Reactor\n第一个Reactor为MainReactor\nMainReactor与其他Reactor的区别是它不仅处理连接还接受连接\n接受后轮询调度到不同的Reactor上\n为什么需要多个Reactor?\n这与Reactor的工作方式有关\n虽然Selector的select方法是线程安全的,但是对Channel的读写操作并不是,所以需要多其进行加锁保护,与其用锁保护不如用多个Reactor,每个Reactor各自管理自己的Channel避免多个线程对同一个Channel进行读写的同时提供并发处理能力\n\npackage cc.sfclub.io.network;\n\nimport java.io.IOException;\nimport java.net.InetSocketAddress;\nimport java.nio.channels.ServerSocketChannel;\nimport java.nio.channels.SocketChannel;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport java.util.function.BiConsumer;\nimport java.util.function.Consumer;\n\n//MultiReactor Server\npublic class MultiReactorServer implements IServer {\n\n    //多个Reactor\n    private List<Reactor> _reactors;\n\n    //指派位置\n    //用于轮询调度\n    private AtomicInteger _dispath_pos;\n\n    //ServerChannel\n    private ServerSocketChannel _serverSocketChannel;\n\n    //运行Reactor的线程池\n    private ExecutorService _threadPool;\n\n    public MultiReactorServer(int port,int num_reactors,BiConsumer<byte[],SocketChannel> readCb,Consumer<SocketChannel> closeCb) throws IOException\n    {\n        //num_reactors必须大于或等于1\n        if(num_reactors < 1)\n        {\n            return;\n        }\n        //新建ServerSocketChannel并监听指定端口\n        _serverSocketChannel = ServerSocketChannel.open();\n        _serverSocketChannel.bind(new InetSocketAddress(port));\n        //初始化指派位置\n        _dispath_pos = new AtomicInteger(0);\n        //初始化Reactor列表\n        _reactors = new ArrayList<>();\n        //批量创建Reactor\n        for(int i = 0;i < num_reactors;i++)\n        {\n            _reactors.add(new Reactor(readCb, closeCb,(sock)->\n            {\n                //原子性地递增指派位置并返回它原来的值\n                int pos = _dispath_pos.getAndIncrement();\n                //对size求模获取Reactor\n                pos = pos %_reactors.size();\n                Reactor reactor = _reactors.get(pos);\n                //将channel指派给指定的Reactor\n                try {\n                    reactor.register(sock);\n                } catch (Exception e) {\n                    e.printStackTrace();\n                }\n            }));\n        }\n        //第一个Reactor总是用来监听ServerChannel\n        _reactors.get(0).register(_serverSocketChannel);\n        //大于1则需要创建线程池\n        if(num_reactors > 1)\n        {\n            _threadPool = Executors.newFixedThreadPool(_reactors.size()-1);\n        }\n    }\n\n    //运行服务器\n    //mainReactor总是由调用run的线程运行\n    //其他Reactor则是由线程池运行\n    @Override\n    public void run() throws IOException {\n        Reactor mainReactor = _reactors.get(0);\n        if(_reactors.size() > 1)\n        {\n            //将Reactor分配给线程池\n            for(int i = 1;i < _reactors.size();++i)\n            {\n                final int index = i;\n                _threadPool.submit(()->\n                {\n                    System.out.println(\"Reactor number: \"+index+\" running\");\n                    try {\n                        _reactors.get(index).run();\n                    } \n                    catch (Exception e) {\n                        e.printStackTrace();\n                    }\n                });\n            }\n        }\n        System.out.println(\"Main Reactor running\");\n        mainReactor.run();\n    }\n\n    @Override\n    public void close() throws IOException {\n        //遍历关闭Reactor\n        for ( Reactor r : _reactors) {\n            r.stop();\n        }\n        _serverSocketChannel.close();\n    }\n}\n复制代码\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "redfish",
+            "timestamp": 1592116680,
+            "txt_content": "流弊，不过这个可以替代主流的webserver吗\n还有用这个的优势是啥？"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592119080,
+            "txt_content": "redfish 发表于 2020-6-14 14:38\n流弊，不过这个可以替代主流的webserver吗\n还有用这个的优势是啥？\n这只是个示例，仅仅是为了说明使用NIO的优势"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1592120820,
+            "txt_content": "NaturalSharp 发表于 2020-6-14 15:18\n这只是个示例，仅仅是为了说明使用NIO的优势\n哦哦哦，不过这种对底层的调用不一般用c吗，用java处理的应用场景是什么？"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592121300,
+            "txt_content": "redfish 发表于 2020-6-14 15:47\n哦哦哦，不过这种对底层的调用不一般用c吗，用java处理的应用场景是什么？ ...\n我没看懂...你说的底层调用是指?"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1592121480,
+            "txt_content": "看了一下大佬等级有点恐怖, 应该是小号罢"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1592121540,
+            "txt_content": "NaturalSharp 发表于 2020-6-14 15:55\n我没看懂...你说的底层调用是指?\n哦，是我想歪了，这个就是对c接口的调用"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592121540,
+            "txt_content": "蕾米洛伊 发表于 2020-6-14 15:58\n看了一下大佬等级有点恐怖, 应该是小号罢\n这不是小号"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592121660,
+            "txt_content": "redfish 发表于 2020-6-14 15:59\n哦，是我想歪了，这个就是对c接口的调用\nJava的socket API实际上已经封装过一层了\n如果你有兴趣可以看看我用C++写的封装https://github.com/NaturalSelect ... stdx/net/socket.cpp"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592122140,
+            "txt_content": "redfish 发表于 2020-6-14 15:47\n哦哦哦，不过这种对底层的调用不一般用c吗，用java处理的应用场景是什么？ ...\n实际上Java的应用场景还真不少,目前Web开发用得最多的还是Java"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1592122680,
+            "txt_content": "NaturalSharp 发表于 2020-6-14 16:09\n实际上Java的应用场景还真不少,目前Web开发用得最多的还是Java\n啊，是我孤陋寡闻了，不过大佬等级真的低，看你仓库里不还写过mc启动器吗，之前都不混论坛吗"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592122800,
+            "txt_content": "redfish 发表于 2020-6-14 16:18\n啊，是我孤陋寡闻了，不过大佬等级真的低，看你仓库里不还写过mc启动器吗，之前都不混论坛吗 ...\n之前不玩论坛，MC启动器都是三年前的事了"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1592127120,
+            "txt_content": "很棒的教程啊，以前一直碍于难度没有接触Java NIO，这个教程讲的很简单的说，支持一下"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592127420,
+            "txt_content": "贺兰星辰 发表于 2020-6-14 17:32\n很棒的教程啊，以前一直碍于难度没有接触Java NIO，这个教程讲的很简单的说，支持一下 ...\nthank you，sir"
+        },
+        {
+            "author": "asd2061577723",
+            "timestamp": 1592308980,
+            "txt_content": "懂了懂了多谢多谢"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1592317740,
+            "txt_content": "今天又学了一下java多线程的内容，突然想起来你这个是不是就可以实现java版的nginx？相对于apache而言？"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592388120,
+            "txt_content": "redfish 发表于 2020-6-16 22:29\n今天又学了一下java多线程的内容，突然想起来你这个是不是就可以实现java版的nginx？相对于apache而言？ ...\n不能，nginx是多进程构架"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592388420,
+            "txt_content": "redfish 发表于 2020-6-16 22:29\n今天又学了一下java多线程的内容，突然想起来你这个是不是就可以实现java版的nginx？相对于apache而言？ ...\n不常上bbs，找我可以到这个群：942025944"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592404440,
+            "txt_content": "redfish 发表于 2020-6-16 22:29\n今天又学了一下java多线程的内容，突然想起来你这个是不是就可以实现java版的nginx？相对于apache而言？ ...\n但可以实现Lighttpd"
+        },
+        {
+            "author": "QQ42443052",
+            "timestamp": 1592454840,
+            "txt_content": "我是新手！我想问的是mc的mod只能java才能写吗？是的话！我还要学习java目前只会c和c++"
+        },
+        {
+            "author": "NaturalSharp",
+            "timestamp": 1592455920,
+            "txt_content": "QQ42443052 发表于 2020-6-18 12:34\n我是新手！我想问的是mc的mod只能java才能写吗？是的话！我还要学习java目前只会c和c++\n ...\n只有jvm语言能写，如果你会c++且技术够硬可以很快入门java"
+        },
+        {
+            "author": "Kai_Xuan233",
+            "timestamp": 1592550600,
+            "txt_content": "虽然看不懂 但是好厉害"
+        }
+    ]
+}

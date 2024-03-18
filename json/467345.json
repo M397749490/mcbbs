@@ -1,0 +1,64 @@
+{
+    "title": "【1.8】原版服务器小游戏—顺手牵羊 运行原理",
+    "author": "MsYqgzt",
+    "replyCount": 11,
+    "timestamp": 1436670660,
+    "txt_content": " 本帖最后由 MsYqgzt 于 2016-4-16 18:28 编辑 \n\n相关链接：【TCP】[1.8多人原版小游戏]顺手牵羊—Sheep Quest        \n大家好，今天我来讲解顺手牵羊的游戏运行原理。\n\n目录： \n1、计分板系统 \n2、牵羊系统\n 3、胜利队伍判定\n\n计分板系统：\n\n    相信看过帖子的同学都想知道，如何原版做出这样的计分板效果\n\n这里引用乙烯大大的教程进行说明：\n【乙烯】关于侧边栏的应用小技巧\n\n\n像这样的倒计时系统不能通过一般的数据指令来改变假名的数据，只有通过枚举的方法实现，于是我的指令系统中出现了这样的结构\n\n 图中的所有命令方块全部为计分板系统【其实压缩得也不够充分】。\n    举个例子，假设我需要一个循环的3秒倒计时。步骤如下：\n\n/scoreboard objectives add score dummy Timer复制代码创建一个名为score，显示名为Timer的自变量计分板\n\n/scoreboard players set Time: score -2复制代码创建一个名为Time:的假名，将目标分数设置为-2。\n\n  这样倒计时系统的准备工作就做完成了。\n\n\n接下来是让计时的数据以计分板目标名字的形式变化，且位置要在Time:的下面，只有将假名分数设置为-3即可，然后进行枚举：\n\n\n\n/scoreboard players set 3_Second score -3复制代码设置一个假名为3_Second的目标分数设置为-3.\n\n然后中继器设置延迟，同时触发两道指令：/scoreboard players set 2_Second score -3复制代码/scoreboard players reset 3_Second score复制代码设置假名2_Second的目标分数为-3，同时移除名为3_Second的Score计分板数据，以此类推，直到\n\n\n/scoreboard players reset 1_Second score复制代码/scoreboard players set 0_Second score -3复制代码\n将1_Second的数据在score计分板移除且将0_Second积分版数据设置为-3，\n然后就可以接上其他的效果指令来完成计分板计时效果的衔接，也就是说只要你不怕烦的话，1000秒计时也是可以的，因为假名是没有限制的\n\n然后有人问了，这个游戏里的重复计时怎么办？\n如果单靠这个系统进行循环的话，会出现这种情况：\n\n\n\n如果出现这种情况也非常的简单，只要在开头加一道指令：\n/scoreboard players reset 0_Second score复制代码移除0_Second在计分板score的数据。\n下一页为牵羊系统\n\n牵羊系统：\n\n在这个游戏中，如何牵羊是这里唯一的难点，难就难在区分自己队伍中的羊不能再跟着你，而其他羊能跟着你，并且你可以选择移动自己的羊。\n牵羊系统全部需要超频来实现，系统如下图【也混杂了其他指令】：\n\n牵羊其实就是TP的过程，要实现以上功能，要先通过计分板判定是否符合TP条件。这里以红队【red】为例子，玩家也在红队\n/scoreboard objectives add sheep dummy sheep复制代码\n创建一个名为sheep的dummy计分板\n/entitydata @e[type=Sheep,x=-661,y=61,z=-749,dx=5,dy=-1,dz=2] {Color:14b}复制代码\n/scoreboard teams join red @e[type=Sheep,x=-661,y=61,z=-749,dx=4,dy=-1,dz=1] {Color:14b}复制代码先设置一个羊圈的范围，将进入红队羊圈的其他颜色的羊改变为红色，并且让其加入红队。\n\n 接下来是重点，讲解可能很绕口。。：\n\n\n/execute @a[team=red,m=2] ~ ~ ~ tp @e[r=2,team=!red,type=Sheep] @p[r=2,m=2,team=red]复制代码以所有红队玩家为中心的半径2范围内，将队伍不是红队的羊tp至最近的红队玩家【即牵羊的人】\n游戏中有这么一个规则：牵羊的玩家会获得减速的效果，这个可以通过加分实现\n\n/execute @e[type=Sheep,team=!red] ~ ~ ~ scoreboard players set @a[r=2,team=red,m=2] sheep 3复制代码以不是红队的所有羊为中心半径2的范围内，将所有队伍为红队的玩家的sheep计分板变量设置为3\n/effect @a[m=2,score_sheep=3,score_sheep_min=3] minecraft:slowness 1 0 true复制代码给予所有sheep变量为3的玩家缓慢的效果\n\n\n\n/execute @e[type=Sheep,team=red] ~ ~ ~ scoreboard players set @a[r=2,m=2,team=red] sheep 0复制代码以不是红队的所有羊为中心半径2的范围以外，将所有队伍为红队的玩家的sheep计分板变量设置为0\n这样就可避免离开羊后一直减速的问题。\n\n同样的难点就是有时候需要移动自己的羊群，却不能移动。于是这里加入了一个道具<赶羊棍>，持有后可以移动自己的羊群。\n/scoreboard objectives add team dummy team复制代码创建一个名为team的dummy计分板\n\n\n同样高频，红队为例：\n/scoreboard players set @a team 0复制代码不断将玩家的team积分设置为0\n/scoreboard players set @a team 5 {SelectedItem:{id:\"minecraft:stick\",tag:{display:{Name:\"赶羊棍\",Lore:[\"能引导自己的羊群\",\"<持有后可移动本队颜色的羊>\"]},ench:[]}}}复制代码将持有赶羊棍的玩家的team积分设置为5.\n/execute @a[m=2,team=red,score_team=5,score_team_min=5] ~ ~ ~ tp @e[r=2,team=red,type=Sheep] @p[r=2,team=red,score_team=5,score_team_min=5]复制代码以team积分为5的红队玩家为中心半径为2的范围内，将所有红队的羊tp至自己。\n\n\n牵羊系统至此基本结束\n下一页讲解分数判定队伍胜利条件\n\n胜利判定：\n 队伍的胜利，需要判定队伍拥有羊群最多的队伍，即队伍分数最高的那一队。\n所以需要通过计分板的加减法来进行运算，将同一个队伍分别减去其他3个队伍的分数，若全部结果都为正数，即判定这个队伍获胜。所以我做成了这样的一个结构：\n\n每一条代表一个队伍，运算后若为正数，则在对应地方放置一个石头，若全部为正数，则触发后面的一系列效果。\n\n但计分板有个特性，每次运算，计分板的数值会立刻改变，所以我们需要备份计分板数据 ， 每次运算过后将备份的数据提取，再次运算，再提取……也是枚举的一部分。\n\n\n\n再次以红队为例子。\n在运算之前，创建一个备用计分板\n/scoreboard objectives add score1 dummy score1复制代码创建名为score1的dummy计分板\n并且在这个计分板创建一个相同的假名。\n/scoreboard players set Red score1 0复制代码\n接下来就是进行计分板赋值操作（重点）\n/scoreboard players operation Red score1 = Red score复制代码使score1的Red计分板数值等于score计分板的Red数值，即数据备份。\n然后进行 运算 和 反向赋值 的切换执行。\n\n\n按顺序执行：\n/scoreboard players operation Red score -= Blue score复制代码将红队分数减去蓝队分数，\n然后同时按顺序触发两道指令:\n/scoreboard players test Red score 1 17复制代码探测Red计分板数据是否在正数范围内\n以及\n/scoreboard players operation Red score = Red score1复制代码将已改变的变量还原为之前原有的数值。并且进行下一轮触发（即红队减去绿队之类）\n若在正数范围内，则比较器触发，放置方块，反之，比较器熄灭，将方块替换为空气。以此类推，最后只会有一条队伍的电路会被触发，提示队伍胜利。\n\n\n===============End===================\n @乙烯_中国 @1jomin1 \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "End-Enderman",
+            "timestamp": 1436671560,
+            "txt_content": " 本帖最后由 End-Enderman 于 2015-7-12 11:27 编辑 \n\n我来抢个前排 认识我不 出售可乐雪碧爆米花\n一直看你在忙碌 这么多电路做了多长时间"
+        },
+        {
+            "author": "MsYqgzt",
+            "timestamp": 1436671620,
+            "txt_content": "End-Enderman 发表于 2015-7-12 11:26\n我来抢个前排 认识我不 出售可乐雪碧爆米花一直看你在忙碌 这么多电路做了多长时间\n ...\n快一个月= =……"
+        },
+        {
+            "author": "obby825",
+            "timestamp": 1436671620,
+            "txt_content": " 很好很好~到时候用在自己的作品里~"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1436677620,
+            "txt_content": "恩，这一个月我也是看着你这么慢慢把作品做出来的，其中我也能够看到你成长的过程，对于各个的bug修理和整体的规划还是有待加强。这三个技巧放在一起也还是不错的。限时高亮鼓励一下。"
+        },
+        {
+            "author": "绝杀苦力怕",
+            "timestamp": 1436971500,
+            "txt_content": "超赞~~楼主我顶你~~"
+        },
+        {
+            "author": "亦塔尺",
+            "timestamp": 1437402000,
+            "txt_content": "赞一个=w=楼主棒棒的"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1437476760,
+            "txt_content": " 本帖最后由 林扬骐 于 2015-7-21 19:10 编辑 \n乙烯_中国 发表于 2015-7-12 13:07\n恩，这一个月我也是看着你这么慢慢把作品做出来的，其中我也能够看到你成长的过程，对于各个的bug修理和整 ...\n那我呐？……我觉得我也不错啊……{:10_503:}\n好吧，我的可能是太简单了吧……他太厉害了，不得不佩服！尽管看不懂……\n"
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1437519000,
+            "txt_content": "感觉高频下挂载略多，可能是我测试时卡各种BUG的主要原因，不过既然成品出品，那依旧支持。"
+        },
+        {
+            "author": "ICE冰世界",
+            "timestamp": 1438996380,
+            "txt_content": "请问如果是服务器这些指令全部要打进去还是MsYqgzt大大只是做一个教程？\n\n@MsYqgzt"
+        },
+        {
+            "author": "MsYqgzt",
+            "timestamp": 1438997880,
+            "txt_content": "ICE冰世界 发表于 2015-8-8 09:13\n请问如果是服务器这些指令全部要打进去还是MsYqgzt大大只是做一个教程？\n\n@MsYqgzt ...\n当然只是教程，成品链接我放上去了"
+        },
+        {
+            "author": "KevIn_MF",
+            "timestamp": 1439378100,
+            "txt_content": "赞一个，LZ你辛苦了{:10_512:}"
+        }
+    ]
+}

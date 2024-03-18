@@ -1,0 +1,174 @@
+{
+    "title": "[Ni]ProtocolLib怎么玩|使用ProtocolLib发包或收包|突破Bukkit限制|只有想不到系列",
+    "author": "andylizi",
+    "replyCount": 33,
+    "timestamp": 1458465840,
+    "txt_content": " 本帖最后由 andylizi 于 2016-3-20 17:35 编辑 \nProtocolLib原帖地址: DevBukkit SpigotMC\nJavaDoc: 作者的CI 最近这个地址似乎出毛病了, 框架里变空白，如果发现这种现象可以去这里查看\nGitHub: Here\n关于版本问题，目前我的结论是: 1.7.9以下使用3.4.0，1.7.9以上使用3.6.5，1.9使用3.6.5或还是测试版的3.7.0-BETA（只能在SpigotMC上下载到）\n\n以前认为ProtocolLib只是管MC通讯协议的，现在发现大部分跟nms有关的操作都涉及到了比如NBT。此贴只讲给玩家发送一个伪造的数据包让服务端认为接收到了一个玩家发送的数据包监听/修改 客户端->服务端 的数据包监听/修改 服务端->客户端 的数据包大概就这些了吧..\n其中大部分功能都是我自己摸索出来的，所以有错误欢迎指出不要介意\n为了保证您能愉快的阅读下面的内容，请确保您学会了Java面向对象的完整知识\n\n对了，此贴的所有代码都用截图表现，我帮你写好是没用的，自己摸索才是正道。\n\n首先啊，如果你要在插件中使用ProtocolLib（下简称PL）的任意功能，肯定得先在项目中添加PL的依赖，然后在plugin.yml里加入前置depend: [ProtocolLib]复制代码，如果这个插件不是必须使用PL的，那么可以加入软前置softdepend: [ProtocolLib]复制代码。我想这都是废话吧？\n\n\n\n\n\nQQ截图20160320104557.png (6.57 KB, 下载次数: 40)\n\n下载附件\n\n2016-3-20 10:44 上传\n\n\n\n\n\n发包和创建数据包监听器，都需要通过ProtocolManager来做到\n\n创建数据包监听器、如何操作数据包对象方法是\n\n\n\n\nQQ截图20160320104832.png (19.44 KB, 下载次数: 43)\n\n下载附件\n\n2016-3-20 10:49 上传\n\n\n\n\n\n有两种方式，一个是使用PacketListener接口（就跟Bukkit的Listener差不多），还有一个是PL用来简化PacketListener的PacketAdapter抽象类，这里只介绍第二种\nPacketAdapter有很多构造器，最优雅（推荐）的方法是使用PacketAdapter(AdapterParameteters params)。这个AdapterParameteters其实就是一个用于创建参数的Builder。在PacketListener法里，AdapterParameteters表现为ListeningWhitelist，也是使用Builder创建的。初始化一个AdapterParameterers的方法是PacketAdapter.params()。\n\n\n\n\nQQ截图20160320113516.png (60.78 KB, 下载次数: 51)\n\n下载附件\n\n2016-3-20 11:43 上传\n\n\n\n\n\n（这个结构可能有些人看着不习惯，但很“优雅”\n\n\n\n\nQQ截图20160320114238.png (40.2 KB, 下载次数: 40)\n\n下载附件\n\n2016-3-20 11:41 上传\n\n\n\n\n）\n在AdapterParameteters的链式Builder中，只有plugin和types是必须的。其他的，如果你不显式指定，都有默认值，具体请看javadoc\n还有一些方法，要不就是跟已存在的方法是一个功能，要不就是我也不知道啥意思咯，PL的坑这么深，很多方法我还没摸索出来\n对了，在讲GamePhase时少了个Handshake表示握手包（请求motd和进入服务器之前发送的包），GamePhase.LOGIN = HANDSHAKE+LOGIN+STATUS就不改图片了。\n注意: onPacketReceiving和onPacketSending的重写是可选的。但如果有clientSide，就必须重写onPacketReceiving否则报错。如果有serverSide，必须重写onPacketSending否则报错。\n\nPacketTypePL把目前已知的所有包的类型都包装成了PacketType。PacketType并不代表包本身，只是身份证一样的东西，就像面向对象的Class不能等同实例。\n注意PacketType不是一个enum，虽然看起来很像...\nPacketType中有很多顾名思义的静态方法，相信都看得懂，我就不讲了。重点要讲的是其中的子类HandshakeStatusLoginPlay\n这些就是GamePhase，之前解释过了\n上面的4个子类里，每个子类又有2个子类 （子孙满堂啊CLIENT来自客户端的数据包SERVER来自服务端的数据包\n这又是把GamePhase进一步细分了。\nCLIENT或SERVER的里面才是真正的包类型。例如PacketType.Play.Client.FLYING = net.minecraft.server.XXX.PacketPlayInFlying 类\n要查看PacketType对应的NMS class可以使用getPacketClass()方法\n另外PacketType里还有一个Legacy类，储存了1.6.4之前MC通讯协议大规模改版之前的数据包类型。\n\n如何愉快的使用PacketEvent操作拦截到的数据包我目前搞得懂的方法，除了图中的getPacket()等，还有\n\n\n\n\nQQ截图20160320120722.png (25.68 KB, 下载次数: 46)\n\n下载附件\n\n2016-3-20 12:08 上传\n\n\n\n\n如何愉快的获取数据包内的数据首先啊我们要举个梨子。\n假如我们要获取的是PacketType.Play.Client.FLYING数据包\n在愉快的读取其中的数据之前，我们需要找到这个数据包在NMS中是哪个类。NMS中数据包类名的命名规则如下\nnet.minecraft.server.XXX.PacketPlayInFlying\nPacket = 这是一个数据包\nPlay = GamePhase不解释\nIn = 服务端收到的包，也就是客户端发出的包\nFlying = 不解释\n使用反编译器（我用的是jd-gui）找到这个类，打开（注意这个类只在核心里，bukkitapi里肯定是没有的，不然还要ProtocolLib干嘛！）\n\n\n\n\nQQ截图20160320162032.png (60.22 KB, 下载次数: 38)\n\n下载附件\n\n2016-3-20 16:23 上传\n\n\n\n\n\n红框部分是重点（数据包类中的字段）\n我们要弄明白哪个字段对应的是什么意思，储存的是什么内容。如果运气好的话，可以根据名词猜出来，，运气不好被混淆了，那就是abcd了。其中x、y、z、yaw、pitch、hasPos、hasLook都是顾名思义的。但f是什么？这个时候你有两个选择：\n借助MCP。MCP一般会把字段的名字还原或加上注释的。不过MCP中数据包类名的格式可有点不一样。梨如PacketPlayInKeepAlive在1.8的MCP里是net.minecraft.network.play.client.C00PacketKeepAlivewiki.vg/Protocol 里面有MC通讯协议的数据包描述。例如PacketPlayInFlying在这里，它告诉我们\n\n\n\n\nQQ截图20160320163756.png (7.89 KB, 下载次数: 35)\n\n下载附件\n\n2016-3-20 16:36 上传\n\n\n\n\n\n唔，明白了，这么说那个f是onGround咯把未知字段的值输出，根据客户端/服务端正在执行的操作，猜！然后就好办了\n\n\n\n\nQQ截图20160320163943.png (6.67 KB, 下载次数: 39)\n\n下载附件\n\n2016-3-20 16:38 上传\n\n\n\n\n\n注意：顺序很重要\n\n\n\n\nQQ截图20160320164734.png (46.77 KB, 下载次数: 35)\n\n下载附件\n\n2016-3-20 16:48 上传\n\n\n\n\n\n够简单吧？相信都看得懂\nSending的数据包同理。修改和读取数据包的操作，在发送数据包时也要用到。\n\n刚刚这个数据包里，字段都是基本类型。那如果是NMS中特有的类呢？总不能import吧。其实不用担心，PL都替我们想好了。\n几乎所有的NMS类，在PL中都有包装。例如，GameProfile包装为WrappedGameProfile。举个梨子吧\n\n\n\n\nQQ截图20160320165003.png (8.23 KB, 下载次数: 36)\n\n下载附件\n\n2016-3-20 16:48 上传\n\n\n\n\n\nBlockPosition类和ItemStack类（注意这个不是bukkit中的ItemStack而是在net.minecraft.server.XXX包下的ItemStack）都是NMS成员，既然不能import那怎么修改呢？\n\n\n\n\nQQ截图20160320165213.png (4.4 KB, 下载次数: 34)\n\n下载附件\n\n2016-3-20 16:53 上传\n\n\n\n\n\n注意这个BlockPosition可不是nms中的BlockPosition，而是\n\n\n\n\nQQ截图20160320165257.png (6.85 KB, 下载次数: 37)\n\n下载附件\n\n2016-3-20 16:51 上传\n\n\n\n\n\nNMS的包装类。还有比如NMS的IChatBaseComponent可以通过WrappedChatComponent类中的静态方法或构造器创建。所有的包装类都在com.comphenix.protocol.wrappers下，你会发现那里面还可以操作nbt=w=\n\n\n\n\nQQ截图20160320165544.png (51.41 KB, 下载次数: 33)\n\n下载附件\n\n2016-3-20 16:54 上传\n\n\n\n\n\nPacketContainer里提供的方法，可以用于修改目前所有已知数据包的字段。里面还包括数组，List等的StructureModifier。那如果很不幸，有一个类型的字段，这里面没有提供呢？还是有办法——StructureModifier<T> packet.getSpecificModifier(Class<T> primitiveType)复制代码这个方法可以获得任意类型的修改器。举个梨子，例如Pear类型的就是packet.getSpecificModifier(Pear.class).write(0,new Pear(\"andylizi\"));复制代码23333\n\n向玩家发送数据包有了前面的铺垫，这个更简单了\n还是举个梨子。我们要让玩家看见一个Title。\n首先要找到对应的数据包PacketPlayOutTitle\n\n\n\n\nQQ截图20160320170320.png (5.55 KB, 下载次数: 45)\n\n下载附件\n\n2016-3-20 17:01 上传\n\n\n\n\n\n唔，虽然混淆了，但是如果你能熟练使用/title命令，那很简单就可以猜得出来\n/title zhouhaha(玩家) subtitle(EnumTitleAction) IChatBaseComponent内容 fadeIn(c) time(d) fadeOut(e)\nc = 淡入时间，d = 持续时间(内含淡出淡入)，e = 淡出时间\n好办了\n\n\n\n\nQQ截图20160320171105.png (26.89 KB, 下载次数: 44)\n\n下载附件\n\n2016-3-20 17:13 上传\n\n\n\n\n\n如果你看不懂，去看监听器那一部分的如何修改数据包部分。跟这个是一样的。\n太简单了不是么？\nsendServerPacket方法是发给单个玩家的，要把数据包全服广播，换成broadcastServerPacket方法就好了，具体参数自己研究吧\n\n\n让服务端认为接受到了一个玩家发送的数据包把sendServerPacket换为recieveClientPacket，参数都一样。还需要解释么？\n\n就是这么简单\n\n\n\n\n\nTAS-bgwhite.png (4.47 KB, 下载次数: 34)\n\n下载附件\n\n欢迎加入上古之石技术部\n2016-3-20 17:35 上传\n\n\n\n\n\n\n[groupid=324]上古之石美工工作组[/groupid]",
+    "replies": [
+        {
+            "author": "hhttll",
+            "timestamp": 1458531000,
+            "txt_content": "受到梨子大大的召唤特地来此支持。（终于有这个教程了233）"
+        },
+        {
+            "author": "1434967947",
+            "timestamp": 1458535440,
+            "txt_content": "似乎和我想象的不太一样太简单了"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1458535920,
+            "txt_content": " 本帖最后由 tallmoon 于 2016-3-21 13:15 编辑 \n\n教程不错，不过赶脚略难"
+        },
+        {
+            "author": "t9044",
+            "timestamp": 1458537660,
+            "txt_content": "给你点赞,在满版的所谓\"插件教程\"的背景下能冒出来一个深入的真正有用的教程.看到简直是老泪纵横"
+        },
+        {
+            "author": "rtz43",
+            "timestamp": 1458547500,
+            "txt_content": "虽然我之前都是抱着PL在spigot的页面啃食的。。\n但是不得不说中文版就是舒服~\n（顺带又找到了一个用NetBeans的同类）"
+        },
+        {
+            "author": "4one_R",
+            "timestamp": 1458557160,
+            "txt_content": "能否顺便说说TinyProtocol是干什么的"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458557400,
+            "txt_content": "4one_R 发表于 2016-3-21 18:46\n能否顺便说说TinyProtocol是干什么的\n那是一个比PL轻量级的插件，但是功能毫无疑问也少很多"
+        },
+        {
+            "author": "q549365815",
+            "timestamp": 1458560820,
+            "txt_content": "非常感谢 之前本人想利用ProtocoLib 做一个拒绝服务器信息\n奈何没有相应的教程 作者网站又被墙了 就放弃了\n\n看到梨子出的这个教程 非常及时啊"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1458568980,
+            "txt_content": " 本帖最后由 xiweihai 于 2016-3-21 22:07 编辑 \n\n我们又见面了，mc数据包大概的数据格式前3个字节是键名的哈希值后面两个字节储存的是该包后面的数据的长度故每个packet最大为256*256-1大概就是这样，做好线程同步就行了让数据包发送保持顺序就行了"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458569220,
+            "txt_content": "xiweihai 发表于 2016-3-21 22:03\n我们又见面了，mc数据包大概的数据格式前3个字节是键名的哈希值后面两个字节储存的是该包后面的数据的长度 ...\n谢谢你的提醒，但这个贴跟这个有关系吗？"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1458574920,
+            "txt_content": "andylizi 发表于 2016-3-21 22:07\n谢谢你的提醒，但这个贴跟这个有关系吗？\n这样你就可以直接获取流自己写协议了"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1458614220,
+            "txt_content": "xiweihai 发表于 2016-3-21 23:42\n这样你就可以直接获取流自己写协议了\n完全没必要。MC已经提供了一个CustomPayload包用于创建一个”Channel“来传输自定义的信息。例如BungeeCord就注册了BungeeCord的Channel，插件可以通过bukkitapi，向BC代理的玩家（实际就是BC）发送数据包来传递信息"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1459037880,
+            "txt_content": "andylizi 发表于 2016-3-22 10:37\n完全没必要。MC已经提供了一个CustomPayload包用于创建一个”Channel“来传输自定义的信息。例如BungeeCo ...\n求解，BC那个通道传递信息是用来干啥的？另外spigot的bc模式也是用这个实现的吗？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1459056000,
+            "txt_content": "splt 发表于 2016-3-27 08:18\n求解，BC那个通道传递信息是用来干啥的？另外spigot的bc模式也是用这个实现的吗？ ...\n插件Channel详解：http://wiki.vg/Plugin_channel\nBC的Channel：https://www.spigotmc.org/wiki/bu ... -messaging-channel/"
+        },
+        {
+            "author": "喵喵人",
+            "timestamp": 1459845120,
+            "txt_content": "真想不到幼儿园大班的孩子能自学到这个程度  佩服佩服{:10_512:}"
+        },
+        {
+            "author": "在下小熊猫",
+            "timestamp": 1469648700,
+            "txt_content": "好复杂，但是暂时还没用到"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1475964780,
+            "txt_content": "可否讲解下 PacketListener接口 呢"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1476007980,
+            "txt_content": "jebme 发表于 2016-10-9 06:13\n可否讲解下 PacketListener接口 呢\n帖内讲到的PacketAdapter就是一个PacketListener的实现，方便创建监听器。如果不闲麻烦直接实现PacketListener接口也行。其内部的所有抽象方法从名字上大概就能猜出意思吧，另外也有完整的javadoc。。\n\n创建一个ListeningWhitelist可以使用ListeningWhitelist类里的静态构造器方法"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1476497100,
+            "txt_content": "andylizi 发表于 2016-10-9 18:13\n帖内讲到的PacketAdapter就是一个PacketListener的实现，方便创建监听器。如果不闲麻烦直接实现PacketLis ...\nPL的doc好迷，老是打不开"
+        },
+        {
+            "author": "tyxiaomin",
+            "timestamp": 1476516420,
+            "txt_content": "可以在任何服务端内使用吗"
+        },
+        {
+            "author": "tallmoon",
+            "timestamp": 1478259960,
+            "txt_content": " 本帖最后由 tallmoon 于 2016-11-4 19:48 编辑 \n\n梨子大大图貌似只有下载下来才能看"
+        },
+        {
+            "author": "syn614211648",
+            "timestamp": 1501228560,
+            "txt_content": "从此误入了Minecraft 插件开发另一深渊 （ 笑"
+        },
+        {
+            "author": "Easted",
+            "timestamp": 1502722860,
+            "txt_content": "LZ，如何获取科技枪的伤害？"
+        },
+        {
+            "author": "@TGL",
+            "timestamp": 1551426420,
+            "txt_content": "有办法知道数据包是哪个插件发送的吗"
+        },
+        {
+            "author": "Akron",
+            "timestamp": 1551852660,
+            "txt_content": "第一次看感觉非常晕,第二次看发现这pl真的很强大,也不难理解,,梨子用心了"
+        },
+        {
+            "author": "Permafrost",
+            "timestamp": 1555851540,
+            "txt_content": "是编程大佬吗？"
+        },
+        {
+            "author": "2425701120",
+            "timestamp": 1557310020,
+            "txt_content": "ssssssssssssss"
+        },
+        {
+            "author": "梦星桐",
+            "timestamp": 1577887200,
+            "txt_content": "请问pm是什么"
+        },
+        {
+            "author": "oldkingOK",
+            "timestamp": 1583891400,
+            "txt_content": "梨子大大，像这种Set类型的数据该怎么write()和read()?\n\n\n\n\n20200311094707.png (121.96 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-11 09:49 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "一条小柴鱼",
+            "timestamp": 1586159820,
+            "txt_content": "我感觉我好笨，看不懂。。。"
+        },
+        {
+            "author": "xiaomaaaa",
+            "timestamp": 1588430700,
+            "txt_content": "MCBBS有你更精彩~我还在纳闷viaversion是怎么修改数据包的呢，感谢感谢"
+        },
+        {
+            "author": "Klos_shizi",
+            "timestamp": 1588432200,
+            "txt_content": "66666666023"
+        },
+        {
+            "author": "向天笑Kerin",
+            "timestamp": 1612511160,
+            "txt_content": "1.16.5 mohist服务端装那个版本呀，把protocollib.jar复制到plugins文件夹，重启服务器之后，protocollib.jar文件就没了，也没有成功载入."
+        }
+    ]
+}

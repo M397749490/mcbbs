@@ -1,0 +1,34 @@
+{
+    "title": "TileEntity不执行update方法",
+    "author": "CCxia",
+    "replyCount": 5,
+    "timestamp": 1557935100,
+    "txt_content": "            @Nullable\n            public SPacketUpdateTileEntity getUpdatePacket()\n            {\n                    NBTTagCompound nbtTag = new NBTTagCompound();\n                this.writeToNBT(nbtTag);\n                return new SPacketUpdateTileEntity(getPos(), 1, nbtTag);\n            }\n            \n            public NBTTagCompound getUpdateTag()\n            {\n                return this.writeToNBT(new NBTTagCompound());\n            }\n            \n            public NBTTagCompound writeToNBT(NBTTagCompound compound)\n            {\n                    super.readFromNBT(compound);\n                    compound.setInteger(\"Power\",this.power);\n                    return compound;\n            }\n            \n            public void readFromNBT(NBTTagCompound compound)\n            {\n                    super.readFromNBT(compound);\n                    this.power=compound.getInteger(\"Power\");\n            }\n            \n            public void handleUpdateTag(NBTTagCompound tag)\n            {\n                this.readFromNBT(tag);\n            }\n            \n            public void onDataPacket(NetworkManager manager, SPacketUpdateTileEntity packet) {\n                NBTTagCompound data = packet.getNbtCompound();\n                this.readFromNBT(data);\n            }\n            \n            public int getSizeInventory()\n            {\n                return 2;\n            }\n            \n            public int getInventoryStackLimit()\n            {\n                return 64;\n            }\n\n之前update里的代码工作正常，但添加了上述内容以后发现update方法根本不执行，在里面加println（）方法也没有看到任何字符输出，想请假一下大佬是哪边出了问题。\n本人forge版本1.12.2，昨天发现想用tesr中的名字来显示te中的一些参数（例如电池盒的当前电量）的话，好像不把te同步到客户端的话就不行，也想问一问这一过程应该怎么实现。\n",
+    "replies": [
+        {
+            "author": "CCxia",
+            "timestamp": 1557936660,
+            "txt_content": "发现问题了，我居然在writeToNBT方法里调用了父类的read方法，太蠢了啊啊啊啊"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557981420,
+            "txt_content": "update?我还以为是ITickable\n对了，你这个只是区块加载时同步，如果要实时同步需要增加自己的数据包\n如果只在打开GUI时就不用这么麻烦，可以覆盖Container中detectAndSendChanges方法"
+        },
+        {
+            "author": "CCxia",
+            "timestamp": 1557983040,
+            "txt_content": "roj234 发表于 2019-5-16 12:37\nupdate?我还以为是ITickable\n对了，你这个只是区块加载时同步，如果要实时同步需要增加自己的数据包\n如果只 ...\n恩，我发现问题了，要在uptate里写worldNoticeChange这个方法。。。。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1557983100,
+            "txt_content": "roj234 发表于 2019-5-16 12:37\nupdate?我还以为是ITickable\n对了，你这个只是区块加载时同步，如果要实时同步需要增加自己的数据包\n如果只 ...\n或者用原版的 SPacketUpdateTileEntity：protected final void syncToTrackingClients() {\n        if (!this.world.isRemote) {\n                SPacketUpdateTileEntity packet = this.getUpdatePacket();\n                PlayerChunkMapEntry trackingEntry = ((WorldServer)this.world).getPlayerChunkMap().getEntry(this.pos.getX() >> 4, this.pos.getZ() >> 4);\n                if (trackingEntry != null) {\n                        for (EntityPlayerMP player : trackingEntry.getWatchingPlayers()) {\n                                player.connection.sendPacket(packet);\n                        }\n                }\n        }\n}复制代码"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557983160,
+            "txt_content": "CCxia 发表于 2019-5-16 13:04\n恩，我发现问题了，要在uptate里写worldNoticeChange这个方法。。。。\nnotifyNeighborUpdate?\n其实markDirty也可以。。吧。。。\n不过最好是检测数据有了更改才使用，不然会增加很多带宽浪费(服务器时)"
+        }
+    ]
+}

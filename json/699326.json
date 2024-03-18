@@ -1,0 +1,29 @@
+{
+    "title": "如何让玩家右键点击一下任意的方块就睡觉？",
+    "author": "110000",
+    "replyCount": 4,
+    "timestamp": 1497937320,
+    "txt_content": "我想实现让玩家右击一下任意方块（除了空气），就可以像用床一样睡觉，不是简单的躺下，而是让玩家进入睡眠状态（与床一样都得晚上），和床的功能一模一样，该怎么做？（判定右键点击没有问题，问题就是如何让玩家进入睡眠状态）\n我之前去spigot或者bukkit的论坛里看到类似的问题，他们都说要用到数据包，然后我看到他们给出的代码都有用到PacketPlayOutBed这个类，但是我把他们给出的代码复制进去，运行的时候什么也没出现……\n\n为什么要用到数据包呢？没有一个函数直接调用就让玩家睡觉？\n",
+    "replies": [
+        {
+            "author": "q88724653",
+            "timestamp": 1498024080,
+            "txt_content": "用ProtocolLib发数据包"
+        },
+        {
+            "author": "DefineEvil",
+            "timestamp": 1498052640,
+            "txt_content": "Use Bed\n\nThis packet tells that a player goes to bed.\n\nThe client with the matching Entity ID will go into bed mode.\n\nThis Packet is sent to all nearby players including the one sent to bed.\n\nAny packets sent with a location not currently occupied by a bed will be ignored by clients.\nPacket ID         State         Bound To         Field Name         Field Type         Notes\n0x2F         Play         Client         Entity ID         VarInt         Sleeping player's EID\nLocation         Position         Block location of the head part of the bed\n\n转自wiki.vg\n\n好了，构造包吧"
+        },
+        {
+            "author": "110000",
+            "timestamp": 1498138260,
+            "txt_content": "DefineEvil 发表于 2017-6-21 21:44\nUse Bed\n\nThis packet tells that a player goes to bed.\n虽然说是找到用法了，但是按实例代码的步骤来弄，出现了Field index out of bounds. (Index: 1, Size: 1)的异常，而且把实例代码放进去测试一样出现这个异常。\n我换了不同的protocollib版本，还是会抛出异常。"
+        },
+        {
+            "author": "110000",
+            "timestamp": 1498138440,
+            "txt_content": "这是实例代码，原地址：https://gist.github.com/aadnk/8611384\n第56,57,58行会抛出Field index out of bounds. (Index: 1, Size: 1)异常\n我是在1.8.3spigot上测试的，protocol版本是3.6.4\n\npackage com.comphenix.example;\n\nimport java.lang.reflect.InvocationTargetException;\nimport java.util.Collections;\nimport java.util.Set;\nimport java.util.WeakHashMap;\n\nimport org.bukkit.Location;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.entity.Player;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport com.comphenix.protocol.PacketType;\nimport com.comphenix.protocol.ProtocolLibrary;\nimport com.comphenix.protocol.ProtocolManager;\nimport com.comphenix.protocol.events.PacketContainer;\n\npublic class SleepingAnimation extends JavaPlugin {\n    private ProtocolManager manager;\n    \n    // Just a way to record if a player is asleep\n    private Set<Player> sleeping = Collections.newSetFromMap(new WeakHashMap<Player, Boolean>());\n    \n    @Override\n    public void onEnable() {\n        manager = ProtocolLibrary.getProtocolManager();\n    }\n    \n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        if (sender instanceof Player) {\n            Player player = (Player) sender;\n            \n            if (sleeping.add(player)) {\n                playSleepAnimation(player);\n            } else {\n                stopSleepAnimation(player);\n                sleeping.remove(player);\n            }\n        }\n        return true;\n    }\n    \n    /**\n     * Play the sleep animation for every nearby player.\n     * @param alseep - the player asleep.\n     */\n    private void playSleepAnimation(Player asleep) {\n        final PacketContainer bedPacket = manager.createPacket(PacketType.Play.Server.BED, false);\n        final Location loc = asleep.getLocation();\n        \n        // http://wiki.vg/Protocol#Use_Bed\n        bedPacket.getEntityModifier(asleep.getWorld()).\n            write(0, asleep);\n        bedPacket.getIntegers().\n            write(1, loc.getBlockX()).\n            write(2, loc.getBlockY() + 1).\n            write(3, loc.getBlockZ());\n        \n        broadcastNearby(asleep, bedPacket);\n    }\n    \n    private void stopSleepAnimation(Player sleeping) {\n        final PacketContainer animation = manager.createPacket(PacketType.Play.Server.ANIMATION, false);\n        \n        // http://wiki.vg/Protocol#Animation\n        animation.getEntityModifier(sleeping.getWorld()).\n            write(0, sleeping);\n        animation.getIntegers().\n            write(1, 2);\n        \n        broadcastNearby(sleeping, animation);\n    }\n\n    private void broadcastNearby(Player asleep, PacketContainer bedPacket) {\n        for (Player observer : manager.getEntityTrackers(asleep)) {\n            try {\n                manager.sendServerPacket(observer, bedPacket);\n            } catch (InvocationTargetException e) {\n                throw new RuntimeException(\"Cannot send packet.\", e);\n            }\n        }\n    }\n}复制代码"
+        }
+    ]
+}

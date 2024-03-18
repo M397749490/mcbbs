@@ -1,0 +1,354 @@
+{
+    "title": "[管理|编程|综合][上古之石]SCUtils —— 用操作 DOM 的方式操作玩家！[全版本]",
+    "author": "hhttll",
+    "replyCount": 69,
+    "timestamp": 1473544080,
+    "txt_content": " 本帖最后由 1582952890 于 2017-9-16 19:09 编辑 \n\nSCUtils - 用操作 DOM 的方式操作玩家！\n告别愚蠢的记分板，使用 SCUtils 进入小游戏 2.0 时代！\n\n许可\n请注意，本插件使用 GPLv3 进行许可。不在每个文件加那段话只是为了美观而不代表该插件就不是 GPLv3 了。\n\n这是啥玩意\nSCUtils 是一个基于 BukkitAPI 的 Minecraft 服务端综合性插件。SCUtils 完全由 SCLeo (hhttll) 独立开发。目前而言，SCUtils 提供了以下三大功能。\n\n - MineQuery\n - 实用命令\n - 对外实用类\n\nMineQuery\nMineQuery 是一门受到 jQuery 启发的 表达式语言，用于强大、快速、方便地从服务器地在线玩家中选择出所需要地玩家。其编译器及解析器位于 net.minegeck.plugins.scutils.minequery。MineQuery 与 jQuery 看起来很像，但实际上完全不一样。jQuery 是基于 JavaScript 的一个库，而 MineQuery 本身是一门独立的语言，与 JavaScript 同级。MineQuery 从头到尾只是一个表达式，没有语句的概念，因为其所有目的就是为了计算并表示一个玩家的集合。现在让我们来看一看 MineQuery 的几个例子吧。\n\n$(#SCLeo)复制代码\n上面这段代码的作用是选择所有名字是 SCLeo 的玩家。很明显，在 jQuery 里面，选择器的内容需要用引号包起来，因为那是一个传入 $ 这个函数的字符串。但是在 MineQuery 里并不需要那么做，因为在 MineQuery 里 #SCLeo 是一个 ID 选择器，$(...) 是一个 匿名查询选择器 就好比 \"3\" 在 JavaScript 里是一个数字一样，是被语言规范所明确的。匿名查询选择器 的完整格式是 $(选择器表达式1, 选择器表达式2, ...)。每一个 选择器表达式 有可能会是一个 查询选择器单元，也有可能是若干个 查询选择器单元 通过 选择器表达式运算符 连接。每一个 查询选择器单元 都会包括若干个 选择器 和 限制器。选择器 有很多种，比如刚开始的 匿名查询选择器 就是选择器的一种（是的没错，他是可以无限嵌套的）。除此之外，选择器 还有如下几种：\n\n<ul> - 名字选择器\n - ID 选择器\n - 类选择器\n - 属性选择器\n - 查询选择器\n</ul>名字选择器 (Name Selector) 与 ID 选择器 (ID Selector)\n名字选择器 与 ID 选择器 十分相似。他们的唯一区别在于，名字选择器 的选择标准是 Bukkit 的 getPlayer(String name) 方法，而 ID 选择器的标准是 getExactPlayer(String name) 方法。名字选择器 允许模糊匹配（SC 可匹配 SCLeo，scleo2 等等，但不可匹配 CSLeo）。ID 选择器 则要求用户名完全一致，完全一致包括大小写也应该正确。\n\n名字选择器 的格式非常简单: 直接书写名字。是的你没有看错，直接写名字。比如要匹配 SCLeo，可以直接写 SC。\n\nID 选择器 的格式稍微复杂: 你需要在被匹配的 ID 前加上一个井号，如 #SCLeo。\n\n类选择器 (Class Selector)\n类选择器 的效果是选择拥有指定类的玩家。至于什么是类，大体上可以理解就是 Minecraft 官方的 scoreboard 里的 tag。添加及删除类的方法将在之后介绍 class 命令的时候给出。\n\n类选择器 的格式和 ID 选择器 很像: 在你需要匹配的类名前加上一个点，如 .foo 就可以匹配所有拥有 foo 这个类的玩家。\n\n属性选择器 (Attribute Selector)\n属性选择器 是所有基础选择器里面最复杂的。他将会匹配属性符合一定条件的玩家。一个最简单的例子是 [level == 5] 将会选择所有等级是 5 的玩家。当然，你还可以通过 [level == 5 && gamemode == 0] 来选择处于生存模式且等级是 5 的玩家。具体的语法将在后面介绍 MineQuery 表达式的时候给出。\n\n属性选择器 的格式比较复杂: 你需要用中括号将你的条件包裹起来，如果你有多个条件（需要全部满足才匹配），你需要用逗号分割这几个条件（当然，多条件也可以用 && 操作符完成）。这里是一个使用多个条件的例子: [level > 3, hp < 15]。\n\n查询选择器 (Query Selector)\n查询选择器 相当于函数，你需要事先通过 qs 命令来将一个选择器保存到 查询选择器 然后你才能使用这个 查询选择器。举个例子，你可以使用 /qs set anyname .a 来将 .a 这个类选择器保存到 anyname 这个查询选择器，然后你就可以使用 $anyname 来代替 .a。查询选择器 在代替极其复杂的复合选择器时十分有用，因为你不用多次重复这个复合选择器。更重要的是，查询选择器 是预编译的，也就是说它只在创建的时候以及服务器重新载入的时候被编译。之后就直接调用的是编译后的结果。这将极大地提高性能。如果可能的话，你应该将任何在命令方块中执行的选择器替换为 查询选择器。\n\n查询选择器 的格式并不复杂，你只需要在目标 查询选择器 的名字前加一个美元符号，如 $anyname 就会调用名为 anyname 的 查询选择器。\n\n限制器 (Limiter)\n限制器 是在选择结果中进行进一步筛选的选择器（不过它不是严格意义上的选择器因为它依赖于别的选择器）。限制器的格式是 :限制器类型(目标数量)，如果目标数量是 1，那么就可以省略为 :限制器类型。限制器 目前一共只有三种: TOP, BOTTOM 和 RANDOM。顾名思义，TOP 就是从上一个选择结果中选择最顶端的那几个玩家出来。RANDOM 则选择随机的几个。BOTTOM 选择最底下的那几个。限制器不区分大小写。例如 .asd:top(5) 就会选择拥有 asd 这个类的前 5 个玩家。\n\n当 限制器 被使用时，那么他和被限制的选择器就构成了查询选择器单元。例如其实刚刚例子中的 .asd:top(5) 就是一个查询选择器单元。\n\n查询选择器单元 (Query Selector Unit)\n查询选择器单元 是由若干个选择器和限制器构成的。每一个 查询选择器单元 必须要有至少一个任意类型的选择器，限制器 则是可有可无的。查询选择器单元 的工作原理是，让第一个选择器在所有玩家范围内筛选出符合条件的玩家，然后让第二个选择器在第一个选择器的选择结果中筛选出符合第二个条件的玩家，以此类推。当所有选择器都被依次执行后，其最后的结果会被依次送入限制器中。例如 .asd.qwe:top(3):random 这个 查询选择器单元 首先会在所有玩家中挑选出有 asd 这个类的所有玩家，然后，在这批玩家中挑选出拥有 qwe 这个类的玩家 （也就是说如果玩家数量很大，第二步操作会比第一步负担小很多，因为挑选的范围小了）。比如这时候，同时拥有 asd 和 qwe 的玩家还有 10 个。那么这 10 个玩家就会被送入 :top(3) 这个限制器中，那么这 10 个玩家中的后 7 个就会被淘汰。最后，剩下的三个被送入 :random 这个限制器中，随机挑选出一个作为这个查询选择器单元的最终结果。\n\n查询选择器单元 的格式是: 选择器1 选择器2 ... 选择器n 限制器1 限制器2 ... 限制器 n。需要注意的是，限制器永远在选择器后面。\n\n二元选择器 (Binary Selector)\n二元选择器 是对于多个 查询选择器单元 结果的集合操作。请注意，虽然都是正规的集合操作，二元选择器使用 四则运算符 来表示不同的操作，这个在数学中是没有的。（数学中有自己的集合运算符，但是很难输入）如果你要用，你会被你的数学老师打死的。\n\n二元选择器 非常类似普通的加减乘除，甚至还有运算优先级（可惜没有括号，因为括号可以通过匿名查询选择器来实现）。二元选择器 一共有以下 4 种: 并集，使用符号 +; 差集，使用符号 -; 交集，使用符号 *; 对等差集，使用符号 /。如果你不知道这四个操作是什么意思，那么请跳过这个选择器，因为我不打算教你怎么弄集合。\n\n并集和差集的优先级小于交集和对等差集，也就是说 .a + .b * .c 将会先求 .b 和 .c 的交集，然后再与 .a 求并集。如果要先求 .a 和 .b 的并集，你可以这样: $(.a + .b) * .c。\n\n请再次注意，二元选择器的输入是两个 查询选择器单元，也就是说 .a.b + .c 会被理解为是一个要求同时 a 和 b 的查询选择器单元 与 c 这个单元求并集。\n\n匿名查询选择器 (Anonymous Query Selector)\n匿名查询选择器 也就是复合查询选择器。 匿名查询选择器 需要提供若干个 二元选择器 或 查询选择器单元 作为输入，然后返回所有输入的选择器的并集。这里有一个例子: $(.a, .b) 将会返回有 a 或者 b 的类的玩家。当然，这和 $(.a + .b) 是等效的。我管这个叫语法糖 233。匿名查询选择器 还有一种类型就是不接受任何输入，就像这样: $()，在这种情况下，括号可以被省略（$），现在，这个匿名查询选择器的作用就是选择所有的玩家。\n\n好了，以上就是选择器的所有内容，接下来开始介绍 MineQuery 表达式。\n\nMineQuery 表达式\n一个表达式返回一个值，这句话永远不会错。不过需要注意的是我们把一个集合，一个列表也当一个值。目前，MineQuery 还不支持集合或者列表。MineQuery 只支持以下三种类型的数据: 数字， 字符串 和 布尔值。也就是说，表达式就是一个用来表示这三种数据类型中的一种的方式。\n\n比如: 1 就是一个合法的表达式，它返回了数字 1。\n\n\"asd\" 也是一个合法的表达式，它返回了字符串 \"asd\"。\n\n5>3 也是一个合法的表达式，它返回了布尔值 True（真，即 5 确实大于 3。）请注意，和别的编程语言一样，MineQuery 可以直接写数字常量和字符串常量。但是与别的语言不一样的是，MineQuery 不允许 布尔值的常量。也就是说你写 true，会被解析器认为是一个叫做 true 的变量。\n\n说到变量，你一定很好奇，变量是怎么来的。那么我就来告诉你，变量相当于是玩家的属性。比如 level + 3 返回的就是玩家的等级加上 3。那么这个玩家究竟是谁呢，这个有点难理解，大概意思就是说同一个表达式对于不同的玩家有不同的计算结果。这也就是和 属性选择器 对上的地方了。属性选择器 要求提供一个表达式，那么你就得填一个表达式，比如 [level > 5]。那么，这个 属性选择器 就会依次对于每一个玩家计算 level > 5，对于等级大于 5 的玩家，这个表达式就会返回 True，而对于等级小于等于 5 的玩家，这个表达式就会返回 False。因此 [level > 5] 这个 属性选择器 会选择所有等级大于 5 的玩家。\n\nMineQuery 表达式一共支持以下这些二元操作符（就是写在两个值之间的）：\n\n&& 与操作符 优先级 3\n|| 或操作符 优先级 2\n> 大于操作符 优先级 7\n>= 大于或等于操作符 优先级 7\n== 等于操作符 优先级 7\n<= 小于或等于操作符 优先级 7\n< 小于操作符 优先级 7\n!= 不等于操作符 优先级 7\n+ 加法操作符 优先级 10\n- 减法操作符 优先级 10\n* 乘法操作符 优先级 20\n/ 除法操作符 优先级 20\n% 求余操作符 优先级 20\n// 整除操作符 优先级 20\n& 字符串连接操作符 优先级 10复制代码\n需要注意的有两个，一个是整除操作符，其作用是获得整数部分，例如 5//2 = 2 因为 5/2 = 2...1。还有一个是字符串连接使用 & 而不是 +。\n\nMineQuery 表达式还支持两个一元操作符（就是写在一个值之前的）：\n\n- 取负操作符\n! 取反操作符复制代码\n具体每个操作符是做什么的，我真的不想解释了，这个解释起来就是一学期的编程课啊...\n\n什么时候可以使用玩家选择器\n所有 SCUtils 提供的命令中凡是需要填写玩家的地方都可以使用玩家选择器。部分命令只能接受 1 个玩家作为输入，这时候就需要用 限制器 来限制数量了。在部分 SCUtils 命令中，命令的参数可以是变量。比如在 /velocity 中就是这样。/velocity $ level 就可以把所有玩家的垂直速度设置为他的等级。等级越高飞的速度越快。\n\n如果配置文件中的 为所有命令启用 MineQuery 选择器 选项被开启且使用者拥有 scutils.globalqueryselector 这个权限节点，那么所有命令都将可以使用 MineQuery 选择器。但是这里有个特殊要求就是所有的选择器必须是 匿名查询选择器 或者 查询选择器，也就是说，在别的命令中使用的选择器都是要用 $ 开头的。变量在这里也是支持的，使用 {%变量名%} 来使用变量。比如 /effect $ 1 {%level%} 会给所有玩家以其等级为时长的 1 级速度效果。请注意，这个选项仅对玩家输入的命令有效，服务器后台或者命令方块中如果要使用请使用 exec 命令。\n\n在 exec 和 命令序列中，MineQuery 选择器总是启用的。无论是否开启 为所有命令启用 MineQuery 选择器， /exec effect $ 1 {%level%} 都将工作正常。在 exec 和 命令序列中，MineQuery 选择器的用法和上一条一样。\n\n变量\n刚刚提到了变量，我相信很多人现在就开始好奇了变量到底有哪些。那么这个部分就会来介绍变量到底是如何工作的。\n\n首先，一个变量是由两个部分组成的: 命名空间 和 变量名。如果命名空间被省略则默认使用 property。也就是说你刚刚用的那个变量 level 实际上是 property:level 的简写。命名空间目前有三个（有计划做成可扩展的，但是还没有实现）: property, data 和 bukkit。\n\n命名空间 property\nProperty 是一个玩家的基础属性，以下是一个完整的 property 中的变量列表:\n\nlevel, lvl, lv\n玩家的等级\n\nexp, xp\n玩家的经验\n\nflying, fly\n玩家是否在飞行\n\nsleeping, sleep\n玩家是否在睡觉\n\nop\n玩家是否是 op\n\ncanfly\n玩家是否可以飞\n\ngamemode\n玩家的游戏模式编号\n\nname\n玩家的名字\n\ncustomname\n玩家的自定义名字\n\ndisplayname\n玩家的显示名字\n\nplayerlistname\n玩家在玩家列表中显示的名字\n\nfalldistance\n玩家的掉落距离\n\nfood, foodlevel\n玩家的饥饿度\n\nhp, health\n玩家的生命值\n\nwalkspeed\n玩家的行走速度\n\nflyspeed\n玩家的飞行速度\n\ninsidevehicle\n玩家是否在车内\n\nsneaking, sneak\n玩家是否在潜行\n\nsprinting, sprint, running, run\n玩家是否在奔跑\n\nxpos, xposition\n玩家的 X 坐标\n\nypos, yposition\n玩家的 Y 坐标\n\nzpos, zposition\n玩家的 Z 坐标\n\nyaw\n玩家的水平转向角度\n\npitch\n玩家的垂直转向角度\n\nworld, worldname\n玩家所在世界名\n\nxvel, xvelocity\n玩家的 X 轴速度\n\nyvel, yvelocity\n玩家的 Y 轴速度\n\nzvel, zvelocity\n玩家的 Z 轴速度\n\n命名空间 bukkit\nbukkit 中的所有变量都是你的服务端原生提供的。本插件使用反射调用，直接获取返回结果。因为 bukkit 的那些方法有些不只是 getter，还会有 setter 之类的，所以这个命名空间是极其危险的。（就目前而言，由于 setOp 之类的方法需要提供输入值，所以会被本插件忽略。但是我不敢保证未来一定没有不需要参数的危险操作出现。如果过于危险了，请告诉我，我会增加更细的权限控制到这里来。）\n\nbukkit 命名空间内的变量直接使用方法名，你可以在这里获取所有可以用的方法名: https://hub.spigotmc.org/javadocs/spigot/org/bukkit/entity/Player.html。\n\n这是一个使用 bukkit 命名空间的一个例子: [bukkit:getSaturation > 3]。这个选择器会选择所有饱食度大于 3 的玩家。\n\n命名空间 data\ndata 相当于每一个玩家独立的变量，你可以通过 /data set 命令来给一个玩家设置一个数据。设置完成后就可以在这里读取了。具体的设置办法放在后面讲 data 这个命令的地方介绍。\n\n[data:haha > 3] 会选择 haha 这个变量大于 3 的玩家。需要注意的是，如果一个玩家没有 haha，那么在为他计算时，data:haha 会返回 False。\n\n实用命令\n请注意，你随时可以使用命令 /uhelp <命令> 来查询一个命令的完整帮助信息。/uhelp 来获得命令列表。\n\nclass 命令\n别名: uclass, scuclass\n\nclass 命令用于查看或编辑一个玩家的类。该命令一共有 10 种形式：\n\n为一个或多个玩家添加一个类\n如果玩家名被忽略，则使用使用命令的玩家，之后所有命令基本上都是这样，就不多解释了。\n\n/class add <类名>\n/class add <玩家> <类名>复制代码\n为一个或多个玩家删除一个类\n/class remove <类名>\n/class remove <玩家> <类名>复制代码\n为一个或多个玩家切换一个类的状态\n如果原来有，切换完就没了。如果原来没有，切换完就有了。\n\n/class toggle <类名>\n/class toggle <玩家> <类名>复制代码\n列出一个玩家的所有类\n如果选择了多个玩家，请使用限制器限制到 1 个玩家。s\n\n/class\n/class <玩家>\n/class list\n/class list <玩家>复制代码\ncs 命令\n别名: ucs, scucs, scucommandsequence, ucommandsequence, commandsequence\n\ncs 命令用于操作命令序列。命令序列相当于一个命令列表。执行这个命令序列将会依次执行序列中的每一个命令。若要执行命令序列，请使用命令 rcs。该命令一共有 8 种形式。\n\n列出所有可用的命令序列。\n/cs list复制代码\n删除一个命令序列\n/cs delete <序列名>复制代码\n创建一个命令序列\n/cs create <序列名>复制代码\n在一个命令序列的指定命令之后插入一条命令\n/cs insert <序列名> <位置> <命令>复制代码\n从一个命令序列中删除一个命令\n/cs remove <序列名> <位置>复制代码\n替换一个命令序列中的命令\n/cs replace <序列名> <位置> <命令>复制代码\n在一个命令序列中追加一个命令\n/cs append <序列名> <命令>复制代码\n列出一个命令序列中的所有命令\n/cs list <序列名>复制代码\ndata 命令\n别名: udata, scudata\n\ndata 命令用于修改或查看一个或多个玩家的数据。该命令一共有 8 种形式。\n\n设置一个或多个玩家的某个数据\n如果值填写 null 则删除该值。请注意值可以是个表达式。比如 /data set $ time data:time + 1 可以把所有玩家 time 这个数据 + 1。（蛤？）\n\n/data set <变量名> null\n/data set <变量名> <值>\n/data set <玩家> <变量名> null\n/data set <玩家> <变量名> <值>复制代码\n列出一个玩家的所有数据\n请保证只选择了一个玩家。\n\n/data\n/data <玩家>\n/data list\n/data list <玩家>复制代码\nexec 命令\n别名: uexec, scuexec\n\nexec 命令相当于一个用来执行命令的命令。其主要作用有两个，一是用来在命令方块中使用 MineQuery 选择器；二是在一个命令中执行多个简单命令（使用竖线（|）封割，竖线前后需要有空格。）。（如果要更复杂的命令，请使用命令序列。）该命令一共有 1 种形式，那就是:\n\n/exec <命令>复制代码\n举例: /exec say a | say b\n\nexplain 命令\n别名: uexplain, scuexplain\n\nexplain 命令用于展示一个 MineQuery 选择器或表达式的 AST（抽象语法树）。如果你不知道 AST 是什么，跳过即可。该命令一共有 4 种形式。\n\n分析一个 MineQuery 选择器\n/explain sel <选择器>\n/explain selector <选择器>复制代码\n分析一个 MineQuery 表达式\n/explain exp <表达式>\n/explain expression <表达式>复制代码\nuhelp 命令\n别名: scuhelp\n\nuhelp 命令用来列出所有可用的命令或者获得一个命令的详细用法。该命令一共有 3 种形式。\n\n列出所有的命令\n/uhelp\n/uhelp <页码>复制代码\n获得一个命令的详细信息\n/uhelp <命令>复制代码\nnocmd 命令\n别名: unocmd, scunocmd\n\nnocmd 命令用来禁止或解除禁止一个玩家使用命令。nocmd 在制作小游戏的时候应该非常有效。请注意如果一个玩家被禁止使用命令，为了防止自己禁止自己，凡是拥有 scutils.overridernocmd 这个权限节点的玩家不会被禁止使用命令。该命令一共有 6 种形式。\n\n使一个或多个玩家禁止使用命令\n/nocmd on <玩家>\n/nocmd on <玩家> <原因>复制代码\n使一个或多个玩家取消禁止使用命令\n/nocmd off <玩家>\n/nocmd off <玩家> <原因>复制代码\n使一个或多个玩家切换是否禁止使用命令\n/nocmd toggle <玩家>\n/nocmd toggle <玩家> <原因>复制代码\nqs 命令\n别名: uqs, scuqs, scuqueryselector, uqueryselector, querselector\n\nqs 命令用于操作存储的查询选择器。查询选择器的用法已在上方介绍查询选择器的地方介绍，这里只介绍如何操作存储的查询选择器。该命令一共有 6 种形式。\n\n列出所有保存的查询选择器\n/qs\n/qs list复制代码\n显示一个查询选择器的内容\n/qs show <查询选择器名>\n/qs showast <查询选择器名>复制代码\n删除一个查询选择器\n/qs remove <查询选择器名>复制代码\n设置一个查询选择器的内容\n/qs set <查询选择器名> <内容>复制代码\nrcs 命令\n别名: urcs, scurcs, scuruncommandsequence, uruncommandsequence, runcommandsequence\n\nrcs 命令用于运行命令序列。该命令一共有 2 种形式。\n\n以自己的身份运行一个命令序列\n/rcs <序列名>复制代码\n以 Console 的身份运行一个命令序列\n/rcs console <序列名>复制代码\nselect 命令\n别名: uselect, scuselect\n\nselect 命令用于试验一个玩家选择器，他只有一种形式:\n\n/select <玩家选择器>复制代码\ntokenize 命令\n别名: utokenize, scutokenize\n\n和 explain 一样，tokenize 是一个内部调试用的命令。他可以用来查看一个语句 tokenize 的结果。该命令只有一种形式:\n\n/tokenize <MineQuery 语句>复制代码\nvelocity 命令\n别名: uvelocity, scuvelocity, vel\n\nvelocity 命令用于设置一个或多个玩家的运动速度。请注意，这个命令是允许使用变量的，例如 /velocity $ level。该命令一共有 4 种形式。\n\n/velocity <X 速度> <Y 速度> <Z 速度>\n/velocity <Y 速度>\n/velocity <玩家> <X 速度> <Y 速度> <Z 速度>\n/velocity <玩家> <Y 速度>复制代码\n权限\n本插件的权限相当简单明了，首先每一个命令都有一个权限:\n\nscutils.command.class\nscutils.command.cs\nscutils.command.data\nscutils.command.exec\nscutils.command.explain\nscutils.command.help\nscutils.command.nocmd\nscutils.command.qs\nscutils.command.rcs\nscutils.command.select\nscutils.command.tokenize\nscutils.command.velocity复制代码\n允许被 nocmd 以后还使用命令的权限:\n\nscutils.overridernocmd复制代码\n允许在所有命令中使用 MineQuery Selector 的权限（需要在配置文件中开启，虽然默认是开的）\n\nscutils.globalqueryselector复制代码\n以上所有权限节点默认 OP 可用。以下几个复合节点默认没有任何人拥有。\n\nscutils.*\nscutils.command.*复制代码\n例子\n好吧我承认我上面写的这个东西太“文档”了，确实很难理解这个插件到底干嘛用的。首先，必须要承认一点，这个插件提供的是命令，并没有提供触发的办法，因此本插件最好和类似 rpgitem/scriptblock/自定义npc 等 满足一定条件就能执行命令 的插件/MOD一起使用。接下来我就用几个简单的例子来解释下这个插件到底怎么用的。由于我基本上只用过 scriptblock，所以下面的教程就用 scriptblock 了。实际上完全可以用 自定义npc 或者别的什么东西来触发这些命令的。\n\n首先我们假设有一个玩家叫做 SCLeo（对，就是我）。在他加入游戏的时候我们希望这个玩家能够选择一个阵营 （奔跑阵营 或者 跳跃阵营）。我们就可以在地上放两个 sbwalk 方块，走上第一个就加入奔跑阵营，走上第二个就加入跳跃阵营。\n\n对于第一个方块:\n\n/sbwalk create [@bypass /class add <player> runTeam]复制代码\n对于第二个方块:\n\n/sbwalk create [@bypass /class add <player> jumpTeam]复制代码\n好了，一个简单的阵营分配器就做好了。\n\n这时候你可能会想要给奔跑阵营的人更快的跑步速度，跳跃阵营的人更强的跳跃力。这时，你可以设置一个时钟（弄个那种几秒触发一次的就好了），不停地触发这个命令方块:\n\n/exec effect $(.runTeam) 1 10 | effect $(.jumpTeam) 8 10复制代码\n大概意思就是给奔跑阵营的人速度的效果，跳跃阵营的人跳跃提升的效果。当然你可能会说这个原版都能做到，只是复杂点而已，那么接下来我们就来做一点原版做不到的。\n\n比如这个地图中有一个“祭坛”，踩上去的人（当然，这里因为是 scriptblock，只能踩上去，你也可以弄成类似 npc 提交什么物品之后提升能量）会获得 1 点能量，每拥有一点能量，获得的 速度/跳跃 效果等级就 + 1。\n\n对于这个祭坛方块:\n\n/sbwalk create [@bypass /exec data set <player> power data:power + 1 | velocity <player> 20 5 0]复制代码\n大概意思就是给踩上去的人 power 这个变量 + 1。然后把这个玩家弹开。\n\n这时候我们需要修改刚刚那条给效果的命令:\n\n/exec effect $(.runTeam) 1 10 {%data:power%} | effect $(.jumpTeam) 8 10 {%data:power%}复制代码\n但这样还是不行的，因为在正常情况下，data:power 这个变量没有被初始化，没有被初始化的变量返回值是 False 而不是 0，所以我们要在刚开始分配阵营的时候就进行初始化。\n\n/sbwalk create [@bypass /exec class add <player> runTeam | data set <player> power 0]\n/sbwalk create [@bypass /exec class add <player> jumpTeam | data set <player> power 0]复制代码\n那么这个祭坛系统差不多就是完成了。\n\n此外，你随时都可以查看一个阵营的所有玩家。\n\n/select .runTeam\n/select .jumpTeam复制代码\n好了这个例子这样就算差不多完成了。但是请记住，这里只是一个非常简单的例子，用到的功能最多只有整个 SCUtils 的 1/10。但是这个例子展示了 SCUtils 的基本用法。复杂的选择器这里还没有出现，但是我相信在筛选 完成了 A 任务，但是没有完成 B 任务的 奔跑阵营的玩家时，复杂的选择器还是用的上的。在写这个例子的过程中我也认识到了 SCUtils 对于触发系统的依赖，我可能会在将来的版本种添加自己的触发器。但是我开学了，学业很紧，可能这是我归隐前的最后一个帖子了，那种大型的功能基本上不太可能再去添加了，不过有严重的 Bug 的话我还是会去修的。\n\n其他信息\n本项目以 GPLv3 发布，所有文件头部标有 许可 = \"GPLv3\" 的文件都应该视为受 GPLv3 条款限制。（不加那个注释的原因是那个注释太长了，请不要玩文字游戏，谢谢。）\n\n本项目除了以下类外，均为原创:\n\n<ul> - net.minegeck.plugins.utils.StringSimilarity (59 行)\n</ul>所有来自外部的类均已在头部标明来源。\n\n截止到 v0.0.1 本项目总共含有 5712 行代码（不含注释及空行）。\n\n\n以上是 README 中的所有内容。因为 README 中插图片不方便，所以图片、下载地址就放在下面了。（PS，图片没什么用，毕竟主要还是命令而不是图形）\n\n命令列表\n\n\n最自豪的功能之一，自动分析输错命令时有可能想要输入什么。\n\n\n在 velocity 命令中使用变量。\n\n\n因为 speed 值不同，所以上个命令中效果也不同。\n\n\n在原生命令（say）中使用变量和选择器。\n\n\n命令均可在控制台中执行，且为控制台做了特别的显示格式修改。\n\n下载地址 请下载最新版\n2016/9/11 - SCUtils V0.0.1 分享ID：1eS6vS6Q\n讲道理，Adf.ly 所带来的收入真的很少（几百次点击大概 1 RMB 左右，我是认真的），而把这些精力拿出来写定制插件（将近 6000 行的定制想想就怕），至少可以卖 3000+ RMB。我之所以依然这么搞无非是想能够给各位服主带来一些方便。Adf.ly，真的，只不过是想给自己一点成就感（我写插件从来不加统计，我视统计为后门，个人观点）而已。\n\n服主技术讨论群广告\n群号：530398148",
+    "replies": [
+        {
+            "author": "hhttll",
+            "timestamp": 1473547140,
+            "txt_content": "lcplcplcp 发表于 2016-9-11 06:42\n好像有点高端。。不怎么明白是干什么用的\n用来代替记分板的以及给命令增加变量的\n\n举个例子\n\n初始化\n/exec data set $ score 0\n\n达成一定条件时\n/exec data set $(选择器) score data:score + 1\n\n最后发放奖励，如果分数小于 5 就给分数个石头，不然就给10个泥土\n/exec give $([data:score<5]) stone {%score:data%} | give $([data:score>=5]) dirt 10"
+        },
+        {
+            "author": "lcplcplcp",
+            "timestamp": 1473547320,
+            "txt_content": "好像有点高端。。不怎么明白是干什么用的"
+        },
+        {
+            "author": "lcplcplcp",
+            "timestamp": 1473548100,
+            "txt_content": "hhttll 发表于 2016-9-11 06:39\n用来代替记分板的以及给命令增加变量的\n\n举个例子\n就是自带高配的命令方块？"
+        },
+        {
+            "author": "qq200877776",
+            "timestamp": 1473548160,
+            "txt_content": "好高端的样子"
+        },
+        {
+            "author": "Green_stone",
+            "timestamp": 1473548880,
+            "txt_content": "看完全文我懵了，\n看完回复我懂了。\n……"
+        },
+        {
+            "author": "寂",
+            "timestamp": 1473549540,
+            "txt_content": " 本帖最后由 1582952890 于 2016-9-11 07:22 编辑 \n\n哇哇 好不错的插件\n请问楼主有开放的API吗？\n通过调用方法实时获取一个玩家的统计，或设置之类的"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473550080,
+            "txt_content": "lcplcplcp 发表于 2016-9-11 06:55\n就是自带高配的命令方块？\n命令方块还是原版的命令方块，只不过增加了 exec 这个命令，相当于一个预处理器\n\n/say $\n\n会拓展为\n\n/say Playername1\n/say Playername2\n.\n.\n.\n/say Playernamen"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473550740,
+            "txt_content": "1582952890 发表于 2016-9-11 07:19\n哇哇 好不错的插件\n请问楼主有开放的API吗？\n通过调用方法实时获取一个玩家的统计，或设置之类的 ...\n有啊，只是没有说\n\nPlayerInterlayer.getInstanceFor(Player) 返回一个 PlayerInterlayer，里面的 getter 和 setter 就可以获得数据啊类啊之类的"
+        },
+        {
+            "author": "602844218qq",
+            "timestamp": 1473555240,
+            "txt_content": "看完全文我懵了，\n 看完回复我懂了。"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1473555960,
+            "txt_content": "过于高端也许会没人看"
+        },
+        {
+            "author": "xiaoya2031",
+            "timestamp": 1473559560,
+            "txt_content": "楼主排版一条一个，感觉这样很简洁明了，有些内容可以收在一起的就可以折在一起不是吗？"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473559860,
+            "txt_content": "602844218qq 发表于 2016-9-11 08:54\n看完全文我懵了，\n 看完回复我懂了。\n对，可能需要加点例子这样更好理解"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1473560040,
+            "txt_content": "hhttll 发表于 2016-9-11 10:21\nQAQ，我想写一个基于高层和底层之间的插件，所以就这样了\n嗯 有前途喔~"
+        },
+        {
+            "author": "Green_stone",
+            "timestamp": 1473560460,
+            "txt_content": "hhttll 发表于 2016-9-11 10:29\n所以需要例子，唉，写例子是个很令人头疼的事情啊\n所以写写看？？"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473560460,
+            "txt_content": "XJue_DaDa 发表于 2016-9-11 09:06\n过于高端也许会没人看\nQAQ，我想写一个基于高层和底层之间的插件，所以就这样了"
+        },
+        {
+            "author": "602844218qq",
+            "timestamp": 1473560520,
+            "txt_content": "hhttll 发表于 2016-9-11 10:21\nQAQ，我想写一个基于高层和底层之间的插件，所以就这样了\n你个可以举几个例子！"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473560940,
+            "txt_content": "Green_stone 发表于 2016-9-11 07:08\n看完全文我懵了，\n看完回复我懂了。\n……\n所以需要例子，唉，写例子是个很令人头疼的事情啊"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473561480,
+            "txt_content": "xiaoya2031 发表于 2016-9-11 10:06\n楼主排版一条一个，感觉这样很简洁明了，有些内容可以收在一起的就可以折在一起不是吗？ ...\n因为我那个文档整个是直接 markdown 转换过来的，markdown 不能折叠.."
+        },
+        {
+            "author": "xiaopiyou",
+            "timestamp": 1473567120,
+            "txt_content": "小游戏时的确很方便..."
+        },
+        {
+            "author": "914554688wyt",
+            "timestamp": 1473571320,
+            "txt_content": "我觉得让玩家改这些属性是不是过于危险了...一不小心就崩了"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473572220,
+            "txt_content": "914554688wyt 发表于 2016-9-11 13:22\n我觉得让玩家改这些属性是不是过于危险了...一不小心就崩了\n改的属性都是 data 这个命名空间内的 “变量”，和真实玩家数据（比如游戏模式啊啥的）无关"
+        },
+        {
+            "author": "qq245271830",
+            "timestamp": 1473579060,
+            "txt_content": "好高端的样子"
+        },
+        {
+            "author": "Olurbo",
+            "timestamp": 1473593340,
+            "txt_content": "屠版屠版~"
+        },
+        {
+            "author": "拥丶",
+            "timestamp": 1473644580,
+            "txt_content": "发个回复，顶一下！"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473646440,
+            "txt_content": "Olurbo 发表于 2016-9-11 19:29\n屠版屠版~\n233 举手之劳"
+        },
+        {
+            "author": "jjs0105",
+            "timestamp": 1473684420,
+            "txt_content": "不明觉厉，一脸懵逼，我还是乖乖的去搭火柴盒吧"
+        },
+        {
+            "author": "远古工作室",
+            "timestamp": 1473686100,
+            "txt_content": "好像很有意思  下载来玩玩看"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473710220,
+            "txt_content": "jjs0105 发表于 2016-9-12 20:47\n不明觉厉，一脸懵逼，我还是乖乖的去搭火柴盒吧\n233 这个是用来弄小游戏的"
+        },
+        {
+            "author": "张亚飞",
+            "timestamp": 1473743220,
+            "txt_content": "hhttll 发表于 2016-9-11 07:39\n有啊，只是没有说\n\nPlayerInterlayer.getInstanceFor(Player) 返回一个 PlayerInterlayer，里面的 getter ...\n为了完成任务         "
+        },
+        {
+            "author": "张亚飞",
+            "timestamp": 1473743760,
+            "txt_content": "hhttll 发表于 2016-9-11 06:39\n用来代替记分板的以及给命令增加变量的\n\n举个例子\n为了完成任务         "
+        },
+        {
+            "author": "张亚飞",
+            "timestamp": 1473743820,
+            "txt_content": "hhttll 发表于 2016-9-11 10:21\nQAQ，我想写一个基于高层和底层之间的插件，所以就这样了\n为了完成任务         "
+        },
+        {
+            "author": "张亚飞",
+            "timestamp": 1473743820,
+            "txt_content": "hhttll 发表于 2016-9-11 10:21\nQAQ，我想写一个基于高层和底层之间的插件，所以就这样了\n为了完成任务         "
+        },
+        {
+            "author": "LRual",
+            "timestamp": 1473770400,
+            "txt_content": "曾经的伪技术大神，现在的真·小白，在一边默默围观"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473794700,
+            "txt_content": "1026833619 发表于 2016-9-13 20:40\n曾经的伪技术大神，现在的真·小白，在一边默默围观\n好好看认真学真的不难。我真的不希望我这个插件会困惑这么多人"
+        },
+        {
+            "author": "LRual",
+            "timestamp": 1473810360,
+            "txt_content": "因为我曾经有时间好好学任何东西，所以能成为大神\n\n但是现在，没有时间学，所以只能当小白\n高中伤不起………………"
+        },
+        {
+            "author": "TFPS·妖魅",
+            "timestamp": 1473866220,
+            "txt_content": "这里太多大触"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1473881640,
+            "txt_content": "TFPS·妖魅 发表于 2016-9-14 23:17\n这里太多大触\n学习这个插件你只需要\n1、会基础服务器运行及配置\n2、非常非常认真地阅读这个文章\n3、在回复中提出你还有的疑问\n4、在服务器里爽一把"
+        },
+        {
+            "author": "远古工作室",
+            "timestamp": 1473882660,
+            "txt_content": "补偿一下  对于不会java的人无话可说"
+        },
+        {
+            "author": "2286224471",
+            "timestamp": 1473908340,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "2286224471",
+            "timestamp": 1473908400,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "2286224471",
+            "timestamp": 1473908460,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "我皇族",
+            "timestamp": 1474419960,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "hbss123",
+            "timestamp": 1474986360,
+            "txt_content": "完全看不懂"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1475382600,
+            "txt_content": "虽然写一个很好的栗子可以让很多人学会使用它·并且会降低他的珍惜度。\n不过为了更好更多的人接受·为何不呢！\n多写几个创意和粒子 让更多人看看？"
+        },
+        {
+            "author": "903298619",
+            "timestamp": 1475468940,
+            "txt_content": "完全看不懂好迷啊=-="
+        },
+        {
+            "author": "噬之魔皇",
+            "timestamp": 1475475840,
+            "txt_content": "怎么说呢，对于腐竹来说的话确实不错（不过应该不会有几个腐竹独自弄吧），对于程序员来说就跟麻烦了，而且很多功能也是无能为力，比如枪什么的。"
+        },
+        {
+            "author": "c975931",
+            "timestamp": 1475485560,
+            "txt_content": "顶顶顶111111111111111"
+        },
+        {
+            "author": "tmkmk",
+            "timestamp": 1475505360,
+            "txt_content": "感觉太复杂,功能也不是特别好.还是scriptblock好用.就冲 scriptblock 解决不了的问题而来.结果还是无法解决.比如说 scriptblock 无法 识别 rpgitem等插件 新生成的物品.这就难办了.怎么通过这个插件来实现呢?有例子吗?"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1475530620,
+            "txt_content": "tmkmk 发表于 2016-10-3 22:36\n感觉太复杂,功能也不是特别好.还是scriptblock好用.就冲 scriptblock 解决不了的问题而来.结果还是无法解决 ...\n本插件初衷是简化并强化记分板操作的。所有功能都是按照记分板的思路来的。"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1475531280,
+            "txt_content": "噬之魔皇 发表于 2016-10-3 14:24\n怎么说呢，对于腐竹来说的话确实不错（不过应该不会有几个腐竹独自弄吧），对于程序员来说就跟麻烦了，而且 ...\n因为这是一个操作/选择玩家的插件而不是一个真正用来代替插件的插件"
+        },
+        {
+            "author": "风映残影",
+            "timestamp": 1475589060,
+            "txt_content": "很好，每个字都看得懂连起来就看不懂系列"
+        },
+        {
+            "author": "1430499487",
+            "timestamp": 1475600340,
+            "txt_content": "mc需要很多这样的 插件  顶!!!!!!!!!!!!!"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1475612340,
+            "txt_content": "风映残影 发表于 2016-10-4 21:51\n很好，每个字都看得懂连起来就看不懂系列\n所以具体有哪些地方特别难懂的地方呢？"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1475612940,
+            "txt_content": "avshen 发表于 2016-10-4 18:09\n我就想问 “全版本” 1.6.4支持吗？\n理论支持吧，或许吧，不确定"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1475701800,
+            "txt_content": "avshen 发表于 2016-10-5 15:51\n这算个毛啦(╯‵□′)╯︵┻━┻\n嘛，只要按照 bukkit 的 api 做，应该就是全版本的拉"
+        },
+        {
+            "author": "qt819762430",
+            "timestamp": 1477746480,
+            "txt_content": "....仰望大佬 \n支持原创"
+        },
+        {
+            "author": "Minecraft_cloud",
+            "timestamp": 1477762320,
+            "txt_content": "高大上虽然看不懂"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1477769700,
+            "txt_content": "Minecraft_cloud 发表于 2016-10-30 01:32\n高大上虽然看不懂\n感觉上应该比写代码简单点吧"
+        },
+        {
+            "author": "阿瑞zhu",
+            "timestamp": 1477834680,
+            "txt_content": "看着帖子一脸懵逼啊，不过好像很高大上的样子"
+        },
+        {
+            "author": "Grasscraft",
+            "timestamp": 1493873640,
+            "txt_content": "楼楼，这个插件是否能用到别的插件上？"
+        },
+        {
+            "author": "PHontdoge棒冰",
+            "timestamp": 1496874420,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qazxmko",
+            "timestamp": 1535548380,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "wwooww",
+            "timestamp": 1555042380,
+            "txt_content": "好高级的样子"
+        },
+        {
+            "author": "5hnce93f",
+            "timestamp": 1565079000,
+            "txt_content": "怎么感觉像java一样..."
+        },
+        {
+            "author": "lijialin234",
+            "timestamp": 1588643760,
+            "txt_content": "看了半天没看懂..."
+        },
+        {
+            "author": "FHL_Flame",
+            "timestamp": 1588645560,
+            "txt_content": "插件很好用有bug我会反馈的"
+        },
+        {
+            "author": "小悠酱",
+            "timestamp": 1588655700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "asd76848234",
+            "timestamp": 1598694000,
+            "txt_content": "虽然看不懂，还是感觉好厉害的样子，下载试试"
+        },
+        {
+            "author": "pgz992987400",
+            "timestamp": 1598695440,
+            "txt_content": "插件很棒 谢谢老板分享 爱你噢"
+        }
+    ]
+}

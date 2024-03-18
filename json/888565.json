@@ -1,0 +1,54 @@
+{
+    "title": "摔落伤害计算公式？",
+    "author": "S速风",
+    "replyCount": 9,
+    "timestamp": 1563544380,
+    "txt_content": "最近突发奇想的一个问题，我指的这个计算公式是对任何实体（能移动且不免疫摔落伤害的）的，在别的地方找了一下，好像也只有玩家的摔落伤害的计算公式...\n",
+    "replies": [
+        {
+            "author": "Lucky_fish0w0",
+            "timestamp": 1563544380,
+            "txt_content": "貌似玩家和其他实体的计算方式都是通用的\n掉落伤害代码于net.minecraft.entity.EntityLivingBase中 (从代码位置也能看出来是生物通用的)\nsuper.fall(distance, damageMultiplier);\n        PotionEffect potioneffect = this.getActivePotionEffect(MobEffects.JUMP_BOOST);\n        float f = potioneffect == null ? 0.0F : (float)(potioneffect.getAmplifier() + 1);\n        int i = MathHelper.ceil((distance - 3.0F - f) * damageMultiplier);\n\n        if (i > 0)\n        {\n            this.playSound(this.getFallSound(i), 1.0F, 1.0F);\n            this.attackEntityFrom(DamageSource.fall, (float)i);\n            int j = MathHelper.floor(this.posX);\n            int k = MathHelper.floor(this.posY - 0.20000000298023224D);\n            int l = MathHelper.floor(this.posZ);\n            IBlockState iblockstate = this.world.getBlockState(new BlockPos(j, k, l));\n\n            if (iblockstate.getMaterial() != Material.AIR)\n            {\n                SoundType soundtype = iblockstate.getBlock().getSoundType();\n                this.playSound(soundtype.getFallSound(), soundtype.getVolume() * 0.5F, soundtype.getPitch() * 0.75F);\n            }\n        }复制代码\n掉落伤害公式\n伤害=向上取整((距离-3-跳跃提升buff强度)*方块伤害倍率)复制代码\n如果生物在飞行状态下下降速度不大于10格每秒或者不处于下降状态时认为距离为1\nnet.minecraft.entity.EntityLivingBase中\nif (this.isElytraFlying())\n                    {\n                        if (this.motionY > -0.5D)\n                        {\n                            this.fallDistance = 1.0F;\n                        }复制代码\n\n生物在爬梯子状态下掉落距离归零\nnet.minecraft.entity.EntityLivingBase中if (this.isOnLadder())\n                        {\n                            float f9 = 0.15F;\n                            this.motionX = MathHelper.clamp(this.motionX, -0.15000000596046448D, 0.15000000596046448D);\n                            this.motionZ = MathHelper.clamp(this.motionZ, -0.15000000596046448D, 0.15000000596046448D);\n                            this.fallDistance = 0.0F;\n\n                            if (this.motionY < -0.15D)\n                            {复制代码\n生物当被骑上的一瞬间掉落距离归零\nnet.minecraft.entity.EntityLivingBase中    public void updateRidden()\n    {\n        super.updateRidden();\n        this.prevOnGroundSpeedFactor = this.onGroundSpeedFactor;\n        this.onGroundSpeedFactor = 0.0F;\n        this.fallDistance = 0.0F;\n    }复制代码\n任意实体在水里掉落距离归零\nnet.minecraft.entity.Entity中    public boolean handleWaterMovement()\n    {\n        if (this.getRidingEntity() instanceof EntityBoat)\n        {\n            this.inWater = false;\n        }\n        else if (this.world.handleMaterialAcceleration(this.getEntityBoundingBox().expand(0.0D, -0.4000000059604645D, 0.0D).contract(0.001D), Material.WATER, this))\n        {\n            if (!this.inWater && !this.firstUpdate)\n            {\n                this.resetHeight();\n            }\n\n            this.fallDistance = 0.0F;\n            this.inWater = true;\n            this.extinguish();复制代码\n任意实体在蜘蛛网里掉落距离归零\nnet.minecraft.entity.Entity中    public void setInWeb()\n    {\n        this.isInWeb = true;\n        this.fallDistance = 0.0F;\n    }复制代码\n等等... 我感觉我甚至在抄维基百科\n\n顺便一提, 比较冷门的知识点\n如果一个生物掉出世界的话, 她的掉落距离将加上y轴坐标的绝对值(在1.12中)\n比如说一只苦力怕在虚空y=-10中呆着, 她的掉落距离将会被加上10\n        else if (y < 0.0D)\n        {\n            this.fallDistance = (float)((double)this.fallDistance - y);\n        }复制代码\n然后如果一个生物被骑着的话, 掉落伤害也会传递到骑着她的生物上\n    public void fall(float distance, float damageMultiplier)\n    {\n        if (this.isBeingRidden())\n        {\n            for (Entity entity : this.getPassengers())\n            {\n                entity.fall(distance, damageMultiplier);\n            }\n        }\n    }复制代码"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1563544440,
+            "txt_content": "似乎是等同的。\n跌落伤害值为 3 方格后1（Half Heart.svg）每方格。换句话说，从4方格的高度跌落会造成1（Half Heart.svg）的伤害，5 方格、6 方格的高度跌落分别造成2（Heart.svg）和3（Heart.svgHalf Heart.svg）的伤害，以此类推。理论上，如果玩家处于满生命值状态下（无摔落保护或对应的状态效果），从23方格及更高的高度跌落是致命的（23 - 3 = 20（Heart.svg × 10）伤害），但由于跌落高度的计算方式，致命高度实际为 23.5 方格。[note 1]\nhttps://minecraft-zh.gamepedia.c ... #.E8.B7.8C.E8.90.BD"
+        },
+        {
+            "author": "mine新时代xs",
+            "timestamp": 1563547200,
+            "txt_content": "所有不免疫摔落伤害的实体均和玩家以相同方式计算摔落\n玩家的摔落伤害计算公式见：\nhttps://minecraft-zh.gamepedia.c ... #.E8.B7.8C.E8.90.BD"
+        },
+        {
+            "author": "13207319448",
+            "timestamp": 1563611340,
+            "txt_content": "伤害=(高度-3-跳跃提升buff等级)\n(ps:不是整数则向上取整)"
+        },
+        {
+            "author": "清晓风233",
+            "timestamp": 1563624420,
+            "txt_content": "高度每增加四格多掉半颗心即一滴血"
+        },
+        {
+            "author": "S速风",
+            "timestamp": 1563876660,
+            "txt_content": "cx62d 发表于 2019-7-20 00:12\n貌似玩家和其他实体的计算方式都是通用的\n掉落伤害代码于net.minecraft.entity.EntityLivingBase中 (从代码 ...\n（这几天忘看了不好意思）\n我怎么在wiki上没找到，然后那个计算公式的中的方块伤害倍率是什么意思？\n还有向上取整是取到更大的数是吗（最近有点傻）\n最后谢谢你的冷门知识点！"
+        },
+        {
+            "author": "Lucky_fish0w0",
+            "timestamp": 1563900900,
+            "txt_content": "S速风 发表于 2019-7-23 18:11\n（这几天忘看了不好意思）\n我怎么在wiki上没找到，然后那个计算公式的中的方块伤害倍率是什么意思？\n还有 ...\n方块伤害倍率就是掉在方块上时受伤的倍率\n比如干草块上方块伤害倍率为0.2, 即只受到20%的伤害\n对应了wiki的\n干草块将跌落伤害降至 20%。\n床在代码中伤害倍率是1.0, 但是会按照减少一半的掉落距离计算\n也就是说, 从代码里可以推出, 如果从6格上掉下, 你并不会受伤, 因为掉落距离已经除以2等于3, 也就不受伤了"
+        },
+        {
+            "author": "S速风",
+            "timestamp": 1563936720,
+            "txt_content": "cx62d 发表于 2019-7-24 00:55\n方块伤害倍率就是掉在方块上时受伤的倍率\n比如干草块上方块伤害倍率为0.2, 即只受到20%的伤害\n对应了wiki ...\n每个方块都有不同的伤害倍率吗？"
+        },
+        {
+            "author": "Lucky_fish0w0",
+            "timestamp": 1563945240,
+            "txt_content": "S速风 发表于 2019-7-24 10:52\n每个方块都有不同的伤害倍率吗？\n不一定,,\n绝大多数方块的伤害倍率为1\n史莱姆方块的伤害倍率为0, 如果不潜行的话\n干草块的伤害倍率为0.2\n目前已知的就这几种了"
+        }
+    ]
+}

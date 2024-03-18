@@ -1,0 +1,114 @@
+{
+    "title": "[编程]Script —— 用JavaScript来写插件[全版本]",
+    "author": "caoli5288",
+    "replyCount": 21,
+    "timestamp": 1530196560,
+    "txt_content": " 本帖最后由 caoli5288 于 2018-6-29 00:03 编辑 \n\nScript\n在服务器中用JavaScript来写插件吧！\n帖子下方有脚本实例，欢迎大家分享自己写的脚本\n插件指令\n执行下列权限需要script.admin权限。\n/script list\n列出所有已加载的脚本名。\n/script load <文件名>\n加载指定文件名的脚本。文件名以插件数据目录为相对目录。\n/script unload <脚本名|file:文件名>\n卸载指定名的脚本。脚本名如未在description字段定义则为file:文件名。亦可直接使用file:文件名。\n/script reload\n所有已加载的脚本将被卸载，然后加载所有定义在配置中script列的脚本。\n\n\n\n注意\n初次接触js脚本的童鞋注意，脚本可以正确调用Java中的重载方法，但是脚本无法声明重载函数，请务必注意。\n\n初次上手\n一个最简单的有功能的脚本如下例，它将给登陆的玩家发送信息。description对象定义了脚本的基本属性（非必须）。对象中的handle字段定义了脚本监听的事件。\nvar description = {\n    \"author\":\"mengcraft.com\",\n    \"name\":\"Hello\",\n    \"version\":\"1.0\",\n    \"handle\":\"playerjoinevent\"\n}\n\nvar handle = function handle(event) {\n    var p = event.player\n    p.sendMessage(\"hello, \" + p.name)\n}复制代码\n\n加载脚本\n插件在启动时自动加载插件根目录下文件名匹配*.js的脚本，不匹配或位于子目录的脚本请使用指令/script load <文件名>加载。脚本文件名后的字符作为全局变量arg传入脚本中，类型为string[]。自动加载的脚本arg始终为未定义。\nif (arg) {\n    loader.sendMessage(arg.join(\" \"));\n}复制代码\n\n单次脚本\n如果脚本没有添加指令、事件监听和任务调度等行为，那么该脚本为单次脚本。单次脚本执行后不驻留，因此可以通过指令反复加载。\n\n监听事件\n这里有另一种更加灵活的方式监听一个事件，并且你可以随时添加或者去除一个或者多个监听器。事件名默认小写化处理。\nvar description = {\n    \"author\":\"mengcraft.com\",\n    \"name\":\"Hello\",\n    \"version\":\"1.0\",\n}\n\nvar listener = plugin.addListener(\"playerjoinevent\", function(event) {...})\n\nlistener.remove()复制代码\n\n对于第三方插件中的事件可能需要在监听前进行注册操作。事件名冲突时请使用插件名作为前置命名空间。\nplugin.mapping.init(\"AnyPlugin\")\n\nplugin.addListener(\"playerjoinevent\", function(event) {\n    plugin.logger.info(\"build-in event fire\")\n})\n\nplugin.addListener(\"anyplugin:playerjoinevent\", function(event) {\n    plugin.logger.info(\"AnyPlugin's event fire\")\n})复制代码\n\n你可以按正则过滤事件，注意事件名使用小写字母。\nplugin.mapping.filter(\"any(.*)event\").forEach(function (name) {\n    plugin.addListener(name, function (evt) {...})\n})复制代码\n\n请注意脚本处理事件继承与插件有所区别。例如，插件中监听EntityDamageEvent会将该类的子类一并监听，而脚本的监听器对此做了额外处理以确保不会监听到子类。\n\n玩家权限\n可以在脚本中给予玩家权限。权限仅在玩家本次在线过程中有效。插件卸载不会移除权限。\nvar p = plugin.addPermission(plugin.getPlayer(\"md_5\"), \"script.admin\")\n// do any here\np.remove()复制代码\n\n加入指令\n你可以添加一个或者多个指令。以下代码同时添加/echo和/script:echo指令。回调函数的第一个参数是指令执行者，第二个参数是指令参数，类型为Array。\nplugin.addExecutor(\"echo\", function(sender, i) {\n    if (Array.isArray(i)) sender.sendMessage(i.join(\" \"))\n})复制代码\n\n可以直接指定执行指令所需的权限。\nplugin.addExecutor(\"echo\", \"echo.use\", function(sender, i) {...})复制代码\n\n理所当然的，添加的指令随时可以撤销。\nvar exec = plugin.addExecutor(...)\nexec.remove()复制代码\n\n服务加载\n加载服务是可能的，并且比Java插件中的做法更为简单。但是你无法在脚本中提供一个服务。\nvar economy = plugin.getService(\"Economy\")\nvar p = plugin.getPlayer(\"him\")\nif (economy && p) {\n    economy.depositPlayer(p, 100)\n    p.sendMessage(\"you receive 100 dollar\")\n    plugin.getAll().forEach(function(player) {\n        player.sendMessage(\"lucky! \" + p.name + \" receive 100 dollar\");\n    })\n}复制代码\n\n发送广播\n广播消息将发送给当前在线的所有玩家。消息支持任意多行，默认将替换&为颜色代码。\nplugin.broadcast(\"&1这是第一行消息\",\n    \"&2这是第二行消息\",\n    \"&3这是第三行消息\")复制代码\n\n插件依赖\n脚本加载的时机之于服务器插件加载的时机是不确定的。有些函数的调用必须确保在一些插件加载之后调用，否则可能得到意料之外的结果。\nplugin.depend(\"Vault\", function () {\n    var eco = plugin.getService(\"Economy\");\n    plugin.addListener(\"playerjoinevent\", function () {\n        eco.depositPlayer(p, 100);\n    })\n})复制代码\n\n在这个用例中，如果Vault插件已经加载那么回调函数将立即执行，否则将推迟到下tick执行，该行为视同任务调度。如果插件仍未加载，回调函数将被抛弃并在控制台输出一个警告信息。\n\n也可以同时依赖多个插件。\nplugin.depend([\"Vault\", \"AnyPlugin\"], function () {...});复制代码\n\n你可以给该行为添加一个失败时执行的回调函数。\nplugin.depend(\"Vault\", function () {...})\n    .onFail(function () {\n        plugin.logger.info(\"Vault NOT found!\");\n        plugin.unload();\n    });复制代码\n\n交互插件\n与其他脚本或者插件进行交互是不安全的，但你仍可以在必要时这么做。使用时请注意脚本或插件加载顺序，必要时使用plugin.depend函数。\nvar p = plugin.unsafe.getPlugin(\"PlayerPoints\").getApi()\np.give(plugin.getPlayer(\"Him\"), 100)\n\nplugin.unsafe.getScript(\"other_script\").plugin.unload()复制代码\n\n任务调度\n尝试在脚本加载6000tick后执行任务，你可以随时在任务未执行前取消它。\nvar task = plugin.runTask(function() {...}, 6000)\ntask.cancel()复制代码\n\n或者调度一个在下tick执行，并且每1800tick循环执行的任务。\nplugin.runTask(function() plugin.logger.info(\"hello, world\"), 1, 1800)复制代码\n\n或者在下tick执行一个任务。\nplugin.runTask(function() plugin.logger.info(\"hello, world\"))复制代码\n\n异步的任务调度都是可行的，只需要在参数后传入true标识。\nplugin.runTask(function() {...}, true)\nplugin.runTask(function() {...}, 1, true)\nplugin.runTask(function() {...}, 1, 1800, true)复制代码\n\n后台指令\nplugin.runCommand(\"kill him\");复制代码\n\n引用其他插件类\n一些服务端架构方面的限制导致脚本中无法直接使用内置方法引用其他插件类，此时请使用这个方法获取。\nvar viaversion = plugin.loadType(\"us.myles.ViaVersion.api.Via\");\nvar api = viaversion.static.getAPI();// 静态方法复制代码\n\n卸载\n脚本卸载时将移除所有的事件监听、指令和未完成的任务，请谨慎操作。\nplugin.unload();复制代码\n\n如果你定义了卸载钩子，卸载钩子将在脚本卸载完成时被执行。钩子中无法执行大部分plugin接口调用。\nplugin.setUnloadHook(function() {...});\nplugin.setUnloadHook(null);复制代码\n\nPlaceholder\n如果服务器安装有PlaceholderAPI，那么可以很方便的注册placeholder以及格式化字符串。\nvar hook = plugin.addPlaceholder(\"sp\", function (p, input) {\n    // sp_any_world -> any|world\n    return input[0] + \"|\" + input[1];\n});\nhook.remove();// remove it\n\nvar jeb = plugin.getPlayer(\"jeb\");\njeb.sendMessage(plugin.format(jeb, \"hello, %player_name%\"))复制代码\n\nBoss血条\n该API只适用于1.9版本以上的服务端。文字中的%placeholder%将自动替换。\nvar norch = plugin.getPlayer(\"norch\");\nplugin.sendBossBar(norch, \"hello, %player_name%\", 100);// shown 100 tick(s)复制代码\n\n亦支持传入任意血条样式描述。\nplugin.sendBossBar(norch, \"hello, %player_name%\", {color: \"red\", style: 0, flag: [\"darken_sky\", \"play_boss_music\", \"create_fog\"]}, 100);复制代码\n参数color的取值范围为[\"pink\", \"blue\", \"red\", \"green\", \"yellow\", \"purple\", \"white\"]，参数style的取值范围为0-4。\n\n脚本实例 - 更方便于上手插件\n重生后给玩家发送死亡时的坐标：\ndescription = {\n        name: \"死亡坐标\"\n}\n\nplugin.addListener(\"playerdeathevent\", function (evt) {\n        var p = evt.entity;\n        var loc = p.location;\n        p.sendMessage(\"§c你最后的坐标为 §6§l\"+loc.blockX+\"§7, §6§l\"+loc.blockY+\"§7, §6§l\"+loc.blockZ)\n})复制代码",
+    "replies": [
+        {
+            "author": "jiongjionger",
+            "timestamp": 1530196860,
+            "txt_content": "给梦梦大佬点赞，真热更新插件。"
+        },
+        {
+            "author": "xziye",
+            "timestamp": 1530196920,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "Greekssky",
+            "timestamp": 1530197160,
+            "txt_content": "前排占位置，为梦梦点赞"
+        },
+        {
+            "author": "背着书包丶",
+            "timestamp": 1530197220,
+            "txt_content": "哇！惊现梦梦。梦梦的插件写的也太牛逼了吧"
+        },
+        {
+            "author": "CziSKY",
+            "timestamp": 1530197400,
+            "txt_content": "大佬牛逼！希望推出更多范例"
+        },
+        {
+            "author": "爱浪",
+            "timestamp": 1530197880,
+            "txt_content": "mcbbs有你更精彩，前排前排~"
+        },
+        {
+            "author": "龌龊大大",
+            "timestamp": 1530198120,
+            "txt_content": "活捉一只，梦梦大佬"
+        },
+        {
+            "author": "梅子酒呀",
+            "timestamp": 1530198660,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "1255655119",
+            "timestamp": 1530205320,
+            "txt_content": "只可惜自己学艺不精，Java插件都还没精通，JavaScript更是差了，真希望哪天能用上"
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1530205800,
+            "txt_content": "用插件写插件，讲究！"
+        },
+        {
+            "author": "Sobo",
+            "timestamp": 1530235620,
+            "txt_content": "以后怕不是插件都可以直接用js来写了，那真的要方便很多啊~"
+        },
+        {
+            "author": "MoeWhite19",
+            "timestamp": 1537229580,
+            "txt_content": "好东西 ，以后肯定能用上"
+        },
+        {
+            "author": "qq的小辣鸡",
+            "timestamp": 1537263000,
+            "txt_content": "这个插件很棒啊"
+        },
+        {
+            "author": "xingtan7815",
+            "timestamp": 1537266600,
+            "txt_content": "插件已收藏，感谢楼主的感谢"
+        },
+        {
+            "author": "zhang11123",
+            "timestamp": 1563937020,
+            "txt_content": "非常感谢分享，用处太大了"
+        },
+        {
+            "author": "Howie宇宙",
+            "timestamp": 1564579740,
+            "txt_content": "怎么安装啊？？"
+        },
+        {
+            "author": "lookzzZ",
+            "timestamp": 1565032440,
+            "txt_content": "感谢楼主分享~~~"
+        },
+        {
+            "author": "mcKaiFuxia",
+            "timestamp": 1582645740,
+            "txt_content": "很强 我有一个想法 就是本插件能不能判定lore给予装备者属性\n就跟饰品一样的"
+        },
+        {
+            "author": "Autism_1",
+            "timestamp": 1582646160,
+            "txt_content": "顶 支持大佬"
+        },
+        {
+            "author": "WUYumoom",
+            "timestamp": 1601913780,
+            "txt_content": "没有看懂！"
+        },
+        {
+            "author": "KingStarJun",
+            "timestamp": 1607221860,
+            "txt_content": "温馨提示：\n这边的下载链接没用了\n我看了一下，有用的是http://ci.mengcraft.com:8081/job ... pt-1.0-SNAPSHOT.jar"
+        }
+    ]
+}

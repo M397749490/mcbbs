@@ -1,0 +1,34 @@
+{
+    "title": "[1.12.2-1.7.10][Sampler——采样器]性能分析工具",
+    "author": "GiNYAi",
+    "replyCount": 5,
+    "timestamp": 1555760580,
+    "txt_content": " 本帖最后由 GiNYAi 于 2020-1-24 22:28 编辑 \n\nSampler是一个可以用来分析运行缓慢或者相关问题的性能分析工具,他可以在客户端/服务器端上运行.\n如果只分析Cpu时间也可以考虑Spark\n\n在更完善的手册或GUI完成之前,目标用户大体是高端玩家或者被Mod/整合包作者索要Debug信息的玩家.\n\n它最重要的功能有:\n一个采样分析器,可以用来观察MC具体在哪里花费了它的时间. 子命令:start,(wait),stop,export.基于事件的采样器开关.子命令:trigger.精确的Tickrate信息.F3 或者 子命令:tps.记录ticking的游戏对象的数量.子命令:counts.输入纬度ID的话会显示更详细的信息.内存信息与垃圾回收统计.子命令:memory.高亮显示tile entity special renderers(潜在的渲染时间会比较长的方块):子命令:tesr.高亮显示区块更新的源头.子命令:renderupdates.各种各样不同的子命令,可以分析网络IO,区块加载,保存,寻找方块/实体,...\n\n这个Mod设计时十分注意,不要产生额外的负担,所以在分析的时候只有非常小的性能消耗.\n它的功能非常的广泛,最好使用help功能探索.\n\n目前的交互方式是完全命令驱动的.\n服务器端的命令请使用`/sampler help`查看,\n客户端的命令则需要使用`/csampler help`.\n\n所有服务器端的命令都遵循格式`/sampler <subcommand> [<arguments>...]`,\n而客户端的则是`/csampler <subcommand> [<arguments>...]`\n子命令的详细信息则可以使用`/(c)sampler help <subcommand>`获得.\n\nWiki:https://wiki.industrial-craft.net/index.php?title=Using_Sampler\n\n辨识问题\n\n第一步是将问题大体的分类为客户端,服务器端或者是内存不足.\n\n内存不足\nJava虚拟机(JVM)通过垃圾回收器(GC)为应用程序(MC)管理内存.当应用程序为了其数据/操作请求内存空间的时候,JVM会从池子(堆Heap)中拿出一点.把空间还回堆中则是由GC完成的.GC检查哪些数据(对象)是不再 被使用(可到达) 的然后释放其空间.\n垃圾回收通常是快速可靠的循环,然而当内存的需求超过堆的大小,问题就出现了.最常见的原因是配置的堆空间(JVM参数-Xmx=<size>)并不充足,有时也有可能是因为错误的Mod的代码导致的内存泄漏,JVM参数设置错误,或者开启MC服务器而没有设置nogui.\n\n典型症状:\n过长的启动时间,甚至完全未响应在运行时未响应,特别是在客户端侧,在F3中显示的堆使用下降时掉帧.在未响应时,CPU的所有核心都在工作堆使用`F3 /(c)sampler memory`总是接近上限.高的GC次数或时间占比,`/(c)sampler memory`的最后两行都应当低于30000\"ppm of uptime\" 在启动的几分钟之后.因为OutOfMemoryError (GC Overhead exceeded 等)崩溃\n\n需要注意的是这些未响应和内存需求激增也许由其他的因素造成,这些症状并不是100%可靠的指标.\n\n客户端\n客户端侧的问题在Client线程上,也就是说渲染部分.因为客户端的计算主要是依靠插值法,而不是单人游戏中存在的隐藏的服务器线程.\n\n典型症状:\n低FPS掉帧-游戏对鼠标的响应并不流畅偶尔甚至会未响应,通常与大量区块更新有关并不平稳的帧时间曲线(由Sampler添加到F3中)cpu使用不超过2个核心\n\n\n未响应的症状通常与低内存的问题重叠\n\n服务器侧\n所有在在独立服务器端/单人游戏服务器线程上发生的事情.\n\n典型的症状\n方块并没有被立即破坏,或者重新出现.不流畅的天空盒运动(星星/太阳的运动并不流畅,或者跳回过去)GUI(比如箱子)并不会立即打开.服务器控制台/日志中的\"Can't keep up\" warnings低平均tps或者tick时间突高,可以使用/sampler tps观察.(avg=平均,应当低于50ms,max=2分钟内的最高,应当低于500ms)F3中显示的tps低或者不稳定(需要在服务器和客户端都安装Sampler)\n\n\n注意Sampler总是会在刚开启的2分钟显示高的平均/最高值,因为最初的几个tick总是非常的缓慢,并且使统计结果产生了偏差.\nThe tick time will routinely go below 50 ms (tick rate over 20) after a lag spike to bring the average rate back in line with the target.\nForge/Mc服务器GUI或者其他的mod报告的tps/tick时间是不准确的.\n\n帧时间Debug图表\n\nSampler向Debug界面(F3)添加了一个图表,显示最近2k个帧的绘制时间,输出是未过滤的并且能够显示游戏运行是否平滑,是否缓慢或者掉帧.\n\n横(x)轴表示所有记录了的帧,旧的帧靠右,而新的在左边.纵(y)轴表示帧时间,即绘制一个具体的帧消耗的时间.帧时间的倒数即是Fps.因为这个图表显示的是帧时间,所以越低越好.\n4个横向的白线表示了重要的真时间.从下往上分别表示0ms(无限fps),1/60=16.67ms(60fps),1/30=33.33ms(30fps),1/15=66.67ms(15FPS).超出这个区域的仍会保持线性缩放.\n这个图表本身使用了两个颜色,蓝色表示在客户端tick中使用的时间(模拟),绿色表示余下的(渲染,vsync,misc).\n新版本的Sampler在图表底部添加红色的箭头表示GC,他们展示了Sampler监测的垃圾回收的时间,可以观察一个帧时间过高是否由GC引起.\n\n使用VisualVM\n\nVisualVM可以被用来查看Sampler export/trigger命令导出的nps文件.使用VisualVM打开一个nps文件的方法,选择菜单中的文件(F)-装入(L)-文件类型改为nps-然后选择想要的文件.\n\n基础\n下面的截图展示了VisualVM如何显示结果:\n\n在最上方的名为\"CPU: ...\"的标签,代表特定的nps文件,每个打开的文件都有一个标签.\"调用树\",\"热点\",\"组合\"选择不同的数据的视图.只有\"调用树\"是需要关注的.\"热点\"可能看起来比较有趣,但是通常会产生误导所以最好忽略.\n分析应该总是从这几步开始:\n根据想要分析的内容,查找\"Server thread\" (A) 或者\"Client thread\". Server thread = \"/sampler\", Client thread = \"/csampler\".检查时间栏(C)中的数据与调用栏(D)中的数据,如果使用Sampler的默认,每次调用的时间大约在10ms,在示例中61587 调用 * 10 ms = 615870 ms,与622150 ms足够接近,如果数据差的太多,代表JVM并没有在总是执行代码-通常因为当时正在垃圾回收-所以侧写的数据的是无价值的,使用\"/(c)sampler memory\" .展开Server/Client thread来看时间都去哪里了.\n\n\nThe red bar (B) shows how much of the time was spent in the current entry (row) and its children. This is a top-down view that gradually fans out into the different areas of the program, starting with Server/Client thread, going into the game loop, then dividing into doing actual work and sleeping/waiting for the next simulation step. The actual work splits further into ticking blocks, entities, loading chunks etc.\n\nEvery entry refers to either a method or \"Self time\". A method entry is for time spent in the named method invoked by the parent, self time by the parent itself. In the example MinecraftServer.run spends 77.2% in MinecraftServer.tick, 22.8% in Thread.sleep and 0% in itself. A substantial Thread.sleep time means that the thread is partially idle and has spare CPU time, which is optimal.\n\nInvestigation in the example scenario would continue by unfolding MinecraftServer.tick a couple times, noticing that eventually 42% go towards entity simulation and 20% towards block ticks with nothing below sticking out too much. Without severe outliers that could be targeted specifically, like by removing a problematic tile entity, broad problem categories can still be helped through generic administrative measures. Block ticks and entities both depend on the number of loaded chunks, managing chunk loading, reducing the view distance and restarting the server all reduce the loaded chunk count. Entities can be culled by limiting mob farm use and searching for rogue setups like out of control mob spawners.\n\nIdentifying a locatable problem like too much load from net.minecraft.entity.EntityLiving can be followed up by finding the responsible game objects using the \"/(c)sampler find\" command, e.g. \"/sampler find net.minecraft.entity.EntityLiving --chunkCounts\" to retrieve a quantity-ordered list of all chunks containing EntityLiving instances.\n\nNote that the method names are usually obfuscated in Minecraft, e.g. \"tick\" may get replaced with \"func_someNumber\", but it is still possible to see the class name. Those names can be translated by MCPBot or by looking at the methods.csv file that comes with a Forge development environment. \n",
+    "replies": [
+        {
+            "author": "二哈大魔王",
+            "timestamp": 1555763400,
+            "txt_content": "哇 这个是个好东西啊。。"
+        },
+        {
+            "author": "1723624171",
+            "timestamp": 1556338740,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "huangzhidong",
+            "timestamp": 1556428560,
+            "txt_content": "话说官网1.12到1.7，怎么到这就被阉了呢"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1556462340,
+            "txt_content": "huangzhidong 发表于 2019-4-28 13:16\n话说官网1.12到1.7，怎么到这就被阉了呢\n因为没看见"
+        },
+        {
+            "author": "wslps",
+            "timestamp": 1590687900,
+            "txt_content": "终于找到了 感谢楼主分享"
+        }
+    ]
+}

@@ -1,0 +1,49 @@
+{
+    "title": "[Forge]如何实现物品使用外部贴图",
+    "author": "粘兽",
+    "replyCount": 8,
+    "timestamp": 1557740760,
+    "txt_content": "实现了加载外部的贴图，已经可以在药水UI上使用，\n\n\n\n\n1.png (59.81 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-13 17:36 上传\n\n\n\n\n\n部分代码:\n\n\n\n\n2.png (41.36 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-13 17:45 上传\n\n\n\n\n\n\n\n\n\n3.png (40.58 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-13 17:45 上传\n\n\n\n\n\n\n但是不知道如何让物品也可以使用到这样的贴图。\n希望各位带哥指条明路。",
+    "replies": [
+        {
+            "author": "roj234",
+            "timestamp": 1557746940,
+            "txt_content": " 本帖最后由 roj234 于 2019-5-13 19:47 编辑 \n\n复制代码Filename: Textureloader.java复制代码Filename: WebTexture.java\npackage mi.util.client.texture;\n\nimport mi.MI;\n\nimport java.awt.image.BufferedImage;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport net.minecraft.client.renderer.texture.AbstractTexture;\nimport net.minecraft.client.renderer.texture.TextureUtil;\nimport net.minecraft.client.resources.IResource;\nimport net.minecraft.client.resources.IResourceManager;\nimport net.minecraft.client.resources.data.TextureMetadataSection;\nimport net.minecraft.util.ResourceLocation;\nimport net.minecraftforge.fml.relauncher.Side;\nimport net.minecraftforge.fml.relauncher.SideOnly;\nimport org.apache.commons.io.IOUtils;\n\n@SideOnly(Side.CLIENT)\npublic class WebTexture\n  extends AbstractTexture\n{\n  protected final ResourceLocation textureLocation;\n  private final InputStream is;\n\n  public WebTexture(ResourceLocation loc, InputStream image)\n  {\n    this.textureLocation = loc;\n    this.is = image;\n  }\n\n  public void loadTexture(IResourceManager man)\n    throws IOException\n  {\n    deleteGlTexture();\n\n    IResource res = null;\n    try\n    {\n      res = man.getResource(this.textureLocation);\n      BufferedImage img = TextureUtil.readBufferedImage(is);\n\n      boolean blur = false;\n      boolean clamp = false;\n      if (res.hasMetadata()) {\n        try\n        {\n          TextureMetadataSection meta = (TextureMetadataSection)res.getMetadata(\"texture\");\n          if (meta != null)\n          {\n            blur = meta.getTextureBlur();\n            clamp = meta.getTextureClamp();\n          }\n        }\n        catch (RuntimeException e)\n        {\n          MI.logger().warn(\"Failed reading metadata of: \"+this.textureLocation,e);\n        }\n      }\n      TextureUtil.uploadTextureImageAllocate(getGlTextureId(), img, blur, clamp);\n    }\n    finally\n    {\n      IOUtils.closeQuietly(res);\n    }\n  }\n}复制代码package mi.util.client.texture;\n\nimport mi.Config;\nimport mi.util.ReflectionHelper;\n\nimport net.minecraft.client.renderer.texture.TextureManager;\nimport net.minecraft.client.resources.*;\nimport net.minecraft.client.Minecraft;\nimport net.minecraft.util.ResourceLocation;\n\nimport java.io.*;\nimport java.util.*;\n\npublic final class TextureLoader implements IResourceManagerReloadListener{\n        private static TextureManager engine;\n        private static final Map<ResourceLocation, InputStream> data = new HashMap<ResourceLocation, InputStream>();\n        private static Map<String, FallbackResourceManager> resMap;\n        \n        public TextureLoader() {\n                //engine = FMLClientHandler.instance().getClient().renderEngine;\n                engine = Minecraft.getMinecraft().getTextureManager();\n                \n                IReloadableResourceManager man;\n                try{\n                        if(Config.isMDKEnviroment)\n                                man = (IReloadableResourceManager)ReflectionHelper.getPrivateField(engine, \"resourceManager\");\n                        else\n                                man = (IReloadableResourceManager)ReflectionHelper.getPrivateField(engine, \"field_110582_d\");\n                }catch(Exception e){\n                        e.printStackTrace();\n                        throw new RuntimeException(\"TextureManager get failed\");\n                }\n                man.registerReloadListener(this);\n                \n                onResourceManagerReload(man);\n        }\n\n        public static InputStream getStreamByLoc(ResourceLocation resloc) throws IOException{\n                if (resloc.getPath().contains(\"..\")) {\n                        throw new IOException(\"Invalid relative path to resource: \" + resloc);\n                }\n                FallbackResourceManager man = resMap.get(resloc.getNamespace());\n                if (man != null) {\n                        List<IResourcePack> resourcePacks;\n                        try{\n                                if(Config.isMDKEnviroment)\n                                        resourcePacks = (List<IResourcePack>)ReflectionHelper.getPrivateField(man, \"resourcePacks\");\n                                else\n                                        resourcePacks = (List<IResourcePack>)ReflectionHelper.getPrivateField(man, \"field_110540_a\");\n                        }catch(Exception e){\n                                throw new IOException(\"Resourcepack get failed\");\n                        }\n                        IResourcePack pack = null;\n                        for (int i = resourcePacks.size() - 1; i >= 0; i--) {\n                                pack = resourcePacks.get(i);\n                                \n                                if (pack.resourceExists(resloc)) {\n                                        return pack.getInputStream(resloc);\n                                }\n                        }\n                }\n                throw new FileNotFoundException(\"TextureNotFoundException: \"+resloc.toString());\n        }\n\n        \n        @Override\n        public void onResourceManagerReload(IResourceManager man){\n                try{\n                        if(Config.isMDKEnviroment)\n                                resMap = (Map<String, FallbackResourceManager>)ReflectionHelper.getPrivateField(man, \"domainResourceManagers\");\n                        else\n                                resMap = (Map<String, FallbackResourceManager>)ReflectionHelper.getPrivateField(man, \"field_110548_a\");\n                }catch(Exception e){\n                        e.printStackTrace();\n                        //throw new AntiCheatException(\"Texture map get failed\");\n                }\n                loadAll();\n                bindAll();\n        }\n        \n        public static void add(String modid, String type, String name ,InputStream stream){\n                data.put(new ResourceLocation(modid, \"textures/\"+type+\"/\"+name+\".png\"), stream);\n        }\n        \n        public static void loadAll(){\n                for(Map.Entry<ResourceLocation, InputStream> entry : data.entrySet()){\n                        engine.loadTexture(entry.getKey(), new WebTexture(entry.getKey(), entry.getValue()));\n                }\n        }\n        \n        public static void bindAll(){\n                for(ResourceLocation k : data.keySet()){\n       复制代码\n                 engine.bindTexture(k);\n                }\n        }\n        \n}\n\n刚刚手写的有点错误已经修改好了\n\n对了怎么折叠？\n\n用法:\n1  TextureLoader.add(\"modid\", \"type\", \"name\", InputStream);\n2  new TextureLoader();\n\n示例(这里是MC的石头)\nTextureLoader.add(\"minecraft\", \"blocks\", \"stone\", InputStream);\n\nInputStream是图片\nPPPS破烂MCBBS编辑器\n\n"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1557747420,
+            "txt_content": "roj234 发表于 2019-5-13 19:29\n至于吗，都动上反射了？ModelLoader.setCustomModelResourceLocation或者ModelBakeryEvent，了解一下。"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557748080,
+            "txt_content": "森林蝙蝠 发表于 2019-5-13 19:37\n至于吗，都动上反射了？ModelLoader.setCustomModelResourceLocation或者ModelBakeryEvent，了解一下。 ...ResourceLocation resloc;\n        if(item instanceof ItemBlock)\n        {\n            ItemBlock itemBlock = (ItemBlock) item;\n            Block block = itemBlock.getBlock();\n            resloc = block.getRegistryName();\n        }else{\n            resloc = item.getRegistryName();\n        }\n        ModelLoader.setCustomModelResourceLocation(item,meta,new ModelResourceLocation(resloc, \"inventory\"));复制代码\n然后呢。。。怎么设置"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1557748260,
+            "txt_content": "roj234 发表于 2019-5-13 19:48\n然后呢。。。怎么设置\n不用ItemBlock，那个方法就是给物品用的。"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1557748320,
+            "txt_content": " 本帖最后由 roj234 于 2019-5-13 19:54 编辑 \n森林蝙蝠 发表于 2019-5-13 19:51\n不用ItemBlock，那个方法就是给物品用的。\n直接Item.getRegistryName()?\n不过我想的是上面的问题\n这里只能设定模型文件而不是png"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1557748620,
+            "txt_content": " 本帖最后由 森林蝙蝠 于 2019-5-13 21:13 编辑 \nroj234 发表于 2019-5-13 19:52\n直接Item.getRegistryName()?\n不过我想的是上面的问题\n这里只能设定模型文件而不是png\n是的，或者new ResourceLocation（文件名）也可以。\nModelLoader.setCustomModelResourceLocation(Item，0，new ModelResourceLocation(注册名)，“inventory”)；\n"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1557770340,
+            "txt_content": "楼上所有回复都可以无视，请参考这个：\nhttps://harbinger.covertdragon.t ... 1%E5%9D%97%EF%BC%9F"
+        },
+        {
+            "author": "幻刺呀",
+            "timestamp": 1561192200,
+            "txt_content": "涨知识了 哈哈哈"
+        }
+    ]
+}

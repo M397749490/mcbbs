@@ -1,0 +1,119 @@
+{
+    "title": "[TML|BK][1.14]检测玩家视野内实体[法二更新]",
+    "author": "tineseack_bk",
+    "replyCount": 22,
+    "timestamp": 1555772520,
+    "txt_content": " 本帖最后由 tineseack_bk 于 2019-4-28 17:11 编辑 \n【前排说明】\n本贴内研究的内容，是在处于普遍状况的前提下讨论的，即是 FOV=70(Normal)\n\n\n\n\n\nbandicam 2019-04-20 20-35-52-401.jpg (278.79 KB, 下载次数: 4)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n\n\n\n\n\n\nbandicam 2019-04-20 20-36-28-907.jpg (264.91 KB, 下载次数: 5)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n\n（游戏中的效果，在视野内的实体被高亮显示）\n\n\n\n\n\n\nbandicam 2019-04-20 20-36-31-433.jpg (271.74 KB, 下载次数: 3)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n\n（这是第三人称下的参考图，左边的村民其实已经超出了第一人称下的视野，因此没有被高亮显示）\n\n    理论上来说，检测玩家的视野内实体是不现实的，因为玩家的视野范围并非确定，其取决于你的显示器长宽比，且会根据 FOV(Field of Vision) 变化。当然，如果我们假定玩家的 FOV=70，且长宽比为普遍的 16:9，这个问题还是有一定的探讨价值的。\n    至于精度问题，由于 MC 的记分板只支持整型，所以咱们的运算暂时只能处于低精度程度（这是一个很大的缺点，希望能找到其他方法避免这个问题！）\n\n\n\n\n\n\n\n\n一、视野\n    首先我们要明确视野是什么：\n视野是指人的头部和眼球固定不动的情况下，眼睛观看正前方物体时所能看得见的空间范围。\n在现实中，人的视野是一个锥面；而在游戏中，则是我们平常看到的整个游戏界面。经过测试得知，玩家的视野范围是一个以眼睛为顶点（该点位于玩家头部模型内）、以有着和屏幕同样的长宽比矩形为底面、底面中心与顶点均处于视平面上的四棱锥。\n\n\n\n\nfile_1555767345000.jpg (499.87 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n\n    （图中点 O 为玩家眼睛所在点，也即是稍后会用到的坐标原点；点 H 是该棱锥一个竖直截面上的中心；四边形 ABCD 的四边称为边框）\n\n\n\n\n\n二、如何判断实体在视野范围内[法三]\n\n\n正在讨论中。基本思路是用水平、竖直两个方向的转向角度差来判断（对于 MC 的矩形视野）。\n\n[法二]\n    我们首先把问题简化：假设玩家的视野是一个正方形，那么易知选到的范围即是玩家视野前方的 ±45° 正四棱锥区域。\n    于是，首先我们可以设置五个基准点，作为判断实体是否在这个范围内的媒介。它们分别位于玩家的正前方、正上方、正下方、正左方和正右方；\n    其次，我们让每一个目标标记一个最近的基准点；\n    那么，如果该实体标记到的基准点是正前方的点，它就会在该区域内。\n    而对于 16:9 的屏幕长宽比来说，只需要对这些基准点的位置进行微量偏移即可。\n\n设置基准点\n    我们首先初始化五个 AEC，作为五个基准点，并且给它们用分数编号：scoreboard objectives add dfov_selection dummy\n\n# 视野边框\nexecute at @a run summon area_effect_cloud ~ ~ ~ {CustomName:\"\\\"front\\\"\",Tags:[\"dfov\"],Duration:2100000000}\nexecute at @a run summon area_effect_cloud ~ ~ ~ {CustomName:\"\\\"left\\\"\",Tags:[\"dfov\"],Duration:2100000000}\nexecute at @a run summon area_effect_cloud ~ ~ ~ {CustomName:\"\\\"right\\\"\",Tags:[\"dfov\"],Duration:2100000000}\nexecute at @a run summon area_effect_cloud ~ ~ ~ {CustomName:\"\\\"top\\\"\",Tags:[\"dfov\"],Duration:2100000000}\nexecute at @a run summon area_effect_cloud ~ ~ ~ {CustomName:\"\\\"bottom\\\"\",Tags:[\"dfov\"],Duration:2100000000}\n\n# 边框分数初始化\nscoreboard players set @e[tag=dfov,name=front] dfov_selection 1\nscoreboard players set @e[tag=dfov,name=left] dfov_selection 2\nscoreboard players set @e[tag=dfov,name=right] dfov_selection 3\nscoreboard players set @e[tag=dfov,name=top] dfov_selection 4\nscoreboard players set @e[tag=dfov,name=bottom] dfov_selection 5\n然后我们得让它们随时跟着玩家，并且有一定的偏移量（本贴中的偏移量数值面向 16:9 的屏幕，且仅为实际测试得出，为近似值，并未进行实际计算）：\n# 边框跟随玩家\nexecute as @a at @s anchored eyes run tp @e[name=front,tag=dfov] ^ ^ ^0.01\nexecute as @a at @s anchored eyes run tp @e[name=left,tag=dfov] ^0.01 ^ ^-0.00268\nexecute as @a at @s anchored eyes run tp @e[name=right,tag=dfov] ^-0.01 ^ ^-0.00268\nexecute as @a at @s anchored eyes run tp @e[name=top,tag=dfov] ^ ^0.01 ^0.0028\nexecute as @a at @s anchored eyes run tp @e[name=bottom,tag=dfov] ^ ^-0.01 ^-0.004\n我们再让每个实体标记最近的基准点，所涉及的方法是分数的赋予：\n# 每个生物选择最近的 dfov mk，若是 front 则加tag# 这里提及的 tag=mob 指的是所有生物#初始化\nscoreboard players add @e[tag=mob] dfov_selection 0# 让每个实体将最近的一个基准点的分数（即刚才用来标序号的分数）赋予自己\nexecute at @a as @e[type=!player,tag=!dfov,tag=mob] at @s run scoreboard players operation @s dfov_selection = @e[tag=dfov,limit=1,sort=nearest] dfov_selection# 如果分数 = 1，即选到了 front，则加 tag\nexecute as @e[type=!player,tag=mob] run tag @s remove seen\nexecute as @e[scores={dfov_selection=1},tag=mob] run tag @s add seen\n最后，直接选取 tag=seen 的实体即可。\n\n\n    目前该方法仍然存在一些缺点：\n精度不能完全把控：每一种生物的模型和碰撞箱大小都不同，因此有可能出现实体的边缘部分出现在视野内但未检测到的情况；当实体与玩家靠得足够近，会产生一些误差（与基准点的偏移量有关）。\n\n\n[法一]（该方法精度较低且复杂化了）\n        如果把这个问题抽象为几何问题，并且以眼睛（点 O）为坐标原点建立三维坐标系的话，那么就变成了“已知空间内一棱锥，求空间内任意一点 P 位于该棱锥内时该点的坐标”。在这个问题中，我们可以确定的量有：基准点 H 的本地坐标边框上任意一点 F 的本地坐标\n    那么我们便可以通过空间向量的夹角来判断该点是否在椎体区域内，公式为：cos<a, b> = (a*b) / (|a|*|b|) = (X[sub]1[/sub]X[sub]2[/sub]+Y[sub]1[/sub]Y[sub]2[/sub]+Z[sub]1[/sub]Z[sub]2[/sub]) / [√(x[sub]1[/sub][sup]2[/sup]+y[sub]1[/sub][sup]2[/sup]+z[sub]1[/sub][sup]2[/sup])+√(x[sub]2[/sub][sup]2[/sup]+y[sub]2[/sub][sup]2[/sup]+z[sub]2[/sub][sup]2[/sup])]复制代码   设目标点 P 的本地坐标为 ( X(P), Y(P), Z(P) )，基准点 H 的本地坐标为 ( X(H), Y(H), Z(H) )，边框上任意一点 F 的本地坐标为 ( X(F), Y(F), Z(F) )；P 与 O 之间的距离为 Distance(P)，H 与 O 之间的距离为 Distance(H)，F 与 O 之间的距离为 Distance(F)；则该公式可以写成：\ncos<OP, OH> = ( X(P)*X(H) + Y(P)*Y(H) + Z(P)*Z(H) ) / Distance(P)*Distance(H)复制代码   当 cos<OP, OH> ≥ cos<OF, OH>，即 <OP, OH> ≤ <OF, OH> 时，点 P 在该椎体范围内。\n    下面我们来求这个余弦值。\n\n\n\n求夹角余弦值\n    公式中只出现了一类量，即是各个点的坐标。然而要明确的是，这些坐标都是在以玩家眼睛为原点建立的局部坐标系上表示的，而我们只能直接获得世界坐标，因此要进行相对化处理。\n    首先我们要“框出视野”。由于视野是无限远的，我们只在一个竖直截面上讨论，因此需要用一些实体来实时标记这个框：\n\n\n\n\nbandicam 2019-04-20 20-40-58-316.jpg (84.83 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n\n\n\n\n\nbandicam 2019-04-20 20-43-00-757.jpg (227.1 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-20 21:35 上传\n\n\n\n\n    这是在第三人称下截的图，图中的点(AEC 标记，name=frame)即位于玩家的这个视野截面上。出于性能考虑，我将每个点的间距有所拉大，事实上可以做到更精确。这些点将随玩家旋转，由此我们得到了第一个点 F。\n    然后我们要在这个平面上也确定一个中心点 H(name=center)：\n# 标记视野中心点H\nexecute as @a at @s anchored eyes run tp @e[type=area_effect_cloud,name=center] ^ ^ ^10复制代码   原点 O 即玩家的眼睛坐标是已知的；而目标实体的坐标暂时设为 ( X(P), Y(P), Z(P) )。\n    其次我们要储存这些点各自的坐标到四个临时目标 [Pos()_O/H/F/P]，基本操作，不再冗述：\n# 记录点O的三维坐标信息到玩家的[PosX_O] [PosY_O] [PosZ_O]上，倍率100\nexecute as @a at @s store result score @s PosX_O run data get entity @s Pos[0] 100\nexecute as @a at @s store result score @s PosY_O run data get entity @s Pos[1] 100\nexecute as @a at @s store result score @s PosZ_O run data get entity @s Pos[2] 100复制代码   随后点 H 与点 O、点 F 与点 O 、点 P 与点 O 的坐标分别相减，得到各自相对点 O 的坐标，储存在各自的 [Pos()] 中：\n# 记录点H相对O点的坐标信息到玩家的[PosX] [PosY] [PosZ]上\nexecute as @a at @s run scoreboard players operation @s PosX = @s PosX_H\nexecute as @a at @s run scoreboard players operation @s PosX -= @s PosX_O\nexecute as @a at @s run scoreboard players operation @s PosY = @s PosY_H\nexecute as @a at @s run scoreboard players operation @s PosY -= @s PosY_O\nexecute as @a at @s run scoreboard players operation @s PosZ = @s PosZ_H\nexecute as @a at @s run scoreboard players operation @s PosZ -= @s PosZ_O复制代码   至此，我们已经获得了公式中所有的量，这些量储存在玩家、边框或目标实体本身上，我们稍后直接调用即可。然而需要注意的一点是，由于坐标的值可能很大，计算时如果用大倍率数值很可能溢出，因此我在制作的时候将倍率只调整为 100，这将导致精度有一定程度的下降。（这也是本贴的一大不足之处，希望能有更优的方法！）\n\n\n\n\n求两点距离 Distance()\n    常见的做法是√(x[sub]1[/sub][sup]2[/sup]+y[sub]1[/sub][sup]2[/sup]+z[sub]1[/sub][sup]2[/sup])，然而在 MC 中开方十分麻烦，于是很自然想到把整个公式平方：\ncos[sup]2[/sup]<OP, OH> = ( X(P)*X(H) + Y(P)*Y(H) + Z(P)*Z(H) )[sup]2[/sup] / ( Distance(P)*Distance(H) )[sup]2[/sup]复制代码   然而…NAIVE！    上面已经提到，数据可能较大，这里再用平方岂不是雪上加霜？    因此这里使用 @switefaster 的相似法：[http://www.mcbbs.net/thread-808928-1-1.html]Distance(P) = ( |X(P)| + |Y(P)| + |Z(P)| ) / ( |X(N)| + |Y(N)| + |Z(N)| )复制代码    其中点 N 与原点的连线构成一个单位向量，作为运算的中介，详细请阅读上贴。现在我们避免了开方或平方的尴尬，然而可惜的是，因为除出来的值是整数，因此这种方法仍然需要较高的精度，对于目前的情况还是不乐观。    放上命令以供对比阅读：# Distance(P) = (|X(P)|+|Y(P)|+|Z(P)|) / (|X(N)|+|Y(N)|+|Z(N)|)\n\nexecute at @p facing entity @s eyes run summon area_effect_cloud ^ ^ ^1 {Duration:100,CustomName:\"\\\"dis_mk1\\\"\"}\nexecute as @e[name=dis_mk1] at @s store result score @s PosX run data get entity @s Pos[0] 100\nexecute as @e[name=dis_mk1] at @s store result score @s PosY run data get entity @s Pos[1] 100\nexecute as @e[name=dis_mk1] at @s store result score @s PosZ run data get entity @s Pos[2] 100\n\nexecute as @e[name=dis_mk1] at @s if score @s PosX matches ..-1 run scoreboard players operation @s PosX *= -1 const\nexecute as @e[name=dis_mk1] at @s if score @s PosY matches ..-1 run scoreboard players operation @s PosY *= -1 const\nexecute as @e[name=dis_mk1] at @s if score @s PosZ matches ..-1 run scoreboard players operation @s PosZ *= -1 const\n\nexecute as @s at @s if score @s PosX matches ..-1 run scoreboard players operation @s PosX *= -1 const\nexecute as @s at @s if score @s PosY matches ..-1 run scoreboard players operation @s PosY *= -1 const\nexecute as @s at @s if score @s PosZ matches ..-1 run scoreboard players operation @s PosZ *= -1 const\n\nscoreboard players operation @s temp4 += @s PosX\nscoreboard players operation @s temp4 += @s PosY\nscoreboard players operation @s temp4 += @s PosZ\n\nscoreboard players operation @s temp5 += @e[name=dis_mk1,limit=1] PosX\nscoreboard players operation @s temp5 += @e[name=dis_mk1,limit=1] PosY\nscoreboard players operation @s temp5 += @e[name=dis_mk1,limit=1] PosZ\n\nscoreboard players operation @s temp8 = @s temp4\nscoreboard players operation @s temp8 /= @s temp5\n\nkill @e[name=dis_mk1]\n\n\n\n计算余弦值\n    现在我们总算是真正的完成了各个量的计算，接下来就是直接丢进上面的公式里了。值得注意的是，由于判断时目标向量对应的夹角始终小于 90°，因此 cos 值是始终位于 (0, 1) 内的。当我们直接把值丢进公式里，会发现算出来的结果 =0。这是因为运算只取整，而余数全部被抛除了。    然而，基于该 cos 值始终是在 (0, 1) 内的性质，我们可以通过判断余数大小来判断余弦值大小：# 标记最近的一个边框 aec\nexecute as @e[name=frame,tag=selected] run scoreboard players reset @s mod2\ntag @e remove selected\nexecute as @e at @s run tag @e[name=frame,limit=1,sort=nearest] add selected\n\n# 执行计算函数 general:operation_2\nexecute as @e[name=frame,tag=selected] run function general:operation_2\n\n# 对比[mod1] [mod2]大小，若[mod1] >= [mod2]，则实体在范围内\ntag @e remove in_sight\nexecute as @e if score @s mod1 >= @e[tag=selected,limit=1] mod2 run tag @s add in_sight\n    那么，当该实体被加上 in_sight 的 tag 时，你就可以对它进行下一步操作了。\n\n\n\n\n三、考虑方块遮挡    （实现方法参考 @chyx 的 [http://www.mcbbs.net/thread-771638-1-1.html]）    以上的内容只考虑了目标实体在“视野框范围内”，而这个范围是没有考虑实体被不透明方块遮挡住的，因此我们需要对此进行修正。    很容易想到，在每个实体处和玩家的眼睛所在点连一条线，如果这条线上有不透明方块，则判断该实体被遮挡。在实际运用中，我们会发现实体的体积大多数是不相同的，因此我们在判断的时候可能需要考虑多个点，例如选取实体的头与脚两个判断点来连线。然而，如果用 tp 实体的方法来实现，在目标数量很大的情况下，资源占用是很大的；因此我们需要借助函数递归，直接用坐标判断方块。在研究了上面提及的 chyx 的方法后，我进行了少量修改，得出了一个基本适用的模块：# (function)dfov:fix\n# 遮挡修正\nexecute as @e[tag=mob,tag=seen] at @s positioned ~ ~2 ~ facing entity @p eyes run function dfov:fix_head\nexecute as @e[tag=mob,tag=seen] at @s positioned ~ ~ ~ facing entity @p eyes run function dfov:fix_feet\ntag @e[tag=head_hidden,tag=feet_hidden] remove seen# (function) dfov:fix_head\n# 头部\ntag @s remove head_hidden\nexecute if entity @s[distance=..120] unless block ~ ~ ~ #dfov:air run tag @s add head_hidden\nexecute if entity @s[distance=..120] unless entity @a[distance=..1] if block ~ ~ ~ #dfov:air positioned ^ ^ ^0.5 run function dfov:fix_head# (function) dfov:fix_feet\n# 脚部\ntag @s remove feet_hidden\nexecute if entity @s[distance=..120] unless block ~ ~ ~ #dfov:air run tag @s add feet_hidden\nexecute if entity @s[distance=..120] unless entity @a[distance=..1] if block ~ ~ ~ #dfov:air positioned ^ ^ ^0.5 run function dfov:fix_feet\n# (tag) dfov:air{\n  \"replace\": false,\n  \"values\": [\n    \"minecraft:air\", \"minecraft:water\", \"minecraft:lava\", \"minecraft:glass\", \"#minecraft:fences\"\n  ]\n}\n    在这里我分了两个判断点，分别是实体的脚部以及 ~ ~2 ~ 的位置，然后以它们为起点，朝向最近的玩家的眼睛，通过递归 dfov:fix_head 与 dfov:fix_feet 两个函数来分别判断连线上是否有不透明方块。简述一下运作原理：    拿脚部的判断点来说。首先由该点作为起始点，朝向玩家的眼睛（注意，这个朝向将会在接下来的函数递归中继承），判断该点上是否是不透明方块。若是，则直接输出（加上 feet_hidden 的 tag）；若否，则将 ^ ^ ^0.5 的位置作为下一个判断点，在这个点上继续执行本函数。这里的参数 0.5 是可更改的，将会影响一定的速度和精度。至于 if entity @s[distance=..120] 则是限制该判定半径为 120 格。    两个子函数的输出分别是给目标实体加上两个 tag，以标记它们是否分别被遮挡。当两个标签同时存在时，就表示实体被方块遮挡，移除 seen 标签。\n    效果展示：\n\n\n\n\nfile_1556328931000.jpg (215.8 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-27 09:35 上传\n\n\n\n\n（这是正常情况，可以看到铁傀儡）\n\n\n\n\nfile_1556328931000.jpg (211.77 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-27 09:35 上传\n\n\n\n\n（当铁傀儡的头和脚都被遮挡，就无法被看见）\n\n\n\n\n\nfile_1556328931000.jpg (220.98 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-27 09:35 上传\n\n\n\n\n（当玩家蹲下，看到铁傀儡的脚时，铁傀儡再一次被判断“被看见”）\n\n\n\n\n\nfile_1556328931000.jpg (214.41 KB, 下载次数: 0)\n\n下载附件\n\n2019-4-27 09:35 上传\n\n\n\n\n（在玻璃后的实体也是可以被看见的）\n\n\n\n四、优化\n    （一）[法一] 筛选玩家面前的实体    仔细一想会发现，上面的方法忽略了玩家背后的实体，即当有实体进入镜面的椎体区域时，可能也会被检测到。    从公式来看这种情况是不需要处理的，但是为了系统在选择实体时能更有效率，我们将实体先进行筛选。方法则是先框选一定的象限。0 / +Z\n -90 / +X                              +90 / -X\n180 / -Z\n参考该图，以水平面上 正负 45° 和 正负 135° 为分界线，我们将世界分为四个区域，每个区域包括两个象限：玩家面向的两个区域（左右 180°）和玩家背后的两个区域（每个区域的边界为 100格）。关于这部分的实现不再赘述。    由此我们可以排除玩家背后的实体，从而提高了选择器的效率。# init\ntag @e remove front\n\n# +Z\nexecute as @a[y_rotation=-45..45] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=100,dz=100,dy=256] add front\nexecute as @a[y_rotation=-45..45] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=-100,dz=100,dy=256] add front\n\n# -X\nexecute as @a[y_rotation=45..135] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=-100,dz=100,dy=256] add front\nexecute as @a[y_rotation=45..135] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=-100,dz=-100,dy=256] add front\n\n# -Z\nexecute as @a[y_rotation=135..-135] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=100,dz=-100,dy=256] add front\nexecute as @a[y_rotation=135..-135] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=-100,dz=-100,dy=256] add front\n\n# +X\nexecute as @a[y_rotation=-135..-45] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=100,dz=100,dy=256] add front\nexecute as @a[y_rotation=-135..-45] at @s positioned ~ 0 ~ run tag @e[tag=mob,dx=100,dz=-100,dy=256] add front\n\n# y轴\n#execute as @a[x_rotation=70..90] at @s positioned ~-100 ~ ~-100 run tag @e[tag=mob,dx=200,dz=200,dy=-256] add front\n#execute as @a[x_rotation=-70..-90] at @s positioned ~-100 ~ ~-100 run tag @e[tag=mob,dx=200,dz=200,dy=256] add front复制代码    （二）[法一] 提高精度    可以通过如下方法提高精度：坐标的倍率提高将边框细化使用其他算法不要用睿智 MC 的睿智命令写东西\n\n\n\n\n    其实这种方法在实际运用中缺陷较多，经常出现明明实体在眼前就是检测不到的情况。由于时间比较急促，我也没能更深入去研究优化，希望诸位能给予自己的看法和建议！谢谢茄子！！！\n    于 190427 更新法二\n\n\n\n[groupid=1349]The Minecraft Lover[/groupid]\n\n\n\n\n\n\n\ndetect_fov_ver2.zip\n\n\n2019-4-27 09:40 上传\n点击文件名下载附件\n\n\n\n\n4.91 KB, 下载次数: 38\n\n\n数据包_0427\n\n\n\n",
+    "replies": [
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1555773300,
+            "txt_content": " 本帖最后由 tineseack_bk 于 2019-4-28 17:10 编辑 \n\n感谢 @crafter 的数据测试，感谢 @switefaster  感谢 @1041159637 @Ruainbow_ 的技术讨论！"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1555774080,
+            "txt_content": "你可以看下这个 http://www.mcbbs.net/thread-796669-1-1.html"
+        },
+        {
+            "author": "SMFX阜星",
+            "timestamp": 1555774080,
+            "txt_content": "好东西，收藏了\n果然1.13+后真的是无所不能，再次大大拔高了CB能力"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1555774380,
+            "txt_content": "ruhuasiyu 发表于 2019-4-20 23:28\n你可以看下这个 http://www.mcbbs.net/thread-796669-1-1.html\n感谢分享。还没有细读，但是感觉能对这个算法优化很多"
+        },
+        {
+            "author": "heroicsea",
+            "timestamp": 1555774380,
+            "txt_content": "太强了。。"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1555774440,
+            "txt_content": " 本帖最后由 tineseack_bk 于 2019-4-20 23:40 编辑 \n\n系统错误，重发了两次回复"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1555774440,
+            "txt_content": " 本帖最后由 tineseack_bk 于 2019-4-20 23:40 编辑 \n\n系统错误，重发了两次回复"
+        },
+        {
+            "author": "Ruainbow_",
+            "timestamp": 1555774980,
+            "txt_content": "tql,wsl.\ntql,wsl."
+        },
+        {
+            "author": "crafter",
+            "timestamp": 1555776060,
+            "txt_content": "后排支持，紫薯布丁"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1555776540,
+            "txt_content": "execute as @e[tag=front] at @s positioned ~ ~1.62 ~ facing entity @p eyes run function general:fix_head\n........\n\n我觉得我在qq里不是这样跟你说的。\n顺便 请参考上面ruhuasiyu的评论。\n再其次 其实你的这些内容只要5个药水云就好了。"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1555776900,
+            "txt_content": "chyx 发表于 2019-4-21 00:09\n........\n\n我觉得我在qq里不是这样跟你说的。\n抱歉我这个好像是直接复制的测试时候的命令了，因为我是用玩家自己来测试\n其次五个 aec 指的是什么？"
+        },
+        {
+            "author": "muyuxiaofensi",
+            "timestamp": 1555813380,
+            "txt_content": "看不懂，你自己看看"
+        },
+        {
+            "author": "uhuichongfu",
+            "timestamp": 1556060280,
+            "txt_content": "同样是mc，玩法大大不同啊。\n这样的技术贴，是不是可以考虑申请图章了呢？"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1556280120,
+            "txt_content": "buhuichongfu 发表于 2019-4-24 06:58\n同样是mc，玩法大大不同啊。\n这样的技术贴，是不是可以考虑申请图章了呢？ ...\n首先谢谢支持\n\n其次这个贴子现在发表的方法精度仍然比较低，我近期会参考上面 chyx 提供的另一个思路优化"
+        },
+        {
+            "author": "祁轩",
+            "timestamp": 1556286360,
+            "txt_content": "虽然看不懂但是还是很想学"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1556380560,
+            "txt_content": " 本帖最后由 chyx 于 2019-4-27 23:57 编辑 \n\n看完了法2了。\n写的真不好。\n因为被您在帖子里提到，我感觉有些丢脸。"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1556443800,
+            "txt_content": "标题: bchyx 发表于 2019-4-27 23:56\n看完了法2了。\n写的真不好。\n因为被您在帖子里提到，我感觉有些丢脸。 ...\n对不起，我的表达能力实在有限，也是第一次发表类似的研究贴，而且不像您一样涉猎丰富。首先请海涵这篇贴子里面包含的种种错误或不严谨之处，其次感谢您百忙之中还能来对这个不成熟的贴子评论且指出不足，打扰了真是抱歉。谢谢茄子！"
+        },
+        {
+            "author": "cf6513272991",
+            "timestamp": 1558761900,
+            "txt_content": "\n同样是mc，玩法大大不同啊"
+        },
+        {
+            "author": "涩会普云",
+            "timestamp": 1558776780,
+            "txt_content": "有点小东西"
+        },
+        {
+            "author": "cf6513272991",
+            "timestamp": 1558828680,
+            "txt_content": "好东西，收藏了谢谢楼主"
+        },
+        {
+            "author": "kayn-",
+            "timestamp": 1597508280,
+            "txt_content": "这个东西找一些怪方便多了"
+        },
+        {
+            "author": "不忘吃心",
+            "timestamp": 1598079180,
+            "txt_content": "感觉有点像透视啊"
+        }
+    ]
+}

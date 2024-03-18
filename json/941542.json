@@ -1,0 +1,249 @@
+{
+    "title": "[整地]ChunksExplorerLimiter —— 还在担心玩家跑图吗？[1.7.x-1.15.x]",
+    "author": "a1294790523",
+    "replyCount": 48,
+    "timestamp": 1579012380,
+    "txt_content": " 本帖最后由 a1294790523 于 2020-6-9 13:50 编辑 \n\nChunksExplorerLimiter跑图克星\n还在担心玩家跑图吗？这个插件提供了通过限制跑图区块来限制玩家跑图的插件，尽情使用吧！（温馨提示：在使用世界生成/预加载工具时请将该世界移出包含列表，否则将导致误报）\n插件截图：\n\n\n\n\n\nTIM图片20200114223301.png (12.26 KB, 下载次数: 1)\n\n下载附件\n\n2020-1-14 22:33 上传\n\n\n\n\n\n插件下载：\n\n\n\nChunksExplorerLimiter-1.8.jar\n(7.69 KB, 下载次数: 308)\n\n\n\n2020-6-9 13:50 上传\n点击文件名下载附件\n\n\n\n\n\n更新日志：\nv1.8\n解决了不会提示跑图警告信息的bug，放宽踢出时的延迟，感谢huzpsb的提醒\n\nv1.7解决了CME，不再存储玩家跑图信息，支持1.7.10并添加查看跑图信息的指令\n\nv1.6\n重大bug修复，修复了跑图被踢出后不会再被踢的bug\n\nv1.5\n再再次根据@Karlatemp的建议修复了特定情况下不会警告的问题\n\nv1.4\n细微级别的优化\n\nv1.3\n再次根据@Karlatemp的建议进行修改并使用了之前忘记使用的遍历玩家的方式，非常感谢！\n\nv1.2\n根据@Karlatemp的建议进行修改，同时修复bug\n\nv1.1\n修复了重载导致清理任务重复的bug\n\n\n指令：\n以下命令权限都为cel.use，默认op拥有/cel reload——重载插件配置/cel stats——查看玩家跑图信息\n配置文件（区块数量限制建议根据服务器实际情况调整）：\n#配置版本号，请勿修改\nversion: 2\n\n#每个玩家跑图区块数量的限制\nchunksLimit: 500\n\n#玩家跑图区块数量的重置时间（单位为秒）\ncleanTime: 3600\n\n#生效的世界\nworlds:\n  - world\n\n#提示信息的前缀\nprefix: '§6[提示] '\n\n#达到目标区块数量后踢出的信息\nchunksLimitKickMessage: '你已到达跑图上限，请一小时后再试'\n\n#区块数量到达百分之多少时才会提示\nwarningRate: 0.8\n\n#提示信息\nchunksLimitWarningMessage: '你即将到达跑图上限，请不要再跑图'\n复制代码\n\n\n\n源代码（使用CC0协议）：\npackage sandtechnology.chunksexplorerlimiter;\n\nimport org.bukkit.Bukkit;\nimport org.bukkit.Location;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandExecutor;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.world.ChunkPopulateEvent;\nimport org.bukkit.plugin.PluginManager;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport java.util.Comparator;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.UUID;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport java.util.stream.Collectors;\n\n//v1.2 感谢@Karlatemp的建议，已进行修改\n//v1.3 再次根据@Karlatemp的建议进行修改\n//v1.4 再再次根据@Karlatemp的建议进行修改\n//v1.5 再再再次根据@Karlatemp的建议进行修改\n//v1.7 解决了CME，不再存储玩家跑图信息，支持1.7.10并添加查看跑图信息的指令\n//v1.8 解决了不会提示跑图警告信息的bug，放宽踢出时的延迟，感谢huzpsb的提醒\n\npublic class ChunksExplorerLimiter extends JavaPlugin implements CommandExecutor, Listener {\n\n    private final Map<UUID, AtomicInteger> chunksExplorerMap = new ConcurrentHashMap<>();\n    private String prefix;\n    private String chunksLimitKickMessage;\n    private int chunksLimit;\n    private String chunksLimitWarningMessage;\n    private List<String> worlds;\n    private double warningRate;\n\n    public ChunksExplorerLimiter() {\n    }\n\n\n    @Override\n    public void onEnable() {\n        saveDefaultConfig();\n        settingVars();\n        getCommand(\"CEL\").setExecutor(this);\n        Bukkit.getScheduler().runTaskTimerAsynchronously(this, chunksExplorerMap::clear, 0, getConfig().getLong(\"cleanTime\") * 20);\n        Bukkit.getPluginManager().registerEvents(this, this);\n    }\n\n    private void settingVars() {\n        if (getConfig().getInt(\"version\") == 1) {\n            getConfig().set(\"warningRate\", 0.8);\n            getConfig().set(\"version\", 2);\n            saveConfig();\n        }\n\n        prefix = getConfig().getString(\"prefix\");\n        chunksLimit = getConfig().getInt(\"chunksLimit\");\n        worlds = getConfig().getStringList(\"worlds\");\n        warningRate = getConfig().getDouble(\"warningRate\");\n        chunksLimitWarningMessage = getConfig().getString(\"chunksLimitWarningMessage\");\n        chunksLimitKickMessage = getConfig().getString(\"chunksLimitKickMessage\");\n    }\n\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        if (args.length == 1) {\n            if (args[0].equalsIgnoreCase(\"reload\")) {\n                //不直接调用onDisable和onEnable方法\n                PluginManager pluginManager = getServer().getPluginManager();\n                pluginManager.disablePlugin(this);\n                pluginManager.enablePlugin(this);\n                sender.sendMessage(\"§a\" + prefix + \"重载完成！\");\n                return true;\n            } else if (args[0].equalsIgnoreCase(\"stats\")) {\n                Bukkit.getScheduler().runTaskAsynchronously(this, () ->\n                        sender.sendMessage(\"§a跑图数据如下：\\n\" + chunksExplorerMap.entrySet().stream().sorted(Comparator.comparingInt(e -> e.getValue().get())).limit(10).map(e -> getServer().getOfflinePlayer(e.getKey()).getName() + \":\" + e.getValue().get() + \"个区块\").collect(Collectors.joining(\"\\n\"))));\n\n                return true;\n            }\n        }\n        sender.sendMessage(\"命令帮助：\" +\n                \"\\n /cel reload ——重载插件\" +\n                \"\\n /cel stats ——查看Top10跑图信息\");\n        return true;\n    }\n\n    @Override\n    public void onDisable() {\n\n    }\n\n    @EventHandler(priority = EventPriority.HIGHEST)\n    public void onChunkGenerated(ChunkPopulateEvent event) {\n        if (!worlds.contains(event.getChunk().getWorld().getName())) {\n            return;\n        }\n        //获取每个玩家距离生成区块的距离，选取最近一个玩家\n        Location location = event.getChunk().getBlock(7, 127, 7).getLocation();\n        event.getChunk().getWorld().getPlayers().stream().min(Comparator.comparingDouble(player -> player.getLocation().distanceSquared(location))).ifPresent(\n                player -> {\n                    UUID uuid = player.getUniqueId();\n                    int current = chunksExplorerMap.computeIfAbsent(uuid, (key) -> new AtomicInteger(0)).incrementAndGet();\n                    //强转int截断取整避免浮点数\n                    if ((int) (chunksLimit * warningRate) == current) {\n                        player.sendMessage(prefix + chunksLimitWarningMessage);\n                    }\n                    if (current >= chunksLimit) {\n                        Bukkit.getScheduler().runTaskLater(this, () ->\n                        {\n                            if (player.isOnline()) {\n                                player.kickPlayer(prefix + chunksLimitKickMessage);\n                            }\n                        }, 3);\n                    }\n                }\n        );\n    }\n}复制代码\n\n本插件所用所有代码均为原创,不存在借用/抄袭等行为",
+    "replies": [
+        {
+            "author": "玄月月",
+            "timestamp": 1579013280,
+            "txt_content": "你跑你呢（草）"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1579019580,
+            "txt_content": "\n\nimport com.google.common.cache.Cache;\nimport com.google.common.cache.CacheBuilder;\nimport com.google.common.cache.CacheLoader;\nimport com.google.common.cache.LoadingCache;\nimport org.bukkit.Bukkit;\nimport org.bukkit.Location;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.world.ChunkPopulateEvent;\nimport org.bukkit.plugin.PluginManager;\nimport org.bukkit.plugin.java.JavaPlugin;\nimport org.jetbrains.annotations.NotNull;\n\nimport java.io.BufferedReader;\nimport java.io.BufferedWriter;\nimport java.io.IOException;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.OpenOption;\nimport java.nio.file.StandardOpenOption;\nimport java.util.*;\nimport java.util.concurrent.ExecutionException;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.atomic.AtomicInteger;\nimport java.util.logging.Level;\n\npublic class AKM extends JavaPlugin {\n    public void onEnable() {\n        try {\n            if (Files.notExists(dataPath)) {\n                Files.write(dataPath, new byte[]{'{', '}'}); // 直接写byte他不香吗 ?\n                // - Files.write(dataPath, Collections.singleton(\"{}\"), StandardCharsets.UTF_8);\n            } /*// + */ else {\n                // 直接使用数据流，不经过String, 减少内存使用+减少CPU使用\n                try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {\n                    chunksExplorerMap.putAll(gson.fromJson(reader, Map.class));\n                }\n            }\n            // - chunksExplorerMap.putAll(gson.fromJson(String.join(\"\\n\", Files.readAllLines(getDataFolder().toPath().resolve(\"data.json\"), StandardCharsets.UTF_8)), chunksExplorerMapType));\n        } catch (IOException e) {\n            // 亲爱的, Logger怎么用都8知道??\n            // - getLogger().warning(\"玩家跑图数据加载失败！\");\n            // - e.printStackTrace();\n            getLogger().log(Level.WARNING, \"玩家跑图数据加载失败！\", e);\n        }\n    }\n\n    private LoadingCache<UUID, AtomicInteger> chunksExplorerMap;\n\n    public void onDisable() {\n        // 直接使用数据流，不经过String, 减少内存使用+减少CPU使用\n        try /*+*/ (BufferedWriter writer = Files.newBufferedWriter(dataPath, StandardCharsets.UTF_8)) {\n            // Files.write(dataPath, Collections.singleton(gson.toJson(chunksExplorerMap)), StandardCharsets.UTF_8);\n            gson.toJson(chunksExplorerMap, writer);\n        } catch (IOException e) {\n            // - getLogger().warning(\"玩家跑图数据保存失败！\");\n            // - e.printStackTrace();\n            getLogger().log(Level.WARNING, \"玩家跑图数据保存失败！\", e);\n        }\n        //... chunksExplorerMap Initialize\n        chunksExplorerMap = CacheBuilder.newBuilder().expireAfterAccess(\n                getConfig().getLong(\"cleanTime\"), TimeUnit.SECONDS\n        ).build(new CacheLoader<UUID, AtomicInteger>() {\n            @Override\n            public AtomicInteger load(@NotNull UUID key) throws Exception {\n                return new AtomicInteger();\n            }\n        });\n        this.Config_ChunksLimit = getConfig().getInt(\"chunksLimit\");\n        Config_ChunksWarmingLimit = (int) (Config_ChunksLimit * 0.8);\n        // 由\n        // if (chunksExplorerMap.get(uuid) > getConfig().getInt(\"chunksLimit\"))\n        // 推出\n        Config_ChunksRealLimit = Config_ChunksLimit + 1;\n        this.Config_Prefix = getConfig().getString(\"prefix\");\n        this.Config_chunksLimitWarningMessage = getConfig().getString(\"chunksLimitWarningMessage\");\n        Config_chunksLimitKickMessage = getConfig().getString(\"chunksLimitKickMessage\");\n        worlds = getConfig().getStringList(\"worlds\");\n    }\n\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        if (args.length == 1) {\n            switch (args[0].toLowerCase()) { // Command: /ecl reload\n                case \"rl\":\n                case \"reload\":\n                    if (!sender.hasPermission(\"cel.reload\")) {\n                        sender.sendMessage(command.getPermissionMessage());\n                        return true;\n                    }\n                    // 不要直接玩onEnable()/onDisable(), 那样的话会造成[监听器]和[各种定时/延时]没能正确注销\n                    PluginManager pm = Bukkit.getPluginManager();\n                    pm.disablePlugin(this);\n                    pm.enablePlugin(this);\n                    sender.sendMessage(\"§6ChunksExplorerLimiter§r>>§b 重载完成！\");\n                    return true; // End execute\n            }\n        }\n        // Default send version info\n        if (!sender.hasPermission(\"cel.version\")) {\n            sender.sendMessage(command.getPermissionMessage());\n            return true;\n        }\n        sender.sendMessage(\"§bChunksExplorerLimiter §6v1.2§r by§b a1294790523\");\n        return true;\n    }\n\n    private int Config_ChunksLimit; // 在onEnable中定义\n    private int Config_ChunksRealLimit; // 在onEnable中定义\n    private int Config_ChunksWarmingLimit;\n    private String\n            Config_Prefix, Config_chunksLimitWarningMessage,\n            Config_chunksLimitKickMessage;\n    private List<String> worlds;\n\n    @EventHandler(priority = EventPriority.HIGHEST)\n    public void onChunkGenerated(ChunkPopulateEvent event) {\n        // if (getConfig().getStringList(\"worlds\").stream().noneMatch(event.getChunk().getWorld().getName()::equals)) {\n        if (!worlds.contains(event.getChunk().getWorld().getName())) {\n            return;\n        }\n        //获取每个玩家距离生成区块的距离，选取最近一个玩家\n        Location location = event.getChunk().getBlock(7, 127, 7).getLocation();\n        final Optional<Player> nearest = location.getWorld().getPlayers().stream().min(Comparator.comparingDouble(\n                player -> player.getLocation().distanceSquared(location))\n        );\n        if (!nearest.isPresent()) {\n            // Player not found\n            return;\n        }\n        Player player = nearest.get();\n        // chunksExplorerMap.put(uuid, chunksExplorerMap.getOrDefault(uuid, 0) + 1);\n        int current;\n        try {\n            current = chunksExplorerMap.get(player.getUniqueId()).incrementAndGet();\n        } catch (ExecutionException error) {\n            // Oh 我亲爱的上帝, 这不应该[不可能]发生\n            throw new RuntimeException(error);\n        }\n                    /*\n                    真的牛逼，配置是 chunksLimit 然后源码是 [C]hunksLimit\n                    ==>\n                    if (chunksExplorerMap.get(uuid) * 0.8 ==\n                    if (chunksExplorerMap.get(uuid) >\n                    第一句怎么也不会触发吧，触发第二句的时候就已经把人T了, 哇, 真的牛逼兄弟\n\n                    =============================================================\n                    if (chunksExplorerMap.get(uuid) * 0.8 == getConfig().getInt(\"ChunksLimit\")) {\n                        sendMessage(uuid, getConfig().getString(\"chunksLimitWarningMessage\"));\n                    }\n                    if (chunksExplorerMap.get(uuid) > getConfig().getInt(\"chunksLimit\")) {\n                        Player player = getServer().getPlayer(uuid);\n                        if (player != null) {\n                            player.kickPlayer(Config_Prefix + getConfig().getString(\"chunksLimitKickMessage\"));\n                        }\n                    }\n                    */\n        if (current == Config_ChunksWarmingLimit) {\n            player.sendMessage(Config_Prefix + Config_chunksLimitWarningMessage);\n            // sendMessage(player, Config_chunksLimitWarningMessage);\n        }\n        if (current == Config_ChunksRealLimit) { // int特性, 不需要大于 / 等于\n            player.kickPlayer(Config_Prefix + Config_chunksLimitKickMessage);\n        }\n    }\n}\n复制代码"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1579023540,
+            "txt_content": " 本帖最后由 a1294790523 于 2020-1-15 01:46 编辑 \nKarlatemp 发表于 2020-1-15 00:33\n首先感谢code review，这个插件的制作时间也就几十分钟，是即兴开发出来的，bug也不少hhh\n在查看你的修改中我发现我的确不了解google相关的库和logger库，但是我个人认为没必要直接将config的值直接做本地变量访问，毕竟是存储在内存内的，不过在频繁使用的情况下的确能减少错误概率并增加效率。\n对于下面判断访问区块的核心代码，我觉得是存在距离相同的情况的，于是就使用limit 1的限制来判断，因为使用了foreach，也避免了判断是否存在。\n也感谢你指出在reload实现中的错误，之前一直没意识到这个问题233\n总之，我会根据你的建议进行修改，非常感谢！\n\n下面是一些对你的实现的问题：\n1.如果服务器在重置时间内不断重启，使用你的实现不是就不能保证插件正常重置时间吗？\n2.我感觉对于插件来说，指令应该是越简单越好，不需要显示作者信息，请问你是怎么认为的呢？\n3.对于json内的反序列化，直接使用Map.class会有uncheckedWarning，为什么不使用Type呢？\n"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1579032300,
+            "txt_content": " 本帖最后由 Karlatemp 于 2020-1-15 04:12 编辑 \na1294790523 发表于 2020-1-15 01:39\n首先感谢code review，这个插件的制作时间也就几十分钟，是即兴开发出来的，bug也不少hhh\n在查看你的修改 ...\n\n1. 不太清楚你说的什么，按照我的解读\n  数据的加载在onenable里，而不是onload/构建器里，所以只要重新加载，一切内存数据都被清空\n  另外，那个缓存可能是有点不太合理的，你也许需要在加点修改和测试，因为review的时候是直接写的没有经过任何测试，请在数据保存这个方面在好好修改一下\n  另外，我个人认为你的区块时间移动记录只是一个临时值，个人认为没有必要存到磁盘，如果你要存到磁盘的话你得研究一下怎么控制cache的过期时间了\n\n2 命令这方面看作者喜好吧，不过我个人推荐一个基础信息显示，重载加个二级参数免得有些人手贱还是**打了这个命令导致数据清空\n\n3关于反序列化，我只是粗略的写了一下，并没有过多考虑，不过因为这个我突然发现这个type似乎穿错值了\n我的review中的类型是uuid,atomic integer,所以type应该是这个\nType type = new TypeToken<Map<UUID,AtomicInteger>>(){}.getType();\n这个type确实是我的疏忽吧，type类型改成上面这个就好(推荐存到 private static final)\n\n\n4 另外，我几个小时前给出的代码还有下面地方的错误\ntojson方法中应该要再调用一次map的asMap()方法转为jdk的map避免gson错误存储\ngson.toJson(...map.asMap(), writer);\n\nonDisable里面\n//... chunksExplorerMap Initialize\n以及后面一堆赋值应该在onEnable里面才对的，我放错了位置，"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1579034340,
+            "txt_content": "我看了一下你最新代码，再给出下面的建议\n1。onEnable的数据加载，你的newBufferedReader没有用try-with-resource，也就是没有关闭输入流\n可以看看 https://xw.qq.com/cmsid/20180725G1ULCR00\n\n2 onDisable没有用newBufferedWriter写入，还是走了String，在小存储中没事，数据量大了额外占用的资源也会非常大，至于为什么我这么说你可以去GitHub翻gson源码\n3 你的玩家处理机制，直接用min方法就行，没必要foreach\nmin返回的是一个optional，用isPresent确定是否有值\n\n这个方法也只会返回一个对象，你没必要担心玩家的距离是否相等，因为这个和你的limit(1)是一样的\n\nmap的值我推荐用atomic integer，因为他封装有很多方法并且不需要用put加值\nint current = map.megreIfAbsent(uuid, (a)->new AtomicInteger()).increaseAndGet();"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1579061520,
+            "txt_content": " 本帖最后由 a1294790523 于 2020-1-15 12:37 编辑 \nKarlatemp 发表于 2020-1-15 04:39\n我看了一下你最新代码，再给出下面的建议\n1。onEnable的数据加载，你的newBufferedReader没有用try-with-re ...\n已修改，忘记使用try-with-resource是我的疏忽hhhh\n区块数量的记录的话我感觉是需要保存的，但在目前我的实现里面是鸡肋2333，保存主要是拿来看跑图的玩家的\n经过这几次的修改，实现变得更简洁了，非常感谢！"
+        },
+        {
+            "author": "森林的树语",
+            "timestamp": 1579133040,
+            "txt_content": "笑死，  这要让多少小朋友哭泣"
+        },
+        {
+            "author": "Remooonant",
+            "timestamp": 1579381080,
+            "txt_content": "cat端踢出玩家后崩服= ="
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1579401900,
+            "txt_content": "Remooonant 发表于 2020-1-19 04:58\ncat端踢出玩家后崩服= =\n请提供崩溃日志，我估计是因为你使用了异步版本的原因"
+        },
+        {
+            "author": "Fur_Xia",
+            "timestamp": 1579406220,
+            "txt_content": "插件会检测服务器op的移动吗，比如说到处tp会不会导致op被踢？"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1579421400,
+            "txt_content": "Fur_Xia 发表于 2020-1-19 11:57\n插件会检测服务器op的移动吗，比如说到处tp会不会导致op被踢？\n这个插件的原理是根据是否有新区块生成来的，属于无差别攻击\n所以op也会被踢，暂时不打算加入白名单的机制"
+        },
+        {
+            "author": "511281270",
+            "timestamp": 1579425960,
+            "txt_content": "非常“暴躁”且实用的插件"
+        },
+        {
+            "author": "浅笑醉红楼",
+            "timestamp": 1579441680,
+            "txt_content": "a1294790523 发表于 2020-1-19 16:10\n这个插件的原理是根据是否有新区块生成来的，属于无差别攻击\n所以op也会被踢，暂时不打算加入白名单的机制 ...\n建议加入id白名单，看上面的cat端会崩溃，有了一点点抵触qaq"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1579442580,
+            "txt_content": "浅笑醉红楼 发表于 2020-1-19 21:48\n建议加入id白名单，看上面的cat端会崩溃，有了一点点抵触qaq\n是这样的，因为跑图负载带来的是服务器的全局负载，所以就不打算加入白名单功能，因为这样的话这个插件其实也就没什么意义了"
+        },
+        {
+            "author": "acerjzs",
+            "timestamp": 1580029800,
+            "txt_content": "6就完事了"
+        },
+        {
+            "author": "165465WD",
+            "timestamp": 1580216940,
+            "txt_content": "求1710版本的"
+        },
+        {
+            "author": "社会我胖虎",
+            "timestamp": 1580540400,
+            "txt_content": "随机传送也会被t吗"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1580604360,
+            "txt_content": "社会我胖虎 发表于 2020-2-1 15:00\n随机传送也会被t吗\n只要生成了特定数量的新区块就会被踢"
+        },
+        {
+            "author": "wangyichuan1941",
+            "timestamp": 1580604780,
+            "txt_content": "我同意让玩家们跑图，但不想频繁跑图"
+        },
+        {
+            "author": "710897838",
+            "timestamp": 1581258780,
+            "txt_content": "有没有1.7的"
+        },
+        {
+            "author": "Reon_Aqest",
+            "timestamp": 1582977300,
+            "txt_content": "cat稳定版本t人之后也蹦了。。"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1582994880,
+            "txt_content": "18502788409 发表于 2020-2-29 19:55\ncat稳定版本t人之后也蹦了。。\n可以试试专版"
+        },
+        {
+            "author": "反清富明",
+            "timestamp": 1582995840,
+            "txt_content": "不错哦 看好你"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583026680,
+            "txt_content": "Mountchuan 发表于 2020-2-2 08:53\n我同意让玩家们跑图，但不想频繁跑图\n可以通过调小重置时间和区块数量来实现"
+        },
+        {
+            "author": "Reon_Aqest",
+            "timestamp": 1583054700,
+            "txt_content": "a1294790523 发表于 2020-3-1 00:48\n可以试试专版\n还是t人蹦服。。。"
+        },
+        {
+            "author": "NosmKing",
+            "timestamp": 1583131620,
+            "txt_content": "楼主请问一下，玩家跑图区块计算是加载的区块数量还是人经过的区块数量？"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583131980,
+            "txt_content": "NosmKing 发表于 2020-3-2 14:47\n楼主请问一下，玩家跑图区块计算是加载的区块数量还是人经过的区块数量？ ...\n是实际生成的新区块数量，落实到玩家上取最近的玩家作为跑图玩家"
+        },
+        {
+            "author": "yangoo",
+            "timestamp": 1583396220,
+            "txt_content": "我在2月20号按这个插件 一天一蹦我以为是端的问题还是地图问题 于是换端换地图 你新版的也会蹦服 \nt人之后也蹦了 java.util.ConcurrentModificationException\n我还以为是java的问题 也换了java\n1.9.4per龙头"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583398620,
+            "txt_content": "yangoo 发表于 2020-3-5 16:17\n我在2月20号按这个插件 一天一蹦我以为是端的问题还是地图问题 于是换端换地图 你新版的也会蹦服 \nt人之后 ...\n试试新版本？"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583399040,
+            "txt_content": "18502788409 发表于 2020-3-1 17:25\n还是t人蹦服。。。\n试试新版本？"
+        },
+        {
+            "author": "NosmKing",
+            "timestamp": 1583754960,
+            "txt_content": "楼主请问一下，我的服务器是catserver核心，版本1.12，我改config文件后重启插件并没有做出改变，我指我改的树枝和文字。。是不是catserver核心不兼容这个插件？"
+        },
+        {
+            "author": "OLG_lao_ba",
+            "timestamp": 1583755080,
+            "txt_content": "多谢楼主 让我白嫖"
+        },
+        {
+            "author": "496828324",
+            "timestamp": 1583894760,
+            "txt_content": "很不错的 插件顶一下 mcbbs有你更精彩~"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583896080,
+            "txt_content": "NosmKing 发表于 2020-3-9 19:56\n楼主请问一下，我的服务器是catserver核心，版本1.12，我改config文件后重启插件并没有做出改变，我指我改 ...\n感觉是你配置写的有问题才导致的 可以试试贴下配置看看"
+        },
+        {
+            "author": "岁月静好、",
+            "timestamp": 1583897100,
+            "txt_content": "怎么感觉这个插件有点滑稽，跑图被飞机= ="
+        },
+        {
+            "author": "Ye_Yang_Dada",
+            "timestamp": 1585058580,
+            "txt_content": "亲测,用Bettertp等插件随机传送会被踢掉"
+        },
+        {
+            "author": "亮子哟",
+            "timestamp": 1585121040,
+            "txt_content": "511281270 发表于 2020-1-19 17:26\n非常“暴躁”且实用的插件\n兄弟撞头了"
+        },
+        {
+            "author": "sxyyui",
+            "timestamp": 1585121100,
+            "txt_content": "11111111111"
+        },
+        {
+            "author": "Daleyworld",
+            "timestamp": 1585789260,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "lrc123250",
+            "timestamp": 1585789560,
+            "txt_content": "如果我用rtp 的话会被t嘛"
+        },
+        {
+            "author": "LSS_wwwwwww",
+            "timestamp": 1588128240,
+            "txt_content": "玩家发现只要跑一会然后斜着跑一会就不会触发这个"
+        },
+        {
+            "author": "Daleynf",
+            "timestamp": 1591708320,
+            "txt_content": "你好1.15.2paper端使用最新1.8版本这个插件时，并不会提示快到，而是到达时直接t出"
+        },
+        {
+            "author": "Misaka。",
+            "timestamp": 1591754340,
+            "txt_content": "新生成的区块吗？\n我使用wb预加载了的区块是不会被检测的吗？\n\n(话说已经预加载区块了,还有没有必要去限制玩家跑图喃...)"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1591754520,
+            "txt_content": "Misaka。 发表于 2020-6-10 09:59\n新生成的区块吗？\n我使用wb预加载了的区块是不会被检测的吗？\n是的 不会被检测\n预加载的情况下其实没必要限制跑图（"
+        },
+        {
+            "author": "UnCreateds",
+            "timestamp": 1596101280,
+            "txt_content": "是不是再也不用担心跑图tps低烦恼了"
+        },
+        {
+            "author": "lrc123250",
+            "timestamp": 1597040280,
+            "txt_content": "玩家被t出后等了1个小时还是进不了服务器"
+        },
+        {
+            "author": "Feng_XiaoYi",
+            "timestamp": 1597128300,
+            "txt_content": "感谢楼主分享，已支持"
+        },
+        {
+            "author": "q1197015501",
+            "timestamp": 1597134780,
+            "txt_content": "爱了，终于不怕给服务器内存跑满了"
+        }
+    ]
+}

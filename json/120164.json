@@ -1,0 +1,74 @@
+{
+    "title": "如何兼容minelogin[已解决]和正版启动[貌似解决]",
+    "author": "zhh0000zhh",
+    "replyCount": 13,
+    "timestamp": 1368781020,
+    "txt_content": " 本帖最后由 zhh0000zhh 于 2013-5-19 00:31 编辑 \n\n我在网上找了大量的帖子。。。\n版本一“http://www.minelogin.com/ml/login.php?username=” ＋ 游戏名字 ＋ “&password=” ＋ 密码\n版本二POST www.minelogin.com/ml/login.php\n参数是username=用户名&hash=密码的小写MD5&launcher=Indeed+Minecraft+Launcher+DX\n\n版本一返回值永远是0\n版本二永远是400错误。。。\n凌乱了快\n正版启动器找到的方案是\n“http://login.minecraft.net/”, “POST”,“user=” ＋ 游戏名字 ＋ “&password=” ＋ 密码 ＋ “&version=13”\n然后把数组index3和index4加到用户名两侧启动\n正版没有条件测试。。。\n\n经过抓包分析问题已经解决了。。。晚上回来改登录器\nPOST /ml/login.php HTTP/1.0\nConnection: keep-alive\nContent-Type: application/x-www-form-urlencoded\nContent-Length: 57\nHost: www.minelogin.com\nAccept: text/html, */*\nAccept-Encoding: identity\nUser-Agent: Mozilla/3.0 (compatible; Indy Library)\n加密方式是小写的32位MD5,被骗了。。\n\n正版启动器竟然对包进行加密。。。每次的包都不一样。。。无法解析啊。。。\n\n通过挖MCLauncherDX的墙角。。。截取MCLauncherDX的数据包。。。。。。\n成功的得到了\n包一：\nPOST / HTTP/1.1\nAccept: */*\nContent-Length: 39\nContent-Type: application/x-www-form-urlencoded\nAccept-Encoding: gzip, deflate\nHost: login.minecraft.net\nUser-Agent: Mozilla/4.0 (compatible)\nConnection: Keep-Alive\n&H0D,&H0A,&H0D,&H0A\n\n包二：\nuser=username&password=password&version=13\n\nminecraft返回的包需要用gzip解压缩，对就是解压缩。。。\n使用“:”分割结果，共五个为登陆成功\n第三个+空格+第四个组成新的用户名启动游戏。。。\n\n目前的代码。。。暂时无力继续。。\n\nModule Module1\n    Public CO As New System.Text.UTF8Encoding\n    Public B() As Byte \n    Sub Main()\n        Dim param As String\n        Dim bs() As Byte\n        Dim pwd As String\n        Dim un As String\n        Dim ot As Long\n        Console.ReadKey() '等待启动抓包程序。。。\n        If My.Application.CommandLineArgs.Count <> 2 Then\n            MsgBox(\"语法:exe 用户名 密码\")\n            End\n        End If\n        un = My.Application.CommandLineArgs(0)\n        pwd = My.Application.CommandLineArgs(1)\n        param = \"user=\" & un & \"&password=\" & pwd & \"&version=13\"\n        bs = CO.GetBytes(param)\n        B = CO.GetBytes(\"POST / HTTP/1.1\" & vbNewLine &\n        \"Accept: */*\" & vbNewLine &\n        \"Content-Length: \" & bs.Length & vbNewLine &\n        \"Content-Type: application/x-www-form-urlencoded\" & vbNewLine &\n        \"Accept-Encoding: gzip, deflate\" & vbNewLine &\n        \"Host: login.minecraft.net\" & vbNewLine &\n        \"User-Agent: Mozilla/4.0 (compatible)\" & vbNewLine &\n        \"Connection: Keep-Alive\")\n        ReDim Preserve B(UBound(B) + 4)\n        B(UBound(B) - 3) = 13\n        B(UBound(B) - 2) = 10\n        B(UBound(B) - 1) = 13\n        B(UBound(B)) = 10\n        Dim w As New Net.Sockets.TcpClient\n        w.Connect(\"login.minecraft.net\", 80)\n        ot = 1000\n        Do Until w.Connected\n            ot -= 1\n            Threading.Thread.Sleep(16)\n            If ot <= 0 Then\n                MsgBox(\"连接超时\")\n                End\n            End If\n        Loop\n        w.Client.Send(B)\n        w.Client.Send(bs)\n        Do Until w.Client.Available > 0\n            ot -= 1\n            Threading.Thread.Sleep(16)\n            If ot <= 0 Then\n                MsgBox(\"连接超时\")\n                End\n            End If\n        Loop\n        ReDim B(8191)\n        Dim callback As AsyncCallback\n        Dim state As Object\n        Dim k As System.IAsyncResult\n        w.ReceiveBufferSize = 8192\n        Threading.Thread.Sleep(1000)\n        k = w.GetStream.BeginRead(B, 0, 8192, callback, state)\n        w.GetStream.EndRead(k)\n        'MsgBox(CO.GetString(B))\n    End SubEnd Module\n 复制代码\n\nminelogin问题解决：http://www.mcbbs.net/thread-120197-1-1.html\n登陆器已更新：http://www.mcbbs.net/thread-119479-1-1.html\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "GID",
+            "timestamp": 1368782100,
+            "txt_content": "沙发~"
+        },
+        {
+            "author": "Moirae",
+            "timestamp": 1368783840,
+            "txt_content": "建议LZ去Github看看MC的启动器源码 支持正版的一大堆"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1368787260,
+            "txt_content": "Moirae 发表于 2013-5-17 17:44 \n建议LZ去Github看看MC的启动器源码 支持正版的一大堆\n都是过时代码。。。。问题已经解决了。。。我抓取了MCBBS启动器登陆的包。。。"
+        },
+        {
+            "author": "saoruicnext",
+            "timestamp": 1368798360,
+            "txt_content": "哈哈，谢谢楼主"
+        },
+        {
+            "author": "Moirae",
+            "timestamp": 1368872820,
+            "txt_content": "zhh0000zhh 发表于 2013-5-17 18:41 \n都是过时代码。。。。问题已经解决了。。。我抓取了MCBBS启动器登陆的包。。。\nspoutcraftlauncher中枪倒地不起"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1368880260,
+            "txt_content": "Moirae 发表于 2013-5-18 18:27 \nspoutcraftlauncher中枪倒地不起\n淡定淡定。。。"
+        },
+        {
+            "author": "Moirae",
+            "timestamp": 1368882360,
+            "txt_content": "zhh0000zhh 发表于 2013-5-18 20:31 \n淡定淡定。。。\n告诉你吧 正版的需要有验证KEY Spoutcraft的启动器是开源的，里面有=="
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1368886680,
+            "txt_content": "Moirae 发表于 2013-5-18 21:06 \n告诉你吧 正版的需要有验证KEY Spoutcraft的启动器是开源的，里面有==\n貌似是调用了java.util.logging这个java的库，所以非java无法使用。。。。。"
+        },
+        {
+            "author": "zjyl1994",
+            "timestamp": 1371285780,
+            "txt_content": "好东西！做启动器正需要呢……话说，lz知道启动1.6以下和以上版本的命令么？(据说1.6换指令了)论坛看了好久都没找到，谢谢了"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1371288120,
+            "txt_content": "zjyl1994 发表于 2013-6-15 16:43 \n好东西！做启动器正需要呢……话说，lz知道启动1.6以下和以上版本的命令么？(据说1.6换指令了)论坛看了好久 ...\n这个问题太复杂了\nhttp://www.mcbbs.net/thread-110267-1-1.html\n参考上贴"
+        },
+        {
+            "author": "zjyl1994",
+            "timestamp": 1372506960,
+            "txt_content": "zhh0000zhh 发表于 2013-6-15 17:22 \n这个问题太复杂了\nhttp://www.mcbbs.net/thread-110267-1-1.html\n参考上贴\n那么，用快照版的办法也能启动正式版的游戏？"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1372507260,
+            "txt_content": "zjyl1994 发表于 2013-6-29 19:56 \n那么，用快照版的办法也能启动正式版的游戏？\n不知道。。"
+        },
+        {
+            "author": "zjyl1994",
+            "timestamp": 1372507380,
+            "txt_content": "zhh0000zhh 发表于 2013-6-29 20:01 \n不知道。。\n好吧，谢谢你了{:10_512:}"
+        }
+    ]
+}

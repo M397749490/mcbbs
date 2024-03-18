@@ -1,0 +1,39 @@
+{
+    "title": "关于Mod中打开Gui时选取TileEntity的问题",
+    "author": "这有五个字",
+    "replyCount": 6,
+    "timestamp": 1531195740,
+    "txt_content": "在IGuiHandler接口的两个方法不是要获取被打开的Gui的TileEntity吗，我这里写了一段：\n\n\n\n\n捕获9.PNG (221.35 KB, 下载次数: 0)\n\n下载附件\n\n2018-7-10 11:58 上传\n\n\n\n\n\n其中的116行和143行都是打算用方法传入的xyz获取方块的TileEntity，结果方法传入的的xyz是玩家坐标而不是光标对准的方块坐标，这样的话人得嵌到方块里才打得开Gui，所以这里把x改成x-1，这样我站在方块东边才能勉强打开Gui，然后我又去翻了翻别的Mod的源码(沉浸工艺):\n\n\n\n\n捕获10.PNG (319.72 KB, 下载次数: 0)\n\n下载附件\n\n2018-7-10 12:05 上传\n\n\n\n\n\n这106行不是和我一样用的是方法传入的xyz吗，说明沉浸工艺里这个方法传入的是方块的xyz，为什么到我这里就变成了玩家的？求解\n\n\n",
+    "replies": [
+        {
+            "author": "小小小宇",
+            "timestamp": 1531196400,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "xiaodidi1985",
+            "timestamp": 1536900960,
+            "txt_content": "这里调用的是临时数据  所以在block的void里world 是无法获取到数据的   解决办法可以在  onBlockActivated 即Block右键事件中  做个world的全局变量    然后在getClientGuiElement方法中调用全局变量的world   不要使用player.worldObj就行了\n给你发个代码示例\nCommonProxy部分代码\npublic Object getServerGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z){\n        switch (ID){\n                case ZiDingYiSuiDaoZhaDan:\n//                                return new rtContainerRepairTable(player.inventory, (rtTileEntityRepairTable)player.worldObj.getTileEntity(x, y, z));\n                                return new rtContainerRepairTable(player.inventory, (rtTileEntityRepairTable)H4acda_mod.world.getTileEntity(x, y, z));\n                default:\n                    return null;\n        }\n    }\n    @Override\n    public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z){\n        switch (ID){\n                case ZiDingYiSuiDaoZhaDan:\n//                        rtTileEntityRepairTable a = (rtTileEntityRepairTable)player.worldObj.getTileEntity(x, y, z);\n                        rtTileEntityRepairTable a = (rtTileEntityRepairTable)H4acda_mod.world.getTileEntity(x, y, z);\n                        return new rtGuiRepairTable(player.inventory, a, player.worldObj.getBlock(x, y, z));\n                default:\n                    return null;\n        }\n    }\n\n\n\n\npublic class H4acda_mod{\n//        public Block repairTable;\n        \n    public static final String MODID = \"dqfmod\";\n    public static final String NAME = \"dqf mod\";\n    public static final String VERSION = \"1.0.0\";\n    @SidedProxy(clientSide = \"com.hqapk.dqf.dqfmod.config.ClientProxy\", \n            serverSide = \"com.hqapk.dqf.dqfmod.config.CommonProxy\")\n    public static CommonProxy proxy;\n    @Instance(MODID)\n    public static H4acda_mod instance;\n        public static World world;\n    @EventHandler\n    public void preInit(FMLPreInitializationEvent event){\n            proxy.preInit(event);\n//            repairTable = new rtBlockRepairTable(Material.rock)\n//                                .setBlockTextureName(MODID + \":\" + \"RepairTable\")\n//                        .setBlockName(\"RepairTable\")\n//                        .setCreativeTab(Group.HB_TAB);\n//                GameRegistry.registerBlock(repairTable, \"RepairTable\");\n    }\n    @EventHandler\n    public void init(FMLInitializationEvent event){\n            proxy.init(event);\n//            new HeChengInit();\n    }\n    @EventHandler\n    public void postInit(FMLPostInitializationEvent event){\n            proxy.postInit(event);\n    }\n}\n\n\n\nBlock部分代码\n        @Override\n        public boolean onBlockActivated(World par1World, int par2, int par3, int par4, EntityPlayer par5EntityPlayer, int par6, float par7, float par8, float par9) {\n                H4acda_mod.world = par1World;\n                par5EntityPlayer.openGui(H4acda_mod.instance, GuiInit.ZiDingYiSuiDaoZhaDan, par1World, par2, par3, par4);\n                return true;\n        }"
+        },
+        {
+            "author": "xiaodidi1985",
+            "timestamp": 1536901080,
+            "txt_content": "我也是遇到这个问题   看到你的帖子   随后自己想通解决了  分享给你"
+        },
+        {
+            "author": "xiaodidi1985",
+            "timestamp": 1536901080,
+            "txt_content": "另外可以的话加下Q\nQQ:497161114"
+        },
+        {
+            "author": "xiaodidi1985",
+            "timestamp": 1536902940,
+            "txt_content": "试了一下   如果使用之前的方法  游戏会卡\n所以重新给你回复一个\nBlock的右键点击还是获取world全局变量\n然后在GuiContainer中重写onGuiClosed\nonGuiClosed这个为gui关闭事件\n在关闭事件中 添加\nH4acda_mod.world.setTileEntity(pos[0], pos[1], pos[2], 当前的TileEntity);"
+        },
+        {
+            "author": "xiaodidi1985",
+            "timestamp": 1536903240,
+            "txt_content": "需要提前设置临时数据从世界数据读取\n@Override\n    public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z){\n        switch (ID){\n                case ZiDingYiSuiDaoZhaDan:\n                        rtTileEntityRepairTable c = (rtTileEntityRepairTable)H4acda_mod.world.getTileEntity(x, y, z);\n                        player.worldObj.setTileEntity(x, y, z, c);\n                        rtTileEntityRepairTable a = (rtTileEntityRepairTable)player.worldObj.getTileEntity(x, y, z);\n                        int[] b = {x,y,z};\n                        return new rtGuiRepairTable(player.inventory, a, b);\n                default:\n                    return null;\n        }\n    }\n这样运行快很多"
+        }
+    ]
+}

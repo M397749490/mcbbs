@@ -1,0 +1,49 @@
+{
+    "title": "求助 如何用插件让玩家保持拉弓的动作",
+    "author": "Cutter_",
+    "replyCount": 8,
+    "timestamp": 1594520220,
+    "txt_content": "只要是平举双臂的就行，我要用来做枪械插件",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1594524240,
+            "txt_content": "用protocollib向players发送PacketPlayOutEntityEquipment包"
+        },
+        {
+            "author": "Cutter_",
+            "timestamp": 1594524780,
+            "txt_content": "疾风暗影 发表于 2020-7-12 11:24\n用protocollib向players发送PacketPlayOutEntityEquipment包\n有没办法用mod实现相同的功能？"
+        },
+        {
+            "author": "这个你不管。",
+            "timestamp": 1594539660,
+            "txt_content": "......................................"
+        },
+        {
+            "author": "3306201966",
+            "timestamp": 1594607040,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "3306201966",
+            "timestamp": 1594607040,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "言绥",
+            "timestamp": 1595146380,
+            "txt_content": "首先，告诉你一个好消息，这几天我也在研究这个问题，最终实现了这个功能\n\n\n\n\nfile_1595145292000.jpg (176.99 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-19 15:54 上传\n\n\n\n\n\n\n这个方法确实也有诸多不足之处，但聊胜于无是不是？\n\n这个方法最大的问题就是非常复杂。如果你有耐心的话，我可以教你一些思路：\n\n首先最关键的就是数据包，虽然没有直接的数据包能让玩家摆出拉弓的姿势，但是我发现，玩家拉弓发出的是PacketPlayOutEntityMetadata数据包\n顺藤摸瓜，就可以得知，这个数据包可以让接受到的玩家看见目标玩家使用手中物品，包括钓鱼，吃东西，以及拉弓\n是不是可以利用这个来做出拉弓的动作呢？\n首先目标玩家手中的物品必须是弓，当然可以使用其他材质。这样我们就可以创建一个数据包，并广播到除了目标玩家以外的玩家：\n\npublic void gunPose(Player player) {\n        DataWatcher watcher = new DataWatcher(((CraftPlayer) player).getHandle());\n        watcher.register(new DataWatcherObject<>(6, DataWatcherRegistry.a), (byte) 1);\n        PacketPlayOutEntityMetadata packetPlayOutEntityMetadata = new PacketPlayOutEntityMetadata(((CraftPlayer) player).getHandle().getId(), watcher, true);\n        Bukkit.getOnlinePlayers().forEach(p -> {\n            if (!p.getName().equals(player.getName())) {\n                ((CraftPlayer) p).getHandle().playerConnection.sendPacket(packetPlayOutEntityMetadata);\n            }\n        });\n    }复制代码如果你不希望枪械是弓，而是其他物品，也有解决办法。首先你要保证枪械的物品和对应的弓材质是一样的，发送PacketPlayOutEntityEquipment包，让接收到的玩家看见目标玩家手中的武器变成了弓:public void gunPose(Player player) {\n        ItemStack itemInMainHand = player.getInventory().getItemInMainHand().clone();\n        if (itemInMainHand == null) {\n            itemInMainHand = new ItemStack(Material.BOW);\n        }\n        itemInMainHand.setType(Material.BOW);\n        net.minecraft.server.v1_12_R1.ItemStack item = CraftItemStack.asNMSCopy(itemInMainHand);\n        PacketPlayOutEntityEquipment packetPlayOutEntityEquipment = new PacketPlayOutEntityEquipment(((CraftPlayer) player).getHandle().getId(), EnumItemSlot.MAINHAND, item);\n\n        DataWatcher watcher = new DataWatcher(((CraftPlayer) player).getHandle());\n        watcher.register(new DataWatcherObject<>(6, DataWatcherRegistry.a), (byte) 1);\n        PacketPlayOutEntityMetadata packetPlayOutEntityMetadata = new PacketPlayOutEntityMetadata(((CraftPlayer) player).getHandle().getId(), watcher, true);\n        Bukkit.getOnlinePlayers().forEach(p -> {\n            if (!p.getName().equals(player.getName())) {\n                ((CraftPlayer) p).getHandle().playerConnection.sendPacket(packetPlayOutEntityEquipment);\n                ((CraftPlayer) p).getHandle().playerConnection.sendPacket(packetPlayOutEntityMetadata);\n            }\n        });\n    }复制代码建议参考optifine或者mcpatcher的自定义物品材质，可以提供更人性的材质修改。\n这个数据包可以让玩家持续做出拉弓动作，但是玩家做出其他动作（例如切换物品，丢弃物品，物品更新）的时候会取消，我目前的做法是用BukkitRunnable循环，每隔一段时间操作一次。你也可以用监听器，这个就不多阐述\n"
+        },
+        {
+            "author": "Cutter_",
+            "timestamp": 1595218980,
+            "txt_content": "言绥 发表于 2020-7-19 16:13\n首先，告诉你一个好消息，这几天我也在研究这个问题，最终实现了这个功能\n\n这个方法确实也有诸多不足之处， ...\n解决了 真的太tm谢谢大佬了"
+        },
+        {
+            "author": "guqin",
+            "timestamp": 1597333560,
+            "txt_content": "MCBBS有你更精彩~"
+        }
+    ]
+}

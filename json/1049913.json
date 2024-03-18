@@ -1,0 +1,39 @@
+{
+    "title": "使用tModLoader制作属于你自己的mod",
+    "author": "阴阳师元素祭祀",
+    "replyCount": 6,
+    "timestamp": 1589986320,
+    "txt_content": " 本帖最后由 阴阳师元素祭祀 于 2020-5-21 09:28 编辑 \n\n概要\n本教程不教基础编程问题\n如有需要\n请找丛林森林蝙蝠\n\n本文全是水。\n\n\n如果有基础\n你也可以跳过本教程\n直接前往https://github.com/tModLoader/tModLoader/wiki\n\n本教程所用代码完整开源目录\nhttps://github.com/euOnmyoji/MCBBSCraft\n\n教程环境配置\n游戏本体:steam的泰拉瑞亚\nIDE:Rider\n操作系统:Windows 10\ntModLoader的steam商店: https://store.steampowered.com/app/1281930/tModLoader/\n以及C#和.net framework相关资源\n\n\n创建Mod\n启动tModLoader\n加载完毕相关信息之后\n在主菜单右下角\nCopyright @ 2017 Re-Logic\n的下方\n进入开发者模式\n之后进入Mod Sources界面\n\n点击Create Mod\n教程使用的版本需要四个参数\n mod名字（不要有空格mod显示名字作者BasicSword (可能是命名空间的root\n在创建完成之后\n点Open Sources\n并打开Rider (或自己的IDE)\n\n\n\n\nQQ截图20200520223955.png (4.23 KB, 下载次数: 2)\n\n下载附件\n\n2020-5-20 22:40 上传\n\n\n\n\n\n导入project\n使用Autoload\nmod所创建的物品等在默认情况会自动加载到游戏中\n如果是需要资源的东西\n则会自动加载与命名空间和类名有关的资源文件\n如果需要关闭某个东西的自动加载\n        public override bool Autoload(ref string name, ref string texture) {\n            texture = texture.Replace(\"WarnedBuff\", \"WarningCard\");\n            return true;\n        }复制代码复写该方法并返回false\n同时可以修改texture或者name来修改名字/资源文件路径\n\n编译并测试Mod\n\n\n\n\nQQ截图20200520223955.png (152.34 KB, 下载次数: 2)\n\n下载附件\n\n2020-5-21 08:42 上传\n\n\n\n\n编译加载可能的常见问题\n\nQ: 改名之后System.XXX.AtXXX有重复的XXX\nA: 检查mod项目目录下的obj的mod项目目录下的obj/debug 是否遗留了改名前的相关文件\nQ: 改名之后修改的代码但是看起来完全没工作\nA: 改名之后是否在游戏Mod目录删除了改名之前的mod文件\n\n\n创建自己的物品并使用Projectile\n创建mod时自带一个物品示例当然那并不能满足狂热的混乱厨\n我们需要创建一个混乱的混乱物品\n使用时像枪一样发射好人卡\n先写一个好人卡的Projectile\n    public class WarningCard : ModProjectile {\n        public override void SetStaticDefaults() {\n            DisplayName.SetDefault(\"Give warnings to them!\");\n        }\n\n        public override void SetDefaults() {\n            projectile.arrow = true;\n            projectile.width = 21;\n            projectile.height = 17;\n            projectile.aiStyle = 1;\n            projectile.friendly = true;\n            projectile.ranged = true;\n            aiType = ProjectileID.WoodenArrowFriendly;\n        }\n\n    }复制代码其中aiStyle和aiType 是使用游戏中已有的逻辑来执行相关的飞行/攻击逻辑\n关于游戏内物品对应的aiType和aiStyle\n可以在附录中查看某表 或科学上网前往{..}查询\n\n之后修改默认的物品示例\n            item.shoot = ModContent.ProjectileType<WarningCard>();\n            item.shootSpeed = 10;复制代码//ModContent.ProjectileType<..>()为以前过时的mod.ProjectileType<...>()\n同时改变一下好人卡的射击速度\n这里玄学调参就默认为10了\n\n\n同时去掉一些近战武器的代码\n最后看起来的效果大概就是\n    public class Mess : ModItem {\n        public override void SetStaticDefaults() {\n            Tooltip.SetDefault(\"Hunluan!.\");\n        }\n\n        public override void SetDefaults() {\n            item.damage = 1;\n            item.width = 10;\n            item.height = 10;\n            item.useTime = 20;\n            item.useAnimation = 20;\n            item.useStyle = ItemUseStyleID.HoldingOut;\n            item.knockBack = 6;\n            item.value = 10000;\n            item.rare = ItemRarityID.Yellow;\n            item.UseSound = SoundID.Item1;\n            item.autoReuse = true;\n            item.shoot = ModContent.ProjectileType<WarningCard>();\n            item.shootSpeed = 10;\n        }\n    }复制代码\n修改物品合成配方\n物品是需要合成的\n那么混乱也应该可以被合成\n修改默认的示例代码即可\n实例化一个ModRecipe来表示一个合成配方\n其中AddIngredient(物品, 数量)\n来增加合成所需的物品\nSetResult表示成品的物品类\n调用AddRecipe添加配方到游戏中\n\n\n如果你想让物品（混乱）在指定的tile处合成（比如工作台）\n请使用\n            recipe.AddTile(TileID.WorkBenches);\n复制代码\n\n        public override void AddRecipes() {\n            var recipe = new ModRecipe(mod);\n            recipe.AddIngredient(ItemID.SoulofNight, 1);\n            recipe.AddIngredient(ItemID.SoulofLight, 1);\n            recipe.SetResult(this);\n            recipe.AddRecipe();\n        }复制代码\n\n创建自己的buff并应用到Projectile\n被发好人卡的时候\n一般来讲都有一个buff\n或者一个明显的提示\n当然 想要有buff得先有自己的类用于控制逻辑\n因为混乱发的卡太好看了所以我们使用相同的WarningCard材质\n同时从其他地方示例抄一段代码\n看起来就像这样\n    public class WarnedBuff : ModBuff {\n        public override bool Autoload(ref string name, ref string texture) {\n            texture = texture.Replace(\"WarnedBuff\", \"WarningCard\");\n            return true;\n        }\n\n        public override void SetDefaults() {\n            DisplayName.SetDefault(\"You're good.\");\n        }\n    }复制代码\n我们想要这个buff在NPC被发卡的时候获得\n则在WarningCard重写OnHitNPC\n并调用AddBuff来为目标添加buff\n其中1秒正常情况为60帧\nAddBuff(buff类型, 时间(帧), quiet);\n对于buff类型\n使用ModContent相关方法获取\n最后看起来就像这样\n        public override void OnHitNPC(NPC target, int damage, float knockback, bool crit) {\n            int buffType = ModContent.BuffType<WarnedBuff>();\n            target.AddBuff(buffType, 5 * 60, target.HasBuff(buffType));\n        }复制代码\n\n\n附录\nProjectile和AiStyle对应表 \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "星层",
+            "timestamp": 1589988000,
+            "txt_content": "全体待填···\n第二个mod名字瞩目\n\n等等我才发现这是1.3.5.3的tml···\n之前1.3.5.3上装会倒会1352来着"
+        },
+        {
+            "author": "Stars_leap",
+            "timestamp": 1589988300,
+            "txt_content": "这tmod刚独立就出教程了？"
+        },
+        {
+            "author": "星层",
+            "timestamp": 1589989260,
+            "txt_content": "Stars_leap 发表于 2020-5-20 23:25\n这tmod刚独立就出教程了？\n之前又不是没有= ="
+        },
+        {
+            "author": "米安博奥",
+            "timestamp": 1589993160,
+            "txt_content": "看得出来 写的很匆忙"
+        },
+        {
+            "author": "喵鱿",
+            "timestamp": 1590026160,
+            "txt_content": "我彻底爱上yys啦（指教程"
+        },
+        {
+            "author": "索菲缇娅",
+            "timestamp": 1590041760,
+            "txt_content": "可以参考一下： https://fs49.org/sample-page/\n"
+        }
+    ]
+}

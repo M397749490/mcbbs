@@ -1,0 +1,504 @@
+{
+    "title": "[安全|修复][上古之石]ClickLimit —— 反鼠标连点器+反快速射箭[全版本]",
+    "author": "andylizi",
+    "replyCount": 99,
+    "timestamp": 1465901880,
+    "txt_content": " 本帖最后由 1582952890 于 2017-9-16 19:39 编辑 \n\n\n↑对你没看错这就是这插件的LOGO（自动懒癌（手动滑稽\n未经本人明示许可严禁转载！严禁转载！严禁转载！\n\n注意：在1.0时，这个插件叫RightClickLimit，只有限制右键点击的功能，但后来我更新为了右键，左键，射箭速度都可以限制。以下是原介绍\n\n前言，AAC可以防大部分作弊客户端，但居然连简单的鼠标连点器都防不住干什么吃的。虽然有点击频率限制，但居然只限制左键。因此请别说AAC有这个功能谢谢。\n功能，如题\n指令，无\n权限，无\n下载，无                                                 别打我我错了\n\n\n\nClickLimit.jar\n(6.46 KB, 下载次数: 4303)\n\n\n\n2016-6-16 19:11 上传\n点击文件名下载附件\nv1.1阅读权限: 1\n\n\n\n\n\n图片（注意：动态gif在加载完成前可能“有点点”卡，完全加载后可按正常速度观看\n使用按键精灵鼠标连点器，间隔约1ms，一秒发射约500雪球（大型动图注意，6.61MB机关枪什么的都弱爆了↓\n\n啪♂啪♂啪♂啪♂啪♂啪♂啪♂啪♂啪GfyCat地址:  https://gfycat.com/FrequentThoseBlackrhino正常速度。经测算，按住鼠标右键不动是200ms一个雪球，拼命♂你的鼠标右键是100ms一个雪球，但无法再短了。\n（大型动图注意，4.39MBZzzzzzzzzzzzzzzzzz......\nGfyCat地址:  https://gfycat.com/SnarlingExcellentAmethystinepython使用此插件限制后\n跟正常速度一样，我实在不想再录制一个gif了\n\n注意，这个插件可不止是限制发射雪球，雪球只是一个梨子。\n\n配置文件，interact:  # 右键点击\n    enable: true   # 是否开启限制\n    maxInterval: 110 # 允许的最高右击频率，毫秒为单位，the smaller, the faster\nhit:    # 左键点击\n    enable: false    # 是否开启限制\n    maxInterval: 90    # 允许的最高攻击频率，毫秒为单位，the smaller, the faster\nshootArrow:    # 射箭速度\n    enable: false    # 是否开启限制\n    maxInterval: 190     # 允许的最高射击速度，毫秒为单位，more smaller, more faster复制代码注意：有些小游戏插件有强制玩家超过正常频率射箭的功能，因此可能造成无法正常游戏。此功能默认为关。\n另外，shootArrow选项只适用于弓箭，因为据我所知只有弓箭有冷却时间，其他雪球什么的是包含在interact内的。插件使玩家被动发射的雪球、鸡蛋等Projectile不会拦截，因为不会触发右击事件。\n\n由于检测到超频只限制不T不ban，误报率为0。\n开源v1.1，/*\n * Copyright (C) 2016 andylizi\n *\n * This program is free software: you can redistribute it and/or modify\n * it under the terms of the GNU General Public License as published by\n * the Free Software Foundation, either version 3 of the License, or\n * (at your option) any later version.\n *\n * This program is distributed in the hope that it will be useful,\n * but WITHOUT ANY WARRANTY; without even the implied warranty of\n * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n * GNU General Public License for more details.\n *\n * You should have received a copy of the GNU General Public License\n * along with this program.  If not, see <http://www.gnu.org/licenses/>.\n */\npackage net.andylizi.clicklimit;\n\nimport java.util.HashMap;\nimport java.util.Map;\nimport org.bukkit.Bukkit;\nimport org.bukkit.Material;\nimport org.bukkit.entity.Arrow;\nimport org.bukkit.entity.Entity;\nimport org.bukkit.entity.HumanEntity;\nimport org.bukkit.entity.Projectile;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.block.Action;\nimport org.bukkit.event.entity.EntityDamageByEntityEvent;\nimport org.bukkit.event.entity.ProjectileLaunchEvent;\nimport org.bukkit.event.player.PlayerInteractEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\n\n/**\n * @author andylizi\n * @version 1.1\n */\npublic final class Main extends JavaPlugin {\n\n    @Override\n    public void onEnable() {\n        saveDefaultConfig();\n        reloadConfig();\n        if(getConfig().getBoolean(\"interact.enable\")){\n            final int maxInterval = getConfig().getInt(\"interact.maxInterval\", 110);\n            Bukkit.getPluginManager().registerEvents(new Listener() {\n                private final HashMap<Integer, Record> interact = new HashMap<>(64, 0.8f);\n\n                @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)\n                public void onInteract(PlayerInteractEvent event){\n                    Action action = event.getAction();\n                    if((action == Action.RIGHT_CLICK_BLOCK && !event.isCancelled() && \n                            event.getMaterial() != Material.MINECART && event.getMaterial() != Material.BOAT) || \n                            action == Action.RIGHT_CLICK_AIR)\n                        if(computeInterval(interact, event.getPlayer().getUniqueId()) \n                                < maxInterval)\n                            event.setCancelled(true);\n                        else\n                            event.setCancelled(false);\n                }\n            }, this);\n        }\n\n        if(getConfig().getBoolean(\"hit.enable\")){\n            final int maxInterval = getConfig().getInt(\"hit.maxInterval\", 90);\n            Bukkit.getPluginManager().registerEvents(new Listener() {\n                private final HashMap<Integer, Record> hit = new HashMap<>(64, 0.8f);\n\n                @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)\n                public void onHit(EntityDamageByEntityEvent event){\n                    if(event.getDamager() instanceof HumanEntity)\n                        if(computeInterval(hit, event.getDamager().getUniqueId()) \n                                < maxInterval)\n                            event.setCancelled(true);\n                }\n            }, this);\n        }\n        if(getConfig().getBoolean(\"shootArrow.enable\")){\n            final int maxInterval = getConfig().getInt(\"shootArrow.maxInterval\", 190);\n            Bukkit.getPluginManager().registerEvents(new Listener() {\n                private final HashMap<Integer, Record> shoot = new HashMap<>(64, 0.8f);\n\n                @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)\n                public void onShoot(ProjectileLaunchEvent event){\n                    Projectile projectile;\n                    if((projectile = event.getEntity()) instanceof Arrow && \n                            projectile.getShooter() instanceof HumanEntity)\n                        if(computeInterval(shoot, ((Entity) projectile.getShooter()).getUniqueId())\n                                < maxInterval)\n                            event.setCancelled(true);\n                }\n            }, this);\n        }\n    }\n    \n    private static long computeInterval(Map<Integer, Record> map, Object obj){\n        int key = obj.hashCode();\n\n        long curTime = System.currentTimeMillis();\n        Record last = map.get(key);\n        if(last == null)\n            map.put(key, last = new Record(curTime));\n        \n        try{\n            return curTime - last.time;\n        }finally{\n            last.time = curTime;\n        }\n    }\n\n    public static class Record{\n        private long time;\n\n        public Record(long time) {\n            this.time = time;\n        }\n\n        @Override\n        public boolean equals(Object obj) {\n            return this == obj || \n                    (obj != null && getClass() != obj.getClass() && this.time == ((Record) obj).time);\n        }\n\n        @Override\n        public int hashCode() {\n            return 31 * 7 + (int) (this.time ^ (this.time >>> 32));\n        }\n\n        @Override\n        public String toString() {\n            return Long.toString(time);\n        }\n    }\n}复制代码仅共个人交♂流(yì)学♂习之用严禁二次创作\n\n更新日志，\nv1.0 2016/06/14  第一个版本\nv1.1 2016/06/16 修复了无法放置船和矿车的BUG，优化内存占用，增加左键与射击检测功能。\n\n最后，不做伸手党。这水印打的真是666666\nwhat a watermark 6666666复制代码但完全无脑复制粘贴者注意，你是个好人。\n",
+    "replies": [
+        {
+            "author": "Ling_Haner",
+            "timestamp": 1465902060,
+            "txt_content": "AAC我记得貌似有限制连点的功能..."
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465902120,
+            "txt_content": "Ling_Haner 发表于 2016-6-14 19:01\nAAC我记得貌似有限制连点的功能...\n那是左键连点，右键无效。。唉"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1465902420,
+            "txt_content": "这重复发帖发的真是66666[手动滑稽]"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465902540,
+            "txt_content": "XJue_DaDa 发表于 2016-6-14 19:13\n重制插件写进去不好么\n啥意思？。。"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1465902780,
+            "txt_content": "重制插件写进去不好么"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1465902960,
+            "txt_content": "andylizi 发表于 2016-6-14 19:09\n啥意思？。。\n重制一个反作弊插件 例如ncp?"
+        },
+        {
+            "author": "w1161977024",
+            "timestamp": 1465903320,
+            "txt_content": "连点还算作弊啊- -"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465903500,
+            "txt_content": "XJue_DaDa 发表于 2016-6-14 19:16\n重制一个反作弊插件 例如ncp?\n{:10_493:}你先看看ncp源码再说"
+        },
+        {
+            "author": "超平坦之王",
+            "timestamp": 1465903800,
+            "txt_content": "右键连点有啥用啊。\n一直防御？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465904280,
+            "txt_content": "超平坦之王 发表于 2016-6-14 19:30\n右键连点有啥用啊。\n一直防御？\n有些小游戏。\n例如彩弹射击，掘一死战"
+        },
+        {
+            "author": "青木源",
+            "timestamp": 1465904760,
+            "txt_content": "好东西！以后可以防熊孩子了！"
+        },
+        {
+            "author": "超平坦之王",
+            "timestamp": 1465905180,
+            "txt_content": " 本帖最后由 超平坦之王 于 2016-6-14 19:59 编辑 \nandylizi 发表于 2016-6-14 19:38\n有些小游戏。\n例如彩弹射击，掘一死战\n哦哦知道了，刚刚慢慢变卡233然而win10就会被迫重启2333"
+        },
+        {
+            "author": "huane2008",
+            "timestamp": 1465905240,
+            "txt_content": "在MCBBS我就服你"
+        },
+        {
+            "author": "超級寶寶",
+            "timestamp": 1465907220,
+            "txt_content": "可以增加反左鍵嗎 {:10_492:}"
+        },
+        {
+            "author": "1157173310",
+            "timestamp": 1465912620,
+            "txt_content": "超級寶寶 发表于 2016-6-14 20:27\n可以增加反左鍵嗎\n反左键666"
+        },
+        {
+            "author": "Saukiya",
+            "timestamp": 1465913100,
+            "txt_content": "这水印打的真是666666\nwhat a watermark 6666666"
+        },
+        {
+            "author": "寂静人心",
+            "timestamp": 1465916100,
+            "txt_content": "鼠标连点 还能刷盔甲架 正好能用{:10_492:}"
+        },
+        {
+            "author": "2kat",
+            "timestamp": 1465979520,
+            "txt_content": "这个插件，66666得不行"
+        },
+        {
+            "author": "SotrForgotten",
+            "timestamp": 1465993140,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1465993920,
+            "txt_content": "SotrForgotten 发表于 2016-6-15 20:19\n=-= 有个小bug诶\n玩家反映不能放船和矿车了，放了回到背包里\n单人测试了下... 果然删了这个就没事了 ...\n啊？怎么可能。。{:10_493:}我去试试"
+        },
+        {
+            "author": "youngklps",
+            "timestamp": 1465995480,
+            "txt_content": "插件logo碾压了我家里的一箱桃子"
+        },
+        {
+            "author": "LTQF",
+            "timestamp": 1466059980,
+            "txt_content": "熊孩子哭了"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1466075760,
+            "txt_content": "v1.1发布，修复了无法放置船和矿车的BUG，优化内存占用，增加左键与射击检测功能。\n注意：1.1将插件改名为了ClickLimit并大幅修改了配置文件，所以原来的配置不能使用。\n\n@超級寶寶  @SotrForgotten  "
+        },
+        {
+            "author": "超級寶寶",
+            "timestamp": 1466345520,
+            "txt_content": "andylizi 发表于 2016-6-16 19:16\nv1.1发布，修复了无法放置船和矿车的BUG，优化内存占用，增加左键与射击检测功能。\n注意：1.1将插件改名为 ...\n還是lz做得比較好\n自己做只能改一點點而已 還會出bug"
+        },
+        {
+            "author": "huane2008",
+            "timestamp": 1466346780,
+            "txt_content": "楼主。其实有一个BUG我想请求你能限制住。 \n就是现在目前的所有版本中都存在一个卡弓的攻击BUG，而且没人重视\n例如玩家有一把伤害的100钻石剑,和一把伤害10的弓。\n玩家只需要箭射出去的一瞬间切换成钻石剑，那么箭的伤害就会变成100!\n楼主是否能限制射完箭以后有1-2秒的延迟不能切换别的东西封住这个BUG"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1466346960,
+            "txt_content": "huane2008 发表于 2016-6-19 22:33\n楼主。其实有一个BUG我想请求你能限制住。 \n就是现在目前的所有版本中都存在一个卡弓的攻击BUG，而且没人重 ...\n{:10_492:}这不是bug，这是feature。\nmojang不可能不知道这个bug。并且它也被当作小技巧放在了wiki里（好像"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1466355120,
+            "txt_content": "这水印打的真是7777777\nwhat a watermark 7777777"
+        },
+        {
+            "author": "huane2008",
+            "timestamp": 1466393700,
+            "txt_content": "andylizi 发表于 2016-6-19 22:36\n这不是bug，这是feature。\nmojang不可能不知道这个bug。并且它也被当作小技巧放在了wiki里（好 ...\n那么楼主能否在你这个插件里面增加这个功能？ 比如射箭后禁止2秒左右的物品切换？"
+        },
+        {
+            "author": "xz_mc",
+            "timestamp": 1466506380,
+            "txt_content": "这水印打得真不6，不能拿去装B了[blank]"
+        },
+        {
+            "author": "黄总",
+            "timestamp": 1466520600,
+            "txt_content": "请问楼主说的AAC是指哪个插件呢？（全名）"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1466551500,
+            "txt_content": "黄总 发表于 2016-6-21 22:50\n请问楼主说的AAC是指哪个插件呢？（全名）\nhttps://www.spigotmc.org/resourc ... -aura-blocker.6442/\nAdvancedAntiCheat"
+        },
+        {
+            "author": "血染乀",
+            "timestamp": 1467153120,
+            "txt_content": "最后我按住鼠标打草就认为是连点器。。"
+        },
+        {
+            "author": "阿宝small_",
+            "timestamp": 1467157020,
+            "txt_content": "终于可以限制玩家扔雪球了！"
+        },
+        {
+            "author": "Aruoxuan",
+            "timestamp": 1467210420,
+            "txt_content": "好软件  我收了 谢谢"
+        },
+        {
+            "author": "方块天堂",
+            "timestamp": 1467246660,
+            "txt_content": "真心用了很好"
+        },
+        {
+            "author": "13230044302yy",
+            "timestamp": 1467369780,
+            "txt_content": "interact.maxInterval设置 100的时候 无法放置矿车 船 \n好吧，我没看1.1 我用的1.0 "
+        },
+        {
+            "author": "kevinss",
+            "timestamp": 1468721400,
+            "txt_content": "这个会引起服务器的卡顿吗？"
+        },
+        {
+            "author": "wangzhanpeng",
+            "timestamp": 1468722000,
+            "txt_content": "赞赞赞赞赞赞赞赞赞赞赞赞"
+        },
+        {
+            "author": "wlmy",
+            "timestamp": 1468722120,
+            "txt_content": "还不错，比AAc好"
+        },
+        {
+            "author": "莫良3",
+            "timestamp": 1468763520,
+            "txt_content": "与Plotme1.6.3冲突,右键使用药水/雪球等物品时后台报错。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468798680,
+            "txt_content": "莫良3 发表于 2016-7-17 21:52\n与Plotme1.6.3冲突,右键使用药水/雪球等物品时后台报错。\n请给出报错内容"
+        },
+        {
+            "author": "小烦",
+            "timestamp": 1468802760,
+            "txt_content": "漏斗矿车和箱子矿车之类的依旧……"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468803000,
+            "txt_content": "小烦 发表于 2016-7-18 08:46\n漏斗矿车和箱子矿车之类的依旧……\n{:10_494:}下一个版本修复"
+        },
+        {
+            "author": "小烦",
+            "timestamp": 1468803180,
+            "txt_content": "andylizi 发表于 2016-7-18 08:50\n下一个版本修复\n我已自己修复233"
+        },
+        {
+            "author": "莫良3",
+            "timestamp": 1468808520,
+            "txt_content": "andylizi 发表于 2016-7-18 07:38\n请给出报错内容\n[10:19:50] [Server thread/ERROR]: Could not pass event PlayerInteractEvent to PlotMe v0.16.3\norg.bukkit.event.EventException\n        at org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.java:310) ~[PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.plugin.RegisteredListener.callEvent(RegisteredListener.java:62) ~[PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.plugin.SimplePluginManager.fireEvent(SimplePluginManager.java:502) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.plugin.SimplePluginManager.callEvent(SimplePluginManager.java:487) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.craftbukkit.v1_8_R3.event.CraftEventFactory.callPlayerInteractEvent(CraftEventFactory.java:227) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.craftbukkit.v1_8_R3.event.CraftEventFactory.callPlayerInteractEvent(CraftEventFactory.java:194) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at org.bukkit.craftbukkit.v1_8_R3.event.CraftEventFactory.callPlayerInteractEvent(CraftEventFactory.java:190) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.PlayerConnection.a(PlayerConnection.java:720) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.PacketPlayInBlockPlace.a(PacketPlayInBlockPlace.java:52) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.PacketPlayInBlockPlace.a(PacketPlayInBlockPlace.java:1) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.PlayerConnectionUtils$1.run(SourceFile:13) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source) [?:1.8.0_71]\n        at java.util.concurrent.FutureTask.run(Unknown Source) [?:1.8.0_71]\n        at net.minecraft.server.v1_8_R3.SystemUtils.a(SourceFile:44) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.MinecraftServer.B(MinecraftServer.java:771) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.DedicatedServer.B(DedicatedServer.java:378) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.MinecraftServer.A(MinecraftServer.java:710) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at net.minecraft.server.v1_8_R3.MinecraftServer.run(MinecraftServer.java:613) [PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_71]\nCaused by: java.lang.NullPointerException\n        at com.worldcretornica.plotme_core.bukkit.api.BukkitBlock.getWorld(BukkitBlock.java:24) ~[?:?]\n        at com.worldcretornica.plotme_core.bukkit.listener.BukkitPlotListener.onPlayerInteract(BukkitPlotListener.java:215) ~[?:?]\n        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_71]\n        at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_71]\n        at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_71]\n        at java.lang.reflect.Method.invoke(Unknown Source) ~[?:1.8.0_71]\n        at org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.java:306) ~[PPSPG188.jar:git-PaperSpigot-f6fba00-9935adc]\n        ... 18 more"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468809360,
+            "txt_content": "莫良3 发表于 2016-7-18 10:22\n[10:19:50] [Server thread/ERROR]: Could not pass event PlayerInteractEvent to PlotMe v0.16.3\norg.b ...\n并非我的问题，而是PlotMe的锅"
+        },
+        {
+            "author": "莫良3",
+            "timestamp": 1468809540,
+            "txt_content": "andylizi 发表于 2016-7-18 10:36\n并非我的问题，而是PlotMe的锅\n{:10_503:}用了这插件 plotme 就开始报错了"
+        },
+        {
+            "author": "wangzhanpeng",
+            "timestamp": 1468809720,
+            "txt_content": "又是一款防作弊插件我收了"
+        },
+        {
+            "author": "qqkoudai4",
+            "timestamp": 1468810260,
+            "txt_content": "很好用的插件，支持一下国产~~~~~~~~~~~"
+        },
+        {
+            "author": "HomeCraftRPG",
+            "timestamp": 1468847160,
+            "txt_content": "- - - - - - - -"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1469949180,
+            "txt_content": "装了这个，我的神秘法杖右键就没用了"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1471853640,
+            "txt_content": "andylizi 发表于 2016-6-16 19:16\nv1.1发布，修复了无法放置船和矿车的BUG，优化内存占用，增加左键与射击检测功能。\n注意：1.1将插件改名为 ...\n{:10_522:}装了你的插件以后会导致神秘的法杖核心无法使用。。。。。"
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1471965960,
+            "txt_content": "1.7.10 MCPC+ 貌似不能用啊。加了用连点器还是能点"
+        },
+        {
+            "author": "421075439",
+            "timestamp": 1472019420,
+            "txt_content": "先顶了再说看起来不错"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1472052120,
+            "txt_content": "这水印打的真是666666\nwhat a watermark 6666666"
+        },
+        {
+            "author": "fmy19960827",
+            "timestamp": 1475211060,
+            "txt_content": "外置连点器+换武器 依然可以造成鬼畜的伤害……虽然我不知道是不是1710的BUG"
+        },
+        {
+            "author": "f840728401f",
+            "timestamp": 1475234220,
+            "txt_content": "有了这个再也不怕mcmmo刷草药学了"
+        },
+        {
+            "author": "abc612008",
+            "timestamp": 1475280060,
+            "txt_content": "为啥又是GPL又是禁止二次创作……"
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1475280120,
+            "txt_content": " 本帖最后由 gyalo 于 2016-10-1 08:06 编辑 \n\n为什么我测试，右键能限制，但左键不能限制，用音乐盒左键连点跟单机的速度是一样的。服务器1.7.10 MCPC+配置文件：\ninteract:\n    enable: true\n    maxInterval: 110\nhit:\n    enable: true\n    maxInterval: 90\nshootArrow:\n    enable: true\n    maxInterval: 190\n复制代码\n\n\n"
+        },
+        {
+            "author": "蓝色的羽月",
+            "timestamp": 1475281680,
+            "txt_content": "可以可以"
+        },
+        {
+            "author": "蓝色的羽月",
+            "timestamp": 1475282460,
+            "txt_content": "我记的还有一个能在速度能比规定快的直接t出的插件吗？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1475314560,
+            "txt_content": "abc612008 发表于 2016-10-1 08:01\n为啥又是GPL又是禁止二次创作……\n好吧我犯傻了A.A"
+        },
+        {
+            "author": "sofa",
+            "timestamp": 1475322360,
+            "txt_content": "fmy19960827 发表于 2016-9-30 12:51\n外置连点器+换武器 依然可以造成鬼畜的伤害……虽然我不知道是不是1710的BUG ...\n梨子开头举的例子就是外部的按键精灵连点吧= ="
+        },
+        {
+            "author": "sofa",
+            "timestamp": 1475322900,
+            "txt_content": "andylizi 发表于 2016-10-1 17:36\n好吧我犯傻了A.A\n话说梨子你的插件教程不更了？"
+        },
+        {
+            "author": "a1250447239",
+            "timestamp": 1475561220,
+            "txt_content": "能改成直接t出就好了"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1477672920,
+            "txt_content": "鼠标左键的修改单位不是很明白，如果我想限制玩家的鼠标点击速度在11-13cps我该改成多少----"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1477711500,
+            "txt_content": "王雨晴 发表于 2016-10-29 00:42\n鼠标左键的修改单位不是很明白，如果我想限制玩家的鼠标点击速度在11-13cps我该改成多少---- ...\n计算1000 / 你要的CPS复制代码"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1477719480,
+            "txt_content": "andylizi 发表于 2016-10-29 11:25\n计算\n谢谢，给你个好评"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1478270640,
+            "txt_content": "andylizi 发表于 2016-10-29 11:25\n计算\n错误，1000的话连最基本的连击都不行了，玩家只能5秒打一下怪物"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1478271000,
+            "txt_content": "王雨晴 发表于 2016-11-4 22:44\n错误，1000的话连最基本的连击都不行了，玩家只能5秒打一下怪物\n..\n发一下配置文件？"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1478272500,
+            "txt_content": "andylizi 发表于 2016-11-4 22:50\n..\n发一下配置文件？\n配置文件已上传\n\n\n\n\n\n\n\nconfig.yml\n\n\n2016-11-4 23:14 上传\n点击文件名下载附件\n\n\n\n\n143 Bytes, 下载次数: 12\n\n\n\n\n"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1478274840,
+            "txt_content": "王雨晴 发表于 2016-11-4 23:15\n配置文件已上传\n这个设置是1秒只能攻击一次没错啊。。"
+        },
+        {
+            "author": "eeeeeeeb",
+            "timestamp": 1478276280,
+            "txt_content": "梨子系列作品顶顶顶"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1478342220,
+            "txt_content": "andylizi 发表于 2016-11-4 23:54\n这个设置是1秒只能攻击一次没错啊。。\n-------但是这样的话玩家连最基本的怪都打不了，鼠标连点器也不知道具体速度是多少---插件自带的数据能防住吗？"
+        },
+        {
+            "author": "zxczly",
+            "timestamp": 1478877240,
+            "txt_content": "可以防止自动攻击和变速齿轮吗？"
+        },
+        {
+            "author": "ew23153",
+            "timestamp": 1480927800,
+            "txt_content": "装上之后左手无法射箭，左手无法放火把o(>﹏<)o"
+        },
+        {
+            "author": "578296515",
+            "timestamp": 1482648660,
+            "txt_content": "这水印打的真是666666\nwhat a watermark 6666666"
+        },
+        {
+            "author": "loverenliu",
+            "timestamp": 1483883040,
+            "txt_content": "666               "
+        },
+        {
+            "author": "1075541883",
+            "timestamp": 1484724420,
+            "txt_content": "这连点器实在是666啊"
+        },
+        {
+            "author": "welcome4176",
+            "timestamp": 1484725140,
+            "txt_content": "超級寶寶 发表于 2016-6-14 20:27\n可以增加反左鍵嗎 {:10_492:}\n插件挺不错的。"
+        },
+        {
+            "author": "423618228",
+            "timestamp": 1484725680,
+            "txt_content": "/clear 玩家名"
+        },
+        {
+            "author": "423618228",
+            "timestamp": 1484725740,
+            "txt_content": "423618228 发表于 2017-1-18 15:48\n/clear 玩家名\n这水印打的真是666666\nwhat a watermark 6666666\n上面那个粘贴错了..."
+        },
+        {
+            "author": "awd410842",
+            "timestamp": 1485179460,
+            "txt_content": "有个尴尬的问题，如果把连点器频率和插件设定频率一致，或者比插件频率低一点点，那我用连点器可以非常有效率保证每次攻击是有效的，手动点击的人则可能因为不能很好掌握攻击频率导致有时攻击无效，还是比不过用连点器的人，毕竟连点器可以保证一定频率的每次有效攻击啊。"
+        },
+        {
+            "author": "zx8673",
+            "timestamp": 1485197820,
+            "txt_content": "装上后神秘无法使用法杖。。。。"
+        },
+        {
+            "author": "asd862062",
+            "timestamp": 1485214620,
+            "txt_content": "反抗外掛最好用 作者太神辣\n\n已經實施我的伺服器了"
+        },
+        {
+            "author": "1961525317",
+            "timestamp": 1485244800,
+            "txt_content": "不错这个刚刚好防神秘时代法杖的快速射击"
+        },
+        {
+            "author": "772499649",
+            "timestamp": 1492680960,
+            "txt_content": "安装以后，神秘mod法杖无法使用。作者能否写一个兼容神秘mod的插件"
+        },
+        {
+            "author": "1137722906",
+            "timestamp": 1492750440,
+            "txt_content": "Ling_Haner 发表于 2016-6-14 19:01\nAAC我记得貌似有限制连点的功能...\n666666666666666666666666"
+        },
+        {
+            "author": "水煮清娃",
+            "timestamp": 1492773420,
+            "txt_content": "限制连点器的时候能不能自定义提示语？"
+        },
+        {
+            "author": "huanyueqiji",
+            "timestamp": 1497788400,
+            "txt_content": "很感谢楼主的这个插件，服务器经常有玩家开鼠标宏作弊，搞的烦不胜烦"
+        },
+        {
+            "author": "994166334",
+            "timestamp": 1497793200,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "水杉",
+            "timestamp": 1498189200,
+            "txt_content": "貌似和神秘的法杖有点冲突 装了这个插件后法杖不能施法了（个人服务器测试的 不排除是我服务器的原因）"
+        },
+        {
+            "author": "lao_zuo",
+            "timestamp": 1498220100,
+            "txt_content": "活捉梨子...."
+        },
+        {
+            "author": "qq2950646",
+            "timestamp": 1498471740,
+            "txt_content": "试试看 支持楼主"
+        },
+        {
+            "author": "870047983@qq.co",
+            "timestamp": 1498486860,
+            "txt_content": "超級寶寶 发表于 2016-6-14 20:27\n可以增加反左鍵嗎 {:10_492:}\n哪里下载啊 加我Q:1754299962"
+        },
+        {
+            "author": "870047983@qq.co",
+            "timestamp": 1498487040,
+            "txt_content": "超級寶寶 发表于 2016-6-14 20:27\n可以增加反左鍵嗎 {:10_492:}\n就是需要这个 但是如何下载不知道 QQ1754299962 有的联系一下"
+        },
+        {
+            "author": "emt8888",
+            "timestamp": 1500151200,
+            "txt_content": "非常好的插件"
+        },
+        {
+            "author": "惆丿怅",
+            "timestamp": 1500162180,
+            "txt_content": "楼主， 这个插件和脚本方块 和 地皮 有冲突啊。"
+        },
+        {
+            "author": "MCSAAA",
+            "timestamp": 1500342840,
+            "txt_content": "支持，希望能做出来更多的反作弊插件"
+        }
+    ]
+}

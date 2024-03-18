@@ -1,0 +1,159 @@
+{
+    "title": "【CBL|CHYX】【命令方块】记忆游戏",
+    "author": "chyx",
+    "replyCount": 30,
+    "timestamp": 1434693240,
+    "txt_content": " 本帖最后由 chyx 于 2015-6-20 01:01 编辑 \n存档\n\nhttp://pan.baidu.com/s/10hTAe\n\n\n如果有BUG请回复我\n\n\n\n\n\n简介\n有一个游戏大家一定见过 一些牌两两成双 背对着你 你一次翻开两张 如果一样就会消失 不一样就会翻回去\n我就用cb做了这个游戏 \n玩之前 先放64个展示框 位置随意\n然后按下按钮即可 \n左键右键都能控制 但建议右键 因为展示框虽然用来显示画片 但是大小仍和平时一样 如果左键有可能破坏承载用的方块\n静候打脸\n\n\n\n亮点：在翻开两个后会展示一段时间后自动翻回去 但是这时仍然可以选择牌 包括翻开的牌\n亮点2：点击翻开的牌可以翻回去\n\n\n使用方法：\n先任意放置64个展示框按下按钮 （这也是复位键 一旦出现故障立刻猛击该按钮）左或右键翻开或翻回牌翻开会展示2.5s后自动翻回 当然这不会妨碍你继续游戏一致的牌会自动消失 所有牌都消失后游戏自动关闭\n\n\n\n\n\n\n截图\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n原理 \n为了让玩家可以自由的改变地图形状 我没有区分展示框 因此要刚好放一组展示框\n游戏的数据记录在计分板里 为此 我放了只牛 用命名牌起名叫var 用于存储所有游戏信息\n游戏有两个高频 分别编号1 3  记录@e[name=var] 的stage 上\n游戏可以分成3部分 开局 高频#1和#2\n重要的事是确保状态切换时信息的传递\n\n有一个小的高频发生器 分别高频着\nexecute @e[name=var,score_stage_min=1,score_stage=1] ~ ~ ~ /fill 0 19 4 11 19 4 minecraft:redstone_block\nexecute @e[name=var,score_stage_min=3,score_stage=3] ~ ~ ~ /fill 0 19 3 16 19 3 minecraft:redstone_block\ntestfor @e[type=ItemFrame] \n最后一条连比较器连红石火把接命令方块矿车内含/scoreboard players set @e[name=var] stage 0在没展示框时停止游戏\n\n开局\n开局时要给每个方块随机上一个画片 我使用@r 并把画片编号存储在各个展示框的pic里\n防止重复赋值我先\n/scoreboard players set @e[type=ItemFrame] pic -1\n用负一表示没被赋值\n然后\n/scoreboard players set @r[type=ItemFrame,c=8,score_pic=-1] pic 0\n/scoreboard players set @r[type=ItemFrame,c=8,score_pic=-1] pic 1\n。。。。\n/scoreboard players set @r[type=ItemFrame,c=8,score_pic=-1] pic 7\n这样每种图案各有8个\n最后\n/scoreboard players set @e[type=ItemFrame] disp 1                             disp表示正/反   1是反 0是正\n/scoreboard players set @e[name=var] stage 1\n开局就结束了\n\n高频#1\n高频#1用来准备迎接玩家的按下 在状态1时启动\n先/scoreboard players set @e[type=ItemFrame] spi 1\n/scoreboard players set @e[type=ItemFrame] spi 0 {ItemRotation:0b}\n于是转过的spi就是1 其他的就是0 因为空白展示框没有ItemRotation 因此空白展示框也被当做转过\nexecute @e[score_spi_min=1,type=ItemFrame] ~ ~ ~ /scoreboard players remove @e[type=ItemFrame,c=1,r=0] disp 1\nexecute @e[score_spi_min=1] ~ ~ ~ /scoreboard players operation @e[type=ItemFrame,c=1,r=0] disp *= @e[type=ItemFrame,c=1,r=0] disp\n这两条看起来很长 其实就是让被玩家点的方块的disp=（disp-1）^2\n于是0变1 1变0\n然后是负责显示的\n/entitydata @e[type=ItemFrame,score_disp_min=1] {Item:{id:\"minecraft:filled_map\",Damage:100s,Count:1b},ItemRotation:0b}\n/entitydata @e[type=ItemFrame,score_disp=0,score_pic_min=0,score_pic=0] {Item:{id:\"minecraft:filled_map\",Damage:0s,Count:1b},ItemRotation:0b}\n/entitydata @e[type=ItemFrame,score_disp=0,score_pic_min=1,score_pic=1] {Item:{id:\"minecraft:filled_map\",Damage:1s,Count:1b},ItemRotation:0b}\n。。。。。\n/entitydata @e[type=ItemFrame,score_disp=0,score_pic_min=7,score_pic=7] {Item:{id:\"minecraft:filled_map\",Damage:7s,Count:1b},ItemRotation:0b}\n第一条是显示背面的 其他的是显示正面的 （背面的图案是我拿有史以来最有名的绘图软件mspaint.exe制作的 其他来自wiki）\n\n然后就是正面数达到2以后的事了\ntp @e[type=ItemFrame,score_disp=0] ~ ~ ~\n这个只是用来检测正面牌个数用的 它有stats 连接到var的tem计分板\nexecute @e[name=var,score_tem_min=2] ~ ~ ~ /scoreboard players operation @e[name=var] d = @e[score_disp=0,c=1] pic\nexecute @e[name=var,score_tem_min=2] ~ ~ ~ /scoreboard players operation @e[name=var] d -= @e[score_disp=0,c=-1] pic\n这两条是让var的d成为两个翻开的牌pic值的差  是0说明一致\nexecute @e[name=var,score_tem_min=2] ~ ~ ~ /scoreboard players set @e[name=var] time 20\nexecute @e[name=var,score_tem_min=2] ~ ~ ~ /scoreboard players set @e[name=var] stage 3\n切换到stage 3 开始20tick计时\n/scoreboard players set @e[type=ItemFrame,score_disp=0] d 1本着节约变量的想法也用d标记翻开的牌 现在看似乎没必要了\n#1结束\n#2高频是为了展示一会翻开的牌设计的 在状态3时启动/scoreboard players set @e[type=ItemFrame] spi 1\n/scoreboard players set @e[type=ItemFrame] spi 0 {ItemRotation:0b}\n跟刚才一样\n/execute @e[type=ItemFrame,score_spi_min=1] ~ ~ ~ /scoreboard players set @e[name=var] time 0\n如果有范开的就把时间快进到0\n以下是时间到时做的事\nexecute @e[name=var,score_time=0] ~ ~ ~ /scoreboard players set @e[name=var] stage 1\n切换回状态1\nexecute @e[name=var,score_time=0,score_d_min=0,score_d=0] ~ ~ ~ kill @e[type=ItemFrame,score_d_min=1]\n如果一样就杀展示框\nexecute @e[name=var,score_time=0] ~ ~ ~ /entitydata @e[type=ItemFrame,score_d_min=1] {ItemRotation:1b,Item:{id:\"stone\"}}\n能进行这一步 肯定是不一样 不然已经被杀了 自动拧一下 一会回到状态1是就因为被拧自动翻回去了\nexecute @e[name=var,score_time=0] ~ ~ ~ /entitydata @e[type=ItemFrame,score_spi_min=1,score_d_min=1] {ItemRotation:0b,Item:{id:\"stone\"}}\n如果刚才点了翻过来的框 把他们摆正 因为他们不应该翻回去\nexecute @e[name=var,score_time=0] ~ ~ ~ /scoreboard players reset @e[type=ItemFrame] d\n\n清除展示框的标记\n\n/scoreboard players remove @e[name=var] time 1\n每tick时间减一\n#2完\n好了我讲完了 有兴趣的同志可以修改 比如改成固定形状但不用每次手摆1组展示框\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "Forsworn_",
+            "timestamp": 1434693780,
+            "txt_content": "为何不直接周六发诶？\n\n现在发不是下午一会就被刷掉了么2333"
+        },
+        {
+            "author": "chinese_good",
+            "timestamp": 1434724620,
+            "txt_content": "-.-我感觉，我学会的命令方块指令瞬间渺茫了···"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1434743880,
+            "txt_content": "其实看到这种东西首先想知道自定义图片怎么做。。（虽然有得去找"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1434763620,
+            "txt_content": "xinxin2459 发表于 2015-6-19 14:03\n为何不直接周六发诶？\n\n现在发不是下午一会就被刷掉了么2333\n别的地方会刷掉，但已开筛选命令方块就不会了，因为实在太少了，命令方块的基本上一周只有3 4张"
+        },
+        {
+            "author": "Xin_Lu",
+            "timestamp": 1434763800,
+            "txt_content": "版本是1.8的吗= ="
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1434765720,
+            "txt_content": "先顶再看，为何不@我\n昨天下午论坛貌似崩了…于是我就玩了一下午盔甲架233"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1434788640,
+            "txt_content": "存档一般放最后\n指令要用代码格式最好\n刮刮乐的正确格式是要把刮刮乐的字重新改成黑色\nBUG：到最后会剩下几个不一样的牌，消不掉……\n为什么不提前放好展示框？\n还有我一下子打开三张牌，牌收起时，我看到了：材质丢失的方块"
+        },
+        {
+            "author": "霸气阳阳",
+            "timestamp": 1434790920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "霸气阳阳",
+            "timestamp": 1434790920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "霸气阳阳",
+            "timestamp": 1434790920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "霸气阳阳",
+            "timestamp": 1434790920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "小白~别喷。",
+            "timestamp": 1434790980,
+            "txt_content": "这个小组里面好多红石大触"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1434792840,
+            "txt_content": "FHC红石 发表于 2015-6-20 16:24\n存档一般放最后\n指令要用代码格式最好\n刮刮乐的正确格式是要把刮刮乐的字重新改成黑色\n\n你不可能一次选3个啊  因为到2个时就进入状态3了 而且每种都是8个 应该不会出现最后剩几个的事情啊\n材质错误是一瞬间的 无视就好"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1434793020,
+            "txt_content": "chyx 发表于 2015-6-20 17:34\n你不可能一次选3个啊  因为到2个时就进入状态3了 而且每种都是8个 应该不会出现最后剩几个的事情啊\n材质 ...\n可能是我中途敲掉方块的原因？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1434807240,
+            "txt_content": "FHC红石 发表于 2015-6-20 17:37\n可能是我中途敲掉方块的原因？\n应该是了"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1434807480,
+            "txt_content": "FHC红石 发表于 2015-6-20 16:24\n存档一般放最后\n指令要用代码格式最好\n刮刮乐的正确格式是要把刮刮乐的字重新改成黑色\n不提前放是为了让玩家有最大的自由  可以自己决定放在哪了啊"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1434807780,
+            "txt_content": "chyx 发表于 2015-6-20 21:34\n应该是了\n不能用指令放置展示框吗……"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1434808320,
+            "txt_content": "FHC红石 发表于 2015-6-20 21:43\n不能用指令放置展示框吗……\n什么指令能放64个实体啊。。。"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1434808440,
+            "txt_content": "chyx 发表于 2015-6-20 21:52\n什么指令能放64个实体啊。。。\n敢不敢用64个命令方块……"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1434808500,
+            "txt_content": "FHC红石 发表于 2015-6-20 21:54\n敢不敢用64个命令方块……\n那就不能让玩家决定放在哪了啦"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1434808620,
+            "txt_content": "chyx 发表于 2015-6-20 21:55\n那就不能让玩家决定放在哪了啦\n哦好吧…………\n"
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1435056060,
+            "txt_content": "做得确实不错，逻辑性和环保都得到了体现。\n帖子编写和排版看得也很舒服。{:10_512:}\ndisp=（disp-1）^2这个标记切换手法算是学到一招。然后文中有一处错别字“范开”\n有这个做基础，连连看不知算法你可有准备？毕竟这个设计的是可以随意放置展示框位置的，对改进是一种优势，做出靠谱的连连看（最好能标出连接线效果，我记得你们小组好像在开坑寻路算法，连连看的相对应该简单一些），加上这种水平的解说，精华我觉得可以有。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1435056180,
+            "txt_content": "jianghr 发表于 2015-6-23 18:41\n做得确实不错，逻辑性和环保都得到了体现。\n帖子编写和排版看得也很舒服。\ndisp=（disp-1）^2这 ...\n生命游戏里也用了（x-1）^2。。\n我不懂寻路算法 有时间去问问魔影矿工无敌木"
+        },
+        {
+            "author": "jsahnc",
+            "timestamp": 1435056780,
+            "txt_content": "{:10_503:}好是好，但是在服务器运载几个会很卡。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1435056840,
+            "txt_content": "jsahnc 发表于 2015-6-23 18:53\n好是好，但是在服务器运载几个会很卡。\n只支持一个机器在运行 运行时全世界不得有非参与游戏展示框"
+        },
+        {
+            "author": "BDNS",
+            "timestamp": 1463824140,
+            "txt_content": "FHC红石 发表于 2015-6-20 17:37\n可能是我中途敲掉方块的原因？\ndingtienijintianzaixuexiaoma"
+        },
+        {
+            "author": "疾风清酒",
+            "timestamp": 1463830080,
+            "txt_content": "我已经选择放弃\n从开始到放弃"
+        },
+        {
+            "author": "yigengcong",
+            "timestamp": 1464174960,
+            "txt_content": "感觉很厉害的样子\n只是我看不懂"
+        },
+        {
+            "author": "油炸香粑粑",
+            "timestamp": 1468406820,
+            "txt_content": "应该可以做服务器小游戏了{:10_521:}"
+        },
+        {
+            "author": "Maro丨马络",
+            "timestamp": 1468586100,
+            "txt_content": "很高端的东西，加油"
+        }
+    ]
+}

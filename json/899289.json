@@ -1,0 +1,309 @@
+{
+    "title": "OpenJ9 JVM参数(服务器启动参数)调优",
+    "author": "tian051011",
+    "replyCount": 60,
+    "timestamp": 1565285820,
+    "txt_content": " 本帖最后由 tian051011 于 2019-8-9 14:13 编辑 \n\n前言\n不久前在https://www.mcbbs.net/thread-847020-1-1.html了解到了OpenJ9，尝试性的在自己的服务器使用后，效果惊为天人，不光服务端的启动速度提升了，内存占用也极大下降，原本空载也要600多MB内存，现在两个人在线都不用600MB。之后我推荐玩家们在客户端也使用OpenJ9，实测对客户端帧数、启动速度、内存占用也有优化。不过让我不爽的一点是，以前给HotSpot(Java原配虚拟机)用的优化JVM参数(就是俗称的服务器启动参数)不能用了，于是花了一点时间钻研了一下IBM的OpenJ9文档，自己写了一段启动参数，实测可以起到锦上添花的作用，让你的服务器带更多人，同时优化性能。\n\n\n\n使用效果服务端:PaperSpigot-1.14.4-git147 装了一些常用插件(EssentialX,CoreProtect,Residence) 运行3分钟\n使用gc命令查看内存占用:\n使用默认JVM，不加任何优化参数，空载内存占用:\n\n算是无功无过吧\n\n使用OpenJ9，不加任何优化参数，空载内存占用:\n\n内存占用明显下降，但还能更给力点吗？\n\n使用OpenJ9，加上我的优化参数，空载内存占用:\n\n无论是分配内存还是使用内存都下降了，这还只是空载的状态\n\n使用jconsole监控:\n使用OpenJ9，不加任何优化参数\n\n\n\n使用OpenJ9，加上我的优化参数:\n\n\n\n\n\n\n参数本体java -server -Xmx最大内存M -Xms最小内存M -Xss512K -Xaggressive -Xalwaysclassgc [-XcompilationThreads4] -Xconmeter:dynamic [-Xgcpolicy:metronome] -Xshareclasses [-Xtune:virtualized] -jar 服务端核心.jar\n复制代码使用[]框起来的选项不能直接使用，需要具体问题具体分析，详情看我下方的参数解释。\n\n\n\n参数解释-server\n服务器运行模式，为持久运行优化\n\n-Xms\n初始堆大小，一般是物理内存的1/64(<1GB)，和-Xmx一样大可以节省一点CPU资源\n\n-Xmx\n最大堆大小，一般是物理内存的1/4(<1GB)，不过MC服务端对于内存的要求挺高的，能用上的都用上吧\n\n-Xss\n每个线程的堆栈大小，OpenJ9默认是1024KB，不过另一位服主的帖指出，对于MC，512KB足够了\n\n-Xaggressive\n更激进的性能优化，OpenJ9的文档指出它会在未来版本作为默认选项\n\n-Xalwaysclassgc\n始终在全局垃圾回收期间执行动态类卸载检查，减少内存占用\n\n-XcompilationThreads4\n指定JIT编译器使用的编译线程数，最高只能设到4，如果服务器物理核心不足4个，设置成物理核心的一半\n\n-Xconmeter:dynamic\n动态检测大对象区或小对象区域的使用情况\n\n-Xgcpolicy:metronome\n启用metronome垃圾收集器，可以让垃圾收集时的瞬卡更短暂。仅支持AIX(没人用这个开MC服吧)和Linux，Windows就不要加了。\n\n-Xshareclasses\nOpenJ9的高速类共享功能，减少内存占用与启动时间，适合多个JVM运行相似代码的环境，或定期重启JVM的环境，对于群组服非常有用。\n\n-Xtune:virtualized\n假如你的服务器运行在虚拟化环境中(例如阿里云、腾讯云等等)，使用这一选项可以在空闲时减少OpenJ9 VM CPU消耗，有可能会略微提升性能与减少内存占用，不过代价是吞吐量的少量损失。实体机环境不要加! \n\n\n\n\n在客户端使用借用一下@shangenbo 的图:\n\n在高级启动设置中的这个选项填入下面的代码，[]内的代码还是要看情况使用:\n-Xss512K -Xaggressive -Xalwaysclassgc [-XcompilationThreads4] -Xconmeter:dynamic [-Xgcpolicy:metronome] -Xshareclasses [-Xtune:virtualized]复制代码(那个...有人会在AIX系统里玩MC吗?)\n\n不同的启动器可能需要在不同位置设置，不过原理是相通的\n\n\n\n\n注意事项1.此优化仅适用于OpenJ9\n2.优化效果因环境差异可能会不同\n3.如果换了参数后出现了问题，请回贴报告\n\n\n\n\n如果本贴帮到了你，请不要吝啬你的金粒和人气!\n",
+    "replies": [
+        {
+            "author": "tian051011",
+            "timestamp": 1565286000,
+            "txt_content": "论坛的奇妙屏蔽词导致一个图片无法显示...我重新上传了一次"
+        },
+        {
+            "author": "NGK3",
+            "timestamp": 1565286960,
+            "txt_content": "emmm...模组服用了也可以嘛?"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1565287200,
+            "txt_content": "NGK3 发表于 2019-8-9 01:56\nemmm...模组服用了也可以嘛?\n如果你的模组服可以在OpenJ9环境下正常运行，使用这个参数就没有问题，不过有些Sponge插件不支持OpenJ9，所以你需要试验一下"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1565310000,
+            "txt_content": " 本帖最后由 凋灵兔子 于 2019-8-9 08:21 编辑 \n\n我不介意再说一遍: JVM调优的目的是 让高性能硬件发挥出它本应该发挥出的效果(因为硬件性能的提升和卡不卡并不是线性增长的关系), 并不是让渣机逆天改命. 我不明白为什么现在给个参数上来就用内存占用甚至是 CPU 占用来表明参数有多牛逼, 是作者根本就不懂还是把读者当成**. 举一个**的例子: 你不停的调用系统 gc, 内存占用当然下降了, 而且我可以和你保证内存占用非常低, 但是服务器吞吐量反而下降了.  如果你说你的调优是有效的, 最起码应该对比前后 GC 耗时吧, 并发垃圾回收虽然不会 STW, 但是好歹也会占用电脑性能啊, 并发收集的过程吞吐量必定会跟着下降.  当然了, 如果你认为服务器堆性能的追求就是 \"带更多人\" 的话, 那确实不用关心别的.\n\n算了, 叫不醒就不叫了\n"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1565317020,
+            "txt_content": "NGK3 发表于 2019-8-9 01:56\nemmm...模组服用了也可以嘛?\nspigot有些插件也不自持j9，比如那个自动重启"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1565320380,
+            "txt_content": "用Velocity尝试了下，内存占用是下来了许多，但GC的时候CPU消耗异常的高。。"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1565331660,
+            "txt_content": "凋灵兔子 发表于 2019-8-9 08:20\n算了, 叫不醒就不叫了\n因为内存占用对于大多数不懂技术的服主比较直观...我也没说是“逆天改命”，就说是“锦上添花”\n我已经补充了jconsole分析结果\n顺带一提，在OpenJ9里你甚至关不了并发垃圾收集，很多使用HotSpot时的思维定势也需要改变"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1565332140,
+            "txt_content": "酷车手BB弹 发表于 2019-8-9 11:13\n用Velocity尝试了下，内存占用是下来了许多，但GC的时候CPU消耗异常的高。。\n具体有多高呢"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1565334060,
+            "txt_content": "tian051011 发表于 2019-8-9 14:29\n具体有多高呢\n我空载测试的。没用参数没人时2%，用了这个参数后没人时可以到7%"
+        },
+        {
+            "author": "ksqeib445",
+            "timestamp": 1565338920,
+            "txt_content": "改天研究研究J9参数配g1gc cms J9不能用，所以一直不打算用J9 (J9目前兼容性也有点。。。)"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1565343540,
+            "txt_content": "tian051011 发表于 2019-8-9 14:21\n因为内存占用对于大多数不懂技术的服主比较直观...我也没说是“逆天改命”，就说是“锦上添花”\n我已经补 ...\n我的意思是内存占用并不是优化的目的, 也不是优化的副产品, 内存占用的高低和优化好坏完全没有任何一点关系. 如果你觉得内存占用直观的话那我直接来个优化插件, 0.5 秒执行一次系统gc, 是不是优化效果更好"
+        },
+        {
+            "author": "nuandong",
+            "timestamp": 1567469040,
+            "txt_content": "我用了 但是加载就是未响应"
+        },
+        {
+            "author": "坏2333",
+            "timestamp": 1567607160,
+            "txt_content": "整哈使用openj9诶 去看看"
+        },
+        {
+            "author": "超级无敌兔",
+            "timestamp": 1569324840,
+            "txt_content": "为什么说给HotSpot(Java原配虚拟机)用的优化JVM参数(就是俗称的服务器启动参数)不能用了呢？这一点是从哪里看的？"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1569422040,
+            "txt_content": "超级无敌兔 发表于 2019-9-24 19:34\n为什么说呢？这一点是从哪里看的？\nOpenJ9和HotSpot的JVM参数不一样 用HotSpot的参数OpenJ9不会读取"
+        },
+        {
+            "author": "Damnie",
+            "timestamp": 1570070520,
+            "txt_content": " 本帖最后由 Damnie 于 2019-10-3 11:08 编辑 \n\n这些参数与工业模组有冲突 导致卡在加载界面2/7处1.12.2 HMCL 客户端\n补充：很多模组的情况下 没参数的情况下 也会因工业卡在2/7处\n看来是HMCL默认的JVM参数出现问题"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1570074840,
+            "txt_content": "Damnie 发表于 2019-10-3 10:42\n这些参数与工业模组有冲突 导致卡在加载界面2/7处1.12.2 HMCL 客户端\n补充：很多模组的情况下 没参数的情况 ...\n也有可能是OpenJ9问题 试试默认JVM可不可以启动"
+        },
+        {
+            "author": "Damnie",
+            "timestamp": 1570093920,
+            "txt_content": "tian051011 发表于 2019-10-3 11:54\n也有可能是OpenJ9问题 试试默认JVM可不可以启动\n能 不用JVM参数就能启动"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1570094640,
+            "txt_content": "Damnie 发表于 2019-10-3 17:12\n能 不用JVM参数就能启动\n那应该就是工业mod对OpenJ9的兼容性不好 可以试试更新工业mod版本和OpenJ9版本"
+        },
+        {
+            "author": "Damnie",
+            "timestamp": 1570102320,
+            "txt_content": "tian051011 发表于 2019-10-3 17:24\n那应该就是工业mod对OpenJ9的兼容性不好 可以试试更新工业mod版本和OpenJ9版本 ...\n工业是最新的 更新OpenJ9?意思是把jdk升级到11么"
+        },
+        {
+            "author": "3512885810",
+            "timestamp": 1582265940,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1582866000,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-3-2 17:41 编辑 \n\n-Xaggressive 这个参数建议不用，使用后tps会变低(可能java11上是这样，java8位置）\n0.16.0以上的openj9默认启动了类共享缓存，缓存关机后自动删除(目前类共享缓存最大2G)\n现在-XcompilationThreads最高可设置为7目前openj9有一个bug，可能导致mc崩溃，可以使用参数-Xjit:disableMethodHandleInlineWithoutPeeking解决崩溃问题 缓存的设置可以补充下：https://www.eclipse.org/openj9/docs/xshareclasses/2\n-Xms512m -Xmx1024m -Xincgc -Xjit:{net/minecraft/class_3218.method_18765}(optLevel=hot,count=1),{net/minecraft/class_2306.method_9957(Lnet/minecraft/class_2487;ZLnet/minecraft/class_1297;)Z}(optLevel=hot,count=1),{net/minecraft/class_3218.method_18762(Lnet/minecraft/class_1297;)V}(optLevel=hot,count=1),{net/minecraft/class_3218.method_18765}(optLevel=hot,count=1),{net.minecraft.class_1132.method_3748()}(optLevel=hot,count=1),disableMethodHandleInlineWithoutPeeking -Xshareclasses:cacheDir=\".\\cache,name=fabricserver,persistent\" -XX:SharedCacheHardLimit=454m -Dfml.queryResult=confirm复制代码\n指定jit用其他等级编译mc的方法,disableMethodHandleInlineWithoutPeeking是防崩的，在openj9 0.18测试，用openjdk11，-Dfml.queryResult=confirm只是防卡控制台 \n"
+        },
+        {
+            "author": "25000.www",
+            "timestamp": 1582889880,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1582895820,
+            "txt_content": "1a2s3d4f1 发表于 2020-2-28 13:00\n-Xaggressive 这个参数建议不用，使用后tps会变低(可能java11上是这样，java8位置）\n0.16.0以上的openj9默 ...\n感谢你所提供的相关信息与资料 我正在用这些资料重新试验 不久后应该会在帖子里加入相关补充内容"
+        },
+        {
+            "author": "dboloki",
+            "timestamp": 1582937460,
+            "txt_content": "\nthanks！正在着手制作海绵端"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1583142180,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-4-18 14:34 编辑 \ntian051011 发表于 2020-2-28 21:17\n感谢你所提供的相关信息与资料 我正在用这些资料重新试验 不久后应该会在帖子里加入相关补充内容 ...\n-Xaggressive这个参数可能可以提高性能优化，有时用了会提高fps，tps的，可能我这边的影响要素多（比如，客户端服务端在一台机上运行）听说xss设512k不够用，那-Xss810K应该够用了，X810k或默认的测试1.15.2+mod没出现区块群系错误的奇妙bug，之前1.15.2+多mod就区块群系错误的奇妙bug可能是xss512对mod来说小了openj9默认的gc回收需要调下·使用这个参数会降低mc的性能\nhttps://github.com/eclipse/openj9/issues/8353\n\n\n"
+        },
+        {
+            "author": "Dragon__Rain",
+            "timestamp": 1583734440,
+            "txt_content": "搞不懂怎么安装啊，指点一下"
+        },
+        {
+            "author": "当你老爹",
+            "timestamp": 1584160500,
+            "txt_content": "复制粘贴楼主的参数,并且没有加入其它参数,OpenJDK最新版...\n内存减半,性能优化减半！负优化无敌！\n1.12.2Catserver 多线程版本\n\n"
+        },
+        {
+            "author": "Dragon__Rain",
+            "timestamp": 1584252240,
+            "txt_content": "1.14.4版本我试了试运行D:\\百度云管家下载\\QQ浏览器截图20200315140219   完全打不卡"
+        },
+        {
+            "author": "Dragon__Rain",
+            "timestamp": 1584252360,
+            "txt_content": "1.14.4 forge28.2.3使用J9游戏打不开啊，怎么回事"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1584355500,
+            "txt_content": "当你老爹 发表于 2020-3-14 12:35\n复制粘贴楼主的参数,并且没有加入其它参数,OpenJDK最新版...\n内存减半,性能优化减半！负优化无敌！\n1.12.2C ...\n你好，请问你能否提供更多详细信息，例如服务器配置，OpenJDK与OpenJ9的具体版本号，CatServer的具体版本号，谢谢"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1584358260,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-3-18 23:50 编辑 \ntian051011 发表于 2020-3-16 18:45\n你好，请问你能否提供更多详细信息，例如服务器配置，OpenJDK与OpenJ9的具体版本号，CatServer的具体版本 ...\n感觉是那个bug导致的，那个bug导致mspt变高且波动大"
+        },
+        {
+            "author": "2155970",
+            "timestamp": 1584533760,
+            "txt_content": "OpenJ9这么厉害吗，有空试试"
+        },
+        {
+            "author": "Huffy",
+            "timestamp": 1584598800,
+            "txt_content": "6666666666666666666"
+        },
+        {
+            "author": "天佑酱",
+            "timestamp": 1584619380,
+            "txt_content": "太棒了！之前看那个帖子，下载了OpenJ9，没效果，今天调了参数FPS 8->15\n我的渣机终于获救了"
+        },
+        {
+            "author": "wd世界龙王",
+            "timestamp": 1585213500,
+            "txt_content": "额，我下载不了openj9,有人帮忙吗"
+        },
+        {
+            "author": "854516196",
+            "timestamp": 1586247240,
+            "txt_content": "使用了Openj9后 内存占用少了 冻结也变少了\n但是出现了实体一多掉帧很厉害的问题，利大于弊吧"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1587649980,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-4-23 22:04 编辑 \nshangenbo 发表于 2019-8-9 16:22\n改天研究研究J9参数配g1gc cms J9不能用，所以一直不打算用J9 (J9目前兼容性也有点。。。) ...\n有参数的，用openj9提高服务器性能https://steinborn.me/posts/tuning-minecraft-openj9/\n如果出现性能问题的话去openj9的github上发问题（前提是用hotspot没性能问题）\n\n"
+        },
+        {
+            "author": "超级无敌兔",
+            "timestamp": 1593680820,
+            "txt_content": "1.16貌似用不了openj9，会把cpu吃满"
+        },
+        {
+            "author": "Command_Edit",
+            "timestamp": 1593701580,
+            "txt_content": "教程完善，感谢分享，希望能出更多有用教程"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1593764760,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-7-3 16:32 编辑 \n超级无敌兔 发表于 2020-7-2 17:07\n1.16貌似用不了openj9，会把cpu吃满\n感觉是1.16特有bug，用原生openjdk-hotspot也可以吃满，openj9 98% ,hotspot也是98%的cpu占用\n目前测试到DataFixerUpper 线程，启动后出现3个这种线程（堆是指这个，名称不是），直到线程消失，mc会一直用大量cpu资源"
+        },
+        {
+            "author": "超级无敌兔",
+            "timestamp": 1593766560,
+            "txt_content": "1a2s3d4f1 发表于 2020-7-3 16:26\n感觉是1.16特有bug，用原生openjdk-hotspot也可以吃满，openj9 98% ,hotspot也是98%的cpu占用\n目前测试到D ...\n看来我不是一个人"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1594376400,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-7-10 18:25 编辑 \n\n经验（确信）：\n1. https://steinborn.me/posts/tuning-minecraft-openj9/的参数仅仅适合服务端，在客户端上不要调xmns xmnx，而且要去掉-Xgc:scvNoAdaptiveTenure。\n\n2.openj9的主要对象在SOA去，LOA基本为空，不需要动态监测。\n\n3.-Xaggressive用于测试，不建议使用，可能导致崩溃。\n\n4.-Xshareclasses默认打开，也不要调。\n\n5. 类卸载只在global gc执行，gencon 垃圾回收策略的gc暂停时间短，大概global lgc 150ms Scavenge gc 10ms ,如果开启concurrentScavenge，就会损失8%的吞吐率，暂停时间变为1~5ms。\n\n6.空闲垃圾回收也是J9的特性（仅liunx），添加参数-XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle -XX:IdleTuningMinIdleWaitTime=120 ，120位最小jvm空闲时间，单位为秒，不设置此选项的话为0\n\n\n\n\n"
+        },
+        {
+            "author": "明少OL",
+            "timestamp": 1594453200,
+            "txt_content": " 看来不是什么服务器都能用呀\n我那个spigot服，用楼主这个性能大幅度下降，6个人压测，tps掉到16以下，内存占用8-10G，CPU 10-20%，tnt压测无法进行，实体多的地方tps直接掉到16以下\n我那个服以前就加了-server -Xverify:none -XX:+UseParallelOldGC 这堆参数，100人压测tps18-20，内存占用9-13G，CPU 20-40%，tnt(1500)压测tps18-20\n版本是1.16.1 spigot(git-Spigot-c3a49df-93cfb19)\n\n插件 dynmap EssentialsX全家桶 AuthMe LuckPerms LaggRemover\n\nJAVA版本\nopenjdk version \"1.8.0_232\"\nOpenJDK Runtime Environment (build 1.8.0_232-b09)\nEclipse OpenJ9 VM (build openj9-0.17.0, JRE 1.8.0 Linux amd64-64-Bit Compressed References 20191017_442 (JIT enabled, AOT enabled)\nOpenJ9   - 77c1cf708\nOMR      - 20db4fbc\nJCL      - 97b5ec8f383 based on jdk8u232-b09)\n"
+        },
+        {
+            "author": "tian051011",
+            "timestamp": 1594460820,
+            "txt_content": "明少OL 发表于 2020-7-11 15:40\n看来不是什么服务器都能用呀\n我那个spigot服，用楼主这个性能大幅度下降，6个人压测，tps掉到16以 ...\n感谢反馈 我会对这组参数进行进一步调优的"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1594521720,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-7-12 23:56 编辑 \n明少OL 发表于 2020-7-11 15:40\n看来不是什么服务器都能用呀\n我那个spigot服，用楼主这个性能大幅度下降，6个人压测，tps掉到16以 ...\n感觉是个服就不能用\n如果是j9的服，建议用这个：\nhttps://steinborn.me/posts/tuning-minecraft-openj9/再配合空闲垃圾回收，用参数 -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle -XX:IdleTuningMinIdleWaitTime=30 （单位秒，意思是jvm空闲多少秒时进行空闲gc，最小设置为1）\n\n这个参数不行的（确信）\n"
+        },
+        {
+            "author": "明少OL",
+            "timestamp": 1594572780,
+            "txt_content": "1a2s3d4f1 发表于 2020-7-12 10:42\n感觉是个服就不能用\n如果是j9的服，建议用这个：\nhttps://steinborn.me/posts/tuning-minecraft-openj9/再 ...\n我感觉也是，严重拉垮，CPU在睡大觉"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1594614060,
+            "txt_content": "明少OL 发表于 2020-7-13 00:53\n我感觉也是，严重拉垮，CPU在睡大觉\n那个参数试了没"
+        },
+        {
+            "author": "明少OL",
+            "timestamp": 1594742100,
+            "txt_content": "1a2s3d4f1 发表于 2020-7-13 12:21\n那个参数试了没\n你那个倒是跟我那个参数差不多，本来我服务器配置是完全够的，这些参数也就起到个锦上添花的作用了，CPU也动起来了了"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1594787040,
+            "txt_content": "明少OL 发表于 2020-7-14 23:55\n你那个倒是跟我那个参数差不多，本来我服务器配置是完全够的，这些参数也就起到个锦上添花的作用了，CPU ...\ngencon gc 适合短命对象多的东西，mc1.8以后刚好服务端短命对象多（他那个教程似乎是怎么说的）"
+        },
+        {
+            "author": "明少OL",
+            "timestamp": 1594790880,
+            "txt_content": "1a2s3d4f1 发表于 2020-7-15 12:24\ngencon gc 适合短命对象多的东西，mc1.8以后刚好服务端短命对象多（他那个教程似乎是怎么说的） ...\n可能低配机器会明显点，我这台不明显"
+        },
+        {
+            "author": "莫殇Seldom",
+            "timestamp": 1594952040,
+            "txt_content": "emmm不错先收藏"
+        },
+        {
+            "author": "JerryZRF",
+            "timestamp": 1596022440,
+            "txt_content": "这个参数是加在Minecraft额**数里吗？\n不是在Java虚拟机参数里吗？"
+        },
+        {
+            "author": "linryan692",
+            "timestamp": 1596034020,
+            "txt_content": "謝謝啦~~"
+        },
+        {
+            "author": "暮牧木墓",
+            "timestamp": 1597908780,
+            "txt_content": "想问一下，PCL2要怎么设置这些参数QAQ"
+        },
+        {
+            "author": "Tsinbeng",
+            "timestamp": 1599095220,
+            "txt_content": "草，我的服务器用open j9根本启动不了"
+        },
+        {
+            "author": "3152426083",
+            "timestamp": 1599318720,
+            "txt_content": "感谢您的教程 (省略10个字)"
+        },
+        {
+            "author": "天空Craft",
+            "timestamp": 1601701200,
+            "txt_content": "错误: 找不到或无法加载主类 [-XcompilationThreads4]装上openj9 不用楼主的代码可以运行qaq"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1601913540,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-10-6 00:23 编辑 \n梦想与未来 发表于 2020-10-3 13:00\n错误: 找不到或无法加载主类 [-XcompilationThreads4]装上openj9 不用楼主的代码可以运行qaq\n ...可以看下这个：https://steinborn.me/posts/tuning-minecraft-openj9/\n\n对于客户端，openj9的分配区域最小值调大了可能会卡gc，如果出现内存一直满就减低xmns的大小（比如去35%xmx）或直接不添加（xmns默认为xms的25%）"
+        },
+        {
+            "author": "330377782",
+            "timestamp": 1613746200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

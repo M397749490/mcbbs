@@ -1,0 +1,139 @@
+{
+    "title": "[1.9]新的实体marker之王——(滞留的)药水云(AEC, AreaEffectCloud)",
+    "author": "秋一",
+    "replyCount": 26,
+    "timestamp": 1448712600,
+    "txt_content": " 本帖最后由 acordome 于 2015-12-16 15:15 编辑 \n\n　　大家好，今天我向大家隆重推荐1.9新的实体之王——AreaEffectCloud。字面的意思就是区域效果云，俗称药水云。\n　　顺便，咱来对比一下盔甲架(AS)和药水云(AEC)作为marker的优点和缺点。\n\n　　在进入正文以前，我先把一些简称稍微列一下吧，这些写法可以参考pca的这篇帖子：http://www.mcbbs.net/thread-522757-1-1.html\n\ngt: gametick，游戏刻，一般为0.05秒，为MC里最小的时间单位(微观延迟就是1gt内的执行顺序)\n scb: scoreboard，记分板\n cb: command block，命令方块\n icb: impulse command block，特指普通命令方块\n ccb: chain command block，连锁CB\n rcb: repeating command block，循环CB(会自动激活)\n AS: ArmorStand，盔甲架，经常用于标记坐标\n\n 例子中可能用到的格式(其实是我生成器的格式来的)\n icb:/rcb: 该命令是放在icb/rcb里\n mark:名字 tag : 以一个指定名字、tag的AS来标记下一个CB的位置\n init: 该指令只是在生成OCS的时候执行\n cond: conditional，1.9CB的模式\n在此基础上进行补充\n　　　　AEC：AreaEffectCloud，(滞留的)药水云\n\n1. 什么是Marker\n\n　　对于CBer来说，在编写指令的时候，考虑到移植性的问题，通常要尽可能避免在CB中出现绝对坐标，并且如果可以减少相对坐标中出现的数字，那自然是更好的。这就是为什么我们越来越重视marker这一概念。\n　　例如，当我们需要激活一个远处的指令串的时候，我们可以使用这样的指令来激活\n/blockdata x y z {auto:1}复制代码\n　　显然，如果使用绝对坐标的话，就不便于移植，使用相对偏移坐标的话，就需要考虑方位的问题。因此我们会考虑在(x,y,z)处放置一个不可动的实体来作为定位，例如上述指令，假设放置了一个tag=module的marker以后：\nexecute @e[tag=module1] ~ ~ ~ blockdata ~ ~ ~ {auto:1}\n\nmark:module1\nicb:blockdata ~ ~ ~ {auto:0}\nblah blah blah...复制代码\n　　可以看到，所有的坐标都是以~ ~ ~表示的，这样的话，会方便移植和调用，虽然看上去好像是麻烦了，实际上却是对思维和逻辑的一种简化和规范。\n\n2. 什么样的实体适合充当Marker\n\n　　在明确了marker的作用以后，我们来探讨一下什么样的实体适合充当marker。显然候选人便是AS和AEC了。前两天chyx提出“AEC作为marker不卡”这一事实以后，我们几个人就开始了对aec marker的研究——不知道以前有没有人专门发过这样的帖子，如果有，纯属巧合，嗯√\n\n　2.1 盔甲架：AS, ArmorStand\n\n　　首先，大家都比较熟悉的AS，作为marker，不考虑name和tag的话，它需要设定这样的NBT\n\n{Marker:1,NoGravity:1,Invisible:1}复制代码\n　　AS作为marker，平时是看不见的，只有当切换旁观者模式以后才能看得见，这样设定的好处就是，在编写的时候，不会因为看见它们而感觉很烦，而debug的时候，则可以很方便的发现它们。缺点就是：当大规模使用AS marker的时候，由于需要渲染AS的模型，计算机会额外消耗很多资源。我曾经做过一个小测试，在一个点生成了500个AS marker，帧率从满帧直接掉到个位数……同样的测试也在AEC身上做了，结果稍后说，想必各位也是猜到了的。\n　　而且，AS要写的NBT挺麻烦的……\n\n\n　2.2 药水云：AEC, AreaEffectCloud\n\n　　AEC是1.9新增的实体，之前我们很多人也没有想到拿它作为marker，最近开始研究才发现其实是很棒的一个东西。首先我们来看看它作为marker的两个重要的NBT——其实Age在marker中用处几乎为0，但是要顺带讲……\n\n　　　　Age:指AEC存在了的时间，单位是gt。也就是说每gt自动+1\n　　　　Duration:指AEC能存在的时间，单位也是gt。这是一个固有值，当Age达到这个数值的时候，AEC会消失。Duration最大值是2147483647，即2^31-1，超过这数字会溢出——注意：这个数值大概是3年4个月，对于一个MC存档来说，几乎等价于永久marker了\n\n　　这两个NBT如果默认的话，就是0，也就是说，如果没有指定AEC的Duration的话，AEC会存在短短的一瞬间。\n　　这就意味着，如果使用AEC作为临时的Marker的话，不需要我们使用kill/tp之类的指令来清除它。\n\n　　显然用于Marker的AEC，我们只需要考虑一个标签，那就是Duration。\n　　这里给出一条生成永久marker的指令，用2100000000（8个0）是因为懒得打2147483647，Duration:2100000000的AEC持续时间大约是3年3月，你们觉得一个CB存档可能运行3年吗（笑）？\n/summon AreaEffectCloud x y z {Duration:2100000000,CustomName:\"xxx\",Tags:[\"a\",\"b\"]}复制代码\n　　对于单点放置，可以用tab补全x y z，对于大量放置，可以用下面的指令：\nicb:/fill x1 y1 z1 x2 y2 z2 command_block 0 replace {auto:1,Command:\"/summon AreaEffectCloud ~ ~ ~ {Duration:2100000000,CustomName:\"xxx\",Tags:[\"a\",\"b\"]}\"}复制代码\n　　\n　　预计大型显示屏设备会井喷，放置这么多AEC并不会卡，但是同时执行指令的话，需要斟酌……\n\n　　可能会有很多人觉得AS更加稳妥一些，其实我觉得将来AEC完全可以取代AS成为新的marker之王，不过这并不意味着AS就失去了意义。我们应该明确一下它们各自的优缺点，了解它们分别用在什么场合更加合适。\n\n\nASAEC是否需要重置装置否理论上需要，实际上当Duration设定足够长的话就不需要了作为临时marker的便捷性需要手动清除可以自动清除消耗资源G3下可见，因此有一定消耗完全不可见，消耗资源极少debug便捷性比较便捷不太方便，需要F3+b相关NBTMarker,Invisible,NoGravityDuration\n　　下面对AEC稍微作一下总结，AS由于大家都比较了解了就不说了……\n　　　AEC消耗的资源是很少的，我们在测试的时候放置了1万个AEC，帧数一点都没有降，如果是AS，早就崩MC了估计……\n　　　AEC如果不打开F3+b的话，不便于debug，这一点是毋庸置疑的；\n　　　AEC可以用来做时钟，这一点后来会稍微提到一点；\n　　　AEC作为临时marker不需要清除，只需要设定一个很小的Duration即可；\n\n　　AEC可能会是继AS之后又一实体之王，其应用将来可能会比AS更加广泛——让我们持续关注吧23333\n　　如果大家有什么疑问，不妨在下方提出。\n\n　　感谢@chyx @pca006132 和其他我不记得你们ID的小伙伴们！\n\n　　翻页可以看时钟。\n\n\n\n　　关于AEC时钟，我一向是这样的——假设朝东放置，其他朝向自己修改第二条指令的参数\nrcb:/testfor @e[r=0] {Age:1200}\ncond:/entitydata @e[dx=-1,r=1] {Age:0}\ncond:/say pha~复制代码\n　　然后，在RCB的位置执行这样的指令(可以指着rcb然后用tab补全坐标)\n/summon AreaEffectCloud x y z {Duration:999999}复制代码\n　　这里的Duraion比前面Age的数字大就可以了。\n　　这样，每隔1分钟(=1200 gt)，就会显示一次[@] pha，其他指令同理……\n\n　　上面是一种偷懒的写法，可能会是一个不太好的习惯，避免冲突的话，可以给AEC指定一个name或者tag，然后改成像下面这样(举例)\nmark:aecTimer\nrcb:/testfor @e[name=aecTimer,type=AreaEffectCloud] {Age:20}\ncond:say 1秒钟过去了……\n/testfor @e[name=aceTimer,type=AreaEffectCloud] {Age:40}\ncond:say 2秒钟过去了……\n/testfor @e[name=aecTimer,type=AreaEffectCloud] {Age:1200}\ncond:/entitydata @e[name=aecTimer,type=AreaEffectCloud] {Age:0}\ncond:/say 1分钟到!重置时钟复制代码\n　　好了，本次讨论到此结束~\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "青格大D",
+            "timestamp": 1448712900,
+            "txt_content": "原来是CBL的，为何不领勋章？"
+        },
+        {
+            "author": "zzppq2012",
+            "timestamp": 1448712900,
+            "txt_content": "新人路过帮顶"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448713560,
+            "txt_content": "青格大D 发表于 2015-11-28 20:15\n原来是CBL的，为何不领勋章？\n我不怎么玩论坛，不会领……"
+        },
+        {
+            "author": "949889780",
+            "timestamp": 1448713680,
+            "txt_content": "acordome 发表于 2015-11-28 20:26\n我不怎么玩论坛，不会领……\n到快捷方式里面\n有个勋章\n点进去"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1448720100,
+            "txt_content": "我居然成了国内aec神教领袖。。。\n其实想debug只需按下f3+b"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448720280,
+            "txt_content": "chyx 发表于 2015-11-28 22:15\n我居然成了国内aec神教领袖。。。\n其实想debug只需按下f3+b\nF3+b是真理"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1448722980,
+            "txt_content": "此特性被发现之后，各种大量实体标记位置的系统就相继出现，实体数破万不是梦！\n(然而每个命令可能要执行上万次，请小心使用，尤其是在服务器，我就是一个失败的例子)"
+        },
+        {
+            "author": "darrksy",
+            "timestamp": 1448723100,
+            "txt_content": "这样游戏不会崩么。。。"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1448723820,
+            "txt_content": "darrksy 发表于 2015-11-28 23:05\n这样游戏不会崩么。。。\n不会，今天我们测试了10000+个都没问题"
+        },
+        {
+            "author": "sylqiuyifeng",
+            "timestamp": 1448724300,
+            "txt_content": "acordome 发表于 2015-11-28 20:26\n我不怎么玩论坛，不会领……\n小组勋章等每月更新名单自然会有\n别着急"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448724780,
+            "txt_content": "pca006132 发表于 2015-11-28 23:03\n此特性被发现之后，各种大量实体标记位置的系统就相继出现，实体数破万不是梦！\n(然而每个命令可能要执行上 ...\n细数一下一晚上崩了多少次服23333"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448724780,
+            "txt_content": "sylqiuyifeng 发表于 2015-11-28 23:25\n小组勋章等每月更新名单自然会有\n别着急\n这倒不急233，只不过我平时很少玩，没关注勋章这种东西233"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1448724900,
+            "txt_content": "acordome 发表于 2015-11-28 23:33\n细数一下一晚上崩了多少次服23333\n命令执行次数问题233333"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1448781360,
+            "txt_content": "看到崩溃记录内心也是崩溃着的23333\n昨晚不知道为什么启动器log里显示了服里的部分记录……然后看到了pca杀了一万个AEC的刷屏记录（噗\n以及其实可以让它完全看不到……彻底埋方块里就连F3+B都直接无解了"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448792400,
+            "txt_content": "玄素 发表于 2015-11-29 15:16\n看到崩溃记录内心也是崩溃着的23333\n昨晚不知道为什么启动器log里显示了服里的部分记录……然后看到了pca杀 ...\n因为实在是太隐藏了……不过说实话如果是用来标记icb/rcb的话应该很好找的"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1448805000,
+            "txt_content": "太强了！！\n终于找到了不卡的Marker23333333333"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1448809620,
+            "txt_content": "一直在用史莱姆的路过……"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448810880,
+            "txt_content": "kakagou12 发表于 2015-11-29 23:07\n一直在用史莱姆的路过……\nSlime的话，和平模式会GG……"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1448858400,
+            "txt_content": "acordome 发表于 2015-11-29 18:20\n因为实在是太隐藏了……不过说实话如果是用来标记icb/rcb的话应该很好找的 ...\n多个指令组连一起的话也难说233，F3+B的视线线被埋了就真看不见了。\n作为新marker的确蛮好用√"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1448868540,
+            "txt_content": "玄素 发表于 2015-11-30 12:40\n多个指令组连一起的话也难说233，F3+B的视线线被埋了就真看不见了。\n作为新marker的确蛮好用√ ...\npca:txt大法好√"
+        },
+        {
+            "author": "Minecraftmoon",
+            "timestamp": 1449660180,
+            "txt_content": "LZ头像好眼熟，LZ不会是秋一吧{:10_530:}"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1449674460,
+            "txt_content": "Minecraftmoon 发表于 2015-12-9 19:23\nLZ头像好眼熟，LZ不会是秋一吧\n你觉得除了我还有谁会发这种蛋疼的帖子？、、、、、、、、、、"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1449724200,
+            "txt_content": "个人觉得AEC最大的好处是简化系统，原来kill AS的指令可以去掉了…"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1450019280,
+            "txt_content": "lzs1234 发表于 2015-12-10 13:10\n个人觉得AEC最大的好处是简化系统，原来kill AS的指令可以去掉了…\n我觉得呢，资源消耗少以及生成方便才是最大的优点，自清除当然也是很棒的，嗯……"
+        },
+        {
+            "author": "J_黑默丁格",
+            "timestamp": 1450142700,
+            "txt_content": "[1.9]新的实体marker之王——药水云(AEC, AreaEffectCloud)\nhttp://www.mcbbs.net/thread-526445-1-1.html\n(出处: http://www.mcbbs.net/)"
+        },
+        {
+            "author": "flamethunder",
+            "timestamp": 1512224520,
+            "txt_content": "74766[color=DarkOrange][/color]复制代码"
+        }
+    ]
+}

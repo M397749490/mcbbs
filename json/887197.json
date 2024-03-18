@@ -1,0 +1,504 @@
+{
+    "title": "[机制][娱乐]SkillSystem —— 简单而强大的技能系统[1.12-1.14]",
+    "author": "Oscar_W",
+    "replyCount": 99,
+    "timestamp": 1564115340,
+    "txt_content": " 本帖最后由 Oscar_W 于 2020-8-13 18:22 编辑 \n\n\n技能系统\n\n写在前面\n我一直以来都想有一个容易编辑的技能插件，之前我用过Heroes，但是写技能需要编程方能的能力觉得受众不大；也想用过SkillAPI,觉得编辑难度还是比较大的。我在论坛里面寻找过各式各类的技能插件，但是留给服主自定义的程度不高。所以写下这款插件，想给予服主们制作技能的开放性，又不至于将技能编辑弄得太复杂。因本人水平有限，插件会有不足，敬请各位批评指正！\n拖了好久没更新了，要抽空要填填坑了...\n\n特性介绍\n  · 完全自定义的技能\n  · 十余种条件判定，击杀、血量、奔跑跳跃等等\n  · 四种目标选择，自己、范围生物、指向生物等\n  · 十余种技能效果，伤害、射箭、药水、粒子等等\n  · 可与VexView实现按键触发技能\n  · 可使用物品或指令触发技能\n  · 与Residence联动领地未开pvp不能使用技能\n\n技能创建\n  技能创建需要在Skills文件夹下的任意一个yml文件中进行，若没有这个文件夹插件会自行创建并附带有一个例子，这里先给出一个例子\nskillone:         #技能的名字\n  cooldown: 5          #冷却时间（秒）\n  description:           #技能介绍，会在技能绑定界面显示\n    - '一些介绍'\n  packet: 2               #共有几个技能包，需要与下面的你写的技能包数量一致\n  executionPacket1:                  #第一个技能包\n    - 'HasRaduisEntity:3#Self#Shoot:Arrow:10:1.1#0#Goto:2:1'\n    - 'None#Self#Message:成功#0'\n  executionPacket2:                     #第二个技能包，后面以此类推\n    - 'None#Self#Message:失败#0'\n  needPermission: false            #是否需要权限\n  cankeyBoard: true                 #是否可以用键盘触发\n  message: no!             #冷却未完成的提示语，可用变量%cooldown%表示剩下的冷却时间\n  banWorlds:                #此项可选，如果填写则所填的世界中不能使用该技能，不填（这一项全部删掉）则无限制\n    - 'banWorld'复制代码\n  按照上面的格式可以创建的一个基本的技能\n\n技能包的介绍\n  这是在1.5.1版本中新加入的概念，为了配合制作更加复杂的技能。\n  你可以写若干的技能包，每个技能包中可以包含若干的技能条，技能开始执行时会从第一个技能包的第一个技能条开始执行，直至执行完一个技能包整个技能完成\n  配合Goto你可以使你的技能跳转到某个技能包的某个技能条，但是注意，千万不要写成循环，这会使得你的服务器崩溃\n  具体的写法参照上面给出的例子\n\n技能条的介绍\n  技能条是技能的主要组成部分，按顺序执行。它分成五个部分，中括号中的内容可省略，基本格式： 条件#目标#效果#持续时间[#条件不满足时执行效果]\n  例子：None#PointEntity#Lightning:3#0     无条件使指向的生物被雷电劈造成3点伤害（持续时间无效，写上0）\n  注意这里将使用#进行分割，技能条中凡是有数字的地方均可以使用PlaceHolderAPI的变量，且可以填写算式，算式可包括基本的数学函数：\n    如：sin()  cos() tan() log()  请注意添加括号\n    但是粒子效果处的数字和延迟中的数字不能使用变量和算式\n  例子：None#RaduisEntity:3#Damage:%player_level%/2#0\n  下面详细介绍各个部分\n  条件：None  无条件\nSelfHealth>10  自己的血量需要大于10（可选用>、<、=、>=、<=）\nTargetHealth>10  目标血量需要大于10\nItemHas:one:3   需要拥有物品one数量至少3个（one为items.yml中设置的物品名字,下同）\nItemConsuming:one:3   需要消耗物品one数量3个\nOnAir  需要在空中\nRun  需要在奔跑状态\nEveryAttacking   每一次攻击生物（即在技能条填写的持续时间内攻击生物都可满足条件）\nEveryKilling   每一次击杀生物\nNextAttacking  下一次攻击生物（注意只是技能触发后的一次攻击时触发）\nNextKilling    下一次击杀生物\nTime>6000    时间需要大于6000（可选用>、<、=、>=、<=）\nStorm    需要是下雨天气\nBiome:DESERT     需要是沙漠环境（生物群落英文名字请看文末）\nHasPointEntity:3.0    准心指向三格远处有生物\nHasRaduisEntity:3.0    自己周围三格范围有生物\nProbability:0.8         有80%的几率满足条件\nEquation:%player_health%>=10       两边的算式可以使用变量，也可以是纯数字\n\n  目标：Self  表示释放对象是自己\nPointEntity:3.0  表示释放对象是准心所指向3格以内的生物\nRaduisEntity:5.0  表示释放对象是以自我为圆心半径5格以内的所有生物（可用小数，中间用英文冒号隔开）\nLineEntity:3.0     表示释放对象是准心所指向3格直线上的所有生物\nPointMob:3.0  表示释放对象是准心所指向3格以内的除玩家外的生物\nRaduisMob:5.0  表示释放对象是以自我为圆心半径5格以内的所有除玩家外的生物\nLineMob:3.0     表示释放对象是准心所指向3格直线上的所有除玩家外的生物\n\n  效果：注意：当你看见下面的数字带有小数时说明可用小数\n\nCharge:1.2   向准心方向冲一段距离，数字表示冲的格数（可用小数，中间用英文冒号隔开）\nPull:1.5   使对象靠近技能释放者，数字表示格数（请不要对自己释放）\nPushBack:1.5   使对象被击退，数字表示格数（请不要对自己释放）\nDamage:5.0    造成伤害\nHealthSet:5.0   调整目标血量增加5点，正数为增加，负数为减少\nPotionEffect:Speed:100:1   给目标增加速度1持续100Ticks（20Ticks = 1秒）药水效果（请前往文末查看药水效果名字）\nDamageSet:5.0   调整目标攻击力，增加5点（需要配合持续时间说明增加攻击力多久）\nDamagedSet:5.0   调整所受的伤害，正数为增加伤害，负数为减少，0为无敌（需配合持续时间）\nShoot:Arrow:10:1.1    射箭且伤害为10，速度为1.1（速度需要自己尝试一下是否合适，其他抛射物类型看文末）\nLightning:2   雷劈2点伤害\nFire:80    着火80Ticks（20Ticks = 1秒）\nMessage:hello!  发送信息hello!（支持PlaceHolderAPI变量）\nParticleEffect:VILLAGER_HAPPY:10   生成粒子效果，粒子数量为10，可调大一点（请前往文末查看例子效果名字）\nParticleCurveEffect:example     粒子曲线\nJump:1.0   向上跳（数字为程度，请自行调整，可能会过大）\nExplosion:10.0   制造一个10伤害的爆炸\nCommand:op:weather clear    使目标以op身份执行命令，可选用op/console(控制台身份)/player(普通玩家身份)，命令支持PlaceHolderAPI变量\nStop     停止执行技能（释放目标失效，填什么无所谓，推荐填Self）\nSoundEffect:BLOCK_CHEST_OPEN:10:10   播放声音，第一个为声音的名字（看文末的音效名字），第二、三个分别是音调和音量\nGoto:2:1  跳转去第二个技能包的第一个技能条\nAttributeSet:Mana:10    增加目标（需玩家）的Mana属性10点（支持PlaceHolderAPI变量及算式）\nAttributeRemove:Manas    移除玩家的Manas属性\nCoolDownSet:test:-5    减少目标玩家的test技能的冷却时间5秒\n\n\n  持续时间（单位秒）：这个设定比较特殊，但也只有较少效果需要这个设定，当不需要时，这个推荐填写0（填成其它也无所谓不会报错）\n当条件里包含有Every时，可以使用。解释：在持续的时间内，每攻击/击杀一个生物可以触发效果\n当效果里有攻击力设定或所受伤害设定时，可以使用。解释：在持续的时间内调整有效\n注意：当上述两者结合在一起时，共用持续时间，即在持续时间内，每攻击/击杀一个生物伤害进行调整且有效\n  条件不满足时执行效果：\n    当条件没有被满足时，这一项中写的效果将会被执行。这一项可以省略不写，若写按照效果的介绍来写即可\n  延迟效果：\n    这个为特殊的技能条，只需要这样写 Delay:40 （单位Ticks）（无需写条件，目标，持续时间）\n\n技能的释放\n  权限：在配置文件里needPermission项可设置技能是否需要权限，如果设为false，不需要权限意味着所有玩家都可以使用这个技能。\n若设置为true则意味着只有拥有SkillSystem.技能名权限的玩家才可以使用技能（不能使用技能意味着无法进行键盘热键绑定） \n  释放方法： 技能释放方法暂时有四个：\n 一、使用指令/skillsystem 打开技能绑定界面进行绑定，可以实现按键触发（这个需要VexView，且在配置文件中cankeyBoard项要设置为true）\n 二、物品释放，只要任意一个物品中的lore包含了技能名字，手持物品右键即可触发技能\n 三、在没有VexView的情况下，打开背包右击1-9物品格子可以增加技能槽（再次右击移除），打开技能绑定界面进行绑定，再按1-9的数字键进行释放\n 四、使用指令/skillsystem [技能名]  可以释放技能\n\n物品创建\n    物品创建需要在items.yml文件中完成，下面给出一个示例\nkk:                    #物品的引用名（在技能中使用）\n  name: yeah               #物品的展示名（若本项与lore同时全部删除则为原版物品）\n  type: DIAMOND         #物品的类型（大写英文）\n  lore:\n    - '这是一个示例物品'复制代码\n\n配置文件\n    基本属性点需要在config.yml文件中完成，基本属性点是玩家开始便具有的，且会随时间逐渐恢复\n    属性点相当于玩家身上的一个标签，可以用来做魔法值、体力值等等，配合技能效果里的操作使用\n    每一个属性值会注册一个PlaceHolder的变量，为%skillsystem_属性点名字%\nAttribute:\n  List:         #所有的基本属性点，可自由添加\n  - Mana\n  Mana:\n    Timer: 1000        #每1000毫秒增加一点\n    Max: 100            #最大数值复制代码\n\n指令\n      /skillsystem give 玩家名 物品引用名       将可以给予items.yml中设置好的物品 （需要op才可执行）\n\n      /skillsystem             打开技能绑定页面\n      \n      /skillsystem [技能名]          使用技能\n\n      /skillsystem reload             重载技能系统（需要op才可执行）\n\n技能截图\n\n\n\n相关资料\n  有一些效果尚未翻译，期待更新，希望大家批评指正或者帮助我翻译\n  粒子效果名字：  BARRIER  屏障\nBLOCK_CRACK  方块裂痕\nBLOCK_DUST  方块尘土\nBUBBLE_COLUMN_UP  向上的气泡柱\nBUBBLE_POP   气泡\nCLOUD   云\nCRIT   暴击效果\nCRIT_MAGIC 暴击的效果\nCURRENT_DOWN \nDAMAGE_INDICATOR \nDOLPHIN   海豚\nDRAGON_BREATH  龙息\nDRIP_LAVA  滴状岩浆\nDRIP_WATER   水\nENCHANTMENT_TABLE   附魔台\nEND_ROD \nEXPLOSION_HUGE  巨大爆炸\nEXPLOSION_LARGE 大爆炸\nEXPLOSION_NORMAL  正常爆炸\nFALLING_DUST  掉落的尘土\nFIREWORKS_SPARK  烟花\nFLAME  火焰\nHEART  心\nITEM_CRACK  物品裂纹\nLAVA   岩浆\nLEGACY_BLOCK_CRACK \nLEGACY_BLOCK_DUST \nLEGACY_FALLING_DUST \nMOB_APPEARANCE \nNAUTILUS  鹦鹉螺\nNOTE \nPORTAL \nREDSTONE  红石\nSLIME  粘液\nSMOKE_LARGE  大烟雾\nSMOKE_NORMAL  正常烟雾\nSNOW_SHOVEL  铲雪\nSNOWBALL   雪球\nSPELL \nSPELL_INSTANT \nSPELL_MOB \nSPELL_MOB_AMBIENT \nSPELL_WITCH \nSPIT   羊驼口水\nSQUID_INK  鱿鱼墨汁\nSUSPENDED \nSUSPENDED_DEPTH \nSWEEP_ATTACK \nTOTEM \nTOWN_AURA \nVILLAGER_ANGRY  村民生气的粒子\nVILLAGER_HAPPY  村民高兴的粒子\nWATER_BUBBLE \nWATER_DROP \nWATER_SPLASH \nWATER_WAKE \n  药水效果名字：  ABSORPTION 伤害吸收\nBLINDNESS   致盲\nCONDUIT_POWER \nCONFUSION   混乱\nDAMAGE_RESISTANCE  伤害抗性\nDOLPHINS_GRACE \nFAST_DIGGING   快速挖掘\nFIRE_RESISTANCE   抗火\nGLOWING   发光\nHARM   伤害\nHEAL   治疗\nHEALTH_BOOST    调高血量上限\nHUNGER   饥饿\nINCREASE_DAMAGE  伤害提升\nINVISIBILITY  隐身\nJUMP   跳跃提升\nLEVITATION     空中飘浮\nLUCK   幸运\nNIGHT_VISION   夜视\nPOISON   中毒\nREGENERATION  再生\nSATURATION  饱和\nSLOW   缓慢\nSLOW_DIGGING   挖掘缓慢\nSLOW_FALLING   缓降\nSPEED   加速\nUNLUCK   不幸\nWATER_BREATHING   水下呼吸\nWEAKNESS   虚弱\nWITHER   凋零 \n  生物群落名字：  BADLANDS \nBADLANDS_PLATEAU \nBAMBOO_JUNGLE \nBAMBOO_JUNGLE_HILLS \nBEACH \nBIRCH_FOREST \nBIRCH_FOREST_HILLS \nCOLD_OCEAN \nDARK_FOREST \nDARK_FOREST_HILLS \nDEEP_COLD_OCEAN \nDEEP_FROZEN_OCEAN \nDEEP_LUKEWARM_OCEAN \nDEEP_OCEAN \nDEEP_WARM_OCEAN \nDESERT \nDESERT_HILLS \nDESERT_LAKES \nEND_BARRENS \nEND_HIGHLANDS \nEND_MIDLANDS \nERODED_BADLANDS \nFLOWER_FOREST \nFOREST \nFROZEN_OCEAN \nFROZEN_RIVER \nGIANT_SPRUCE_TAIGA \nGIANT_SPRUCE_TAIGA_HILLS \nGIANT_TREE_TAIGA \nGIANT_TREE_TAIGA_HILLS \nGRAVELLY_MOUNTAINS \nICE_SPIKES \nJUNGLE \nJUNGLE_EDGE \nJUNGLE_HILLS \nLUKEWARM_OCEAN \nMODIFIED_BADLANDS_PLATEAU \nMODIFIED_GRAVELLY_MOUNTAINS \nMODIFIED_JUNGLE \nMODIFIED_JUNGLE_EDGE \nMODIFIED_WOODED_BADLANDS_PLATEAU \nMOUNTAIN_EDGE \nMOUNTAINS \nMUSHROOM_FIELD_SHORE \nMUSHROOM_FIELDS \nNETHER \nOCEAN \nPLAINS \nRIVER \nSAVANNA \nSAVANNA_PLATEAU \nSHATTERED_SAVANNA \nSHATTERED_SAVANNA_PLATEAU \nSMALL_END_ISLANDS \nSNOWY_BEACH \nSNOWY_MOUNTAINS \nSNOWY_TAIGA \nSNOWY_TAIGA_HILLS \nSNOWY_TAIGA_MOUNTAINS \nSNOWY_TUNDRA \nSTONE_SHORE \nSUNFLOWER_PLAINS \nSWAMP \nSWAMP_HILLS \nTAIGA \nTAIGA_HILLS \nTAIGA_MOUNTAINS \nTALL_BIRCH_FOREST \nTALL_BIRCH_HILLS \nTHE_END \nTHE_VOID \nWARM_OCEAN \nWOODED_BADLANDS_PLATEAU \nWOODED_HILLS \nWOODED_MOUNTAINS\n  抛射物名字：  Arrow  箭\nSnowball  雪球\nFireball  火球\nLargeFireball  大火球\nSmallFireball  小火球\nWitherSkull  凋零头\nDragonFireball  龙息\nEgg  鸡蛋\nThrownExpBottle  经验瓶\n  音效名字：  AMBIENT_CAVE \nAMBIENT_UNDERWATER_ENTER \nAMBIENT_UNDERWATER_EXIT \nAMBIENT_UNDERWATER_LOOP \nAMBIENT_UNDERWATER_LOOP_ADDITIONS \nAMBIENT_UNDERWATER_LOOP_ADDITIONS_RARE \nAMBIENT_UNDERWATER_LOOP_ADDITIONS_ULTRA_RARE \nBLOCK_ANVIL_BREAK \nBLOCK_ANVIL_DESTROY \nBLOCK_ANVIL_FALL \nBLOCK_ANVIL_HIT \nBLOCK_ANVIL_LAND \nBLOCK_ANVIL_PLACE \nBLOCK_ANVIL_STEP \nBLOCK_ANVIL_USE \nBLOCK_BEACON_ACTIVATE \nBLOCK_BEACON_AMBIENT \nBLOCK_BEACON_DEACTIVATE \nBLOCK_BEACON_POWER_SELECT \nBLOCK_BREWING_STAND_BREW \nBLOCK_BUBBLE_COLUMN_BUBBLE_POP \nBLOCK_BUBBLE_COLUMN_UPWARDS_AMBIENT \nBLOCK_BUBBLE_COLUMN_UPWARDS_INSIDE \nBLOCK_BUBBLE_COLUMN_WHIRLPOOL_AMBIENT \nBLOCK_BUBBLE_COLUMN_WHIRLPOOL_INSIDE \nBLOCK_CHEST_CLOSE \nBLOCK_CHEST_LOCKED \nBLOCK_CHEST_OPEN \nBLOCK_CHORUS_FLOWER_DEATH \nBLOCK_CHORUS_FLOWER_GROW \nBLOCK_COMPARATOR_CLICK \nBLOCK_CONDUIT_ACTIVATE \nBLOCK_CONDUIT_AMBIENT \nBLOCK_CONDUIT_AMBIENT_SHORT \nBLOCK_CONDUIT_ATTACK_TARGET \nBLOCK_CONDUIT_DEACTIVATE \nBLOCK_CORAL_BLOCK_BREAK \nBLOCK_CORAL_BLOCK_FALL \nBLOCK_CORAL_BLOCK_HIT \nBLOCK_CORAL_BLOCK_PLACE \nBLOCK_CORAL_BLOCK_STEP \nBLOCK_DISPENSER_DISPENSE \nBLOCK_DISPENSER_FAIL \nBLOCK_DISPENSER_LAUNCH \nBLOCK_ENCHANTMENT_TABLE_USE \nBLOCK_END_GATEWAY_SPAWN \nBLOCK_END_PORTAL_FRAME_FILL \nBLOCK_END_PORTAL_SPAWN \nBLOCK_ENDER_CHEST_CLOSE \nBLOCK_ENDER_CHEST_OPEN \nBLOCK_FENCE_GATE_CLOSE \nBLOCK_FENCE_GATE_OPEN \nBLOCK_FIRE_AMBIENT \nBLOCK_FIRE_EXTINGUISH \nBLOCK_FURNACE_FIRE_CRACKLE \nBLOCK_GLASS_BREAK \nBLOCK_GLASS_FALL \nBLOCK_GLASS_HIT \nBLOCK_GLASS_PLACE \nBLOCK_GLASS_STEP \nBLOCK_GRASS_BREAK \nBLOCK_GRASS_FALL \nBLOCK_GRASS_HIT \nBLOCK_GRASS_PLACE \nBLOCK_GRASS_STEP \nBLOCK_GRAVEL_BREAK \nBLOCK_GRAVEL_FALL \nBLOCK_GRAVEL_HIT \nBLOCK_GRAVEL_PLACE \nBLOCK_GRAVEL_STEP \nBLOCK_IRON_DOOR_CLOSE \nBLOCK_IRON_DOOR_OPEN \nBLOCK_IRON_TRAPDOOR_CLOSE \nBLOCK_IRON_TRAPDOOR_OPEN \nBLOCK_LADDER_BREAK \nBLOCK_LADDER_FALL \nBLOCK_LADDER_HIT \nBLOCK_LADDER_PLACE \nBLOCK_LADDER_STEP \nBLOCK_LAVA_AMBIENT \nBLOCK_LAVA_EXTINGUISH \nBLOCK_LAVA_POP \nBLOCK_LEVER_CLICK \nBLOCK_LILY_PAD_PLACE \nBLOCK_METAL_BREAK \nBLOCK_METAL_FALL \nBLOCK_METAL_HIT \nBLOCK_METAL_PLACE \nBLOCK_METAL_PRESSURE_PLATE_CLICK_OFF \nBLOCK_METAL_PRESSURE_PLATE_CLICK_ON \nBLOCK_METAL_STEP \nBLOCK_NOTE_BLOCK_BASEDRUM \nBLOCK_NOTE_BLOCK_BASS \nBLOCK_NOTE_BLOCK_BELL \nBLOCK_NOTE_BLOCK_CHIME \nBLOCK_NOTE_BLOCK_FLUTE \nBLOCK_NOTE_BLOCK_GUITAR \nBLOCK_NOTE_BLOCK_HARP \nBLOCK_NOTE_BLOCK_HAT \nBLOCK_NOTE_BLOCK_PLING \nBLOCK_NOTE_BLOCK_SNARE \nBLOCK_NOTE_BLOCK_XYLOPHONE \nBLOCK_PISTON_CONTRACT \nBLOCK_PISTON_EXTEND \nBLOCK_PORTAL_AMBIENT \nBLOCK_PORTAL_TRAVEL \nBLOCK_PORTAL_TRIGGER \nBLOCK_PUMPKIN_CARVE \nBLOCK_REDSTONE_TORCH_BURNOUT \nBLOCK_SAND_BREAK \nBLOCK_SAND_FALL \nBLOCK_SAND_HIT \nBLOCK_SAND_PLACE \nBLOCK_SAND_STEP \nBLOCK_SHULKER_BOX_CLOSE \nBLOCK_SHULKER_BOX_OPEN \nBLOCK_SLIME_BLOCK_BREAK \nBLOCK_SLIME_BLOCK_FALL \nBLOCK_SLIME_BLOCK_HIT \nBLOCK_SLIME_BLOCK_PLACE \nBLOCK_SLIME_BLOCK_STEP \nBLOCK_SNOW_BREAK \nBLOCK_SNOW_FALL \nBLOCK_SNOW_HIT \nBLOCK_SNOW_PLACE \nBLOCK_SNOW_STEP \nBLOCK_STONE_BREAK \nBLOCK_STONE_BUTTON_CLICK_OFF \nBLOCK_STONE_BUTTON_CLICK_ON \nBLOCK_STONE_FALL \nBLOCK_STONE_HIT \nBLOCK_STONE_PLACE \nBLOCK_STONE_PRESSURE_PLATE_CLICK_OFF \nBLOCK_STONE_PRESSURE_PLATE_CLICK_ON \nBLOCK_STONE_STEP \nBLOCK_TRIPWIRE_ATTACH \nBLOCK_TRIPWIRE_CLICK_OFF \nBLOCK_TRIPWIRE_CLICK_ON \nBLOCK_TRIPWIRE_DETACH \nBLOCK_WATER_AMBIENT \nBLOCK_WET_GRASS_BREAK \nBLOCK_WET_GRASS_FALL \nBLOCK_WET_GRASS_HIT \nBLOCK_WET_GRASS_PLACE \nBLOCK_WET_GRASS_STEP \nBLOCK_WOOD_BREAK \nBLOCK_WOOD_FALL \nBLOCK_WOOD_HIT \nBLOCK_WOOD_PLACE \nBLOCK_WOOD_STEP \nBLOCK_WOODEN_BUTTON_CLICK_OFF \nBLOCK_WOODEN_BUTTON_CLICK_ON \nBLOCK_WOODEN_DOOR_CLOSE \nBLOCK_WOODEN_DOOR_OPEN \nBLOCK_WOODEN_PRESSURE_PLATE_CLICK_OFF \nBLOCK_WOODEN_PRESSURE_PLATE_CLICK_ON \nBLOCK_WOODEN_TRAPDOOR_CLOSE \nBLOCK_WOODEN_TRAPDOOR_OPEN \nBLOCK_WOOL_BREAK \nBLOCK_WOOL_FALL \nBLOCK_WOOL_HIT \nBLOCK_WOOL_PLACE \nBLOCK_WOOL_STEP \nENCHANT_THORNS_HIT \nENTITY_ARMOR_STAND_BREAK \nENTITY_ARMOR_STAND_FALL \nENTITY_ARMOR_STAND_HIT \nENTITY_ARMOR_STAND_PLACE \nENTITY_ARROW_HIT \nENTITY_ARROW_HIT_PLAYER \nENTITY_ARROW_SHOOT \nENTITY_BAT_AMBIENT \nENTITY_BAT_DEATH \nENTITY_BAT_HURT \nENTITY_BAT_LOOP \nENTITY_BAT_TAKEOFF \nENTITY_BLAZE_AMBIENT \nENTITY_BLAZE_BURN \nENTITY_BLAZE_DEATH \nENTITY_BLAZE_HURT \nENTITY_BLAZE_SHOOT \nENTITY_BOAT_PADDLE_LAND \nENTITY_BOAT_PADDLE_WATER \nENTITY_CAT_AMBIENT \nENTITY_CAT_DEATH \nENTITY_CAT_HISS \nENTITY_CAT_HURT \nENTITY_CAT_PURR \nENTITY_CAT_PURREOW \nENTITY_CHICKEN_AMBIENT \nENTITY_CHICKEN_DEATH \nENTITY_CHICKEN_EGG \nENTITY_CHICKEN_HURT \nENTITY_CHICKEN_STEP \nENTITY_COD_AMBIENT \nENTITY_COD_DEATH \nENTITY_COD_FLOP \nENTITY_COD_HURT \nENTITY_COW_AMBIENT \nENTITY_COW_DEATH \nENTITY_COW_HURT \nENTITY_COW_MILK \nENTITY_COW_STEP \nENTITY_CREEPER_DEATH \nENTITY_CREEPER_HURT \nENTITY_CREEPER_PRIMED \nENTITY_DOLPHIN_AMBIENT \nENTITY_DOLPHIN_AMBIENT_WATER \nENTITY_DOLPHIN_ATTACK \nENTITY_DOLPHIN_DEATH \nENTITY_DOLPHIN_EAT \nENTITY_DOLPHIN_HURT \nENTITY_DOLPHIN_JUMP \nENTITY_DOLPHIN_PLAY \nENTITY_DOLPHIN_SPLASH \nENTITY_DOLPHIN_SWIM \nENTITY_DONKEY_AMBIENT \nENTITY_DONKEY_ANGRY \nENTITY_DONKEY_CHEST \nENTITY_DONKEY_DEATH \nENTITY_DONKEY_HURT \nENTITY_DRAGON_FIREBALL_EXPLODE \nENTITY_DROWNED_AMBIENT \nENTITY_DROWNED_AMBIENT_WATER \nENTITY_DROWNED_DEATH \nENTITY_DROWNED_DEATH_WATER \nENTITY_DROWNED_HURT \nENTITY_DROWNED_HURT_WATER \nENTITY_DROWNED_SHOOT \nENTITY_DROWNED_STEP \nENTITY_DROWNED_SWIM \nENTITY_EGG_THROW \nENTITY_ELDER_GUARDIAN_AMBIENT \nENTITY_ELDER_GUARDIAN_AMBIENT_LAND \nENTITY_ELDER_GUARDIAN_CURSE \nENTITY_ELDER_GUARDIAN_DEATH \nENTITY_ELDER_GUARDIAN_DEATH_LAND \nENTITY_ELDER_GUARDIAN_FLOP \nENTITY_ELDER_GUARDIAN_HURT \nENTITY_ELDER_GUARDIAN_HURT_LAND \nENTITY_ENDER_DRAGON_AMBIENT \nENTITY_ENDER_DRAGON_DEATH \nENTITY_ENDER_DRAGON_FLAP \nENTITY_ENDER_DRAGON_GROWL \nENTITY_ENDER_DRAGON_HURT \nENTITY_ENDER_DRAGON_SHOOT \nENTITY_ENDER_EYE_DEATH \nENTITY_ENDER_EYE_LAUNCH \nENTITY_ENDER_PEARL_THROW \nENTITY_ENDERMAN_AMBIENT \nENTITY_ENDERMAN_DEATH \nENTITY_ENDERMAN_HURT \nENTITY_ENDERMAN_SCREAM \nENTITY_ENDERMAN_STARE \nENTITY_ENDERMAN_TELEPORT \nENTITY_ENDERMITE_AMBIENT \nENTITY_ENDERMITE_DEATH \nENTITY_ENDERMITE_HURT \nENTITY_ENDERMITE_STEP \nENTITY_EVOKER_AMBIENT \nENTITY_EVOKER_CAST_SPELL \nENTITY_EVOKER_DEATH \nENTITY_EVOKER_FANGS_ATTACK \nENTITY_EVOKER_HURT \nENTITY_EVOKER_PREPARE_ATTACK \nENTITY_EVOKER_PREPARE_SUMMON \nENTITY_EVOKER_PREPARE_WOLOLO \nENTITY_EXPERIENCE_BOTTLE_THROW \nENTITY_EXPERIENCE_ORB_PICKUP \nENTITY_FIREWORK_ROCKET_BLAST \nENTITY_FIREWORK_ROCKET_BLAST_FAR \nENTITY_FIREWORK_ROCKET_LARGE_BLAST \nENTITY_FIREWORK_ROCKET_LARGE_BLAST_FAR \nENTITY_FIREWORK_ROCKET_LAUNCH \nENTITY_FIREWORK_ROCKET_SHOOT \nENTITY_FIREWORK_ROCKET_TWINKLE \nENTITY_FIREWORK_ROCKET_TWINKLE_FAR \nENTITY_FISH_SWIM \nENTITY_FISHING_BOBBER_RETRIEVE \nENTITY_FISHING_BOBBER_SPLASH \nENTITY_FISHING_BOBBER_THROW \nENTITY_GENERIC_BIG_FALL \nENTITY_GENERIC_BURN \nENTITY_GENERIC_DEATH \nENTITY_GENERIC_DRINK \nENTITY_GENERIC_EAT \nENTITY_GENERIC_EXPLODE \nENTITY_GENERIC_EXTINGUISH_FIRE \nENTITY_GENERIC_HURT \nENTITY_GENERIC_SMALL_FALL \nENTITY_GENERIC_SPLASH \nENTITY_GENERIC_SWIM \nENTITY_GHAST_AMBIENT \nENTITY_GHAST_DEATH \nENTITY_GHAST_HURT \nENTITY_GHAST_SCREAM \nENTITY_GHAST_SHOOT \nENTITY_GHAST_WARN \nENTITY_GUARDIAN_AMBIENT \nENTITY_GUARDIAN_AMBIENT_LAND \nENTITY_GUARDIAN_ATTACK \nENTITY_GUARDIAN_DEATH \nENTITY_GUARDIAN_DEATH_LAND \nENTITY_GUARDIAN_FLOP \nENTITY_GUARDIAN_HURT \nENTITY_GUARDIAN_HURT_LAND \nENTITY_HORSE_AMBIENT \nENTITY_HORSE_ANGRY \nENTITY_HORSE_ARMOR \nENTITY_HORSE_BREATHE \nENTITY_HORSE_DEATH \nENTITY_HORSE_EAT \nENTITY_HORSE_GALLOP \nENTITY_HORSE_HURT \nENTITY_HORSE_JUMP \nENTITY_HORSE_LAND \nENTITY_HORSE_SADDLE \nENTITY_HORSE_STEP \nENTITY_HORSE_STEP_WOOD \nENTITY_HOSTILE_BIG_FALL \nENTITY_HOSTILE_DEATH \nENTITY_HOSTILE_HURT \nENTITY_HOSTILE_SMALL_FALL \nENTITY_HOSTILE_SPLASH \nENTITY_HOSTILE_SWIM \nENTITY_HUSK_AMBIENT \nENTITY_HUSK_CONVERTED_TO_ZOMBIE \nENTITY_HUSK_DEATH \nENTITY_HUSK_HURT \nENTITY_HUSK_STEP \nENTITY_ILLUSIONER_AMBIENT \nENTITY_ILLUSIONER_CAST_SPELL \nENTITY_ILLUSIONER_DEATH \nENTITY_ILLUSIONER_HURT \nENTITY_ILLUSIONER_MIRROR_MOVE \nENTITY_ILLUSIONER_PREPARE_BLINDNESS \nENTITY_ILLUSIONER_PREPARE_MIRROR \nENTITY_IRON_GOLEM_ATTACK \nENTITY_IRON_GOLEM_DEATH \nENTITY_IRON_GOLEM_HURT \nENTITY_IRON_GOLEM_STEP \nENTITY_ITEM_BREAK \nENTITY_ITEM_FRAME_ADD_ITEM \nENTITY_ITEM_FRAME_BREAK \nENTITY_ITEM_FRAME_PLACE \nENTITY_ITEM_FRAME_REMOVE_ITEM \nENTITY_ITEM_FRAME_ROTATE_ITEM \nENTITY_ITEM_PICKUP \nENTITY_LEASH_KNOT_BREAK \nENTITY_LEASH_KNOT_PLACE \nENTITY_LIGHTNING_BOLT_IMPACT \nENTITY_LIGHTNING_BOLT_THUNDER \nENTITY_LINGERING_POTION_THROW \nENTITY_LLAMA_AMBIENT \nENTITY_LLAMA_ANGRY \nENTITY_LLAMA_CHEST \nENTITY_LLAMA_DEATH \nENTITY_LLAMA_EAT \nENTITY_LLAMA_HURT \nENTITY_LLAMA_SPIT \nENTITY_LLAMA_STEP \nENTITY_LLAMA_SWAG \nENTITY_MAGMA_CUBE_DEATH \nENTITY_MAGMA_CUBE_DEATH_SMALL \nENTITY_MAGMA_CUBE_HURT \nENTITY_MAGMA_CUBE_HURT_SMALL \nENTITY_MAGMA_CUBE_JUMP \nENTITY_MAGMA_CUBE_SQUISH \nENTITY_MAGMA_CUBE_SQUISH_SMALL \nENTITY_MINECART_INSIDE \nENTITY_MINECART_RIDING \nENTITY_MOOSHROOM_SHEAR \nENTITY_MULE_AMBIENT \nENTITY_MULE_CHEST \nENTITY_MULE_DEATH \nENTITY_MULE_HURT \nENTITY_PAINTING_BREAK \nENTITY_PAINTING_PLACE \nENTITY_PARROT_AMBIENT \nENTITY_PARROT_DEATH \nENTITY_PARROT_EAT \nENTITY_PARROT_FLY \nENTITY_PARROT_HURT \nENTITY_PARROT_IMITATE_BLAZE \nENTITY_PARROT_IMITATE_CREEPER \nENTITY_PARROT_IMITATE_DROWNED \nENTITY_PARROT_IMITATE_ELDER_GUARDIAN \nENTITY_PARROT_IMITATE_ENDER_DRAGON \nENTITY_PARROT_IMITATE_ENDERMAN \nENTITY_PARROT_IMITATE_ENDERMITE \nENTITY_PARROT_IMITATE_EVOKER \nENTITY_PARROT_IMITATE_GHAST \nENTITY_PARROT_IMITATE_HUSK \nENTITY_PARROT_IMITATE_ILLUSIONER \nENTITY_PARROT_IMITATE_MAGMA_CUBE \nENTITY_PARROT_IMITATE_PHANTOM \nENTITY_PARROT_IMITATE_POLAR_BEAR \nENTITY_PARROT_IMITATE_SHULKER \nENTITY_PARROT_IMITATE_SILVERFISH \nENTITY_PARROT_IMITATE_SKELETON \nENTITY_PARROT_IMITATE_SLIME \nENTITY_PARROT_IMITATE_SPIDER \nENTITY_PARROT_IMITATE_STRAY \nENTITY_PARROT_IMITATE_VEX \nENTITY_PARROT_IMITATE_VINDICATOR \nENTITY_PARROT_IMITATE_WITCH \nENTITY_PARROT_IMITATE_WITHER \nENTITY_PARROT_IMITATE_WITHER_SKELETON \nENTITY_PARROT_IMITATE_WOLF \nENTITY_PARROT_IMITATE_ZOMBIE \nENTITY_PARROT_IMITATE_ZOMBIE_PIGMAN \nENTITY_PARROT_IMITATE_ZOMBIE_VILLAGER \nENTITY_PARROT_STEP \nENTITY_PHANTOM_AMBIENT \nENTITY_PHANTOM_BITE \nENTITY_PHANTOM_DEATH \nENTITY_PHANTOM_FLAP \nENTITY_PHANTOM_HURT \nENTITY_PHANTOM_SWOOP \nENTITY_PIG_AMBIENT \nENTITY_PIG_DEATH \nENTITY_PIG_HURT \nENTITY_PIG_SADDLE \nENTITY_PIG_STEP \nENTITY_PLAYER_ATTACK_CRIT \nENTITY_PLAYER_ATTACK_KNOCKBACK \nENTITY_PLAYER_ATTACK_NODAMAGE \nENTITY_PLAYER_ATTACK_STRONG \nENTITY_PLAYER_ATTACK_SWEEP \nENTITY_PLAYER_ATTACK_WEAK \nENTITY_PLAYER_BIG_FALL \nENTITY_PLAYER_BREATH \nENTITY_PLAYER_BURP \nENTITY_PLAYER_DEATH \nENTITY_PLAYER_HURT \nENTITY_PLAYER_HURT_DROWN \nENTITY_PLAYER_HURT_ON_FIRE \nENTITY_PLAYER_LEVELUP \nENTITY_PLAYER_SMALL_FALL \nENTITY_PLAYER_SPLASH \nENTITY_PLAYER_SPLASH_HIGH_SPEED \nENTITY_PLAYER_SWIM \nENTITY_POLAR_BEAR_AMBIENT \nENTITY_POLAR_BEAR_AMBIENT_BABY \nENTITY_POLAR_BEAR_DEATH \nENTITY_POLAR_BEAR_HURT \nENTITY_POLAR_BEAR_STEP \nENTITY_POLAR_BEAR_WARNING \nENTITY_PUFFER_FISH_AMBIENT \nENTITY_PUFFER_FISH_BLOW_OUT \nENTITY_PUFFER_FISH_BLOW_UP \nENTITY_PUFFER_FISH_DEATH \nENTITY_PUFFER_FISH_FLOP \nENTITY_PUFFER_FISH_HURT \nENTITY_PUFFER_FISH_STING \nENTITY_RABBIT_AMBIENT \nENTITY_RABBIT_ATTACK \nENTITY_RABBIT_DEATH \nENTITY_RABBIT_HURT \nENTITY_RABBIT_JUMP \nENTITY_SALMON_AMBIENT \nENTITY_SALMON_DEATH \nENTITY_SALMON_FLOP \nENTITY_SALMON_HURT \nENTITY_SHEEP_AMBIENT \nENTITY_SHEEP_DEATH \nENTITY_SHEEP_HURT \nENTITY_SHEEP_SHEAR \nENTITY_SHEEP_STEP \nENTITY_SHULKER_AMBIENT \nENTITY_SHULKER_BULLET_HIT \nENTITY_SHULKER_BULLET_HURT \nENTITY_SHULKER_CLOSE \nENTITY_SHULKER_DEATH \nENTITY_SHULKER_HURT \nENTITY_SHULKER_HURT_CLOSED \nENTITY_SHULKER_OPEN \nENTITY_SHULKER_SHOOT \nENTITY_SHULKER_TELEPORT \nENTITY_SILVERFISH_AMBIENT \nENTITY_SILVERFISH_DEATH \nENTITY_SILVERFISH_HURT \nENTITY_SILVERFISH_STEP \nENTITY_SKELETON_AMBIENT \nENTITY_SKELETON_DEATH \nENTITY_SKELETON_HORSE_AMBIENT \nENTITY_SKELETON_HORSE_AMBIENT_WATER \nENTITY_SKELETON_HORSE_DEATH \nENTITY_SKELETON_HORSE_GALLOP_WATER \nENTITY_SKELETON_HORSE_HURT \nENTITY_SKELETON_HORSE_JUMP_WATER \nENTITY_SKELETON_HORSE_STEP_WATER \nENTITY_SKELETON_HORSE_SWIM \nENTITY_SKELETON_HURT \nENTITY_SKELETON_SHOOT \nENTITY_SKELETON_STEP \nENTITY_SLIME_ATTACK \nENTITY_SLIME_DEATH \nENTITY_SLIME_DEATH_SMALL \nENTITY_SLIME_HURT \nENTITY_SLIME_HURT_SMALL \nENTITY_SLIME_JUMP \nENTITY_SLIME_JUMP_SMALL \nENTITY_SLIME_SQUISH \nENTITY_SLIME_SQUISH_SMALL \nENTITY_SNOW_GOLEM_AMBIENT \nENTITY_SNOW_GOLEM_DEATH \nENTITY_SNOW_GOLEM_HURT \nENTITY_SNOW_GOLEM_SHOOT \nENTITY_SNOWBALL_THROW \nENTITY_SPIDER_AMBIENT \nENTITY_SPIDER_DEATH \nENTITY_SPIDER_HURT \nENTITY_SPIDER_STEP \nENTITY_SPLASH_POTION_BREAK \nENTITY_SPLASH_POTION_THROW \nENTITY_SQUID_AMBIENT \nENTITY_SQUID_DEATH \nENTITY_SQUID_HURT \nENTITY_SQUID_SQUIRT \nENTITY_STRAY_AMBIENT \nENTITY_STRAY_DEATH \nENTITY_STRAY_HURT \nENTITY_STRAY_STEP \nENTITY_TNT_PRIMED \nENTITY_TROPICAL_FISH_AMBIENT \nENTITY_TROPICAL_FISH_DEATH \nENTITY_TROPICAL_FISH_FLOP \nENTITY_TROPICAL_FISH_HURT \nENTITY_TURTLE_AMBIENT_LAND \nENTITY_TURTLE_DEATH \nENTITY_TURTLE_DEATH_BABY \nENTITY_TURTLE_EGG_BREAK \nENTITY_TURTLE_EGG_CRACK \nENTITY_TURTLE_EGG_HATCH \nENTITY_TURTLE_HURT \nENTITY_TURTLE_HURT_BABY \nENTITY_TURTLE_LAY_EGG \nENTITY_TURTLE_SHAMBLE \nENTITY_TURTLE_SHAMBLE_BABY \nENTITY_TURTLE_SWIM \nENTITY_VEX_AMBIENT \nENTITY_VEX_CHARGE \nENTITY_VEX_DEATH \nENTITY_VEX_HURT \nENTITY_VILLAGER_AMBIENT \nENTITY_VILLAGER_DEATH \nENTITY_VILLAGER_HURT \nENTITY_VILLAGER_NO \nENTITY_VILLAGER_TRADE \nENTITY_VILLAGER_YES \nENTITY_VINDICATOR_AMBIENT \nENTITY_VINDICATOR_DEATH \nENTITY_VINDICATOR_HURT \nENTITY_WITCH_AMBIENT \nENTITY_WITCH_DEATH \nENTITY_WITCH_DRINK \nENTITY_WITCH_HURT \nENTITY_WITCH_THROW \nENTITY_WITHER_AMBIENT \nENTITY_WITHER_BREAK_BLOCK \nENTITY_WITHER_DEATH \nENTITY_WITHER_HURT \nENTITY_WITHER_SHOOT \nENTITY_WITHER_SKELETON_AMBIENT \nENTITY_WITHER_SKELETON_DEATH \nENTITY_WITHER_SKELETON_HURT \nENTITY_WITHER_SKELETON_STEP \nENTITY_WITHER_SPAWN \nENTITY_WOLF_AMBIENT \nENTITY_WOLF_DEATH \nENTITY_WOLF_GROWL \nENTITY_WOLF_HOWL \nENTITY_WOLF_HURT \nENTITY_WOLF_PANT \nENTITY_WOLF_SHAKE \nENTITY_WOLF_STEP \nENTITY_WOLF_WHINE \nENTITY_ZOMBIE_AMBIENT \nENTITY_ZOMBIE_ATTACK_IRON_DOOR \nENTITY_ZOMBIE_ATTACK_WOODEN_DOOR \nENTITY_ZOMBIE_BREAK_WOODEN_DOOR \nENTITY_ZOMBIE_CONVERTED_TO_DROWNED \nENTITY_ZOMBIE_DEATH \nENTITY_ZOMBIE_DESTROY_EGG \nENTITY_ZOMBIE_HORSE_AMBIENT \nENTITY_ZOMBIE_HORSE_DEATH \nENTITY_ZOMBIE_HORSE_HURT \nENTITY_ZOMBIE_HURT \nENTITY_ZOMBIE_INFECT \nENTITY_ZOMBIE_PIGMAN_AMBIENT \nENTITY_ZOMBIE_PIGMAN_ANGRY \nENTITY_ZOMBIE_PIGMAN_DEATH \nENTITY_ZOMBIE_PIGMAN_HURT \nENTITY_ZOMBIE_STEP \nENTITY_ZOMBIE_VILLAGER_AMBIENT \nENTITY_ZOMBIE_VILLAGER_CONVERTED \nENTITY_ZOMBIE_VILLAGER_CURE \nENTITY_ZOMBIE_VILLAGER_DEATH \nENTITY_ZOMBIE_VILLAGER_HURT \nENTITY_ZOMBIE_VILLAGER_STEP \nITEM_ARMOR_EQUIP_CHAIN \nITEM_ARMOR_EQUIP_DIAMOND \nITEM_ARMOR_EQUIP_ELYTRA \nITEM_ARMOR_EQUIP_GENERIC \nITEM_ARMOR_EQUIP_GOLD \nITEM_ARMOR_EQUIP_IRON \nITEM_ARMOR_EQUIP_LEATHER \nITEM_ARMOR_EQUIP_TURTLE \nITEM_AXE_STRIP \nITEM_BOTTLE_EMPTY \nITEM_BOTTLE_FILL \nITEM_BOTTLE_FILL_DRAGONBREATH \nITEM_BUCKET_EMPTY \nITEM_BUCKET_EMPTY_FISH \nITEM_BUCKET_EMPTY_LAVA \nITEM_BUCKET_FILL \nITEM_BUCKET_FILL_FISH \nITEM_BUCKET_FILL_LAVA \nITEM_CHORUS_FRUIT_TELEPORT \nITEM_ELYTRA_FLYING \nITEM_FIRECHARGE_USE \nITEM_FLINTANDSTEEL_USE \nITEM_HOE_TILL \nITEM_SHIELD_BLOCK \nITEM_SHIELD_BREAK \nITEM_SHOVEL_FLATTEN \nITEM_TOTEM_USE \nITEM_TRIDENT_HIT \nITEM_TRIDENT_HIT_GROUND \nITEM_TRIDENT_RETURN \nITEM_TRIDENT_RIPTIDE_1 \nITEM_TRIDENT_RIPTIDE_2 \nITEM_TRIDENT_RIPTIDE_3 \nITEM_TRIDENT_THROW \nITEM_TRIDENT_THUNDER \nMUSIC_CREATIVE \nMUSIC_CREDITS \nMUSIC_DISC_11 \nMUSIC_DISC_13 \nMUSIC_DISC_BLOCKS \nMUSIC_DISC_CAT \nMUSIC_DISC_CHIRP \nMUSIC_DISC_FAR \nMUSIC_DISC_MALL \nMUSIC_DISC_MELLOHI \nMUSIC_DISC_STAL \nMUSIC_DISC_STRAD \nMUSIC_DISC_WAIT \nMUSIC_DISC_WARD \nMUSIC_DRAGON \nMUSIC_END \nMUSIC_GAME \nMUSIC_MENU \nMUSIC_NETHER \nMUSIC_UNDER_WATER \nUI_BUTTON_CLICK \nUI_TOAST_CHALLENGE_COMPLETE \nUI_TOAST_IN \nUI_TOAST_OUT \nWEATHER_RAIN \nWEATHER_RAIN_ABOVE \n\n下载与开源地址\n  下载地址： https://pan.baidu.com/s/162Ez6iT-SwbB6gP3FRFitg 提取码: u72i \n  这里是开源地址  https://github.com/oscarab/SkillSystem\n  我深知这个插件仍有很多不足之处，接下来我会尽力进行不断更新，请大家及时更新到最新版本，也希望大家能给出建议！\n\n更新记录与更新计划\n建议在每次更新时都看一下更新记录，当前版本v1.6.0。喜欢的话评分支持一下作者啦\n  更新记录：v1.3 增加了对PlaceHolderAPI变量的支持，并可在技能条中使用，且支持算式\n        更改了技能条中的分割方式，分隔符由/变为#\n        增加了插件重载的指令\nv1.3.1  修复Kill类条件的判断问题\n           修复技能冷却时间卡住问题 \nv1.4    增加世界中禁止使用技能\n          增加在未使用VexView时也可使用数字键触发技能\nv1.4.1  修复 打开技能绑定界面可移动物品\n                 条件中生命值判断错误\n                 技能绑定物品掉落\nv1.4.2  增加 延迟效果\n           修改 目标指向生物可写距离\n           修改 爆炸效果不损坏方块\nv1.4.3  修复一系列线程安全问题\n           修复玩家转换世界或死亡时的数据丢失\n           更改 延迟的书写方式\nv1.4.4  增加条件 时间天气地形\n           增加效果 执行指令\n           修改发送信息支持PlaceHolder变量\nv1.4.5  增加抛射物效果\n           增加指令执行技能\n           修复抛射物的攻击判断\nv1.4.6  增加技能停止效果\n           增加技能描述\nv1.4.7  修复 Command效果中清除玩家op\nv1.4.8  修复不能制作原版物品\n           修复数据储存安全问题\nv1.4.9  增加对领地的支持\nv1.5.1  增加 不满足条件后的效果\n           增加 跳转的效果\n           增加 生物存在判断、几率触发的条件\n           增加 直线上的生物目标\nv1.5.2  增加算式比较的条件\n           修复可移动技能绑定物品的BUG\nv1.5.3  增加 属性点系统（测试版）\n           增加 指向怪物的目标\n           增加 技能冷却修改效果\nv1.5.4  增加关于属性点的Placeholder变量\nv1.5.5  增加 技能描述可用Placeholder变量\nv1.5.6  修复 技能绑定屏障可以放置\n           更改 雷劈的效果\nv1.5.7  修复 伤害方面的漏洞\n           修复 射出的箭可拾起\n           增加 版本更新提醒\n           增加 算术支持各类函数\nv1.5.8  修复 Charge效果的不合理\n           修复 条件不满足的跳转错误\n            修改 技能需在Skills文件夹内，可任意yml\n           增加 插件数据收集\nv1.5.9   修复 QS商店触发的BUG\n            修复 铁砧可改名技能物品\nv1.6.0   增加 粒子曲线效果\n            修复 数字键触发下的刷物品问题\n  更新计划：\n1、增加自定义的粒子效果（正在制作）\n  \n  感谢大家对插件提出的建议！\n  已知BUG：1、技能效果会拉动NPC（已解决，请选择某个世界不能使用技能或使用Residence插件）\n2、击杀怪物后SX设置的掉落物会有问题\n3、有提示Warning: Nashorn engine is planned to be removed from a future JDK release（请使用较低版本的Java可避免此提示，此提示不影响使用）\n\n感谢大家反馈BUG\n\n本插件所用所有代码均为原创,不存在借用/抄袭等行为\n\n\n\n\n\n\n\n\nskills.yml\n\n\n2019-9-18 16:24 上传\n点击文件名下载附件\n\n\n\n\n335 Bytes, 下载次数: 613\n\n\n技能示例\n\n\n\n\n\n\n\n\n\n\nitems.yml\n\n\n2019-7-29 18:44 上传\n点击文件名下载附件\n\n\n\n\n77 Bytes, 下载次数: 389\n\n\n物品示例\n\n\n\n\n\n\n\n\n\n\nSkillSystem v1.6.0.jar\n\n\n2020-4-29 23:31 上传\n点击文件名下载附件\n\n\n\n\n74.74 KB, 下载次数: 370\n\n\n本体\n\n\n",
+    "replies": [
+        {
+            "author": "牧木目",
+            "timestamp": 1564115460,
+            "txt_content": "老哥 这个字体 看不清楚啊！！"
+        },
+        {
+            "author": "阿威23333",
+            "timestamp": 1564115820,
+            "txt_content": "字体或者底板能换个颜色吗= =每次都要选中了文字才能勉强看清"
+        },
+        {
+            "author": "Azitate",
+            "timestamp": 1564115880,
+            "txt_content": "你这是直接复制了谁的排版吗....底色都乱了"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564117620,
+            "txt_content": " 本帖最后由 oscarab 于 2019-7-26 13:19 编辑 \n\n不好意思!!!!各位，我第一次来用表格排版，出现乱码了，我马上去修改 （划掉，修改完了）\n\n我也觉得奇怪了，在编辑区看是没有问题的，只好重新输入了一下颜色代码，现在是正常了"
+        },
+        {
+            "author": "猿汐",
+            "timestamp": 1564127700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "梅子酒呀",
+            "timestamp": 1564151580,
+            "txt_content": "希望支持能像SkillAPI一样的热键功能，切换工具栏就能释放技能 :D"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564222740,
+            "txt_content": "梅子酒呀 发表于 2019-7-26 22:33\n希望支持能像SkillAPI一样的热键功能，切换工具栏就能释放技能 :D\n这是个好主意！我会尽快添加上去的"
+        },
+        {
+            "author": "Chaos_dream",
+            "timestamp": 1564242360,
+            "txt_content": "很好的插件啊，刚好满足了我目前做rpg服务器的要求"
+        },
+        {
+            "author": "QQ739562966",
+            "timestamp": 1564282200,
+            "txt_content": "让攻击的伤害变成识别变量"
+        },
+        {
+            "author": "目南殇",
+            "timestamp": 1564282320,
+            "txt_content": "很好用，支持楼主"
+        },
+        {
+            "author": "晨曦曦",
+            "timestamp": 1564283520,
+            "txt_content": "插件很好用，最近在做服可以用到"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564285560,
+            "txt_content": "QQ739562966 发表于 2019-7-28 10:50\n让攻击的伤害变成识别变量\n具体一下？什么变量？手上的武器伤害？还是其他的一些"
+        },
+        {
+            "author": "QQ739562966",
+            "timestamp": 1564287180,
+            "txt_content": "oscarab 发表于 2019-7-28 11:46\n具体一下？什么变量？手上的武器伤害？还是其他的一些\n比如sx的伤害变量，直接识别这个变量变成攻击伤害"
+        },
+        {
+            "author": "a2354668685",
+            "timestamp": 1564300320,
+            "txt_content": "没有重置配置的指令吗"
+        },
+        {
+            "author": "shenren3-f",
+            "timestamp": 1564300320,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qq1423143194",
+            "timestamp": 1564308060,
+            "txt_content": "1.12.2报错"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564309620,
+            "txt_content": "qq1423143194 发表于 2019-7-28 18:01\n1.12.2报错\n请讲一下具体情况，包括报错信息和出现错误的情况"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564374960,
+            "txt_content": "这个插件有什么和其他插件冲突吗，为什么我用的时候给予物品会报错，输入任何关于这个插件的其他指令都没反应，技能也释放不出来"
+        },
+        {
+            "author": "jiao1018000",
+            "timestamp": 1564377600,
+            "txt_content": "技能显示非常棒"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564396200,
+            "txt_content": "龙岩是啊 发表于 2019-7-29 12:36\n这个插件有什么和其他插件冲突吗，为什么我用的时候给予物品会报错，输入任何关于这个插件的其他指令都没反 ...\n从你的描述来看，应该时填写物品的配置文件时出了些问题，你先对照一下例子里的格式，注意一下type这个项是要填写物品的英文名字的，你可以打开游戏按F3+H在物品下面会有显示，注意大写就可以了，如果我说的未能解决你的问题，希望你能给我看看报错信息"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564396440,
+            "txt_content": "oscarab 发表于 2019-7-29 18:30\n从你的描述来看，应该时填写物品的配置文件时出了些问题，你先对照一下例子里的格式，注意一下type这个项 ...\n如果我把例子直接复制过去还是弹出错误怎么办..."
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564397100,
+            "txt_content": "龙岩是啊 发表于 2019-7-29 18:34\n如果我把例子直接复制过去还是弹出错误怎么办...\n刚刚发现个问题不好意思啊 直接复制会产生一些问题（尽管格式是对的），我现在上传一份写好的配置文件，你可以以此为基础编写，谢谢发现问题"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564399380,
+            "txt_content": "oscarab 发表于 2019-7-29 18:45\n刚刚发现个问题不好意思啊 直接复制会产生一些问题（尽管格式是对的），我现在上传一份写好的配置 ...\n嘻嘻..谢谢作者这么用心，点赞~"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564399860,
+            "txt_content": "oscarab 发表于 2019-7-29 18:45\n刚刚发现个问题不好意思啊 直接复制会产生一些问题（尽管格式是对的），我现在上传一份写好的配置 ...\n对了..输入/skillsystem reload也没任何反应，必须重启服务器才能重载插件，这个是插件冲突问题吗"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564402080,
+            "txt_content": "请您见谅..我是萌新辅助，问题有点多..skill触发的lore是必须写在item的物品上吧..但是您给出的技能范例只要导进skill.yml就报错，导致没法触发技能和给予物品，我试了一下，item和skill把您的范例复制进去，但是还是报错"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564404960,
+            "txt_content": "龙岩是啊 发表于 2019-7-29 20:08\n请您见谅..我是萌新辅助，问题有点多..skill触发的lore是必须写在item的物品上吧..但是您给出的技能范例只 ...\n那个reload的话是要op权限的，我这边测试是没有问题的，我需要看一下你的报错信息。那个技能范例里面有一个PlaceHolderAPI的变量，如果你没有装PlaceHolderAPI就会报错（听你这么说我觉得我应该完善一下报错的处理，变得友好一点，下一个版本吧），如果不需要就把那个变量删掉。还有触发问题，只要物品的lore中包含技能的名字就可以了，不一定要用我的物品配置，你用其他修改物品lore的插件也是可以的，例如论坛中的一些属性插件，很多都包含修改lore的。"
+        },
+        {
+            "author": "XEarthlydust",
+            "timestamp": 1564405080,
+            "txt_content": "支持原创，作者加油啊！"
+        },
+        {
+            "author": "a2354668685",
+            "timestamp": 1564409400,
+            "txt_content": "1.13.2使用重置指令没什么效果,什么都不显示也没报错"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564412580,
+            "txt_content": "a2354668685 发表于 2019-7-29 22:10\n1.13.2使用重置指令没什么效果,什么都不显示也没报错\n重置指令需要op权限，我这里测试是没有问题的，你可以再试试，比如在后台输入一下？"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564447380,
+            "txt_content": "oscarab 发表于 2019-7-29 20:56\n那个reload的话是要op权限的，我这边测试是没有问题的，我需要看一下你的报错信息。那个技能范例里面有一 ...\n的确是有op的，而且后台也试过了，没有任何反应，和楼下那个1.13.2的状况一样，报错信息是 An internal error occurred while attempting to perform this command ||PlaceHolderAPI我装了，but技能还是放不出来，只要把范例复制进skill.yml里面，就输入任何关于skillsystem插件的指令都会弹出上面的报错.."
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564448280,
+            "txt_content": "oscarab 发表于 2019-7-29 23:03\n重置指令需要op权限，我这里测试是没有问题的，你可以再试试，比如在后台输入一下？ ...\n后台输入会在后台报错，我把信息发给您，您看一下\n> skillsystem reload\n[08:50:53 WARN]: Unexpected exception while parsing console command \"skillsystem\n reload\"\norg.bukkit.command.CommandException: Cannot execute command 'skillsystem' in plu\ngin SkillSystem v1.2 - plugin is disabled.\n        at org.bukkit.command.PluginCommand.execute(PluginCommand.java:36) ~[Pap\nerSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at org.bukkit.command.SimpleCommandMap.dispatch(SimpleCommandMap.java:15\n1) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at org.bukkit.craftbukkit.v1_12_R1.CraftServer.dispatchCommand(CraftServ\ner.java:685) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at org.bukkit.craftbukkit.v1_12_R1.CraftServer.dispatchServerCommand(Cra\nftServer.java:648) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at net.minecraft.server.v1_12_R1.DedicatedServer.aP(DedicatedServer.java\n:463) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at net.minecraft.server.v1_12_R1.DedicatedServer.D(DedicatedServer.java:\n424) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at net.minecraft.server.v1_12_R1.MinecraftServer.C(MinecraftServer.java:\n774) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at net.minecraft.server.v1_12_R1.MinecraftServer.run(MinecraftServer.jav\na:666) ~[PaperSpigot-1.12.2-b1562.jar:git-Paper-1562]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_91]\n上面就是后台报错的全部信息了"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564448760,
+            "txt_content": "楼主，我发现了..是插件没更新...awsl 打扰了 对不起"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564469820,
+            "txt_content": "作者，every加持续时间之后会使所有技能冷却时间失效..比如我创建一个冷却为15秒的技能，里面写的是触发后8秒内每杀一个怪都加自己100生命和10攻击，但是8秒之后这个技能冷却时间就固定在7秒了，别的技能冷却时间失效无法释放，重载插件只能释放一次，之后冷却还是不走，只能重启服务器（求助）"
+        },
+        {
+            "author": "清茶旧友",
+            "timestamp": 1564470300,
+            "txt_content": "感觉很不错的插件 支持一下"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564477260,
+            "txt_content": "lz帮忙看看..我写的技能格式有错误吗...\n为什么我分别绑定到3个不同的武器上\n触发第三个技能，冷却会卡在17秒不动\n然后就全部技能卡住cd\n...\n暗影突刺:\n  cooldown: 10\n  execution:\n    - 'Run#Self#Message:§6我：§4暗影突刺!#0'\n    - 'Run#Self#Charge:1#0'\n    - 'Run#RaduisEntity:4#Damage:%sx_maxDamage%#0'\n    - 'Run#RaduisEntity:4#ParticleEffect:DRAGON_BREATH:50#0'\n  needPermission: false\n  cankeyBoard: true\n  message: §5暗影突刺§6距离冷却完成还有%cooldown%秒\n血意之怒:\n  cooldown: 15\n  execution:\n    - 'None#Self#Message:§6我：§c血意之怒!#0'\n    - 'None#PointEntity#Lightning:1#0'\n    - 'None#PointEntity#Damage:%sx_maxDamage%*2#0'\n    - 'None#Self#ParticleEffect:FLAME:100#0'\n    - 'None#PointEntity#ParticleEffect:FLAME:30#0'\n  needPermission: false\n  cankeyBoard: true\n  message: §c血意之怒§6距离冷却完成还有%cooldown%秒\n暗影七绝杀:\n  cooldown: 30\n  execution:\n    - 'None#Self#Message:§6我：§6暗影七绝杀!#0'\n    - 'None#PointEntity#Damage:%sx_maxDamage%*3.7+%sx_minDamage%*3.1#0'\n    - 'None#PointEntity#ParticleEffect:ENCHANTMENT_TABLE:50#0'\n    - 'None#Self#ParticleEffect:FLAME:50#0'\n    - 'None#RaduisEntity:5#PotionEffect:SLOW:100:100#0'\n  needPermission: false\n  cankeyBoard: true\n  message: §7暗影七绝杀§6距离冷却完成还有%cooldown%秒  "
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564479780,
+            "txt_content": "龙岩是啊 发表于 2019-7-30 14:57\n作者，every加持续时间之后会使所有技能冷却时间失效..比如我创建一个冷却为15秒的技能，里面写的是触发后8 ...\n感谢反馈bug（很严重），我这边已经查找到一部分原因了，还有你下面反馈的技能的问题我也在测试着，我现在加紧修好，估计今天搞定，十分感谢你的测试和反馈！！！"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564492440,
+            "txt_content": "oscarab 发表于 2019-7-30 17:43\n感谢反馈bug（很严重），我这边已经查找到一部分原因了，还有你下面反馈的技能的问题我也在测试着 ...\n唔...感谢作者更新这么好的插件qwq.."
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564492920,
+            "txt_content": "oscarab 发表于 2019-7-30 17:43\n感谢反馈bug（很严重），我这边已经查找到一部分原因了，还有你下面反馈的技能的问题我也在测试着 ...\n对了，作者，能建议一下么,加一个类似mm的 delay延迟释放一个技能中包含的动作组..一股脑全放可能会有点..\n加了延迟之后比如击退啊，跳跃之类的和其他伤害衔接的更自然，而且radiosentity和pointentity都是按照位移（charge）之前的目标算的，另外发现一个小问题（可能不算是问题）pointentity只能攻击到较近的怪物，5-6格之后就摸不到了（游戏体验有点..）赞这个插件，支持原创"
+        },
+        {
+            "author": "315366301",
+            "timestamp": 1564512420,
+            "txt_content": "希望能够加一个指令释放的方式，可以配合部分识别LORE执行指令的插件。还有那个爆炸效果是真的会破坏方块，希望能够加一个关闭爆炸对方块伤害的配置。"
+        },
+        {
+            "author": "千秋夏",
+            "timestamp": 1564533360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Alpha-∞",
+            "timestamp": 1564533720,
+            "txt_content": "a.a然而SkillAPI是不可逾越的"
+        },
+        {
+            "author": "千秋夏",
+            "timestamp": 1564535460,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Gtgns",
+            "timestamp": 1564535520,
+            "txt_content": "好插件顶DDDD"
+        },
+        {
+            "author": "qq1423143194",
+            "timestamp": 1564558740,
+            "txt_content": "建议加个禁止某某世界释放技能\n因为这样可以防止熊孩纸一直在不能PVP的区域释放技能\n乱杀人"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564567380,
+            "txt_content": "qq1423143194 发表于 2019-7-31 15:39\n建议加个禁止某某世界释放技能\n因为这样可以防止熊孩纸一直在不能PVP的区域释放技能\n乱杀人 ...\n确实应该加上，很好的提议！"
+        },
+        {
+            "author": "SoilFarmers",
+            "timestamp": 1564660380,
+            "txt_content": "支持原创，给大佬递茶喝:)"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564664940,
+            "txt_content": "lightning会把掉落物打没.."
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564711620,
+            "txt_content": "作者，我的技能是这么写的\n紧急包扎:\n  cooldown: 6\n  execution:\n    - 'SelfHealth<%sx_health%*0.7#Self#Message:§6我：§a快速包扎!#0'\n    - 'SelfHealth<%sx_health%*0.7#Self#ParticleEffect:VILLAGER_HAPPY:50#0'\n    - 'SelfHealth<%sx_health%*0.7#Self#HealthSet:%sx_health%*0.15+%sx_maxDamage%*0.7#0'\n    - 'SelfHealth<%sx_health%*0.7#Self#PotionEffect:SLOW:60:2#0'\n  needPermission: true\n  cankeyBoard: true\n  message: §5紧急包扎§6距离冷却完成还有%cooldown%秒\n但是一使用后台就会报错\n在处理包含算式的技能条遭遇了错误，具体位置\nSelfHealth<5000.5*0.7\n请问是技能格式问题吗.还是算式的变量问题"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564713300,
+            "txt_content": "（默默的说一句，打开skillsystem之后，已绑定的技能可以随便拖，随便挪位置）"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564713900,
+            "txt_content": "（作者，主手副手放技能武器会释放两个技能）"
+        },
+        {
+            "author": "BR★S",
+            "timestamp": 1564733700,
+            "txt_content": "希望能加上指令绑定像/skillsystem bind [技能名] [按键]这样就可以和vexhuds搭配固定按键了，softdepend再加个papi的%skillsystem_cooldown%变量也不错，再反馈个小问题:版主自己写的particle技能项只能用在self上，还可以增加个越级使用指定指令或需要权限使用指定指令的技能只能self触发，成龙！还有一件事！可以尝试EffectLib搭配单独分开一个particle文件夹自定义粒子文件然后可以绑定里面的效果，ok say goodbye"
+        },
+        {
+            "author": "pengzi",
+            "timestamp": 1564735080,
+            "txt_content": "求一个持续时间技能条的例子"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564735980,
+            "txt_content": "作者 求加一个攻击距离的设定...因为射出去的箭和对目标造成伤害仅会在3格以内生效(好像所有PointEntity都是这样) 这就让某些远程攻击的人物设定直接搞成近战..求改[qaq]"
+        },
+        {
+            "author": "pengzi",
+            "timestamp": 1564736160,
+            "txt_content": "龙岩是啊 发表于 2019-8-2 16:53\n作者 求加一个攻击距离的设定...因为射出去的箭和对目标造成伤害仅会在3格以内生效(好像所有PointEntity都 ...\n兄弟知道EveryAttacking持续时间怎么弄吗"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564738260,
+            "txt_content": "我好像遇到了一个有趣的bug，将“击退”和“爆炸”放在一个技能里，对怪物使用就会瞬间崩服（可能是变量问题？我爆炸冒号后面加的是变量算式）"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1564740000,
+            "txt_content": "（小声bb一句，我上午反馈的血量bug只是不报错了，技能仍然没用）"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1564826640,
+            "txt_content": "pengzi 发表于 2019-8-2 16:38\n求一个持续时间技能条的例子\nEveryAttacking#Self#Message:hello!#20\n在20秒以内，玩家每攻击一次生物都给自己发送一条信息"
+        },
+        {
+            "author": "Immort_",
+            "timestamp": 1564877700,
+            "txt_content": "哇楼主真是厉害啊！可以自定义技能了！"
+        },
+        {
+            "author": "Immort_",
+            "timestamp": 1564881240,
+            "txt_content": "什么？竟然不支持1.11X版本！？"
+        },
+        {
+            "author": "pengzi",
+            "timestamp": 1564899480,
+            "txt_content": "oscarab 发表于 2019-8-3 18:04\nEveryAttacking#Self#Message:hello!#20\n在20秒以内，玩家每攻击一次生物都给自己发送一条信息 ...\n谢谢 懂了"
+        },
+        {
+            "author": "3079655185",
+            "timestamp": 1565008620,
+            "txt_content": "可惜没有1.8..."
+        },
+        {
+            "author": "路人2333",
+            "timestamp": 1565089920,
+            "txt_content": "你好楼主，你这个技能插件有点bug，为什么技能会伤害到自己本身呢........"
+        },
+        {
+            "author": "小喵咪_owo",
+            "timestamp": 1565092440,
+            "txt_content": "很不错啊。。支持一下"
+        },
+        {
+            "author": "1204244136",
+            "timestamp": 1565095860,
+            "txt_content": "emmm测试了一会，bug有丶多\n服务端版本1.14.4，使用的技能就是楼主给的example，服务端插件没有冲突\n1、创造模式无法绑定技能（第一种绑定方法）\n2、无法为当前选中框添加技能槽\n3、使用技能时报错，无法造成伤害和显示粒子效果\n4、迷之技能效果（水平突刺还好，往天上突刺就直接上天了= =）以下为报错内容\n[20:49:49 WARN]: [SkillSystem] Plugin SkillSystem v1.4.2 generated an exception while executing task 87\njava.lang.IllegalStateException: EntityDamageEvent may only be triggered synchronously.\n        at org.bukkit.plugin.SimplePluginManager.callEvent(SimplePluginManager.java:533) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.event.CraftEventFactory.callEvent(CraftEventFactory.java:223) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.event.CraftEventFactory.callEntityDamageEvent(CraftEventFactory.java:964) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.event.CraftEventFactory.handleEntityDamageEvent(CraftEventFactory.java:950) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.event.CraftEventFactory.handleLivingEntityDamageEvent(CraftEventFactory.java:996) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at net.minecraft.server.v1_14_R1.EntityLiving.damageEntity0(EntityLiving.java:1682) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at net.minecraft.server.v1_14_R1.EntityHuman.damageEntity0(EntityHuman.java:862) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at net.minecraft.server.v1_14_R1.EntityLiving.damageEntity(EntityLiving.java:1095) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at net.minecraft.server.v1_14_R1.EntityHuman.damageEntity(EntityHuman.java:785) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at net.minecraft.server.v1_14_R1.EntityPlayer.damageEntity(EntityPlayer.java:751) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.entity.CraftLivingEntity.damage(CraftLivingEntity.java:297) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.entity.CraftLivingEntity.damage(CraftLivingEntity.java:284) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at ow.SkillSystem.skills.SkillEffect.run(SkillEffect.java:119) ~[?:?]\n        at ow.SkillSystem.skills.SkillSingleExecution.run(SkillSingleExecution.java:105) ~[?:?]\n        at ow.SkillSystem.skills.Skill.run(Skill.java:68) ~[?:?]\n        at ow.SkillSystem.Util$1.run(Util.java:161) ~[?:?]\n        at org.bukkit.craftbukkit.v1_14_R1.scheduler.CraftTask.run(CraftTask.java:84) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at org.bukkit.craftbukkit.v1_14_R1.scheduler.CraftAsyncTask.run(CraftAsyncTask.java:54) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at com.destroystokyo.paper.ServerSchedulerReportingWrapper.run(ServerSchedulerReportingWrapper.java:22) ~[Paper-1.14.4-b157.jar:git-Paper-156]\n        at java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source) [?:1.8.0_192]\n        at java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source) [?:1.8.0_192]\n        at java.lang.Thread.run(Unknown Source) [?:1.8.0_192]复制代码\n\n"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565100120,
+            "txt_content": "1204244136 发表于 2019-8-6 20:51\nemmm测试了一会，bug有丶多\n服务端版本1.14.4，使用的技能就是楼主给的example，服务端插件没有冲突\n1、创 ...\n我逐项解答吧，有些东西我确实遗漏了，应该在帖子里标明：\n1、确实，创造模式也没办法绑定的，本来就是如此，因为我觉得创造模式用不了技能也没什么问题\n2、这个是我设定的，我不能让玩家拿着屏障\n3、这个的报错就是下面那个是吧，我已经了解到了，是个潜在问题。你能不能把产生这个错误时的情况和相关技能说一下\n4、我也试了一下，确实是个大问题（跳太高了.......）\n所以呢，我将在下一个版本修复一些问题"
+        },
+        {
+            "author": "98976431",
+            "timestamp": 1565106720,
+            "txt_content": "龙岩是啊 发表于 2019-7-30 17:01\nlz帮忙看看..我写的技能格式有错误吗...\n为什么我分别绑定到3个不同的武器上\n触发第三个技能，冷却会卡在17 ...\n因为这个持续时间呢是不计算在冷却里的QAQ,你可以在技能末行添加delay技能XD"
+        },
+        {
+            "author": "98976431",
+            "timestamp": 1565106840,
+            "txt_content": "龙岩是啊 发表于 2019-8-2 10:07\n作者，我的技能是这么写的\n紧急包扎:\n  cooldown: 6\n冷却提示咱试了试是需要加引号的QAQ"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1565138700,
+            "txt_content": "98976431 发表于 2019-8-6 23:52\n因为这个持续时间呢是不计算在冷却里的QAQ,你可以在技能末行添加delay技能XD ...\n我可求求您了...这好像是我反馈的v1.3.1的bug....您在说蛇呢...我从这个插件一出生就一直在用"
+        },
+        {
+            "author": "龙岩是啊",
+            "timestamp": 1565138760,
+            "txt_content": "98976431 发表于 2019-8-6 23:54\n冷却提示咱试了试是需要加引号的QAQ\n亲测不需要，下一个"
+        },
+        {
+            "author": "清茶旧友",
+            "timestamp": 1565170920,
+            "txt_content": "感觉很不错 支持一下"
+        },
+        {
+            "author": "Dirito",
+            "timestamp": 1565184060,
+            "txt_content": "1.12.2spigot用example技能杀死怪物之后后台会报错，但是是sx插件的错误 Could not pass event EntityDamageEvent to SX-Attribute v2.0.2 org.bukkit.event.EventException: null         at org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.java:306) ~[Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.plugin.RegisteredListener.callEvent(RegisteredListener.java:62) ~[Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.plugin.SimplePluginManager.fireEvent(SimplePluginManager.java:500) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.plugin.SimplePluginManager.callEvent(SimplePluginManager.java:485) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.event.CraftEventFactory.callEvent(CraftEventFactory.java:93) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.event.CraftEventFactory.callEntityDamageEvent(CraftEventFactory.java:580) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.event.CraftEventFactory.handleEntityDamageEvent(CraftEventFactory.java:566) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.event.CraftEventFactory.handleLivingEntityDamageEvent(CraftEventFactory.java:612) [Server.jar:git-Spigot-e8ded36-acbc348]         at net.minecraft.server.v1_12_R1.EntityLiving.damageEntity0(EntityLiving.java:1346) [Server.jar:git-Spigot-e8ded36-acbc348]         at net.minecraft.server.v1_12_R1.EntityLiving.damageEntity(EntityLiving.java:868) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.entity.CraftLivingEntity.damage(CraftLivingEntity.java:201) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.entity.CraftLivingEntity.damage(CraftLivingEntity.java:189) [Server.jar:git-Spigot-e8ded36-acbc348]         at ow.SkillSystem.skills.SkillEffect.run(SkillEffect.java:119) [SkillSystem%20v1.4.2.jar:?]         at ow.SkillSystem.skills.SkillSingleExecution.run(SkillSingleExecution.java:105) [SkillSystem%20v1.4.2.jar:?]         at ow.SkillSystem.skills.Skill.run(Skill.java:68) [SkillSystem%20v1.4.2.jar:?]         at ow.SkillSystem.Util$1.run(Util.java:161) [SkillSystem%20v1.4.2.jar:?]         at org.bukkit.craftbukkit.v1_12_R1.scheduler.CraftTask.run(CraftTask.java:76) [Server.jar:git-Spigot-e8ded36-acbc348]         at org.bukkit.craftbukkit.v1_12_R1.scheduler.CraftAsyncTask.run(CraftAsyncTask.java:52) [Server.jar:git-Spigot-e8ded36-acbc348]         at java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source) [?:1.8.0_101]         at java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source) [?:1.8.0_101]         at java.lang.Thread.run(Unknown Source) [?:1.8.0_101] Caused by: java.lang.IllegalArgumentException: Async hologram creation         at com.gmail.filoghost.holographicdisplays.util.Validator.isTrue(Validator.java:13) ~[?:?]         at com.gmail.filoghost.holographicdisplays.object.BackendAPI.createHologram(BackendAPI.java:25) ~[?:?]         at com.gmail.filoghost.holographicdisplays.api.HologramsAPI.createHologram(HologramsAPI.java:27) ~[?:?]         at github.saukiya.sxattribute.listener.OnHealthChangeDisplayListener.OnEntityDamageEvent(OnHealthChangeDisplayListener.java:168) ~[?:?]         at sun.reflect.GeneratedMethodAccessor209.invoke(Unknown Source) ~[?:?]         at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_101]         at java.lang.reflect.Method.invoke(Unknown Source) ~[?:1.8.0_101]         at org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.java:302) ~[Server.jar:git-Spigot-e8ded36-acbc348]         ... 20 more\n\n这两个插件是不是有冲突呢"
+        },
+        {
+            "author": "Dirito",
+            "timestamp": 1565184480,
+            "txt_content": "希望把触发指令加进技能效果里"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565185200,
+            "txt_content": "灯芯草 发表于 2019-8-7 21:21\n1.12.2spigot用example技能杀死怪物之后后台会报错，但是是sx插件的错误\n\n这两个插件是不是有冲突呢\n抱歉，现在发现1.4.2加入delay效果之后释放技能会有潜在性问题，我将努力解决，如果需要测试使用插件，可以先试试前一个版本，感谢测试！"
+        },
+        {
+            "author": "Dirito",
+            "timestamp": 1565186280,
+            "txt_content": "oscarab 发表于 2019-8-7 21:40\n抱歉，现在发现1.4.2加入delay效果之后释放技能会有潜在性问题，我将努力解决，如果需要测试使用插件，可 ...\n嗯，如果skillsystem能把触发指令加进效果里我觉得我就可以删掉skillapi了"
+        },
+        {
+            "author": "1842145743",
+            "timestamp": 1565191800,
+            "txt_content": "非常好的插件，建议加上两个功能\n1.能够在技能条中判断玩家是否有某权限来判断是否执行下一个技能条\n2.能够在技能条中触发OP权限或玩家权限的指令\n\n支持作者"
+        },
+        {
+            "author": "Chaos_dream",
+            "timestamp": 1565276940,
+            "txt_content": "我问一下就是，如果是绑定在lore上面的技能，需要权限才可以触发吗？"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565401920,
+            "txt_content": "Chaos_dream 发表于 2019-8-8 23:09\n我问一下就是，如果是绑定在lore上面的技能，需要权限才可以触发吗？\n如果你设置技能触发需要权限的话，何种形式触发技能都需要权限"
+        },
+        {
+            "author": "冰上云梦",
+            "timestamp": 1565527980,
+            "txt_content": "awsl，又一个贼强大的插件诞生了！正好给我这种SkillAPI残废用"
+        },
+        {
+            "author": "青犬",
+            "timestamp": 1565653080,
+            "txt_content": "楼主 我发现一个问题！ 如果mm怪物用的是sx的物品掉落 那么技能击杀mm怪物将不会掉落物品！ 原版物品则可以！MM配置的物品可以！就SX的物品不行"
+        },
+        {
+            "author": "shenren3-f",
+            "timestamp": 1565653500,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "516374238",
+            "timestamp": 1565810100,
+            "txt_content": "我是白痴吗？为什么我看了半个小时还看不懂？"
+        },
+        {
+            "author": "shenren3-f",
+            "timestamp": 1565833200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "a2964040975",
+            "timestamp": 1565840340,
+            "txt_content": " 我问一下粒子效果能不能按着圆圈范围执行"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565840760,
+            "txt_content": "shenren3-f 发表于 2019-8-15 09:40\n报错有点严重\n感谢反馈，请把详细报错内容贴一下出来"
+        },
+        {
+            "author": "1842145743",
+            "timestamp": 1565859360,
+            "txt_content": "建议增加直接用指令释放出技能"
+        },
+        {
+            "author": "a2964040975",
+            "timestamp": 1565865180,
+            "txt_content": "我问一下绑定技能名字能不能写LORE介绍。绑定的粘液球能不能换成其他物品emm"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565875080,
+            "txt_content": "a2964040975 发表于 2019-8-15 18:33\n我问一下绑定技能名字能不能写LORE介绍。绑定的粘液球能不能换成其他物品emm ...\nlore中只要包含了技能名字就可以释放了，暂时不能换......我考虑下面的版本就可以自定义信息和绑定的相关物品"
+        },
+        {
+            "author": "kuboy",
+            "timestamp": 1565883540,
+            "txt_content": "可否新增一些例子 比如效果怎么加 或者说写一个潜行的技能怎么写 求教学"
+        },
+        {
+            "author": "kuboy",
+            "timestamp": 1565885340,
+            "txt_content": " Warning: Nashorn engine is planned to be removed from a future JDK release 每次施放技能 控制台就报这个信息 如果群体玩家一起施放 就会刷爆控制台 这是BUG吗"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1565924820,
+            "txt_content": " 本帖最后由 oscarab 于 2019-8-16 11:14 编辑 \nkuboy 发表于 2019-8-16 00:09\nWarning: Nashorn engine is planned to be removed from a future JDK release 每次施放技能 控制台就报 ...\n看起来我在代码里面用了即将被弃用的东西，感谢反馈，我将着手修复\n相关技能教学我也会抽时间补上"
+        },
+        {
+            "author": "kuboy",
+            "timestamp": 1565963040,
+            "txt_content": "oscarab 发表于 2019-8-16 11:07\n看起来我在代码里面用了即将被弃用的东西，感谢反馈，我将着手修复\n相关技能教学我也会抽时间补上 ...\n谢谢，做这个插件确实很棒，期待你的新版，我想用你的插件开发很有趣的东西"
+        },
+        {
+            "author": "唐泽俊之",
+            "timestamp": 1566051300,
+            "txt_content": "希望大佬可以让技能添加自己的描述\n就是技能按键的绑定系统\n不止有技能的名字\n下面还可以添加一些描述"
+        },
+        {
+            "author": "Dirito",
+            "timestamp": 1566185820,
+            "txt_content": "作者你好\n建议加入worldguard支持\n“设置某世界不能放技能“的解决方式并不是很好，相信多数rpg服务器中，副本和NPC都是处在同一个世界中的。\n而利用worldguard单独对NPC的环境给予保护是一个很完美的解决方式"
+        },
+        {
+            "author": "惆丿怅",
+            "timestamp": 1566332580,
+            "txt_content": "太强大了，这个插件"
+        },
+        {
+            "author": "zcbmxvn",
+            "timestamp": 1566376800,
+            "txt_content": " 本帖最后由 zcbmxvn 于 2019-8-21 21:18 编辑 \n\n要是可以加入播放声音就好了"
+        },
+        {
+            "author": "唐泽俊之",
+            "timestamp": 1566377760,
+            "txt_content": " 本帖最后由 jhhhjjiaju 于 2019-8-21 17:38 编辑 \n\n作者\n希望您可以增加\n1.增加技能:停止执行剩余技能行  [STOP]\n2.增加条件:当物品数量<10时触发  [Item:物品代号<10]\nps：10只是个数值\n\n下面举一个例子\n\n\n增加前\n踏步:\n  cooldown: 5\n  execution:\n    - 'ItemHas:物品代号:10#Self#Charge:1.5#0'\n    - 'Delay:5'\n    - 'ItemHas:物品代号:10#RaduisEntity:2#Damage:%sx_MinDamage%/2+%sx_MaxDamage%/2#0'\n    - 'ItemHas:物品代号:10#RaduisEntity:1.5#ParticleEffect:CRIT_MAGIC:50#0'\n    - 'ItemConsuming:物品代号:10#Self#Message:[技能系统]成功使用技能踏步#0'\n  needPermission: true\n  cankeyBoard: true\n  message: [技能系统]距离技能踏步冷却完成还有%cooldown%秒复制代码\n\n\n\n增加后\n踏步:\n  cooldown: 5\n  execution:\n    - 'Item:物品代号<10#Self#Message:[技能系统]技能踏步释放失败,你的施法材料不足10个#0'\n    - 'Item:物品代号<10#Self#STOP#0'\n    - 'ItemConsuming:物品代号:10#Self#Charge:1.5#0'\n    - 'Delay:5'\n    - 'None#RaduisEntity:2#Damage:%sx_minDamage%/2+%sx_maxDamage%/2#0'\n    - 'None#RaduisEntity:1.5#ParticleEffect:CRIT_MAGIC:50#0'\n    - 'None#Self#Message:[技能系统]成功使用技能踏步#0'\n  needPermission: true\n  cankeyBoard: true\n  message: [技能系统]距离技能踏步冷却完成还有%cooldown%秒复制代码\n增加后,物品不足时将会结束技能的释放\n相比于增加前，一条一条读取技能条要好一些\n"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1566383880,
+            "txt_content": "zcbmxvn 发表于 2019-8-21 16:40\n请问楼主，为什么安装后不能使用技能\n提示是 An internal error occurred while attempting to perform thi ...\n请问是什么版本的服务端，你输入了什么指令，还有什么其他的提示信息吗？都详细讲一下"
+        },
+        {
+            "author": "唐泽俊之",
+            "timestamp": 1566393180,
+            "txt_content": "反馈一个关于抛射物的问题\n这是我设置的技能龙息:\n  cooldown: 5\n  execution:\n    - 'None#PointEntity:3#Shoot:DragonFireball:10:1.1#0'\n    - 'None#PointEntity:3#ParticleEffect:CRIT_MAGIC:50#0'\n    - 'None#Self#Message:§e[§b技能系统§e]§f成功使用技能§6龙息#0'\n  needPermission: true\n  cankeyBoard: true\n  message: §e[§b技能系统§e]§f距离技能§6龙息§f冷却完成还有§5%cooldown%秒复制代码\n\n使用后并不能发射物品\n下面是后台的报错\n[21:11:18] [Server thread/WARN]: javax.script.ScriptException: ReferenceError: \"DragonFireball\" is not defined in <eval> at line number 1\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.throwAsScriptException(NashornScriptEngine.java:467)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.evalImpl(NashornScriptEngine.java:451)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.evalImpl(NashornScriptEngine.java:403)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.evalImpl(NashornScriptEngine.java:399)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.eval(NashornScriptEngine.java:155)\n[21:11:18] [Server thread/WARN]:        at javax.script.AbstractScriptEngine.eval(Unknown Source)\n[21:11:18] [Server thread/WARN]:        at ow.SkillSystem.Util.getDoubleNumber(Util.java:33)\n[21:11:18] [Server thread/WARN]:        at ow.SkillSystem.skills.SkillEffect.run(SkillEffect.java:122)\n[21:11:18] [Server thread/WARN]:        at ow.SkillSystem.skills.SkillSingleExecution.run(SkillSingleExecution.java:117)\n[21:11:18] [Server thread/WARN]:        at ow.SkillSystem.skills.Skill.runSkill(Skill.java:86)\n[21:11:18] [Server thread/WARN]:        at ow.SkillSystem.Util$1.run(Util.java:161)\n[21:11:18] [Server thread/WARN]:        at org.bukkit.craftbukkit.v1_12_R1.scheduler.CraftTask.run(CraftTask.java:76)\n[21:11:18] [Server thread/WARN]:        at org.bukkit.craftbukkit.v1_12_R1.scheduler.CraftScheduler.mainThreadHeartbeat(CraftScheduler.java:361)\n[21:11:18] [Server thread/WARN]:        at net.minecraft.server.MinecraftServer.func_71190_q(MinecraftServer.java:833)\n[21:11:18] [Server thread/WARN]:        at net.minecraft.server.dedicated.DedicatedServer.func_71190_q(DedicatedServer.java:472)\n[21:11:18] [Server thread/WARN]:        at net.minecraft.server.MinecraftServer.func_71217_p(MinecraftServer.java:778)\n[21:11:18] [Server thread/WARN]:        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:632)\n[21:11:18] [Server thread/WARN]:        at java.lang.Thread.run(Unknown Source)\n[21:11:18] [Server thread/WARN]: Caused by: <eval>:1 ReferenceError: \"DragonFireball\" is not defined\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ECMAErrors.error(ECMAErrors.java:57)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ECMAErrors.referenceError(ECMAErrors.java:319)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ECMAErrors.referenceError(ECMAErrors.java:291)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.objects.Global.__noSuchProperty__(Global.java:1428)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.scripts.Script$1419$\\^eval\\_.:program(<eval>:1)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ScriptFunctionData.invoke(ScriptFunctionData.java:623)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ScriptFunction.invoke(ScriptFunction.java:494)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.internal.runtime.ScriptRuntime.apply(ScriptRuntime.java:393)\n[21:11:18] [Server thread/WARN]:        at jdk.nashorn.api.scripting.NashornScriptEngine.evalImpl(NashornScriptEngine.java:446)\n[21:11:18] [Server thread/WARN]:        ... 16 more\n[21:11:18] [Server thread/INFO]: 在处理包含算式的技能条中遭遇了错误，请及时检查配置文件！\n[21:11:18] [Server thread/INFO]: 具体错误处：DragonFireball复制代码"
+        },
+        {
+            "author": "Oscar_W",
+            "timestamp": 1566397620,
+            "txt_content": "jhhhjjiaju 发表于 2019-8-21 21:13\n反馈一个关于抛射物的问题\n这是我设置的技能\n我注意到你在抛射物效果那里选择了指向的生物作为执行目标，意味着将由目标生物来释放抛射物\n其次，我测试了你的技能是可以释放的，没有出现错误。（测试服务端1.12.2）\n我猜测你出现这个错误可能是由于配置文件里面的要填数值的参数出现了问题\n[21:11:18] [Server thread/INFO]: 在处理包含算式的技能条中遭遇了错误，请及时检查配置文件！\n[21:11:18] [Server thread/INFO]: 具体错误处：DragonFireball复制代码"
+        }
+    ]
+}

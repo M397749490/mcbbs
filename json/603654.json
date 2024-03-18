@@ -1,0 +1,194 @@
+{
+    "title": "[安全][上古之石]AntiRepeat —— 高级反刷屏|你是复读机么?[全版本]",
+    "author": "41414123",
+    "replyCount": 37,
+    "timestamp": 1468543740,
+    "txt_content": "j就是我A.A，本宝上镜，好开森",
+    "replies": [
+        {
+            "author": "andylizi",
+            "timestamp": 1468543800,
+            "txt_content": "标题: [安全][上古之石]AntiRepeat —— 高级反刷屏|你是复读机么?[全版本] 本帖最后由 1582952890 于 2017-9-17 11:28 编辑 \n\n本插件及介绍严禁任何人转载到任何地方\n\n此插件没有频率限制，只有禁止重复同一语句，有效禁止打广告，建议跟其他反刷屏（频率限制）与反脏话（关键字屏蔽）插件配合。设计的不好不周到也偷懒没加配置文件（因为当时没打算发布，嫌麻烦就没加可配置内容\n\n与其他插件不同之处：\n1、相似度检测。相似度算法来自 http://my.oschina.net/BreathL/blog/42477\n2、统计玩家说的最后10句话。玩家说话时，插件跟前10句比较，如果相似度大于85%并重复超过2次，则判定为重复刷屏。\n3、相似度比较只检测中文。所以在后面打“aaa”一类的方法来绕开检测就失效咯。\n（只检测上一句话很容易绕过，用两句话分开刷屏就好了，很简单很方便，mc也有聊天历史记录功能；但要同时按顺序发布10句话可就233333了\n\n指令无，权限OP可bypass，配置文件无，是被写死在代码里的。默认属性如下：\n1、判定为刷屏时，禁止这句话的发布，并提示玩家 \"§c你是复读机么?\"\n2、指令是算在聊天内的，除了 /spawn 指令不拦截。\n3、只记录玩家最后说的10句话。\n4、相似度大于85%则判定为一样。\n5、重复2句话后判定为刷屏，按1步骤操作\n\n感觉写完这些发现语言表达能力-max了似乎连我自己也看不懂=A=就这样吧。\n\n开源/*\n * Copyright 2016 andylizi.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *      http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage net.andylizi.antirepeat;\n\nimport java.util.*;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.ConcurrentMap;\nimport java.util.function.Predicate;\nimport org.bukkit.Bukkit;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.player.AsyncPlayerChatEvent;\nimport org.bukkit.event.player.PlayerCommandPreprocessEvent;\nimport org.bukkit.event.player.PlayerQuitEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\nimport org.bukkit.scheduler.BukkitRunnable;\n\n/**\n * @author andylizi\n */\npublic class AntiRepeat extends JavaPlugin implements Listener{\n    private final ConcurrentMap<UUID, LinkedList<String>> lastChat = new ConcurrentHashMap<>();\n\n    @Override\n    public void onEnable() {\n        Bukkit.getPluginManager().registerEvents(this, this);\n        new BukkitRunnable() {\n            @Override\n            public void run() {\n                lastChat.clear();\n            }\n        }.runTaskTimerAsynchronously(this, 0L, 20 * 60L);\n    }\n    \n    @EventHandler(ignoreCancelled = true)\n    public void onChat(AsyncPlayerChatEvent event){\n        if(handle(event.getPlayer(), event.getMessage().toLowerCase()))\n            event.setCancelled(true);\n    }\n    \n    @EventHandler(ignoreCancelled = true)\n    public void onCommand(PlayerCommandPreprocessEvent event){\n        if(handle(event.getPlayer(), event.getMessage().toLowerCase()))\n            event.setCancelled(true);\n    }\n    \n    @EventHandler\n    public void onQuit(PlayerQuitEvent event){\n        lastChat.remove(event.getPlayer().getUniqueId());\n    }\n    \n    public boolean handle(Player player, String msg){\n        if(player.isOp())\n            return false;\n        if(!CosineSimilarAlgorithm.containsChinese(msg))\n            return false;\n\n        UUID uid = player.getUniqueId();\n        LinkedList<String> last = lastChat.get(uid);\n        if(last == null){\n            last = new LinkedList<>();\n            last.addFirst(msg);\n            lastChat.put(uid, last);\n            return false;\n        }\n        if(contains(last, msg, 0.85) > 1){\n            player.sendMessage(\"§c你是复读机么?\");\n            return true;\n        }\n        last.addFirst(msg);\n        while(last.size() > 10)\n            last.pollLast();\n        lastChat.put(uid, last);\n        return false;\n    }\n    \n    public static int contains(Collection<String> list, String str, double threshold){\n        return count(list, s -> CosineSimilarAlgorithm.getSimilarity(str, s) > threshold);\n    }\n    \n    public static <T> int count(Collection<T> collection, Predicate<T> predicate){\n        return (int) collection.stream()\n                .filter(predicate)\n                .count();\n    }\n}复制代码协议Apache 2.0，这只是主类（由于有lambda，jd-gui似乎无法反编译），CosineSimilarAlgorithm就是来自这篇blog的算法（自己修改过一些地方），欢迎各种修改来符合自己服务器的需求但请注明原作者，勿抹掉版权信息。\n\n\n本插件只支持Java8或以上因为使用了lambda表达式\n表示一用lambda就停不下来了，以后写插件就都用Java8了23333现在时代进步了嘛，不跟上也是不行滴。\n如果提示“Unsupported major.minor version 52.0”错误，则代表Java版本不足Java8（52.0），请升级你的Java！\n\n下载\n\n\n\nAntiRepeat.jar\n(5.78 KB, 下载次数: 1117)\n\n\n\n2016-7-20 07:50 上传\n点击文件名下载附件\n2.1\n\n\n\n\n\n\n更新: v2.1修复了一个。。严重的。。问题？\n\n哦对了。。还差一个。。图片？\n\n\n\n\nQQ图片20160715084744.png (40.23 KB, 下载次数: 10)\n\n下载附件\n\n2016-7-15 08:49 上传\n\n\n\n\n \n\n\n本插件及介绍严禁任何人转载到任何地方\n\n"
+        },
+        {
+            "author": "孤独秋叶",
+            "timestamp": 1468543980,
+            "txt_content": "998..暴露一切"
+        },
+        {
+            "author": "LocusAzzurro",
+            "timestamp": 1468544820,
+            "txt_content": "前排捉梨子\n话说我要是英文刷屏怎么办【"
+        },
+        {
+            "author": "1790175861",
+            "timestamp": 1468544880,
+            "txt_content": "出售op账号就亮了。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468544880,
+            "txt_content": "雾晨丶破晓 发表于 2016-7-15 09:11\n支持哪些版本呢？\n--------------------\njava8或java8以上\ncraftbukkit，spigot，paperspigot，cauldron，kcauldron等等等基于Bukkit的服务端全版本"
+        },
+        {
+            "author": "雾晨丶破晓",
+            "timestamp": 1468545060,
+            "txt_content": "支持哪些版本呢？\n--------------------\nMDZZ亮了"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468545180,
+            "txt_content": "LocusAzzurro 发表于 2016-7-15 09:07\n前排捉梨子\n话说我要是英文刷屏怎么办【\n【英文会被识别为\"\"，照样拦截"
+        },
+        {
+            "author": "kevinss",
+            "timestamp": 1468545780,
+            "txt_content": "终于找到这款插件了~"
+        },
+        {
+            "author": "青木源",
+            "timestamp": 1468545960,
+            "txt_content": "作死梨子一枚……（对）\n【卖OP亮了】"
+        },
+        {
+            "author": "LocusAzzurro",
+            "timestamp": 1468546980,
+            "txt_content": "andylizi 发表于 2016-7-15 02:13\n【英文会被识别为\"\"，照样拦截\n然而我要是正常英文聊天就不行了啊"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468548180,
+            "txt_content": " 本帖最后由 andylizi 于 2016-7-15 10:04 编辑 \nLocusAzzurro 发表于 2016-7-15 09:43\n然而我要是正常英文聊天就不行了啊\n{:10_493:}本来不打算发布的，我服务器没这种情况就这样凑合啦。。【懒\n\n啊对突然想起来了，我修改的相似度算法里加入了判断，如果字符串中没有一个有效字符，则直接返回相似度0%，字符串完全一样则直接100%"
+        },
+        {
+            "author": "苏小白andJun",
+            "timestamp": 1468633680,
+            "txt_content": "不错不错！话说金粒有什么用？"
+        },
+        {
+            "author": "xRPQx",
+            "timestamp": 1468634400,
+            "txt_content": "看起来很不错，支持"
+        },
+        {
+            "author": "丁布的好刚得甜",
+            "timestamp": 1468834800,
+            "txt_content": "非常严重的BUG  如果玩家在登录之后掉线或者断开连接，两次之后再次登录，登录会被提示你是复读机导致无法登录，最后连接超时"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468835460,
+            "txt_content": "丁布的好刚得甜 发表于 2016-7-18 17:40\n非常严重的BUG  如果玩家在登录之后掉线或者断开连接，两次之后再次登录，登录会被提示你是复读机导致无法 ...\n{:10_494:}好。。下个版本解决。。"
+        },
+        {
+            "author": "丁布的好刚得甜",
+            "timestamp": 1468835640,
+            "txt_content": "andylizi 发表于 2016-7-18 17:51\n好。。下个版本解决。。\n{:10_494:}现在无法解决的话 只能换一个了"
+        },
+        {
+            "author": "丁布的好刚得甜",
+            "timestamp": 1468836000,
+            "txt_content": "andylizi 发表于 2016-7-18 17:51\n好。。下个版本解决。。\n而且最严重的是  哪怕关闭了客户端 还是无法登陆   我现在必须删掉这个插件了"
+        },
+        {
+            "author": "丁布的好刚得甜",
+            "timestamp": 1468848060,
+            "txt_content": "andylizi 发表于 2016-7-18 17:51\n好。。下个版本解决。。\n另外，常用的指令如/tpccept这些也会被和谐，目前插件已删{:10_505:}"
+        },
+        {
+            "author": "边陲镇长",
+            "timestamp": 1468856520,
+            "txt_content": "加油  不错"
+        },
+        {
+            "author": "qazwsx852",
+            "timestamp": 1468919700,
+            "txt_content": "啊哈,针对/me 指令有用吗\n或者比如 \n2333333.\n2333333..\n2333333...\n这样有效吗\n我表示怀疑"
+        },
+        {
+            "author": "1461396933",
+            "timestamp": 1468920540,
+            "txt_content": "{:10_523:}"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1468972680,
+            "txt_content": "丁布的好刚得甜 发表于 2016-7-18 21:21\n另外，常用的指令如/tpccept这些也会被和谐，目前插件已删\n搞定√ 现在如果指令中不含中文，不会拦截。你们服总没中文指令系统吧。。\n其实前天就完成了但懒癌犯了。。抱歉"
+        },
+        {
+            "author": "renhuai1",
+            "timestamp": 1486371240,
+            "txt_content": "希望可以加一个关键词屏蔽  一些关键词不作为刷屏处理"
+        },
+        {
+            "author": "shuai_youxin",
+            "timestamp": 1486434900,
+            "txt_content": "谢谢lz支持开源"
+        },
+        {
+            "author": "shuai_youxin",
+            "timestamp": 1486614780,
+            "txt_content": "梨砸 为什么我装了没用"
+        },
+        {
+            "author": "qaz1290701843",
+            "timestamp": 1487514600,
+            "txt_content": "讷讷，谢谢楼主"
+        },
+        {
+            "author": "a2821258414",
+            "timestamp": 1490189940,
+            "txt_content": "本服怎么只能防御汉字，输英语和数字都防御不了"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1502026800,
+            "txt_content": "请问大佬为什么只要是和聊天有关的，比如艾特插件，反刷屏插件、脏话屏蔽插件，一触发，BC端就会报错，然后玩家会被传送到大厅服\n21:34:48 [严重] [hyxsdj] <-> DownstreamBridge <-> [Mod1] - encountered exception\nio.netty.handler.codec.CorruptedFrameException: Empty Packet!\n        at net.md_5.bungee.protocol.Varint21FrameDecoder.decode(Varint21FrameDecoder.java:34)\n        at io.netty.handler.codec.ByteToMessageDecoder.callDecode(ByteToMessageDecoder.java:327)\n        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:230)\n        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:308)\n        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:294)\n        at io.netty.handler.timeout.ReadTimeoutHandler.channelRead(ReadTimeoutHandler.java:152)\n        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:308)\n        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:294)\n        at io.netty.channel.DefaultChannelPipeline.fireChannelRead(DefaultChannelPipeline.java:846)\n        at io.netty.channel.nio.AbstractNioByteChannel$NioByteUnsafe.read(AbstractNioByteChannel.java:131)\n        at io.netty.channel.nio.NioEventLoop.processSelectedKey(NioEventLoop.java:511)\n        at io.netty.channel.nio.NioEventLoop.processSelectedKeysOptimized(NioEventLoop.java:468)\n        at io.netty.channel.nio.NioEventLoop.processSelectedKeys(NioEventLoop.java:382)\n        at io.netty.channel.nio.NioEventLoop.run(NioEventLoop.java:354)\n        at io.netty.util.concurrent.SingleThreadEventExecutor$2.run(SingleThreadEventExecutor.java:112)\n        at java.lang.Thread.run(Unknown Source)复制代码"
+        },
+        {
+            "author": "nggcgg2",
+            "timestamp": 1535429040,
+            "txt_content": "我记得当时那个服有一个彩蛋 我说我不是复读机 他会屏蔽掉那条消息并且给我的客户端发送\"你就是复读机\"的消息"
+        },
+        {
+            "author": "战争物语fz",
+            "timestamp": 1535433000,
+            "txt_content": "这个有什么bug吗？"
+        },
+        {
+            "author": "Forever_jiumeng",
+            "timestamp": 1540199220,
+            "txt_content": "mdzz说了我在测试"
+        },
+        {
+            "author": "HeLanHao",
+            "timestamp": 1541163840,
+            "txt_content": "这个可以更改消息吗？？？或许作者你可以增加如果有人刷屏就触发打雷指令可以吗"
+        },
+        {
+            "author": "THMC",
+            "timestamp": 1541393880,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "ksqeib445",
+            "timestamp": 1580738160,
+            "txt_content": " 本帖最后由 shangenbo 于 2020-2-3 22:01 编辑 \nandylizi 发表于 2041-7-15 09:13\n我不知道 不是我！\n我发现 我居然 挖坟了！"
+        },
+        {
+            "author": "花茶scented",
+            "timestamp": 1581060120,
+            "txt_content": "正需要这样一个插件呢，感谢楼主"
+        },
+        {
+            "author": "浩厉害哟",
+            "timestamp": 1611810360,
+            "txt_content": "支持一下"
+        },
+        {
+            "author": "MOYUNYI",
+            "timestamp": 1612661400,
+            "txt_content": "非常不错的反刷屏插件，不过效果图是认真的嘛"
+        }
+    ]
+}

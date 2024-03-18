@@ -1,0 +1,149 @@
+{
+    "title": "怎么做到在官网显示在线人数",
+    "author": "men62466293",
+    "replyCount": 28,
+    "timestamp": 1589549460,
+    "txt_content": "如题，我想要在服务器官网中显示在线人数，使用Html，PHPstudy(用PHP是不是会很难...)，就是这样的[attach]1596186[/attach]没错，就是右边的那个17670个玩家在线那个！有没有大佬告诉我怎么显示呀",
+    "replies": [
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589549460,
+            "txt_content": "来自此处的代码 https://www.mcbbs.net/thread-781980-1-1.html\n\n        index.php\n<html>\n<head>\n<title>Minecraft server</title>\n</head>\n<body>\n<?php\n        include_once 'status.class.php';//引入<span style=\"color: rgb(65, 105, 225);\"><font size=\"5\"> </font><font size=\"3\">status.class.php</font></span>\n        \n    $status = new MinecraftServerStatus(); // call the class\n    $response = $status-> getStatus('<font color=\"#4169e1\">服务器IP</font>', <font color=\"#4169e1\">服务器端口</font>);\n\nif(!$response) {\n    echo\"The Server is offline!\";\n} else {\n    echo\"<img width=\"64\" height=\"64\" src=\"asas1.png\".$response['favicon'].\"\" /> <br>\n    服务器信息 \".'</br>'.'服务器IP'.$response['hostname'].\" 在线状态： \".$response['version'].\" 目前在线人数：\".$response['players'].\"位玩家 最大在线人数： \".$response['maxplayers'].\"人\".\". 服务器版本：'\".$response['motd'].\"'.\n    延迟：\".$response['ping'].\" 毫秒.\";\n}\n\n?>\n</body>\n</html>复制代码\nstatus.class.php\n\n<?php\n    class MinecraftServerStatus {\n\n        private $timeout;\n\n        public function __construct($timeout = 2) {\n            $this->timeout = $timeout;\n        }\n\n        public function getStatus($host = '127.0.0.1', $version = '1.7.*' , $port = 25565) {\n\n            if (substr_count($host , '.') != 4) $host = gethostbyname($host);\n\n            $serverdata = array();\n            $serverdata['hostname'] = $host;\n            $serverdata['version'] = false;\n            $serverdata['protocol'] = false;\n            $serverdata['players'] = false;\n            $serverdata['maxplayers'] = false;\n            $serverdata['motd'] = false;\n            $serverdata['motd_raw'] = false;\n            $serverdata['favicon'] = false;\n            $serverdata['ping'] = false;\n\n            $socket = $this->connect($host, $port);\n\n            if(!$socket) {\n                return false;\n            }\n\n            if(preg_match('/1.7|1.8/',$version)) {\n\n                $start = microtime(true);\n\n                $handshake = pack('cccca*', hexdec(strlen($host)), 0, 0x04, strlen($host), $host).pack('nc', $port, 0x01);\n\n                socket_send($socket, $handshake, strlen($handshake), 0); //give the server a high five\n                socket_send($socket, \"\\x01\\x00\", 2, 0);\n                socket_read( $socket, 1 );\n\n                $ping = round((microtime(true)-$start)*1000); //calculate the high five duration\n\n                $packetlength = $this->read_packet_length($socket);\n\n                if($packetlength < 10) {\n                    return false;\n                }\n\n                socket_read($socket, 1);\n\n                $packetlength = $this->read_packet_length($socket);\n\n                $data = socket_read($socket, $packetlength, PHP_NORMAL_READ);\n\n                if(!$data) {\n                    return false;\n                }\n\n                $data = json_decode($data);\n\n                $serverdata['version'] = $data->version->name;\n                $serverdata['protocol'] = $data->version->protocol;\n                $serverdata['players'] = $data->players->online;\n                $serverdata['maxplayers'] = $data->players->max;\n\n                $motd = $data->description;\n                $motd = preg_replace(\"/(§.)/\", \"\",$motd);\n                $motd = preg_replace(\"/[^[:alnum:][:punct:] ]/\", \"\", $motd);\n\n                $serverdata['motd'] = $motd;\n                $serverdata['motd_raw'] = $data->description;\n                $serverdata['favicon'] = $data->favicon;\n                $serverdata['ping'] = $ping;\n\n            } else {\n\n                $start = microtime(true);\n\n                socket_send($socket, \"\\xFE\\x01\", 2, 0);\n                $length = socket_recv($socket, $data, 512, 0);\n\n                $ping = round((microtime(true)-$start)*1000);//calculate the high five duration\n         \n                if($length < 4 || $data[0] != \"\\xFF\") {\n                    return false;\n                }\n\n                $motd = \"\";\n                $motdraw = \"\";\n\n                //Evaluate the received data\n                if (substr((String)$data, 3, 5) == \"\\x00\\xa7\\x00\\x31\\x00\"){\n\n                    $result = explode(\"\\x00\", mb_convert_encoding(substr((String)$data, 15), 'UTF-8', 'UCS-2'));\n                    $motd = $result[1];\n                    $motdraw = $motd;\n\n                } else {\n\n                    $result = explode('§', mb_convert_encoding(substr((String)$data, 3), 'UTF-8', 'UCS-2'));\n                        foreach ($result as $key => $string) {\n                            if($key != sizeof($result)-1 && $key != sizeof($result)-2 && $key != 0) {\n                                $motd .= '§'.$string;\n                            }\n                        }\n                        $motdraw = $motd;\n                    }\n\n                    $motd = preg_replace(\"/(§.)/\", \"\", $motd);\n                    $motd = preg_replace(\"/[^[:alnum:][:punct:] ]/\", \"\", $motd); //Remove all special characters from a string\n\n                    $serverdata['version'] = $result[0];\n                    $serverdata['players'] = $result[sizeof($result)-2];\n                    $serverdata['maxplayers'] = $result[sizeof($result)-1];\n                    $serverdata['motd'] = $motd;\n                    $serverdata['motd_raw'] = $motdraw;\n                    $serverdata['ping'] = $ping;\n\n            }\n\n            $this->disconnect($socket);\n\n            return $serverdata;\n\n        }\n\n        private function connect($host, $port) {\n            $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);\n            socket_connect($socket, $host, $port);\n            return $socket;\n        }\n\n        private function disconnect($socket) {\n            if($socket != null) {\n                socket_close($socket);\n            }\n        }\n\n        private function read_packet_length($socket) {\n            $a = 0;\n            $b = 0;\n            while(true) {\n                $c = socket_read($socket, 1);\n                if(!$c) {\n                    return 0;\n                }\n                $c = Ord($c);\n                $a |= ($c & 0x7F) << $b++ * 7;\n                if( $b > 5 ) {\n                    return false;\n                }\n                if(($c & 0x80) != 128) {\n                    break;\n                }\n            }\n            return $a;\n        }\n\n    }\n?>复制代码\n\nphp 是最好的语言！（"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589549580,
+            "txt_content": ""
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589549640,
+            "txt_content": "图片在这！\n"
+        },
+        {
+            "author": "小天铄",
+            "timestamp": 1589549640,
+            "txt_content": "https://www.mcbbs.net/forum.php?mod=viewthread&tid=487904&highlight=%E5%B7%A5%E5%85%B7\n[网站工具]在服务器官方网站或论坛显示服务器的状态及人数！\nhttps://www.mcbbs.net/thread-487904-1-1.html\n(出处: Minecraft(我的世界)中文论坛)\n\n"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589549940,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:35\n来自此处的代码 https://www.mcbbs.net/thread-781980-1-1.html\n\n        index.php\n那怎么插入呢"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589550000,
+            "txt_content": "men62466293 发表于 2020-5-15 21:39\n那怎么插入呢\n我认为这已经很明显了"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589550180,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:40\n我认为这已经很明显了\n请加我的QQ：2271925039发给我\n(这玩意复制下来就是一大坨堆在一起)"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589550240,
+            "txt_content": "men62466293 发表于 2020-5-15 21:43\n请加我的QQ：2271925039发给我\n(这玩意复制下来就是一大坨堆在一起)\n使用鼠标选择，ctrl+C 复制"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589550420,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:44\n使用鼠标选择，ctrl+C 复制\nParse error: syntax error, unexpected '<' in G:\\Desktop\\test\\index.php on line 10"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589550480,
+            "txt_content": "men62466293 发表于 2020-5-15 21:47\nParse error: syntax error, unexpected '\n<html>\n<head>\n<title>Minecraft server</title>\n</head>\n<body>\n<?php\n        include_once 'status.class.php';//引入<span style=\"color: rgb(65, 105, 225);\"><font size=\"5\"> </font><font size=\"3\">status.class.php</font></span>\n        \n    $status = new MinecraftServerStatus(); // call the class\n    $response = $status-> getStatus('<font color=\"#4169e1\">服务器IP</font>', '<font color=\"#4169e1\">服务器端口</font>');\nif(!$response) {\n    echo\"The Server is offline!\";\n} else {\n    echo\"<img width=\"64\" height=\"64\" src=\"asas1.png\".$response['favicon'].\"\" /> <br>\n    服务器信息 \".'</br>'.'服务器IP'.$response['hostname'].\" 在线状态： \".$response['version'].\" 目前在线人数：\".$response['players'].\"位玩家 最大在线人数： \".$response['maxplayers'].\"人\".\". 服务器版本：'\".$response['motd'].\"'.\n    延迟：\".$response['ping'].\" 毫秒.\";\n}\n?>\n</body>\n</html>"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589550600,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:48\nMinecraft server\nParse error: syntax error, unexpected '64' (T_LNUMBER), expecting ',' or ';' in G:\\Desktop\\test\\index.php on line 14"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589550660,
+            "txt_content": "men62466293 发表于 2020-5-15 21:50\nParse error: syntax error, unexpected '64' (T_LNUMBER), expecting ',' or ';' in G:\\Desktop\\test\\in ...\n论坛把转义吞掉了\n<html>\n<head>\n<title>Minecraft server</title>\n</head>\n<body>\n<?php\n        include_once 'status.class.php';//引入<span style=\"color: rgb(65, 105, 225);\"><font size=\"5\"> </font><font size=\"3\">status.class.php</font></span>\n        \n    $status = new MinecraftServerStatus(); // call the class\n    $response = $status-> getStatus('<font color=\"#4169e1\">服务器IP</font>', <font color=\"#4169e1\">服务器端口</font>);\n\nif(!$response) {\n    echo\"The Server is offline!\";\n} else {\n    echo\"<img width=\\\"64\\\" height=\\\"64\\\" src=\\\"asas1.png\".$response['favicon'].\"\\\" /> <br>\n    服务器信息 \".'</br>'.'服务器IP'.$response['hostname'].\" 在线状态： \".$response['version'].\" 目前在线人数：\".$response['players'].\"位玩家 最大在线人数： \".$response['maxplayers'].\"人\".\". 服务器版本：'\".$response['motd'].\"'.\n    延迟：\".$response['ping'].\" 毫秒.\";\n}\n\n?>\n</body>\n</html>\n\n<?php\n    class MinecraftServerStatus {\n\n        private $timeout;\n\n        public function __construct($timeout = 2) {\n            $this->timeout = $timeout;\n        }\n\n        public function getStatus($host = '127.0.0.1', $version = '1.7.*' , $port = 25565) {\n\n            if (substr_count($host , '.') != 4) $host = gethostbyname($host);\n\n            $serverdata = array();\n            $serverdata['hostname'] = $host;\n            $serverdata['version'] = false;\n            $serverdata['protocol'] = false;\n            $serverdata['players'] = false;\n            $serverdata['maxplayers'] = false;\n            $serverdata['motd'] = false;\n            $serverdata['motd_raw'] = false;\n            $serverdata['favicon'] = false;\n            $serverdata['ping'] = false;\n\n            $socket = $this->connect($host, $port);\n\n            if(!$socket) {\n                return false;\n            }\n\n            if(preg_match('/1.7|1.8/',$version)) {\n\n                $start = microtime(true);\n\n                $handshake = pack('cccca*', hexdec(strlen($host)), 0, 0x04, strlen($host), $host).pack('nc', $port, 0x01);\n\n                socket_send($socket, $handshake, strlen($handshake), 0); //give the server a high five\n                socket_send($socket, \"\\x01\\x00\", 2, 0);\n                socket_read( $socket, 1 );\n\n                $ping = round((microtime(true)-$start)*1000); //calculate the high five duration\n\n                $packetlength = $this->read_packet_length($socket);\n\n                if($packetlength < 10) {\n                    return false;\n                }\n\n                socket_read($socket, 1);\n\n                $packetlength = $this->read_packet_length($socket);\n\n                $data = socket_read($socket, $packetlength, PHP_NORMAL_READ);\n\n                if(!$data) {\n                    return false;\n                }\n\n                $data = json_decode($data);\n\n                $serverdata['version'] = $data->version->name;\n                $serverdata['protocol'] = $data->version->protocol;\n                $serverdata['players'] = $data->players->online;\n                $serverdata['maxplayers'] = $data->players->max;\n\n                $motd = $data->description;\n                $motd = preg_replace(\"/(§.)/\", \"\",$motd);\n                $motd = preg_replace(\"/[^[:alnum:][:punct:] ]/\", \"\", $motd);\n\n                $serverdata['motd'] = $motd;\n                $serverdata['motd_raw'] = $data->description;\n                $serverdata['favicon'] = $data->favicon;\n                $serverdata['ping'] = $ping;\n\n            } else {\n\n                $start = microtime(true);\n\n                socket_send($socket, \"\\xFE\\x01\", 2, 0);\n                $length = socket_recv($socket, $data, 512, 0);\n\n                $ping = round((microtime(true)-$start)*1000);//calculate the high five duration\n         \n                if($length < 4 || $data[0] != \"\\xFF\") {\n                    return false;\n                }\n\n                $motd = \"\";\n                $motdraw = \"\";\n\n                //Evaluate the received data\n                if (substr((String)$data, 3, 5) == \"\\x00\\xa7\\x00\\x31\\x00\"){\n\n                    $result = explode(\"\\x00\", mb_convert_encoding(substr((String)$data, 15), 'UTF-8', 'UCS-2'));\n                    $motd = $result[1];\n                    $motdraw = $motd;\n\n                } else {\n\n                    $result = explode('§', mb_convert_encoding(substr((String)$data, 3), 'UTF-8', 'UCS-2'));\n                        foreach ($result as $key => $string) {\n                            if($key != sizeof($result)-1 && $key != sizeof($result)-2 && $key != 0) {\n                                $motd .= '§'.$string;\n                            }\n                        }\n                        $motdraw = $motd;\n                    }\n\n                    $motd = preg_replace(\"/(§.)/\", \"\", $motd);\n                    $motd = preg_replace(\"/[^[:alnum:][:punct:] ]/\", \"\", $motd); //Remove all special characters from a string\n\n                    $serverdata['version'] = $result[0];\n                    $serverdata['players'] = $result[sizeof($result)-2];\n                    $serverdata['maxplayers'] = $result[sizeof($result)-1];\n                    $serverdata['motd'] = $motd;\n                    $serverdata['motd_raw'] = $motdraw;\n                    $serverdata['ping'] = $ping;\n\n            }\n\n            $this->disconnect($socket);\n\n            return $serverdata;\n\n        }\n\n        private function connect($host, $port) {\n            $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);\n            socket_connect($socket, $host, $port);\n            return $socket;\n        }\n\n        private function disconnect($socket) {\n            if($socket != null) {\n                socket_close($socket);\n            }\n        }\n\n        private function read_packet_length($socket) {\n            $a = 0;\n            $b = 0;\n            while(true) {\n                $c = socket_read($socket, 1);\n                if(!$c) {\n                    return 0;\n                }\n                $c = Ord($c);\n                $a |= ($c & 0x7F) << $b++ * 7;\n                if( $b > 5 ) {\n                    return false;\n                }\n                if(($c & 0x80) != 128) {\n                    break;\n                }\n            }\n            return $a;\n        }\n\n    }\n?>"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589550840,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:51\n论坛把转义吞掉了\nFatal error: Cannot declare class MinecraftServerStatus, because the name is already in use in G:\\Desktop\\test\\status.class.php on line 2"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589550960,
+            "txt_content": "men62466293 发表于 2020-5-15 21:54\nFatal error: Cannot declare class MinecraftServerStatus, because the name is already in use in G:\\ ...\n<?php\n    class MinecraftServerStatus {\n\n起是第二个文件"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551020,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:56\ntal error: Cannot declare class MinecraftServerStatus, because the name is already in use in G:\\Desktop\\test\\status.class.php on line 2"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551140,
+            "txt_content": "men62466293 发表于 2020-5-15 21:57\ntal error: Cannot declare class MinecraftServerStatus, because the name is already in use in G:\\De ...\n哪个文件的报错"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551200,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 21:59\n哪个文件的报错\n我把status.class.php第二行加了一个x让他名字不冲突后出现：Fatal error: Uncaught Error: Call to undefined function socket_create() in G:\\Desktop\\test\\index.php:151 Stack trace: #0 G:\\Desktop\\test\\index.php(48): MinecraftServerStatus->connect('<font color=\"#4...', 25565) #1 G:\\Desktop\\test\\index.php(10): MinecraftServerStatus->getStatus('<font color=\"#4...', '<font color=\"#4...') #2 {main} thrown in G:\\Desktop\\test\\index.php on line 151"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551260,
+            "txt_content": "men62466293 发表于 2020-5-15 22:00\n我把status.class.php第二行加了一个x让他名字不冲突后出现：Fatal error: Uncaught Error: Call to unde ...\n这里也要改的\n\n    $status = new MinecraftServerStatus(); // call the class"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551380,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 22:01\n这里也要改的\n\n    $status = new MinecraftServerStatus(); // call the class\nFatal error: Uncaught Error: Call to undefined function socket_create() in G:\\Desktop\\test\\status.class.php:127 Stack trace: #0 G:\\Desktop\\test\\status.class.php(24): MinecraftServerStatusx->connect('<font color=\"#4...', 25565) #1 G:\\Desktop\\test\\index.php(10): MinecraftServerStatusx->getStatus('<font color=\"#4...', '<font color=\"#4...') #2 {main} thrown in G:\\Desktop\\test\\status.class.php on line 127"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551440,
+            "txt_content": "men62466293 发表于 2020-5-15 22:03\nFatal error: Uncaught Error: Call to undefined function socket_create() in G:\\Desktop\\test\\status. ...\n你的 php 版本？\n\nhttps://php.golaravel.com/function.socket-create.html"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551440,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 22:04\n你的 php 版本？\n\nhttps://php.golaravel.com/function.socket-create.html\nPHP Version 7.2.1"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551560,
+            "txt_content": "men62466293 发表于 2020-5-15 22:04\nPHP Version 7.2.1\nhttps://blog.csdn.net/qq_25615395/article/details/78900727"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551560,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 22:06\n不知道为什么用不了这个内置函数\n\n降级试试\n麻烦告诉我一下怎么卸载PHP study呗"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551560,
+            "txt_content": " 本帖最后由 もぺもぺ 于 2020-5-15 22:07 编辑 \nmen62466293 发表于 2020-5-15 22:06\n麻烦告诉我一下怎么卸载PHP study呗\n看下这里 https://www.cnblogs.com/leoyi330/articles/6806567.html"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589551740,
+            "txt_content": "もぺもぺ 发表于 2020-5-15 22:06\n看下这里 https://www.cnblogs.com/leoyi330/articles/6806567.html\n找不到这个配置"
+        },
+        {
+            "author": "もぺもぺ",
+            "timestamp": 1589551860,
+            "txt_content": "men62466293 发表于 2020-5-15 22:09\n找不到这个配置\n刚才编辑了下 https://www.cnblogs.com/leoyi330/articles/6806567.html\n\n还不行的话，那就没办法了"
+        },
+        {
+            "author": "men62466293",
+            "timestamp": 1589552220,
+            "txt_content": "Warning: socket_connect(): Host lookup failed [11001]: ??????????????? in G:\\Desktop\\test\\status.class.php on line 128\n\nWarning: socket_send(): unable to write to socket [10057]: ??????????????????(???????? sendto ???÷?????????????)????????????????????????????б?????? in G:\\Desktop\\test\\status.class.php on line 78\n\nWarning: socket_recv(): unable to read from socket [10057]: ??????????????????(???????? sendto ???÷?????????????)????????????????????????????б?????? in G:\\Desktop\\test\\status.class.php on line 79\nThe Server is offline!"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1589594820,
+            "txt_content": "我认为もぺもぺ给的源码已经很完整了 就差直接给你搭一个网站了\n建议自学php然后解决报错哦"
+        }
+    ]
+}

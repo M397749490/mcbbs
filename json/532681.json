@@ -1,0 +1,19 @@
+{
+    "title": "[Minecraft Forge 1.8]关于方块/物品模型注册问题",
+    "author": "52Dora",
+    "replyCount": 2,
+    "timestamp": 1450572420,
+    "txt_content": "太长不看者：原来我们都是使用Minecraft内带的ItemModelMesher定义好物品或方块的模型，现在我尝试使用Forge内带的ModelLoader定义模型，但是为何不能生效？\n\n致版主：这是编程开发相关的问题，若真的错了版请说明详细原因。\n估计各位接触过Minecraft 1.8 Mod制作的人都清楚，我们注册方块和物品的模型时是这样子做的：\n// 注册一个方块的模型\nMinecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(<方块>), 0, new ModelResourceLocation(\"<Mod ID>:<方块名>\", \"inventory\"));\n\n// 注册一个物品的模型\nMinecraft.getMinecraft().getRenderItem().getItemModelMesher().register(<物品>, 0, new ModelResourceLocation(\"<Mod ID>:<物品名>\", \"inventory\"));复制代码\n\n当然也有觉得代码太长弄了一个方法来方便懒人们：\n    // 方块模型注册\n    public static void blockModelLegacy(Block block, String modId, String name)\n    {\n        Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(block), 0,\n                new ModelResourceLocation(modId + \":\" + name, \"inventory\"));\n    }复制代码\n\n不过最近本人发现Minecraft Forge里有一个叫ModelLoader的类，里面有一个方法同样可以注册方块或物品的模型：\n// 注册一个方块模型\nModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(<方块>), 0, new ModelResourceLocation(\"<Mod ID>:<方块名>\", \"inventory\"));\n\n// 注册一个物品模型\nModelLoader.setCustomModelResourceLocation(<物品>, 0, new ModelResourceLocation(\"<Mod ID>:<物品名>\", \"inventory\"));复制代码\n\n实际上这个发现是我在翻阅各种开源的1.8模组时找到的，下面是某个模组的源代码片段：（此↑处↓）\n    @Override\n    public void preInit(FMLPreInitializationEvent event) {\n\n        ModelLoader.setCustomModelResourceLocation(Chisel.itemChisel, 0, new ModelResourceLocation(MOD_ID + \":itemChisel\", \"inventory\"));\n        （余下省略，完整版在上面的链接）\n        }\n    }复制代码\n\n在本人找到这个新发现后，于是去做个测试，虽然方块和物品的材质与模型都准备就绪，模型也已经注册了，不过在游戏内依旧显示不出模型，游戏也没有报错，直到换回以前的老方法才正常。\n\n求教各位大触这是什么原因造成的，有什么解决方法？",
+    "replies": [
+        {
+            "author": "土球球",
+            "timestamp": 1464683700,
+            "txt_content": " 本帖最后由 ustc_zzzz 于 2016-5-31 16:44 编辑 \n\n找了好久终于找到这个帖子了。。。前几天翻源代码有一点点收获，突然想起来有这么个帖子，所以试图解释一下。\n\n大部分Minecraft客户端初始化的相关操作都发生在preInit阶段后init阶段前，其中包括ItemModelMesher的初始化，所以说通常的物品模型注册（ItemModelMesher.register方法的调用）要在这之后，也就是init阶段。\n\n然而Forge提供的ModelLoader.setCustomModelResourceLocation方法的调用，其实是提供了一个记录待注册物品模型的Map，在ItemModelMesher初始化之后，紧接着就开始进行原版物品模型的注册工作，Forge就是在这个时候遍历Map并且完成注册，其本质其实还是调用了ItemModelMesher.register方法，但是因为我们要保证提供待注册物品模型的Map中已有我们想要注册的内容，所以Forge提供的ModelLoader.setCustomModelResourceLocation方法的调用，必须放置在ItemModelMesher的初始化之前，也就是preInit阶段。\n\n所以我怀疑你的代码没有起到作用，是因为ModelLoader.setCustomModelResourceLocation方法的调用被放在了init阶段而不是preInit阶段进行。\n\n"
+        },
+        {
+            "author": "52Dora",
+            "timestamp": 1464703260,
+            "txt_content": "ustc_zzzz 发表于 2016-5-31 16:35\n找了好久终于找到这个帖子了。。。前几天翻源代码有一点点收获，突然想起来有这么个帖子，所以试图解释一下 ...\n对，当时发现没人回复后就自己瞎整了下，发现果然要在preinit部分注册模型才会生效"
+        }
+    ]
+}

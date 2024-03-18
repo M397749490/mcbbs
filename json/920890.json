@@ -1,0 +1,44 @@
+{
+    "title": "[已解决]Forge 1.12.2环境下附魔的具体实现问题求助",
+    "author": "negation",
+    "replyCount": 7,
+    "timestamp": 1571404140,
+    "txt_content": " 本帖最后由 negation 于 2019-10-19 15:45 编辑 \n\n小白最近开始学做MOD，跟着大佬的教程（https://fmltutor.ustc-zzzz.net/2.3.2-%E6%96%B0%E7%9A%84%E9%99%84%E9%AD%94%E5%B1%9E%E6%80%A7.html）学习作附魔，功能是挖矿时直接得到相应的金属锭。注册之类的都已完成，但是再让附魔拥有具体功能时遇到了问题。代码如下: @SubscribeEvent\n        public void onBlockHarvesDrops(BlockEvent.HarvestDropsEvent event)\n        {\n                if(!event.getWorld().isRemote&&event.getHarvester()!=null)\n                {\n                        ItemStack itemStack=event.getHarvester().getHeldItemMainhand();\n                        if(EnchantmentHelper.getEnchantmentLevel(EnchantmentLoader.fireBurn, itemStack)>0\n                                        &&itemStack.getItem()!=Items.SHEARS);\n                        {\n                                for(int i=0;i<event.getDrops().size();++i)\n                                {\n                                        ItemStack stack=event.getDrops().get(i);\n                                        ItemStack newStack=FurnaceRecipes.instance().getSmeltingResult(stack);\n                                        if(newStack!=null)\n                                        {\n                                                newStack=newStack.copy();     \n                                                newStack.stackSize = stack.stackSize;\n                                                event.getDrops().set(i, newStack);\n                                        }\n                                        else if (stack != null)\n                    {\n                        Block block = Block.getBlockFromItem(stack.getItem());\n                        boolean b = (block == null);\n                        if (!b && (block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.DOWN)\n                                || block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.EAST)\n                                || block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.NORTH)\n                                || block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.SOUTH)\n                                || block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.UP)\n                                || block.isFlammable(event.getWorld(), event.getPos(), EnumFacing.WEST)))\n                        {\n                            event.getDrops().remove(i);\n                        }\n                    }\n                                }\n                        }\n                }\n        }复制代码其中“newStack.stackSize = stack.stackSize;”提示“字段 ItemStack.stackSize 不可视”，似乎是在Forge1.12.2里stackSize变成了私有的，有没有大佬能指点一下该怎么办。另外，下面这一段没怎么看懂，如果有哪位大佬能讲解一下是什么意思就更感谢了。    for(int i=0;i<event.getDrops().size();++i)\n                                {\n                                        ItemStack stack=event.getDrops().get(i);\n                                        ItemStack newStack=FurnaceRecipes.instance().getSmeltingResult(stack);\n                                        if(newStack!=null)\n                                        {\n                                                newStack=newStack.copy();     \n                                                newStack.stackSize = stack.stackSize;\n                                                event.getDrops().set(i, newStack);\n                                        }复制代码ItemStack 有 setCount 方法可以用：newStack.setCount(stack.getCount())。\n\n\n以 get 和 set 开头的方法属于 Java 中一种类似调用约定的东西，更具体的可以去搜索 Getter 和 Setter 的相关概念。\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1571405580,
+            "txt_content": " 本帖最后由 森林蝙蝠 于 2019-10-19 10:04 编辑 \n\nitem.getMaxStackAmount()或者stack.getItem().getMaxStackAmount()；\n如果一个字段从public变成了private，那么定然有获取这个字段的方法。\n下面那段代码，看到FurnaceRecipes.instance().getSmeltingResult(stack)吗，很明显，那是掉落物自动熔炼。"
+        },
+        {
+            "author": "negation",
+            "timestamp": 1571449020,
+            "txt_content": "森林蝙蝠 发表于 2019-10-18 21:33\nitem.getMaxStackAmount()或者stack.getStack().getMaxStackAmount()；\n如果一个字段从public变成了private ...\nItemStack类里倒是有一个getMaxStackSize()方法，但问题是“newStack.stackSize = stack.stackSize;”中的两个stackSize均指向了ItemStack类里的“private int stackSize;”。关于我不太明白的那段代码，主要是我不太明白“private int stackSize;”在整个附魔实现的逻辑里起什么作用，是和Block的存储方式有关吗？"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1571464320,
+            "txt_content": "ItemStack.stackSize 不可视\n\n你难道没有注意到它有一个 getter 叫 getCount() 吗？"
+        },
+        {
+            "author": "negation",
+            "timestamp": 1571465040,
+            "txt_content": " 本帖最后由 negation 于 2019-10-19 14:22 编辑 \n3TUSK 发表于 2019-10-19 13:52\n你难道没有注意到它有一个 getter 叫 getCount() 吗？\n“newStack.stackSize = stack.stackSize;”中两个stackSize均报错，而第一个我不知道怎么改。"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1571470140,
+            "txt_content": "楼主口口声声说自己基于的是 Harbinger，实际贴的明明是我教程的代码，残念\n\nItemStack 有 setCount 方法可以用：newStack.setCount(stack.getCount())。\n以 get 和 set 开头的方法属于 Java 中一种类似调用约定的东西，更具体的可以去搜索 Getter 和 Setter 的相关概念。"
+        },
+        {
+            "author": "negation",
+            "timestamp": 1571470440,
+            "txt_content": "土球球 发表于 2019-10-19 15:29\n楼主口口声声说自己基于的是 Harbinger，实际贴的明明是我教程的代码，残念\n链接贴错了，抱歉大佬。我的错，我的错。"
+        },
+        {
+            "author": "negation",
+            "timestamp": 1571470980,
+            "txt_content": " 本帖最后由 negation 于 2019-10-19 16:12 编辑 \n土球球 发表于 2019-10-19 15:29\n楼主口口声声说自己基于的是 Harbinger，实际贴的明明是我教程的代码，残念\n可以运作了，感谢大佬！"
+        }
+    ]
+}

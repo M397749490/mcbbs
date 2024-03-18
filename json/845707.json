@@ -1,0 +1,49 @@
+{
+    "title": "1.13 forge mod开发教程（长期更新）",
+    "author": "森林蝙蝠",
+    "replyCount": 8,
+    "timestamp": 1550326080,
+    "txt_content": " 本帖最后由 森林蝙蝠 于 2019-4-3 23:53 编辑 \n\n最近forge终于千呼万唤始出来地更新了1.13版本，虽然尚未真正稳定，好歹也是个能拿出来见人的版本了，赶时髦做了这个教程。\n注意：forge的代码随时可能变化，这个教程也不会太稳定！\n\n在1.13，gradlew setupDecompWorkspace已经不复存在，不要想着用它去构建forge开发环境了，在idea内直接打开build.gradle即可，类似下图：\n\n\n\n\nQQ图片20190216213456.png (103.07 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-16 21:35 上传\n\n\n\n\n\n（详情见此：http://www.mcbbs.net/thread-827002-1-1.html 第1篇）\n注意：选择default wrapper来配置环境即可，现在不能使用gradle 4.9以上的版本去构建，否则就会出错。\n\nJDK8和11均可用来制作forge mod，但是有一点必须提及的是，JDK自带的JS引擎nashorn即将被移除，而coremod系统使用的就是nashorn，颇有一种49年入国军的感觉；\n万恶的Scala依赖终于被移除了，以后的普通玩家终于不用享受下载游戏时，被akka actor这个根本用不到的框架卡住的尴尬了。\n如我先前的帖子所说，forge 1.13大量使用函数式接口，某海螺和某4z这对夫妇（划掉）可以使用他们心爱的函数式去编程了。\n\n\n\n\npackage com.xxxx.yourmod\nimport net.minecraft.block.Block;\nimport net.minecraft.init.Blocks;\nimport net.minecraftforge.common.MinecraftForge;\nimport net.minecraftforge.event.RegistryEvent;\nimport net.minecraftforge.eventbus.api.SubscribeEvent;\nimport net.minecraftforge.fml.InterModComms;\nimport net.minecraftforge.fml.common.Mod;\nimport net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;\nimport net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;\nimport net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;\nimport net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;\nimport net.minecraftforge.fml.event.server.FMLServerStartingEvent;\nimport net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;\nimport org.apache.logging.log4j.LogManager;\nimport org.apache.logging.log4j.Logger;\n\nimport java.util.stream.Collectors;\n\n// The value here should match an entry in the META-INF/mods.toml file\n@Mod(MOD_ID)\npublic class YourMod\n{\n    // Directly reference a log4j logger.\nprivate static final Logger LOGGER = LogManager.getLogger();\n    public static final String MOD_ID=“YourMod”;\n\n    public YourMod() {\n        // Register the setup method for modloading\nFMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);\n        // Register the enqueueIMC method for modloading\nFMLJavaModLoadingContext.get().getModEventBus().addListener(this::enqueueIMC);\n        // Register the processIMC method for modloading\nFMLJavaModLoadingContext.get().getModEventBus().addListener(this::processIMC);\n        // Register the doClientStuff method for modloading\nFMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);\n        //添加名为preInit的监听器，addListener()方法是也\n        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::preInit);\n        //添加名为postInit的监听器，addListener()方法是也\n        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::postInit);        \n        // Register ourselves for server and other game events we are interested in\nMinecraftForge.EVENT_BUS.register(this);\n    }\n\n    private void setup(final FMLCommonSetupEvent event)\n    {\n        // some preinit code\nLOGGER.info(\"HELLO FROM PREINIT\");\n        LOGGER.info(\"DIRT BLOCK >> {}\", Blocks.DIRT.getRegistryName());\n    }\n    \n    public void preInit(FMLCommonSetupEvent evt)\n    {\n        LOGGER.info(\"** TRUMP!\");\n        //事件参数同为FMLCommonSetupEvent，所以该方法与setup()方法等效，特意列出，是为了让读者与1.12的FMLPreInitializationEvent关联起来\n    }\n    \n    public void postInit(InterModProcessEvent evt)\n    {\n        //FMLPostInitializationEvent不复存在，变成了这个\n    }   \n    private void doClientStuff(final FMLClientSetupEvent event) {\n        // do something that can only be done on the client\nLOGGER.info(\"Got game settings {}\", event.getMinecraftSupplier().get().gameSettings);\n    }\n    //IMC，InterModComms，一个向mod发送消息的forge机制，阿仇的永恒发条整合包就是通过TE的IMC支持魔改了TE的合成表\n    private void enqueueIMC(final InterModEnqueueEvent event)\n    {\n        // some example code to dispatch IMC to another mod\nInterModComms.sendTo(\"yourmod\", \"helloworld\", () -> { LOGGER.info(\"Hello world from the MDK\"); return \"Hello world\";});\n    }\n\n    private void processIMC(final InterModProcessEvent event)\n    {\n        // some example code to receive and process InterModComms from other mods\nLOGGER.info(\"Got IMC\", event.getIMCStream().\n                map(m->m.getMessageSupplier().get()).\n                collect(Collectors.toList()));\n    }\n    // You can use SubscribeEvent and let the Event Bus discover methods to call\n@SubscribeEvent\n    public void onServerStarting(FMLServerStartingEvent event) {\n        // do something when the server starts\nLOGGER.info(\"HELLO from server starting\");\n    }\n\n    // You can use EventBusSubscriber to automatically subscribe events on the contained class (this is subscribing to the MOD\n    // Event bus for receiving Registry Events)\n@Mod.EventBusSubscriber(bus=Mod.EventBusSubscriber.Bus.MOD)\n    public static class RegistryEvents {\n        @SubscribeEvent\n        public static void onBlocksRegistry(final RegistryEvent.Register<Block> blockRegistryEvent) {\n            // register a new block here\nLOGGER.info(\"HELLO from Register Block\");\n        }\n    }\n\n}\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "MashKJo",
+            "timestamp": 1550582160,
+            "txt_content": "请问Forge模组官方开发教程在哪儿啊，看了一下开发文档只是介绍了一些库。"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1550582340,
+            "txt_content": "MashKJo 发表于 2019-2-19 21:16\n请问Forge模组官方开发教程在哪儿啊，看了一下开发文档只是介绍了一些库。 ...\n一直都不怎么样，所以第三方教程大行其是。"
+        },
+        {
+            "author": "Observateurs",
+            "timestamp": 1550583840,
+            "txt_content": "收藏了, 内容挺好的"
+        },
+        {
+            "author": "Yecgaa_",
+            "timestamp": 1550717760,
+            "txt_content": "支持支持，希望大佬更完\n（函数式最棒了）"
+        },
+        {
+            "author": "啊妖妖舞",
+            "timestamp": 1552296300,
+            "txt_content": "收藏一波，然后坐等更新"
+        },
+        {
+            "author": "啧啧啧22",
+            "timestamp": 1564067520,
+            "txt_content": "4z大佬的很多东西已经不能用了，Harbinger讲的不是很清，坐等大佬更新"
+        },
+        {
+            "author": "陈宇鹏",
+            "timestamp": 1564471740,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "sulinly",
+            "timestamp": 1564472280,
+            "txt_content": "正在找呢，谢谢了"
+        }
+    ]
+}

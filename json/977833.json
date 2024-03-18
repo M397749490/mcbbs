@@ -1,0 +1,49 @@
+{
+    "title": "关于多个生物共用血量",
+    "author": "黑茶RGO",
+    "replyCount": 8,
+    "timestamp": 1583424900,
+    "txt_content": " 本帖最后由 黑茶RGO 于 2020-3-6 00:16 编辑 \n\n版本：1.15.2或1.16快照\n假设现在有A，B，C三个生物，A和B在场地内跟玩家打，C以NoAI状态在场地外不参与战斗，且玩家无法直接攻击C\n当A或B受伤时，系统将会计算出A或B的当前血量与最大血量（假设是1024）的差值x，然后将C的血量减去x（要精准到小数点），再把受伤的A或B血量加满\n但是当A和B在0.5秒内同时受伤（尤其是针对剑的横扫和弩的穿透）（如果受到的伤害不一样，比如A被剑（未附魔横扫之刃）正面击中受到大量伤害，而B被剑横扫到而受到轻微伤害），则只将A和B当中受到较高伤害的生物受到的伤害作为x使C的血量减去x，而不是把A和B受到的伤害总量作为x扣给C\n\n在1.15+如何用指令做到上述需求，尤其是如何比较两个实体受到的伤害然后选出受伤较高的那个\n",
+    "replies": [
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1583424900,
+            "txt_content": " 本帖最后由 隐退 于 2020-3-6 07:40 编辑 \n\n# 新建记分版\nscoreboard objectives add value dummy\n# 获取最大血量×100\nexecute store result score #maxa value run data get entity @e[tag=a,limit=1] Attributes[{Name:\"generic.maxHealth\"}].Base 100\nexecute store result score #maxb value run data get entity @e[tag=b,limit=1] Attributes[{Name:\"generic.maxHealth\"}].Base 100\n# 获取当前血量×100\nexecute store result score #a value run data get entity @e[tag=a,limit=1] Health 100\nexecute store result score #b value run data get entity @e[tag=b,limit=1] Health 100\n# 计算差值\nscoreboard players operation #maxb value -= #a value\nscoreboard players operation #maxb value -= #a value\n# 比较大小\nexecute if score #maxa value >= #maxb value run function 给A加血\nexecute if score #maxa value < #maxb value run function 给B加血\n# 给A加血\n## 先扣C的血\nexecute store result score #c value run data get entity @e[tag=c,limit=1] Health 100\nscoreboard players operation #c value -= #maxa value\nexecute store result entity @e[tag=c,limit=1] Health double 0.01 run scoreboard players get #c value\n## 给A加血\nscoreboard players operation #a value += #maxa value\nexecute store result entity @e[tag=a,limit=1] Health double 0.01 run scoreboard players get #a value\n# 有一个 BUG，就是当 A 受的伤害大于 C 的剩余血量的话，还要加一个判断，我咕了。\n# 剩下的我也咕了。\n# 要求在 0.5 秒内的话可能要加一个计时器。"
+        },
+        {
+            "author": "黑茶RGO",
+            "timestamp": 1583453040,
+            "txt_content": "隐退 发表于 2020-3-6 07:01\n# 新建记分版\nscoreboard objectives add value dummy\n# 获取最大血量×100\n如果把扣C的血量改为扣C的伤害吸收值AbsorptionAmount，你说的那个bug能否得到解决"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1583453280,
+            "txt_content": " 本帖最后由 隐退 于 2020-3-6 08:12 编辑 \n黑茶RGO 发表于 2020-3-6 08:04\n如果把扣C的血量改为扣C的伤害吸收值AbsorptionAmount，你说的那个bug能否得到解决 ...\n我说的那个 BUG 的意思是假如：\nA 有 10 滴血，C 有 5 滴血\nA 受到 7 点伤害后，\nA 的血量变为 10 滴血，C 的血量变为 -2 滴血。\n其实只要加一个判断就可以的修复的。如果 A 受的伤害小于 C 的剩余血量的话还是上面那几条命令。\n如果 A 受的伤害大于 C 的剩余血量的话，A 的血量=A 的血量+C 的血量，然后杀死 C。"
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1583455500,
+            "txt_content": " 本帖最后由 Jokey_钥匙 于 2020-3-6 08:46 编辑 \n隐退 发表于 2020-3-6 08:08\n我说的那个 BUG 的意思是假如：\nA 有 10 滴血，C 有 5 滴血\nA 受到 7 点伤害后，\n（开坑速度这么快？！）\n感觉不需要这么复杂啊\n都用AbsorptionAmount了那么AbsorptionAmount修改后肯定是固定的\n伤害的读取就不麻烦了\n读取伤害后 取最大值反而简单 不要用假名 直接把分数拍自己身上 假设ab两个实体都用标签x\nscoreboard players operation #max value > @e[tag=x] value\n最后血量减去不说了\n半秒无敌用计时器计时 半秒过去后才可以再执行这一串函数"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1583462820,
+            "txt_content": "所以，你还有什么问题吗？"
+        },
+        {
+            "author": "黑茶RGO",
+            "timestamp": 1583466540,
+            "txt_content": "隐退 发表于 2020-3-6 10:47\n所以，你还有什么问题吗？\n你的办法我试了，只能解决“a或b受伤就扣c的血”，并不能解决“a和b同时受伤时c只扣受伤较高的那个的血量”，ab同时受伤时c会扣掉它们受伤值的总和"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1583468040,
+            "txt_content": "黑茶RGO 发表于 2020-3-6 11:49\n你的办法我试了，只能解决“a或b受伤就扣c的血”，并不能解决“a和b同时受伤时c只扣受伤较高的那个的血量 ...\n你加计时器了吗？"
+        },
+        {
+            "author": "黑茶RGO",
+            "timestamp": 1583470560,
+            "txt_content": "隐退 发表于 2020-3-6 12:14\n你加计时器了吗？\n加了之后ab同时受伤就不扣c的血了"
+        }
+    ]
+}

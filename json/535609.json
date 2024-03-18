@@ -1,0 +1,49 @@
+{
+    "title": "[InfStudio][神秘4.2.3.5]从源代码详解注魔的风险控制[12/30更新]",
+    "author": "gonglinyuan",
+    "replyCount": 8,
+    "timestamp": 1451387880,
+    "txt_content": " 本帖最后由 gonglinyuan 于 2015-12-30 09:09 编辑 \n\n玩过神秘(Thaumcraft)4的人都知道，奥术注魔如果没有采取保护措施，往往会出现咒波污染、爆炸等事故。《魔导手册》告诉我们，头骨、魔晶、蜡烛等物品能降低注魔的风险。于是很多人看了网上的攻略或者教程，直接在符文矩阵下方几个格子的地方摆了13*13的蜡烛方阵，的确解决了这些问题。然而，为什么是13*13呢？为什么要摆在那个位置呢？一般玩家都没有这么深入地想下去。今天，我就通过解析反编译之后的Java源代码的方式，介绍一下关于奥术注魔的风险的详细计算方法。不过不会Java也没关系，直接看帖子结尾的结论就好了。\n\n代码的位置\n和注魔有关的代码(不包括配方)在thaumcraft.common.tiles包里的TileInfusionMatrix这个类中。其中TileInfusionMatrix.class文件用各种工具反编译之后可以得到代码TileInfusionMatrix.txt。 \n\n\n\nTileInfusionMatrix.txt\n(44.17 KB, 下载次数: 92)\n\n\n\n2015-12-30 08:27 上传\n点击文件名下载附件\n\n\n\n\n\n\n不稳定性(instability)\n这是craftingCycle方法中，第436~513行的代码:\nif ((!valid) || ((this.instability > 0) &&\n                (this.worldObj.rand.nextInt(500) <= this.instability))) {\n    switch (this.worldObj.rand.nextInt(21)) {\n        case 0: case 2: case 10: case 13: inEvEjectItem(0); break;\n        case 6: case 17: inEvEjectItem(1); break;\n        case 1: case 11: inEvEjectItem(2); break;\n        case 3: case 8: case 14: inEvZap(false); break;\n        case 5: case 16: inEvHarm(false); break;\n        case 12: inEvZap(true); break;\n        case 19: inEvEjectItem(3); break;\n        case 7: inEvEjectItem(4); break;\n        case 4: case 15: inEvEjectItem(5); break;\n        case 18: inEvHarm(true); break;\n        case 9:\n            this.worldObj.createExplosion(null, this.xCoord + 0.5F,\n                this.yCoord + 0.5F, this.zCoord + 0.5F,\n                1.5F + this.worldObj.rand.nextFloat(), false);\n            break;\n        case 20: inEvWarp();\n    }\n    if (valid) return;\n}复制代码craftingCycle方法会在奥术注魔的过程中被不断调用，每10个tick调用一次，直到注魔结束。\n这个if语句内部是奥术注魔的各种副作用，从调用的函数的名称就可以看出来，什么弹出物品啊、爆炸啊、扭曲啊之类的。这些事故是我们玩家不希望发生的，因此这段代码的关键就是if语句的条件。首先是\"!valid\"，观察前面的代码会发现，当注魔中途有检测到注魔材料不完整的时候valid才会等于false，此时，不论后面的条件满不满足，都会强制触发一次注魔事故。因此一旦注魔开始，就要尽量保护好基座上的物品，否则必定发生事故。\n\"或\"符号后面的条件是(this.instability > 0) && (this.worldObj.rand.nextInt(500) <= this.instability)。翻译成自然语言，大概就是：\n不稳定性>0  且  不稳定性>=(一个0~499的随机数)\n也就是说注魔的风险和不稳定性有关，只要不稳定性大于零，就有几率发生风险。不稳定性越大，产生风险的可能性也就越大。\n那么不稳定性又是如何计算出来的呢？这是craftingStart方法的307~310行：\n\nthis.recipeInstability = recipe.getInstability(this.recipeInput);\nthis.recipeEssentia = recipe.getAspects(this.recipeInput).copy();\nthis.recipePlayer = player.getCommandSenderName();\nthis.instability = (this.symmetry + this.recipeInstability);复制代码翻译成自然语言就是：\n不稳定性 = 对称性 + 配方不稳定性\n不过不要高兴地太早，代码中还有这么几行(craftingCycle中,有好几处):if (this.worldObj.rand.nextInt(50 -(this.recipeInstability * 2)) == 0) {\n    this.instability += 1;\n}\nif (this.instability > 25) {\n    this.instability = 25;\n}复制代码这里似乎会不断增加注魔的不稳定性，最多增加到25，也就是每0.5s有5%的概率发生事故。然而仔细观察上下文会发现，这两行代码在正常情况下是不会被执行的，它们只会在注魔过程中源质缺失、物品缺失或者注魔附魔时经验不足时执行。\n配方不稳定性是一个整数，对应着魔导手册中不同的风险等级。具体数值可以直接在配方文件中查阅，addInfusionCraftingRecipe方法的第三个参数就是配方不稳定性：\n\n\n\nConfigRecipes.txt\n(175.49 KB, 下载次数: 83)\n\n\n\n2015-12-30 08:27 上传\n点击文件名下载附件\n\n\n\n\n\n\n在原版TC中，绝大多数的注魔的配方不稳定性都在1~8之间，只有高级节点稳定器的配方不稳定性是10。\n对称性(symmetry)\n对称性涉及到的东西就是注魔祭坛的摆放问题了。关于对称性的全部代码几乎都能在getSurroundings方法(852~953行)找到。\n首先，程序获取了周围方块的信息：\nfor (int xx = -12; xx <= 12; xx++) {\n    for (int zz = -12; zz <= 12; zz++) {\n        boolean skip = false;\n        for (int yy = -5; yy <= 10; yy++) {\n            if ((xx != 0) || (zz != 0)) {\n                int x = this.xCoord + xx;\n                int y = this.yCoord - yy;\n                int z = this.zCoord + zz;\n                TileEntity te = this.worldObj.getTileEntity(x, y, z);\n                if ((!skip) && (yy > 0) && (Math.abs(xx) <= 8) && (Math.abs(zz) <= 8)\n                            && (te != null) && (te instanceof TilePedestal)) {\n                    this.pedestals.add(new ChunkCoordinates(x, y, z));\n                    skip = true;\n                } else {\n                    Block bi = this.worldObj.getBlock(x, y, z);\n                    if ((bi == Blocks.skull) || ((bi instanceof IInfusionStabiliser)\n                                && (((IInfusionStabiliser) bi).canStabaliseInfusion(getWorldObj(), x, y, z)))) {\n                        stuff.add(new ChunkCoordinates(x, y, z));\n                    }\n                }\n            }\n        }\n    }\n}复制代码搜索的范围是横纵坐标±12、竖直方向-10~+5的范围。为什么不是-5~+10呢？因为\"int y = this.yCoord - yy;\"，中间是个减号而不是加号，千万不要上当了。\"if ((xx != 0) || (zz != 0))\"，有了这句话，说明和符文矩阵在同一条铅垂线的格子不会被搜索到。这里还有个\"skip\"，在yy循环的外层初始化为false，当检查到第一个物品基座时变为true，当检查到第二个物品基座时就直接忽略——它的作用是对于几个在同一条铅垂线上的物品基座，只考虑最顶上的，忽略掉下方其它的基座。虽然搜索范围很大，但是第一个if语句\"if ((!skip) && (yy > 0) && (Math.abs(xx) <= 8) && (Math.abs(zz) <= 8) && (te != null) && ((te instanceof TilePedestal)))\"告诉我们，实际上只有x坐标和z坐标相差小于等于8，且严格处于符文矩阵所在格子下方的物品基座才会被考虑进去。\n但是对于\"IInfusionStabiliser\"，也就是魔镜、头骨、蜡烛等“法器”，搜索范围就是原来的大小，也就是横纵坐标±12、竖直方向-10~+5的范围。\n这整一段代码把一定范围内的基座和“法器”都记录下来，用于接下来的判断:\nthis.symmetry = 0;\nfor (ChunkCoordinates cc : this.pedestals) {\n    boolean items = false;\n    int x = this.xCoord - cc.posX;\n    int z = this.zCoord - cc.posZ;\n    TileEntity te = this.worldObj.getTileEntity(cc.posX, cc.posY, cc.posZ);\n    if ((te != null) && (te instanceof TilePedestal)) {\n        this.symmetry += 2;\n        if (((TilePedestal) te).getStackInSlot(0) != null) {\n            this.symmetry += 1;\n            items = true;\n        }\n    }\n    int xx = this.xCoord + x;\n    int zz = this.zCoord + z;\n    te = this.worldObj.getTileEntity(xx, cc.posY, zz);\n    if ((te != null) && (te instanceof TilePedestal)) {\n        this.symmetry -= 2;\n        if ((((TilePedestal) te).getStackInSlot(0) != null) && (items)) {\n            this.symmetry -= 1;\n        }\n    }\n}复制代码这一部分计算的是所有的基座。对于每个基座，都会提供2点symmetry，如果上面有物品还会额外提供一点symmetry；后面的xx,zz计算的是这个基座以符文矩阵所在铅垂线为轴的对称位置，如果对称位置也有基座，就会减少两点symmetry；同理，这个基座上有物品、对称的基座上也有物品，symmetry还会再减少一点。也就是说，如果基座摆得不对称或者基座上的物品摆得不对称就会增大注魔的风险，如果完全对称，这一部分的贡献的风险可以降为0。float sym = 0.0F;\nfor (ChunkCoordinates cc : stuff) {\n    boolean items = false;\n    int x = this.xCoord - cc.posX;\n    int z = this.zCoord - cc.posZ;\n    Block bi = this.worldObj.getBlock(cc.posX, cc.posY, cc.posZ);\n    if ((bi == Blocks.skull) || ((bi instanceof IInfusionStabiliser) &&\n            (((IInfusionStabiliser) bi).canStabaliseInfusion(getWorldObj(), cc.posX, cc.posY, cc.posZ)))) {\n        sym += 0.1F;\n    }\n    int xx = this.xCoord + x;\n    int zz = this.zCoord + z;\n    bi = this.worldObj.getBlock(xx, cc.posY, zz);\n    if ((bi == Blocks.skull) || ((bi instanceof IInfusionStabiliser) &&\n            (((IInfusionStabiliser) bi).canStabaliseInfusion(getWorldObj(), cc.posX, cc.posY, cc.posZ)))) {\n        sym -= 0.2F;\n    }\n}复制代码这部分计算的是所有的\"法器\"。对于每个\"法器\"，都会提供0.1的symmetry；如果对称位置也有\"法器\"则会再减少0.2的symmetry(无论两者是否相同)。也就是说摆放对称的\"法器\"可以减少注魔风险，但是如果没有成对地摆放反而会增加注魔风险。注意，\"法器\"提供的symmetry单独存在一个单精度浮点数变量\"sym\"里面。this.symmetry = ((int) (this.symmetry + sym));复制代码最后把基座和\"法器\"提供的symmetry加起来，转换为整数。注意这个转换过程是截断取整，也就是向0方向取整。\n结论\n1.注魔祭坛相关的所有“对称性”都是以符文矩阵所在铅垂线轴对称(从上往下看就像是中心对称)，而且只需考虑“有”和“没有”，和物品的种类无关。比如A位置和B位置对称的，那么如果A摆了物品，B也要摆物品，否则就会不稳定；但是对于B位置摆的物品的种类，是不影响注魔风险的。对于蜡烛、头骨、魔晶等\"法器\"也是一样，甚至蜡烛的对称位置是头骨，也能配成一对来降低注魔风险；而且蜡烛、头骨、魔晶降低注魔风险的效果完全相同。此外，除了基座和法器外的方块和实体对注魔祭坛的稳定性没有任何影响。\n2.假设符文矩阵的坐标是(x,y,z)，那么基座的有效摆放范围是(x-8 ~ x+8, y-10 ~ y-1, z-8 ~ z+8)，还要满足两个条件：基座和符文矩阵不能摆在同一条铅垂线上、任意两个基座不能摆在同一条铅垂线上(否则只有上面的有效)。\n3.假设符文矩阵的坐标是(x,y,z)，那么蜡烛、头骨、魔晶等\"法器\"的有效摆放范围是(x-12 ~ x+12, y-10 ~ y+5, z-12 ~ z+12)，并且不能和符文矩阵在同一条铅垂线上。理论上可以摆下大量的蜡烛，因为蜡烛不只可以摆一层、而是可以摆好多层。\n4.原版中，最危险的注魔是高级节点稳定器。它的配方不稳定性是10；因为物品个数是偶数，可以摆成完全对称，所以基座和基座上的材料带来的symmetry可以达到0；因此理论上只需要摆100个两两对称的蜡烛即可做到0风险。实测需要104个，可能是浮点数误差的问题。如果基座上所需材料个数是奇数，不稳定性要+1，但是原版神秘中需要奇数个材料的注魔配方不稳定性最高也只有8，还不如高级节点稳定器危险。总之神秘4原版想要100%安全地注魔只需要104根两两对称的蜡烛，而不是大部分教程声称的169个、168个或是152个。如果不信，可以用NBT edit实时查看符文矩阵的instability值(http://www.mcbbs.net/thread-342555-1-1.html)(安装后鼠标指着符文矩阵输入命令/nbtedit查看)\n5.前期注魔的时候为了节约材料可以不用造那么多蜡烛（那些风险\"微乎其微\"的只要十来根蜡烛就够了），蜡烛的数目可以随着所需注魔的风险越来越高而逐渐增加。有些附属MOD里的注魔或者被整合包作者魔改的注魔，如果不知道需要多少蜡烛，可以装个NBT edit，先到创造模式里去试一试，计算出需要多少蜡烛了再回到生存里面实践。\n\n这里用的代码来自TC4.2.3.5的dev版，和玩家拿到的版本是在功能上是完全一样的。这些代码的分发并没有得到Thaumcraft作者Azanor的授权，仅供学习研究，请勿用于商业用途，下载后请在24小时内删除。(感谢 @u.s.knowledge )\n\n最后引用被神秘时代的作者很喜欢的一句话：\n\"Thaumaturgy... which giveth certain order to make strange works, of the sense to be perceived and of men greatly to be wondered at.\"\n- Mathematicall Praeface to Euclid's Elements (1570), John Dee\n意思是说，神秘也是有一定规律的，在MC里体现为——神秘时代MOD就是一堆代码。从代码内部剖析神秘时代，得到的是另一种趣味。\n\n\n\n\n\n[groupid=534]InfinityStudio[/groupid]",
+    "replies": [
+        {
+            "author": "1393123519",
+            "timestamp": 1451388600,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "aa210063654",
+            "timestamp": 1451388720,
+            "txt_content": " test test test test test test\n过来拿个表格，顺便回复下楼主\n"
+        },
+        {
+            "author": "拉姆拉姆",
+            "timestamp": 1451391420,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "956090213",
+            "timestamp": 1451391480,
+            "txt_content": "你又成功的水了一贴233"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1451414700,
+            "txt_content": "1.神秘4有自己的dev版构建，没必要这么复杂\n2.你确定直接发源码没问题？Azanor貌似没有指明任何license，也就是说All rights reserved，这么堂而皇之发代码（笑）"
+        },
+        {
+            "author": "gonglinyuan",
+            "timestamp": 1451435520,
+            "txt_content": "u.s.knowledge 发表于 2015-12-30 02:45\n1.神秘4有自己的dev版构建，没必要这么复杂\n2.你确定直接发源码没问题？Azanor貌似没有指明任何license，也 ...\n更新过了  看了反混淆的代码  其实都差不多  至于侵权问题，这也没啥办法。我们要感谢祖国给我们带来的宽松、安全的研究学习环境（大雾）"
+        },
+        {
+            "author": "liqiangshia",
+            "timestamp": 1452225960,
+            "txt_content": "原来如此"
+        },
+        {
+            "author": "2525xs",
+            "timestamp": 1453788720,
+            "txt_content": "这么好的帖子这么晚才看到！"
+        }
+    ]
+}

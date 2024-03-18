@@ -1,0 +1,39 @@
+{
+    "title": "[InfStudio][工业2实验版]从源代码详解IC的作物架上作物的生长速度[01/14发布]",
+    "author": "gonglinyuan",
+    "replyCount": 6,
+    "timestamp": 1452754680,
+    "txt_content": "本文主要讨论IC作物架上的作物的生长速度的影响因素。暂不讨论作物杂交和杂交架。阅读本文需要对IC的农业系统稍有了解，若想了解相关信息，建议阅读 @LHanson 的WIKI翻译: http://www.mcbbs.net/thread-468863-1-1.html 。\n\n版本： industrialcraft-2-2.2.810-experimental-dev  。dev版和普通版的区别只在于dev版是经过MCP反混淆的，反编译后能清楚地看到源代码；游戏内容没有区别。\n\n相关代码：\n\n\n\nCropCard.txt\n(14 KB, 下载次数: 19)\n\n\n\n2016-1-14 12:39 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\nCropPotato.txt\n(1.33 KB, 下载次数: 9)\n\n\n\n2016-1-14 12:39 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\nTileEntityCrop.txt\n(35.47 KB, 下载次数: 14)\n\n\n\n2016-1-14 12:36 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\nIC2Crops.txt\n(15.78 KB, 下载次数: 16)\n\n\n\n2016-1-14 13:32 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n作物架，在代码中是一个名字为TileEntityCrop的类，顾名思义是一个TileEntity。TileEntity会在被加载的每个tick被调用一次updateEntity()方法，因此我们先来看看TileEntityCrop的updateEntity()方法(TileEntityCrop.txt, 行139~行162)：\nsuper.updateEntity();\nthis.ticker = ((char) (this.ticker + '\\001'));\nif ((this.ticker % tickRate) == 0) {\n    tick();\n}\nif (this.dirty) {\n    this.dirty = false;\n    this.worldObj.markBlockForUpdate(this.xCoord, this.yCoord, this.zCoord);\n    this.worldObj.updateLightByType(EnumSkyBlock.Block, this.xCoord, this.yCoord, this.zCoord);\n    if ((IC2.platform.isSimulating()) && (!IC2.platform.isRendering())) {\n        for (String field : getNetworkedFields()) {\n            ((NetworkManager) IC2.network.get()).updateTileEntityField(this, field);\n        }\n    }\n}复制代码第一行调用了父类TileEntity的更新方法，不管它；if (this.dirty) {...} 这里处理的是光照计算、电网计算，和作物生长也没有直接联系；我们主要看中间部分：ticker域每tick加1，tickRate是一个等于256的常数。因此中间部分的作用，就是每256tick调用一次tick()方法。所以接下来我们来看看tick()方法，先看前半部分(TileEntityCrop.txt, 行182~行192)：\nif ((this.ticker % (tickRate << 2)) == 0) {\n    this.humidity = updateHumidity();\n}\nif (((this.ticker + tickRate) % (tickRate << 2)) == 0) {\n    this.nutrients = updateNutrients();\n}\nif (((this.ticker + (tickRate * 2)) % (tickRate << 2)) == 0) {\n    this.airQuality = updateAirQuality();\n}复制代码这里点出了影响作物生长速度的三大因素：湿度、营养和空气质量。这三个参数都是每1024个tick(即51.2s)更新一次。我们来一个一个看看它们的具体计算方式。\n首先是湿度(humidity)。也就是updateHumidity()方法(TileEntityCrop.txt, 行910~行924):\nint value = Crops.instance.getHumidityBiomeBonus(this.worldObj.getBiomeGenForCoords(this.xCoord, this.zCoord));\nif (this.worldObj.getBlockMetadata(this.xCoord, this.yCoord - 1,this.zCoord) >= 7) {\n    value += 2;\n}\nif (this.waterStorage >= 5) {\n    value += 2;\n}\nvalue += ((this.waterStorage + 24) / 25);\nreturn (byte) value;复制代码这个value的初始值，不知道是我没研究清楚还是IC本来就还没来得及做这一块内容，根据IC2Crops类的内容，后面的一长串东西似乎一直是0。也就是说湿度不受生物群系影响(我也觉得很奇怪，具体有待核实，希望有能力的同学帮我看一看)。因此重点看后面的。\"this.worldObj.getBlockMetadata(this.xCoord, this.yCoord - 1,this.zCoord) >= 7\"这个判断条件，是判断作物下方的泥土是否是耕地，如果是耕地，湿度加2；waterStorage和浇水有关，如果不浇水就一直是0；如果浇了水，水浇得越多湿度越大。\n第二个因素是营养。这里是updateNutrients()方法(TileEntityCrop.txt, 行928~行941):\nint value = Crops.instance.getNutrientBiomeBonus(this.worldObj.getBiomeGenForCoords(this.xCoord, this.zCoord));\nfor (int i = 2; i < 5; i++) {\n    if (this.worldObj.getBlock(this.xCoord, this.yCoord - i, this.zCoord) != Blocks.dirt) {\n        break;\n    }\n    value++;\n}\nvalue += ((this.nutrientStorage + 19) / 20);\nreturn (byte) value;复制代码“Crops.instance.getNutrientBiomeBonus(this.worldObj.getBiomeGenForCoords(this.xCoord, this.zCoord))”这一长串和湿度部分的那些很相似，但是根据IC2Crops类，生物群系却是会影响营养值的，具体请看IC2Crops.txt的第82~94行。第二部分是在检测作物下方的泥土深度。如果泥土深度2层就+1，深度三层就+2，4层就+3。最后一部分是和肥料有关，肥料越多营养值越高。\n最后一个影响因素是空气质量。请看updateAirQuality()方法(TileEntityCrop.txt, 行945~行979):\nint value = 0;\nint height = (this.yCoord - 64) / 15;\nif (height > 4) {\n    height = 4;\n}\nif (height < 0) {\n    height = 0;\n}\nvalue += height;\nint fresh = 9;\nfor (int x = this.xCoord - 1; (x < (this.xCoord + 1)) && (fresh > 0); x++) {\n    for (int z = this.zCoord - 1; (z < (this.zCoord + 1)) && (fresh > 0); z++) {\n        if ((this.worldObj.isBlockNormalCubeDefault(x, this.yCoord, z, false)) || (this.worldObj.getTileEntity(x, this.yCoord, z) instanceof TileEntityCrop)) {\n            fresh--;\n        }\n    }\n}\nvalue += (fresh / 2);\nif (this.worldObj.canBlockSeeTheSky(this.xCoord, this.yCoord + 1, this.zCoord)) {\n    value += 2;\n}\nreturn (byte) value;复制代码首先是和高度有关，当高度为124以上时空气质量+4，为109~123时+3，为94~122时+2，为79~93时+1，否则+0。也就是说高度越高空气质量越好。其次，周围的方块也会影响空气质量。不过这里IC开发组的代码似乎又写错了，它的本意fresh值初始为9，它周围3*3的区域每有一个是普通方块或者作物时fresh值-1，然后空气质量加上fresh除以二向下取整。但是它的循环语句写错了，实际上只检测了2*2的范围。最后，它还检测了这个方块\"能否看到天空\"，机制和检测太阳能发电机能否工作是相同的；如果能看到天空，则空气质量+2。\n知道了这三个因素的计算方法之后，我们回到tick()方法(TileEntityCrop.txt,行213~行225):\nif (this.crop.canGrow(this)) {\n    this.growthPoints += calcGrowthRate();\n    if (this.crop == null) {\n        return;\n    }\n    if (this.growthPoints >= this.crop.growthDuration(this)) {\n        this.growthPoints = 0;\n        this.size += 1;\n        this.dirty = true;\n    }\n}复制代码作物的canGrow()方法，对于常规作物一般是直接返回true的，我们也默认它是true了。可以看到作物有个growthPoints属性，每次增加calcGrowthRate()方法返回的值。如果growthPoints达到了作物的growthDuration(this)，则计算为生长了一个阶段。\n首先来看看calcGrowthRate()方法，它是对几个生长因素(湿度、营养、空气质量、作物本身属性)的综合计算(TileEntityCrop.txt,行1014~行1046):\nif (this.crop == null) {\n    return 0;\n}\nint base = 3 + IC2.random.nextInt(7) + this.statGrowth;\nint need = ((this.crop.tier() - 1) * 4) + this.statGrowth + this.statGain + this.statResistance;\nif (need < 0) {\n    need = 0;\n}\nint have = this.crop.weightInfluences(this, getHumidity(), getNutrients(), getAirQuality()) * 5;\nif (have >= need) {\n    base = (base * (100 + (have - need))) / 100;\n} else {\n    int neg = (need - have) * 4;\n    if ((neg > 100) && (IC2.random.nextInt(32) > this.statResistance)) {\n        reset();\n        base = 0;\n    } else {\n        base = (base * (100 - neg)) / 100;\n        if (base < 0) {\n            base = 0;\n        }\n    }\n}\nreturn base;复制代码这里的tier()是物种的本身属性，只能通过代码看到，最常见的小麦、南瓜等是一级作物，而马铃薯、胡萝卜、西瓜、甘蔗等则是二级作物。这里的statGrowth(生长)\\statGain(收获)\\statResistance(抗性)是这个作物的属性，可以用作物分析仪看到，作弊模式下也可以使用NBT Edit查看，对于天然作物默认为1。base值等于一个3~9的随机数加上作物的生长速度属性(天然植物默认为1)，代表着作物本身的生长速度；need值等于作物的三围之和加上(作物等级-1)*4，说明作物越高阶、属性越好，对生长环境的要求也越高；have值等于湿度、营养、空气质量这些外部环境对作物的影响程度*5，代表外部生长环境。具体的计算因不同作物而异，对于一般的作物就是等于湿度、营养、空气质量三项之和。\n后面是base,need,have的具体计算。这个还是看代码比较直观一些。当have<need时，作物有几率枯萎，枯萎率和作物的抗性有关。一般情况下have>=need，此时一次tick()增加的growthPoint就是\"(base*(100+(have-need)))/100\"。\ngrowthPoint计算出来了，接下来就是计算作物的growthDuration，这是作物的本身属性。一般来说就是作物的等级*200。\n至于生长阶段，不同的作物也是不一样的。其中比较有趣的是马铃薯，它的生长阶段是4段，从第三阶段开始允许收获。第三阶段是生马铃薯，第四阶段收获下来就变成毒马铃薯了。如果需要毒马铃薯来做杀虫剂，不妨多种点马铃薯，然后放很久不去管它，过一会儿就变成毒马铃薯了。\n\n\n我现在终于知道，那些看起来花哨的新MOD，玩起来不知怎的总是不如老MOD带劲儿：农业只是IC中比较冷门的一个部分，而作物生长速度更是IC的农业部分中一个很小的环节。然而就是这么看似微不足道的东西，却涉及到了好几页的代码，牵扯到了无数的影响因素；那些新兴MOD想要做到像IC这种经典MOD那样丰富、有趣、富有内涵，还是需要一段时间的积淀和完善才行啊。",
+    "replies": [
+        {
+            "author": "化学爱好者",
+            "timestamp": 1452756060,
+            "txt_content": "天，看源代码讲解，楼主真是很用心，支持一个"
+        },
+        {
+            "author": "konun",
+            "timestamp": 1452761760,
+            "txt_content": "我靠源代码都来了"
+        },
+        {
+            "author": "393575404",
+            "timestamp": 1453862820,
+            "txt_content": "楼主好6，看源代码，表示已经晕了"
+        },
+        {
+            "author": "southward",
+            "timestamp": 1454037660,
+            "txt_content": " 本帖最后由 southward 于 2016-1-29 11:27 编辑 \n\n请问高炉怎么做？在百度上找了这两种方法都不成功！！\n我想做采石场用精炼铁或者钢！合成采石场！我用的是[1.7.10][HQM][InfStudio]ClassicalTech古典科技[复古/低配]整合包。（你是作者本人吧，希望能帮忙解答下）\n---------------------------------------------------------------\n第一种用高炉砖堆砌\n第1层   ■■■\n第2层   ■□■\n第3层   ■□■\n第4层   ■■■\n\n-----------------------------------------------------------------\n第二种\n"
+        },
+        {
+            "author": "qq347090561",
+            "timestamp": 1456675380,
+            "txt_content": "服务器能用？？"
+        },
+        {
+            "author": "二货君",
+            "timestamp": 1501057800,
+            "txt_content": "原来IC2是JS做的啊"
+        }
+    ]
+}

@@ -1,0 +1,59 @@
+{
+    "title": "[已解决]1.12.2 Forge 如何用代码添加工作台配方",
+    "author": "明日之雨",
+    "replyCount": 10,
+    "timestamp": 1584540840,
+    "txt_content": " 本帖最后由 明日之雨 于 2020-4-17 11:53 编辑 \n\n我想用代码实现工作台合成配方的添加，这逻辑好办呀，但关键就是卡在了如何注册上。跪求大佬帮助，谢谢！！！\n之前我有去百度和MinecraftForge论坛搜索，结果也就知道通过RegistryEvent.Register<IRecipe>添加，但不懂具体该如何注册。\n后来我想到，熔炉燃料和铁砧锻造的添加都是用事件总线来注册的，那么添加工作台配方也应该是这样吧，如下是我折腾出来的实现代码：public abstract class CraftingTableEventHandler {\n    @SubscribeEvent\n    public abstract void onRecipeRegistry(RegistryEvent.Register<IRecipe> event);\n}\n\npublic abstract class RecipeRegister implements IRecipe {}\n\nMinecraftForge.EVENT_BUS.register(new CraftingTableEventHandler() {\n    @Override\n    public void onRecipeRegistry(RegistryEvent.Register<IRecipe> event) {\n        event.getRegistry().register(new RecipeRegister() {\n            //实现代码······\n        });\n    }\n});复制代码用Logger调试时却发现，不管我怎么往工作台物品槽里放东西也不会触发我注册的代码，搞了半天就给我这个结果真是欲哭无泪啊(Ｔ▽Ｔ)。\n",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1584561000,
+            "txt_content": " 本帖最后由 3TUSK 于 2020-3-19 03:52 编辑 \n\n楼主属实有毒，你根本不需要什么继承的。\n\npublic class MyRecipe implements IRecipe {\n    /* 你自己实现 */\n}\n\npublic class CraftingTableEventHandler {\n    @SubscribeEvent\n    public void onRecipeRegistry(RegistryEvent.Register<IRecipe> event) {\n        event.getRegistry().register(new MyRecipe());\n    }\n}\n\nMinecraftForge.EVENT_BUS.register(new CraftingTableEventHandler());复制代码\n\n所有的 RegistryEvent.Register 都是在游戏加载的时候发布的。你往工作台 GUI 里放物品当然不会触发这个事件。"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1584587220,
+            "txt_content": " 本帖最后由 Billy12345 于 2020-3-19 11:09 编辑 \n\n添加合成配方难道不是直接写json吗？\n合成配方不是通过事件总线控制的哦！\n创建src/main/resources/assets/<命名空间>/<配方名称>.json填入配方json\nminecraft找到之后会自动处理，不用编写一行Java代码\nIRecipe仅在自定义配方文件格式的时候继承，对于一般的配方添加，默认的json格式就可以\n"
+        },
+        {
+            "author": "1984507902",
+            "timestamp": 1584602220,
+            "txt_content": "谢谢楼主分享"
+        },
+        {
+            "author": "明日之雨",
+            "timestamp": 1584621060,
+            "txt_content": " 本帖最后由 明日之雨 于 2020-4-10 18:25 编辑 \n\n我以为工作台合成配方的添加是用RegistryEvent.Register<IRecipe>添加的，然后我去看了下Forge源码，研究了很久发现其实不然。\n因为官方把GameRegistry.addShaped/ShapelessRecipe()给大改了，搞得1.12.2之前版本的添加合成配方代码完全不兼容，即使你也大改得在编译时不报错了，但在运行时却依旧报错导致游戏崩溃。我以为GameRegistry不能用不了，结果还是得用到它。\n我简单追踪了一下GameRegistry.addShaped/ShapelessRecipe()的调用链：\nGameRegistry.addShaped/ShapelessRecipe(ResourceLocation, ResourceLocation, ItemStack, Object.../Ingredient...)\n          ↓ ShapedRecipe/ShapelessRecipe ← IRecipe ← IForgeRegistryEntry<IRecipe>\nGameRegistry.register(IForgeRegistryEntry<IRecipe>)\n          ↓ ShapedRecipe/ShapelessRecipe ← IRecipe ← IForgeRegistryEntry<IRecipe>\nGameData.register_impl(IForgeRegistryEntry<IRecipe>)\n再往后就没有必要了，最后发现IRecipe是由GameData.register_impl注册的。搞完啦~，结果还是自己给解决了(￣▽￣)。\n如果不懂得如何实现IRecipe接口的话，去这个求助帖看一下3TUSK大佬的回答吧，最好继承IForgeRegistryEntry.Impl<IRecipe>，这是官方写好的能减去许多工作，但我还是建议使用官方现成写好的ShapedRecipe/ShapelessRecipe好一些。\n"
+        },
+        {
+            "author": "明日之雨",
+            "timestamp": 1584621600,
+            "txt_content": " 本帖最后由 明日之雨 于 2020-3-19 20:49 编辑 \n3TUSK 发表于 2020-3-19 03:50\n楼主属实有毒，你根本不需要什么继承的。\n原来是这样呀，但问题是你没有回答我的问题呀。我还是要谢谢你，让我得去艰难地阅读源代码(~▽~)。"
+        },
+        {
+            "author": "明日之雨",
+            "timestamp": 1584621780,
+            "txt_content": "Billy12345 发表于 2020-3-19 11:07\n添加合成配方难道不是直接写json吗？\n合成配方不是通过事件总线控制的哦！\n创建src/main/resources/assets/ ...\n可以是可以呀，但我就是要用代码来添加。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1584662160,
+            "txt_content": " 本帖最后由 3TUSK 于 2020-3-20 08:00 编辑 \n明日之雨 发表于 2020-3-19 20:31\n我以为工作台合成配方的添加是用RegistryEvent.Register添加的，然后我去看了下Forge源码，研究了很久发现 ...\n不啊，就是通过 RegistryEvent.Register<IRecipe> 添加的。\n\nhttps://github.com/Snownee/Cuisi ... gistry.java#L30-L55\n\n顺带一提，上面这个例子还是一个屏蔽原版合成的例子。引用我自己写的注释：\nYes, we understand that this is a huge hack, but there is no way around unless we can also kill advancements.\n（我们知道这是个 hack，但是不这么做的话原版进度也会爆炸。）\n请不要使用 GameData。工作台配方也不是 GameData 负责注册的。请不要误导。\n\n\n\n实际上也不一定需要通过 RegistryEvent.Register<IRecipe>。比如这个：\nhttps://github.com/Snownee/Cuisi ... chopping_board.json\n{\n  \"type\": \"cuisine:chopping_board\"\n}复制代码\n这个 json 只有三行。它在这里声明：\nhttps://github.com/Snownee/Cuisi ... pes/_factories.json\n具体的实现在：\nhttps://github.com/Snownee/Cuisi ... oard.java#L111-L118\n\n更多信息详见 https://harbinger.covertdragon.t ... recipe-factory.html\n\n\n\n退一步讲，GameRegistry.addShaped/addShapeless 应该是没有问题的。不过也不建议使用。为了 1.13+ 迁移铺路，我还是想劝你直接写 JSON。\n\n“手动写几十个 JSON”并不是什么好的理由，因为你可以写一个程序生成这些 JSON。有能力写出 Mod 的人也应该有能力写出输出 JSON 文件的程序出来。\n\n至于那个 ResourceLocation，那是合成表的唯一 ID，和方块 ID 物品 ID 是一回事。"
+        },
+        {
+            "author": "明日之雨",
+            "timestamp": 1584679440,
+            "txt_content": " 本帖最后由 明日之雨 于 2020-4-10 18:34 编辑 \n3TUSK 发表于 2020-3-20 07:56\n不啊，就是通过 RegistryEvent.Register 添加的。\n\nhttps://github.com/Snownee/Cuisi ... gistry.java#L3 ...\n请不要使用 GameData。工作台配方也不是 GameData 负责注册的。请不要误导。\n抱歉，是我有误。感谢你的解答和你提供的例子。我去实践了一下发现真地可以用RegistryEvent.Register<IRecipe>来添加耶。\npublic class MyRecipe implements IRecipe {\n    //实现代码······\n}\n\n@EventBusSubscriber(modid = \"modid\")\npublic class CraftingTableEventHandler {\n    @SubscribeEvent\n    public static void onRecipeRegistry(RegistryEvent.Register<IRecipe> event) {\n        ResourceLocation name = new ResourceLocation(\"Domain:Path\");\n        event.getRegistry().register(new MyRecipe().setRegistryName(name));\n    }\n}复制代码用MinecraftForge.EVENT_BUS.register()是注册不了的，不知道为什么，反正问题解决了，就这样吧，谢谢~。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1584682140,
+            "txt_content": "明日之雨 发表于 2020-3-20 12:44\n\n抱歉，是我有误。感谢你的解答和你提供的例子。我去实践了一下发现真地可以用RegistryEvent.Regis ...\n\n图的作者是 https://github.com/JamiesWhiteShirt。"
+        },
+        {
+            "author": "m441402603@qq.c",
+            "timestamp": 1584685020,
+            "txt_content": "6666666666666"
+        }
+    ]
+}

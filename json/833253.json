@@ -1,0 +1,39 @@
+{
+    "title": "[提问]投掷生物？",
+    "author": "C://",
+    "replyCount": 6,
+    "timestamp": 1544200200,
+    "txt_content": "其实吧，做个PvP手雷做法有很多，但这个问题的确困扰到我了。\n服务器资源不足，希望尽量减少高频检测，所以在做手雷的时候曾经希望能用在实体nbt中motion里面写极坐标之类的方法，做出投掷creeper避免高频（最后发现不大可能）。\n现在我认怂搞滞留药水高频判断手雷了，但我还是想问问有没有可能在尽量减少高频和function嵌套、保持流畅（不做连续tp）的前提下：\n1.读取一个实体的motion等nbt值进入记分板，或者用记分板数据修改nbt？\n2.让生存玩家如同投掷物品一样抛物线投掷生物，且可以设定投掷的力量？（能在预设档位间切换就可以）\n",
+    "replies": [
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1544200200,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2018-12-7 10:34 编辑 \n\n是不是结合一下就好了？...\n\n丢药水，创一个丢药水的记分板判据\n创一个mcfunction当药水丢出时执行，\n/execute as @e[...] store result entity @s Motion[0] double 0.00001 run data get entity @s Motion[0] 150000\n(获取这个丢出物当前x轴Motion的数值，放大1.5倍后，丢回原位)\n\n力度控制的话用档位设置感觉不方便，可以改为shift(潜行)键，创建判断潜行的记分板判据。\n根据不同的潜行分数执行不同的Motion倍数修改...\n\n/execute as @a[scores={shift=1..50,throw=1..}] at @s positioned ~ ~1.319999992847443 ~ as @e[type=<药水...>,limit=1,distance=..0.5] store result entity @s Motion[0] double 0.00001 run data get entity @s Motion[0] 150000\n/execute....scores={shift=51..100.....run data get entity @s Motion[0] 175000\n/execute....scores={shift=101..150.....run data get entity @s Motion[0] 200000\n...\n记得也要修改Motion[1]和Motion[2]\n\n\n另外，~ ~1.319999992847443 ~是玩家Q键丢出时物品所在的坐标，扔药水的话不知道是不是也是从这个坐标出发，可能有误\n另外...如果还要作到能反弹的话...参考这个http://www.mcbbs.net/thread-776362-1-1.html\n\n\n\n\n另外这是什么版本？（要凉...）"
+        },
+        {
+            "author": "C://",
+            "timestamp": 1544283900,
+            "txt_content": "⊙v⊙ 发表于 2018-12-8 04:28\n是不是结合一下就好了？...\n\n丢药水，创一个丢药水的记分板判据\n第一个问题算是回答的很好了，多谢老哥。原来NBT是可以读写的！这下子以后做东西就开窍了。\n不过这个原理我似乎不敢妄言懂了。\n\n档位是通过一个超精确的浮点数高度检测配合type检测判断玩家扔药水了（要是我想当然的推测对的话，这个指令能检测发出位置半格子内的），然后读取这个药水的motion再根据当前潜行分修改，做到换挡效果？\n我想如果这样的话，把这个motion记录下来，再生成一个生物（在这个手雷情景下就是creeper）并赋予motion给它就得了。档位也可以做成跟潜行分做成一个函数关系，做出更好的蓄力投掷效果。\n但是这里面的基本机制我不是很懂。第一段的那个function部分，它可以监听诸如药水扔出这类的事件时启动吗？如果不是的话，要怎么触发呢？旧思路可以通过高频检测药水实体有无某个tag——》有则不管没有就进行motion运算并加tag做到，但要是能不用高频就太好了。\n望能赐教万分感谢。"
+        },
+        {
+            "author": "C://",
+            "timestamp": 1544284380,
+            "txt_content": "⊙v⊙ 发表于 2018-12-8 04:28\n是不是结合一下就好了？...\n\n丢药水，创一个丢药水的记分板判据\n版本自然是1.13.啊呀缓降药水配鞘翅烟花爽的爆炸，沉迷和小伙伴们玩自制pvp中，才想弄一个爆破职业的。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1544305860,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2018-12-8 12:07 编辑 \nC:// 发表于 2018-12-8 05:45\n第一个问题算是回答的很好了，多谢老哥。原来NBT是可以读写的！这下子以后做东西就开窍了。\n不过这个原理 ...\nscoreboard的判据，有些是自动帮你计算的。物品的使用就是如此。\n\n我又想了一下，不是太讲究的话还是利用原版已有的功能更好，也能让操作更简便。按蹲下时间控制力度太蠢了...\n#设立判据\n#可以使用/scoreboard objectives setdisplay sidebar helloworld 查看此分数\n#但是后面弄了分数reset，游戏里可能并不会看到...(因为不会显示没有的分数)\nscoreboard objectives add helloworld minecraft.used:minecraft.bow复制代码#持续执行这条，可放在紫色命令块里\n#能放在mcfunction里的话就在好不过了\n#~ ~1.52 ~是弓发出的起始位置\nexecute as @a[scores={helloworld=1..}] at @s positioned ~ ~1.52 ~ as @e[type=arrow,distance=..0.5,limit=1] at @s run function world:foo复制代码#生成丢出物\nsummon minecraft:creeper ~ ~ ~ {Tags:[\"boom\",\"bar\"],DeathLootTable:\"empty\",Invulnerable:1b}\n\n#获取Motion\nexecute store result entity @e[tag=bar,distance=..0.5,limit=1] Motion[0] double 0.000006 run data get entity @s Motion[0] 100000\nexecute store result entity @e[tag=bar,distance=..0.5,limit=1] Motion[1] double 0.000006 run data get entity @s Motion[1] 100000\nexecute store result entity @e[tag=bar,distance=..0.5,limit=1] Motion[2] double 0.000006 run data get entity @s Motion[2] 100000\n\n#结束处理\ntag @e[tag=bar] remove bar\nkill @s\nscoreboard players reset @a[scores={helloworld=1..}] helloworld复制代码最后就是按个人喜好进行调整，做爆破处理了...\n比如\nexecute as @e[tag=boom,nbt={OnGround:1b}] run data merge entity @s {NoAI:1b}\nexecute as @e[tag=boom,nbt={OnGround:1b}] run data merge entity @s {NoAI:1b,ignited:1b,ExplosionRadius:1b,Fuse:5s}\nexecute as @e[tag=boom,nbt={OnGround:1b}] run data merge entity @s {ignited:1b,Fuse:20s,ExplosionRadius:3b}\nexecute as @e[tag=boom] run data merge entity @s {ignited:1b,Fuse:100s,ExplosionRadius:1b,powered:1b}\nexecute as @e[tag=boom,nbt={OnGround:1b}] run data merge entity @s {NoAI:1b,Fuse:5s,powered:1b,ignited:1b}\n...\n\n\n也可以制作根据持有的手切换模式。比如，左手发出着陆后数秒爆炸的creeper，\n右手则是发出后立刻爆炸的强大威力creeper...\n另外，还要做一个手持物的检测，比如只当玩家手持的弓有特殊tag时才执行function...\n\n"
+        },
+        {
+            "author": "C://",
+            "timestamp": 1544328300,
+            "txt_content": "⊙v⊙ 发表于 2018-12-9 05:51\nscoreboard的判据，有些是自动帮你计算的。物品的使用就是如此。\n\n我又想了一下，不是太讲究的话还是利用 ...\n非常感谢。不过我还是想问，触发只能依靠高频命令方块或者function内置的高频检测了吗？我去自学了一下发现MC似乎现在还没有直接检测当什么事情发生的功能。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1544329320,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2018-12-8 18:25 编辑 \nC:// 发表于 2018-12-8 18:05\n非常感谢。不过我还是想问，触发只能依靠高频命令方块或者function内置的高频检测了吗？我去自学了一下发 ...\n把高频的命令数量和所需要的检测尽可能限制到最少吧...\nexecute if entity @a[scores={helloworld=1..}] run function world:main\n\n\n对进度并不是很了解，甚至不知道这样做是否和在minecraft:tick内tag mcfunction一样，所以...\n进度里面有个minecraft:tick的trigger。这个tick等同于高频，然后reward run function...\n@SPGoding  快来救我!\n\n"
+        }
+    ]
+}

@@ -1,0 +1,39 @@
+{
+    "title": "由修复某大佬插件报错而发现的cauldron兼容性技巧",
+    "author": "l89669",
+    "replyCount": 6,
+    "timestamp": 1490691000,
+    "txt_content": " 本帖最后由 l89669 于 2017-6-20 23:32 编辑 \n\n老司机们似乎有一个常识，就是写cauldron插件不能使用nms包，否则会报错\n但是我发现我现在用的插件大量使用了nms包（主要是处理nbt），却运行良好\n然后反编译了一下不能用的插件，发现所有报错都是在反射的语句上报的。\n一脸懵逼，遂去查看cauldron源码，发现了mappings这么一个文件夹\n经过大概学习，发现cauldron的核心工作方式是这样的\n和Sponge思路类似，cauldron的核心其实是在forge的api和部分minecraft源码的基础上重新实现了一个org.bukkit和org.craftbukkit包\n在服务器运行中，其实根本不存在nms包，所以用反射来查找nms包里的东西无疑会找不到类/方法/变量并报错\n但是cauldron本身又带了一个黑科技，即动态映射nms包\n它里面的插件加载器在加载插件的时候，可以用黑科技（大概是ASM）把插件中静态引用的nms的类映射为forge中的net.minecraft包中的类\n具体映射表可以在服务器核心jar文件中的mappings文件夹中找到\n所以如果插件要使用反射来实现跨版本支持，又想保持对cauldron服务器的兼容性的话，其实只要判断一下是否是mod服，然后选择以下两种任意一种方法处理即可\n判断mod服可以用Class.forName(\"cpw.mods.fml.common.Mod\");\n将反射代码处理成兼容Cauldron的代码的处理方式有两种，比如原来写\nClass clazzChunk = Class.forName(\"net.minecraft.server._version_.Chunk\");这一句，如下\n方法一：（使用mappings/cb2numpkg.srg里面的混淆名）\nClass clazzChunk = Class.forName(\"net.minecraft.world.chunk.Chunk\");\n方法二：（不使用反射，直接使用引用）\nClass clazzChunk = net.minecrft.server._version_.Chunk.class;\n这两种方法写出的代码都可以在Cauldron服务端中正常运行\n如果想只写一遍代码又想用插入版本号拼接类名的方法做到全版本兼容，的确是没办法兼容Cauldron的\n\n\n\n\n                                              ----来自默默修复了MOD服上NeverLag检测背包编辑器功能的某萌新\n\n\n",
+    "replies": [
+        {
+            "author": "言灵乀Poison",
+            "timestamp": 1491094740,
+            "txt_content": " 本帖最后由 言灵乀Poison 于 2017-4-2 09:01 编辑 \n\n如果是这样的话那么直接反射混淆后的类/方法/字段名应该也可以？这样的话可以直接读取mappings文件夹里的对照表，然后匹配到要反射的东西的混淆名\n\n\n话说我总觉得forge应该有什么工具类可以直接获取混淆名(就是你提到的nms映射，感觉应该可以外部调用"
+        },
+        {
+            "author": "l89669",
+            "timestamp": 1491267900,
+            "txt_content": "言灵乀Poison 发表于 2017-4-2 08:59\n如果是这样的话那么直接反射混淆后的类/方法/字段名应该也可以？这样的话可以直接读取mappings文件夹里的对 ...\n获取混淆名的没有，只在forge gradle 和mcp里有obfuscate和deobf两种操作，直接反射混淆后的cl/md/fd也是可行的，详情可以看AttributesEditor开源代码仓库里我最新的PR"
+        },
+        {
+            "author": "魔族宝",
+            "timestamp": 1495447620,
+            "txt_content": "所以实际操作起来是怎样的？"
+        },
+        {
+            "author": "l89669",
+            "timestamp": 1495459500,
+            "txt_content": "魔族宝 发表于 2017-5-22 18:07\n所以实际操作起来是怎样的？\nClass clazz = Class.forName(\"net.minecraft.server.v1_7_R4.NBTTagCompound\"); //这句反射在Cauldron报错\n\nClass clazz = net.minecraft.server.v1_7_R4.NBTTagCompound.class; //这句在CB及Cauldron正常运行（不使用反射，运行时动态混淆）\n\nClass clazz = Class.forName(\"net.minecraft.nbt.NBTTagCompound\"); //这句在Cauldron正常运行（反射Forge运行时混淆名）\n\n混淆名在服务器jar里mappings文件夹中\n"
+        },
+        {
+            "author": "魔族宝",
+            "timestamp": 1495516680,
+            "txt_content": "l89669 发表于 2017-5-22 21:25\nClass clazz = Class.forName(\"net.minecraft.server.v1_7_R4.NBTTagCompound\"); //这句反射在Cauldron报 ...\n\n\n原来说的是这个。。。。。"
+        },
+        {
+            "author": "弱鸡绿毛怪",
+            "timestamp": 1567050780,
+            "txt_content": "？！\n挖坟感谢"
+        }
+    ]
+}

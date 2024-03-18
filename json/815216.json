@@ -1,0 +1,29 @@
+{
+    "title": "【JE 1.13】用原版命令实现TNTrun小游戏",
+    "author": "rdfzzyy",
+    "replyCount": 4,
+    "timestamp": 1534506480,
+    "txt_content": " 本帖最后由 rdfzzyy 于 2018-8-17 22:14 编辑 \n\n前言\n\nTNTrun作为MC中一款经典的小游戏，想必大部分人都了解，但仅用原版实现这款小游戏你们试过么？\n今天我要给大家带来的是在JE 1.13中用全新的命令系统实现TNTrun小游戏的一种方式（内含详细讲解及简陋作品）\n思路是自己脑洞的，如有雷同纯属巧合辣qwq（虽然我在论坛里搜了，好像木有类似的帖子）\n命令由于初次设计质量可能略渣，dalao轻喷\n\n另：我也是头一次发帖，若思路或贴子中有错误及可以改进之处请各位多多指正\n\n\n\n核心思路：如何延时消除玩家走过的方块\n在1.8的时候我也曾经有过造TNTrun的想法，但当时苦于难以实现延时消除而放弃了\n近几天重新开始研究命令之后，实体 区域效果云(area_effect_cloud) 给了我启发：\n这个 自带WaitTime和Age两个nbt 的实体可以完美实现延时消除！\n原理：WaitTime为定值，决定区域效果云存在的时长；Age的值每tick增加1，代表着区域效果云已经存在的时长；当Age值≥WaitTime值时，区域效果云便会消失\n于是，通过 不断在玩家位置召唤区域效果云，再用execute检测其Age值到达一个定值时将它下方的方块替换为空气 就可以实现消除玩家走过的方块了\n附我写的命令：execute at @a[tag=TNTrun,gamemode=survival] run summon minecraft:area_effect_cloud ~ ~ ~ {WaitTime:11,Particle:\"minecraft:underwater\"}\n\nexecute at @e[x=-20.00,y=100.00,z=-20.00,dx=40,dy=3,dz=40,type=minecraft:area_effect_cloud,nbt={Age:10,Particle:\"minecraft:underwater\"}] run setblock ~ ~-1 ~ minecraft:air replace复制代码\n这里的 Particle:\"minecraft:underwater\" 引号内的粒子效果大家可自行改为自己喜欢的粒子，实现脚印特效，实用与美观兼顾~（别忘了把每个地方的Particle都改了哦）\n而第二条命令中的坐标限制则是为了兼容原版服务器，防止TNTrun运行时其他地方的区域效果云也消除方块，也请根据实际情况自行修改\n\n\n思路改进\n以上思路是可行的，但是实践中很快就出现了问题：\n当玩家处于方块边缘时（这时玩家脚下方块其实是空气）无法正确消除脚下方块，\n所以就 需要额外的指令检测玩家脚下周围的方块\n由于 玩家站在边缘时超出方块边界的距离＜0.3格\n所以我设计了这四条命令：\nexecute at @a[tag=TNTrun,gamemode=survival] if block ~ ~-1 ~ minecraft:air unless block ~0.3 ~-1 ~0.3 minecraft:air run summon minecraft:area_effect_cloud ~0.3 ~ ~0.3 {WaitTime:11,Particle:\"minecraft:underwater\"}\n\nexecute at @a[tag=TNTrun,gamemode=survival] if block ~ ~-1 ~ minecraft:air unless block ~0.3 ~-1 ~-0.3 minecraft:air run summon minecraft:area_effect_cloud ~0.3 ~ ~-0.3 {WaitTime:11,Particle:\"minecraft:underwater\"}\n\nexecute at @a[tag=TNTrun,gamemode=survival] if block ~ ~-1 ~ minecraft:air unless block ~-0.3 ~-1 ~0.3 minecraft:air run summon minecraft:area_effect_cloud ~-0.3 ~ ~0.3 {WaitTime:11,Particle:\"minecraft:underwater\"}\n\nexecute at @a[tag=TNTrun,gamemode=survival] if block ~ ~-1 ~ minecraft:air unless block ~-0.3 ~-1 ~-0.3 minecraft:air run summon minecraft:area_effect_cloud ~-0.3 ~ ~-0.3 {WaitTime:11,Particle:\"minecraft:underwater\"}复制代码由于这四条命令仅针对试图卡方块边缘的玩家，所以其中 if block ~ ~-1 ~ 语句的加入是为了防止脚下并非空气（正常行走）的玩家周围多消除方块\n\n\n至此其实TNTrun的游戏主体已经实现了，至于如何将以上内容与如死后观战，记分版显示生存时长与人数，胜利者展示等琐碎但又重要的细节在函数中连接起来形成一个完整的小游戏，我就不再赘述了，有兴趣的小伙伴可以下载打开数据包自己研究\n（才不告诉你们我犯懒了呢2333）\n\n下载&食用方式①地图版本：大家都知道怎么用，不解释了\n②数据包版本：解压后将其中的test文件夹整个丢进需要安装TNTrun的地图的datapacks文件夹中\n                        之后先/datapack enable \"file/test\" （应该不需要，只是为了确保数据包被加载）\n                        再输入/function tntrun:prepare（准备工作，由于大量 fill 可能会卡顿较长时间，亲测2分钟）\n强烈推荐数据包版本！优点：可以在已有的地图上自动建造场地！场地为以x=0,y=200,z=0为中心、边长40的正方形，高度均在200以上，一般不会影响正常地图游戏！\n注：由于没有服务器，本数据包的命令均未经过多人测试，恳请大家游玩后给予反馈及建议（尤其是多人游玩后），谢谢！\n已知问题：\n\nfill命令不稳定，有时有个别方块莫名其妙没被填上，且容易卡顿（似乎是1.13的特性，原因不明）场地照明不足导致刷怪  已修复√\n\n\n\n\n\n\n\n\n\nTNTrun.rar\n\n\n2018-8-17 18:20 上传\n点击文件名下载附件\n\n\n\n\n237.18 KB, 下载次数: 28\n\n\n完整地图\n\n\n\n\n\n\n\n\n\n\ntest.rar\n\n\n2018-8-17 22:14 上传\n点击文件名下载附件\n\n\n\n\n4.41 KB, 下载次数: 18\n\n\n数据包\n\n\n",
+    "replies": [
+        {
+            "author": "LJHU",
+            "timestamp": 1534509960,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "夏逆大大",
+            "timestamp": 1534568520,
+            "txt_content": "很厉害哦，去做个外玩"
+        },
+        {
+            "author": "wzz0116",
+            "timestamp": 1534688940,
+            "txt_content": "其实原版可以做低配TNTrun，虚空世界，TNT上面放沙子，沙子上面放压力板就可以了。就是体验比较差"
+        },
+        {
+            "author": "m050131",
+            "timestamp": 1535370540,
+            "txt_content": "1.13之前也可以达到吧awa\n似乎有个Age标签和Duration标签的"
+        }
+    ]
+}

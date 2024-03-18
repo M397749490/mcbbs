@@ -1,0 +1,39 @@
+{
+    "title": "[PCD]关于Inventory的判断与数据的传递",
+    "author": "2280761425",
+    "replyCount": 6,
+    "timestamp": 1565083560,
+    "txt_content": " 本帖最后由 2280761425 于 2019-8-8 18:19 编辑 \n\n很长一段时间，对于Inventory的判断我一直是用title来进行的，如果涉及到数据传递部分，那就只能通过各种神奇的方法进行了（比如截取title或者物品堆标记）。\n然后今天海螺大佬告诉我还能用holder判断，我就试了一下，是挺方便的，只要新建一个实现了InventoryHolder的类传入createInventory里的第一个参数就行了（就是一般填null的那个），要判断就用instanceof来判断。\n之后我想既然都可以自己传入对象了，那直接传递数据是不是可以？\n然后我写了这样一个类：\npublic class CustomInventoryHolder<T> implements InventoryHolder {\n    protected Inventory inventory;\n    protected T data;\n    \n    public CustomInventoryHolder(T data/*, int size, String title*/) {\n        this.data = data;\n        //更方便创建Inventory与holder的方法\n        //this.inventory = Bukkit.createInventory(this, size, title);\n    }\n\n    //实现InventoryHolder里的方法，由于不能返回null所以这里设置为持有holder的Inventory\n    @Override\n    public Inventory getInventory() {\n        return this.inventory;\n    }\n\n    public T getData() {\n        return this.data;\n    }\n\n    public void setData(T data) {\n        this.data = data;\n    }\n\n    //Inventory在这里设置。构造函数不加Inventory参数是因为在对Inventory传入holder时Inventory还未创建\n    public void setInventory(Inventory inventory) {\n        this.inventory = inventory;\n    }\n}复制代码\n\n这样就可以进行数据传递了，与之前的方法比较代码不知道简洁了多少（bug顺便也少了很多233）\n为了方便还可以把获取holder用一个方法进行：\npublic static CustomInventoryHolder<?> getHolder(Inventory inventory) {\n    InventoryHolder holder = inventory.getHolder();\n    if(!(holder instanceof CustomInventoryHolder)) {\n            return null;\n    }\n    return (CustomInventoryHolder<?>) holder;\n}复制代码\n\n这样判断一个物品栏就既可以通过CustomInventoryHolder里的data的数据也可以通过不同的继承CustomInventoryHolder的类，当然，再创建一个方法也可以\n\n测试代码（由于是测试所以类型判断并没有那么严格）：\n//命令里\nMap<String, Object> map = new HashMap<>();\nmap.put(\"name\", args[1]);\nmap.put(\"sender\", sender);\nmap.put(\"count\", 0);\n((Player) sender).openInventory(InventoryTools.createDataInventory(sender.getServer(), map));复制代码//事件里\nCustomInventoryHolder<?> holder = InventoryTools.getHolder(event.getInventory());\nif(holder != null) {\n    Map<String, Object> data = (Map<String, Object>) holder.getData();\n    //测试map保存不同类型数据\n    event.getWhoClicked().sendMessage((String) data.get(\"name\"));\n    event.getWhoClicked().sendMessage(((CommandSender) data.get(\"sender\")).getName());\n    //测试map数据读写\n    event.getWhoClicked().sendMessage(data.get(\"count\").toString());\n    data.put(\"count\", ((Integer) data.get(\"count\") + 1));\n}复制代码\n\nInventoryTools类：\npublic class InventoryTools {\n    //也是可以直接写成判断类型再强转的\n    public static CustomInventoryHolder<?> getHolder(Inventory inventory) {\n        InventoryHolder holder = inventory.getHolder();\n            if(!(holder instanceof CustomInventoryHolder)) {\n                return null;\n            }\n            return (CustomInventoryHolder<?>) holder;\n        }\n\n    //简化创建过程\n    //已经不需要使用本方法了，可以直接用holder的构造函数创建Inventory（注释部分），感谢@810587921 提供的方法\n    public static <T> Inventory createDataInventory(Server server, T data) {\n        CustomInventoryHolder<T> holder = new CustomInventoryHolder<T>(data);\n        Inventory inventory = server.createInventory(holder, 54);\n        holder.setInventory(inventory);\n        return inventory;\n    }\n}\n复制代码\n\n事件传递：\n既然我们已经能传入自己的holder了，那么也可以不再使用之前的方法判断Inventory了，对象的多态允许我们使用有不同方法的holder\n首先需要在CustomInventoryHolder里添加一个类型为Consumer<Event/*也可以是别的类型，方便就行*/>（用类也行）的event字段\n然后在事件发生时调用这个字段（在这之前需要先判断holder）\nholder.getEvent().accept(event/*类型就是上面指定的类型*/);复制代码\n这样就可以实现不同功能的Inventory的自动加载了\n\n自动加载两个Inventory的代码\n创建Inventory：\nInventory inv1 = InventoryTools.createDataInventory(player.getServer(), data, /*这个参数就是新加的event字段*/event -> event.getWhoClicked().sendMessage(\"Holder Test.\"));//打开代码这里就省略了\nInventory inv2 = InventoryTools.createDataInventory(player.getServer(), data, event -> event.getWhoClicked().giveExp(10)/*给予玩家经验*/);\n复制代码\n事件：\npublic void onInventoryClick(InventoryClickEvent event) {\n    if(event.isCancelled()) {\n        return;\n    }\n    CustomInventoryHolder holder = InventoryTools.getHolder(event.getClickedInventory());\n    if(holder != null) {\n        holder.getEvent().accept(event);\n    }\n}复制代码[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "弱鸡绿毛怪",
+            "timestamp": 1565084160,
+            "txt_content": "emm Inventory可以equals的吧"
+        },
+        {
+            "author": "2280761425",
+            "timestamp": 1565084280,
+            "txt_content": "MagicLocyDragon 发表于 2019-8-6 17:36\nemm Inventory可以equals的吧\n用holder毕竟还能传递数据qwq，map维护有点麻烦"
+        },
+        {
+            "author": "布鲁鲁",
+            "timestamp": 1565084760,
+            "txt_content": "这个方法好"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1565202300,
+            "txt_content": "对于自定义Holder的获取其实并不需要那么复杂:\n\n\npublic class MyHolder implements InventoryHolder\n{\n  private Inventory inv;\n   public MyHolder(){\n    inv=Bukkit.createInventory(this,6*9,\"title\");\n  }\n   public Inventory getInventory()\n    {\n    return inv;\n    }\n}\nclass MyListener implements Listener{\n  @EventHandler\n  public void click(InventoryClickEvent e){\n    InventoryHolder holder=e.getInventory().getHolder();\n    if(holder!=null && (holder instanceof MyHolder)){\n        MyHolder myHolder=(MyHolder)holder;\n    }\n  }\n}"
+        },
+        {
+            "author": "2280761425",
+            "timestamp": 1565259120,
+            "txt_content": "810587921 发表于 2019-8-8 02:25\n对于自定义Holder的获取其实并不需要那么复杂:\n不错的方法"
+        },
+        {
+            "author": "shutong",
+            "timestamp": 1567015800,
+            "txt_content": "学习学习，目前还未掌握也没看懂"
+        }
+    ]
+}

@@ -1,0 +1,154 @@
+{
+    "title": "[TML]五子棋AI——EndRoad原理讲解",
+    "author": "乾.坤",
+    "replyCount": 29,
+    "timestamp": 1471439340,
+    "txt_content": " 本帖最后由 乾.坤 于 2017-4-8 20:11 编辑 \n游戏也好，人生也罢，不过是一场\n末路上的烟火。\n大家好，我是乾坤。这是一个执白的五子棋AI（不针对禁手），我取名为EndRoad。这个作品从2016年的3月中旬做起（受AlphaGo启发），同年八月中旬完工，重构三次，历经十二个版本，总命令方块数量2000-3000，更具体的内容请去本页下方链接查看，配合本原理讲解帖食用更佳。\n\n\n\n[bili=5840786]1[/bili]\n\n作品介绍:[TML|1.10.2]五子棋AI——EndRoad （版本1.10.2，暂不支持1.11快照）\n下页原理讲解目录\n\n\n目录\n一.从五子棋谈起\n二.待选点是怎样炼成的\n三.基础搜索\n四.深度搜索\n五.展望\n下页——从五子棋谈起\n\n从五子棋谈起\n  五子棋作为一种先手必胜的棋类，玩家群体十分广泛，在Minecraft中，五子棋也可谓最先被还原的棋类之一（甚至有红石五子棋）。然而，五子棋人工智能即AI的做法在很长一段时间里无人还原，直到1.9命令方块系统的更新，让它成为了可能。而评判一个五子棋程序的成功与否，最直观的方式便是看它落子反应时间与所谓智商的高低，在圈内有两个专业术语：NPS与Elo，分别量化的表达一个五子棋引擎在搜索局面效率上的水平和其棋力的水平。  由于游戏自身的限制（1秒只有20个游戏刻），经典的博弈算法显然不能直接照搬，而我的做法核心就在保证落子速度的同时尽可能提高智商，不妨也来和大家分享一下，抛砖引玉吧。\n下页——待选点是怎样炼成的\n\n\n待选点是怎样炼成的  脑补你在下五子棋的时候，有很多点是不需要考虑的，这些点走了以后，对己方还有对方的胜负基本不起到作用，也就是无意义的，那么为了节省计算量（在编程中是为了节省时间，而因为游戏有专门的应对策略，更多可以走的点并不会影响理论速度，只会拖慢你1gt的时间（即拉低TPS）），我们要对棋盘上的点进行取舍，不是每个空点都会被考虑是否需要落子。  那么，我们就需要一个定义，即：哪些点是值得被考虑的（这些点便被称为\"待选点\"），哪些点又不值得被考虑，各大思路五花八门，快速落子版和Beta版采用的是两种有些类似但不完全相同的思路。\n\n\n\n\n如图，在我的作品中，一个点周围八个方向的四个点被认为是值得考虑的，而极速版与Beta版的区别在于——极速版只把黑白双方最近两手类似这样的扩展情况所扩展出来的点作为待选点，而Beta版则是将所有点进行这样的延伸，延伸到的空点都可能被选中。这样各有优劣，如果采取前者的方式，那么也会有可能漏掉一些有用的点，举个例子，如果白棋也就是电脑不断冲四（一头被黑棋堵住，另外一头连成了4个），这时黑棋就要不断去堵，当两回合过后，如果前几次冲四的延伸点离黑棋有威胁的点（双头都没被白棋堵住的三个黑棋）很远，那么系统就会认为挡住黑棋的那两个点是无意义的，不作为待选，自然我的AI就败北了。而Beta版因为每个点都这样延伸，就不会出现问题，但是由于待选点增多，系统就会比极速版卡一些，有利有弊吧。\n\n那么，下面来看看两种做法如何实现吧，首先是只考虑最近两回合的：\n首先在屏幕的后面，在玩家落子的位置会生成一个名叫Black的AEC（AreaEffectCloud，中文名药水云，作实体标记用），这样就能以这个点为中心进行延伸了。\n/summon AreaEffectCloud ~ ~ ~2 {Duration:2100000000,CustomName:\"Black\"}复制代码然后是类似下面指令的格式，以玩家落子为中心刷出像上面第一个图排列的AEC作为待选：\n/execute @e[type=AreaEffectCloud,name=Black] ~ ~ ~ /summon AreaEffectCloud ~1 ~ ~ {Duration:2100000000,CustomName:\"Indeterminate\",Tags:[\"Not\"]}复制代码全部指令就不贴出来了，效果大家也看见了hh。\n接下来对目前刷出来的所有待选点+1s\n/scoreboard players add @e[name=Indeterminate,type=AreaEffectCloud] Repeat 1复制代码然后就是对上个回合我方（白）的落子进行类似延伸\n/execute @e[type=AreaEffectCloud,name=White] ~ ~ ~ /summon AreaEffectCloud ~1 ~ ~ {Duration:2100000000,CustomName:\"Indeterminate\",Tags:[\"Not\"]}复制代码生成完以后白棋的落子就没用了，kill掉\n/kill @e[name=White,type=AreaEffectCloud]复制代码再次全体+1s，你会发现，之前黑棋为主刷出待选点的Repeat的分数都是2，而这次白棋为主的分数都是1，这主要是方便当待选点重叠的时候（多个点都延伸到这个空位上了）kill其中的一种点，避免重复。\n/scoreboard players add @e[name=Indeterminate,type=AreaEffectCloud] Repeat 1复制代码现在就开始以黑棋延伸出的待选点为中心进行探测，把以白色为中心延伸出的那些又与自己重叠在一格的统统消灭\n/execute @e[score_Repeat_min=2,score_Repeat=2] ~ ~ ~ /kill @e[type=AreaEffectCloud,name=Indeterminate,dx=0,dy=0,dz=0,score_Repeat_min=1,score_Repeat=1]复制代码然后本回合的待选点生成就结束了，把场上幸存的新待选点（意味着这些点是这回合新刷出的一些有意义的点）统统变成0\n/scoreboard players set @e[score_Repeat_min=1,score_Repeat=2] Repeat 0复制代码把上回合和再上个回合受到牵连的点打回原形\n/scoreboard players remove @e[score_Repeat_min=3,score_Repeat=4] Repeat 2复制代码到这里，大家不难看出，目前场上剩下3种点，他们分成三批，Repeat的分数分别是0,1,2。也就是说，这就是当前回合的，上两个回合剩下来待选点的大杂烩。里面肯定有一些当前回合与前一回合重复的点，也有一些新刷出的点本来就有子，得处理一下。\n先给本来就有棋子的地方的待选点赐死：\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ detect ~ ~ ~ wool 0 /kill @e[c=1,type=AreaEffectCloud,name=Indeterminate]\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ detect ~ ~ ~ wool 15 /kill @e[c=1,type=AreaEffectCloud,name=Indeterminate]复制代码然后对那些跑出棋盘的待选点赐死（在棋盘范围内的棋子背后都有末地石，以此为标准），这时用到tag=Not的反选：\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ detect ~ ~ ~-1 end_stone 0 /scoreboard players tag @e[c=1,type=AreaEffectCloud,name=Indeterminate] remove Not\n/kill @e[type=AreaEffectCloud,name=Indeterminate,tag=Not]\n/scoreboard players tag @e[type=AreaEffectCloud,name=Indeterminate] add Not复制代码然后所有待选点全部加一岁，代表他们当前的境况\n/scoreboard players add @e[name=Indeterminate,type=AreaEffectCloud] Repeat 1复制代码Repeat=3的自然被抛弃了，只选取两回合的点\n/kill @e[score_Repeat_min=3]复制代码那么，场上只剩下本次刷出的待选点和上个回合的待选点了，把互相重复的kill掉\n/execute @e[score_Repeat_min=1,score_Repeat=1] ~ ~ ~ /kill @e[score_Repeat_min=2,score_Repeat=2,dx=0,dy=0,dz=0]复制代码到这为止，本局系统要考虑的待选点已经全部生成完毕。不难看出，Beta只是取消了局面的限制，大致代码类似，故不放出了。\n\n下页——基础搜索\n\n基础搜索\n\n那么，我们对选出的这些待选点得排个次序，名次越高的就意味着这个点越重要，这里所谓的“重要”程度的影响因素有两个：\n1.这个点对我方有什么好处\n2.这个点对我方有什么威胁\n好处越大，越重要，同样，威胁越大，越重要。但是在双方连子的情况相同时，当然我我方利益优先（黑棋有四个连在一起，我方也有四个连着，又轮到我走，当然会选择直接获胜而不是堵对方）\n那么，如何将这里所谓的好坏量化呢？思路还是与待选点的选择有点类似——评判与这个点有关的点的排布情况\n从规则入手，五子棋之所以谓之五子棋，游戏目标就是自己连成五子，那么，棋盘上所有连成五子的情况理论上都要考虑一遍，然后才能判断哪个点更值得去落下。但是，棋盘上包含同一个点的连续五点的数量是有限的，我们只需对这些情况的连续五点进行搜索即可，为了方便表达，棋盘上连续五个点组成的一条又叫“五元组”。\n\n\n例如这就是个五元组（中间白色玻璃是空气，为标注醒目放置）。那么，我这个AI的单个待选点的评分就是由包含这个点的所有五元组里面棋子的排布情况决定的，例如上图，这个五元组里面就有三个黑子，我只需要给定各种情况的五元组对应一定的“注意分数”（术语叫“权重”），将所有关于这个点五元组的“注意分数”相加，就得到了这个点的“注意分数”（术语叫“估值”），值得一提的是，AlphaGO（虽然是围棋，但也有估值）的卷积神经网络就是电脑自我调整权重的一个系统。也就是说，这个权重是根据你对五子棋的理解给的，举个例子，你认为三个黑棋很危险，给了1000分，而四个白棋更重要（五元组内有四个白棋证明你把这个空位填上，这个五元组就有五个连着白色了，也就是你胜利），给了10000分，这些分数的选择就是你对五子棋局势的理解，本AI是从一篇论文里选择的权重，仅供参考：\n五元组内有四个黑，无白子——100000分\n五元组内有三个黑，无白子——1800分\n五元组内有两个黑，无白子——400分\n五元组内有一个黑，无白子——15分\n五元组内有四个白，无黑子——800000分\n五元组内有三个白，无黑子——15000分\n五元组内有两个白，无黑子——800分\n五元组内有一个白，无黑子——35分\n五元组内没有任何棋子——7分\n五元组内有黑子和白子——0分\n所有情况若包括边界（屏障）——0分\n那么问题来了，如何在游戏中统计这些五元组情况分别有多少呢？我的算法是——将关于每个待选点的每个五元组分别交给一个AEC来扫描，扫描出来的结果直接转换成分数，再把这个分数分别导入这些AEC所负责的五元组的主人——那些待选点，并且这一过程同时进行，每个AEC干自己的活，找自己的五元组，找这个五元组对应的待选点，都不互相冲突，所以，统计一个局面所有待选点的得分所需时间只相当于探测一个待选点的一个五元组的时间，大概是一秒。这也就是Minecraft快于编程的地方——编程需要一个个五元组依次搜寻（虽然编程有数组能大大增加效率），而我并不需要，无论多少个待选点，多少个五元组，都是一样的时间（除非卡顿降低TPS，这里指的是理论时间），归功于MC强大的——@e。\n但是有个问题，我们知道，包含棋盘上一个固定的点的五元组一共有20个，分别分布于横纵方向和两个斜方向，一个方向一共有五个，分成四组。那么，虽然可以通过对每个五元组给一个独立的执行编号（即AEC名字的不同代表了相对于这个待选点不同位置的五元组）来对单个待选点的所有五元组进行区分，不会混乱，但是如果想要让所有待选点同时执行探测而不至于混乱（如A待选点的1号五元组怎样才不会与B待选点的1号五元组混淆），而且是待选点数量不确定的情况下（虽然也可以穷举225种情况（15*15棋盘）），刚才的方法就行不通了。我采取的方式是通过每个探测五元组的AEC在探测完它负责的五元组时与本待选点的相对位置来选中的，举个例子：\n\n\n\n现在以红色玻璃那个待选点为例，它的一号五元组就是普通玻璃的那五个，从这个点的~ ~-4 ~到这个待选点本身的位置（我这里会再往上TP一格但不会执行指令，所以相对位置就是~ ~-1 ~），那么就知道，所有待选点的一号五元组最后的位置就是待选点的位置（从~ ~-4 ~ 开始往上探测），这样大家都能各司其职而不乱套了。还是以一号五元组为例，看看具体的实现方式，其他方法类似就不多啰嗦了：\n\n\n五元组编号分别是从Testfor1-Testfor20，由于要先对所有本待选点负责的五元组全部重置分数而不影响别的待选点，先一致在待选点位置刷出，重置完分数以后再分配到岗位上\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ /summon AreaEffectCloud ~ ~ ~ {Duration:2100000000,CustomName:\"Testfor\"}复制代码这里就是设定初始分数为0，Barrier（棋盘边界方块）被纳入探测是因为带有边界的五元组落子是没有意义的（不可能成五）\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ /scoreboard players set @e[type=AreaEffectCloud,dx=0,dy=0,dz=0] Black 0\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ /scoreboard players set @e[type=AreaEffectCloud,dx=0,dy=0,dz=0] White 0\n/execute @e[type=AreaEffectCloud,name=Indeterminate] ~ ~ ~ /scoreboard players set @e[type=AreaEffectCloud,dx=0,dy=0,dz=0] Barrier 0复制代码那么传送到自己的岗位上：距离原待选点下方四格的位置\n/tp @e[type=AreaEffectCloud,name=Testfor] ~ ~-4 ~复制代码然后每个待选点就往自己负责的方向TP五次，对它所负责的五元组的棋子数量情况输入到统计棋子的计分板里：\n下面这些命令都是会被执行五次的：\n这些就是对当前AEC所在的位置进行扫描\n/execute @e[type=AreaEffectCloud,name=Testfor] ~ ~ ~ detect ~ ~ ~ wool 0 /scoreboard players add @e[type=AreaEffectCloud,name=Testfor,c=1,r=0] White 1复制代码接着往自己的方向TP一格（一号五元组是往上）：\n/tp @e[type=AreaEffectCloud,name=Testfor] ~ ~1 ~复制代码上面这些命令执行五次以后，探测任务就告一段落，接下来就是根据之前给出的评分表对不同棋子数量给个分，分数都在上面，这里就直接贴命令了：\n/execute @e[type=AreaEffectCloud,name=Testfor,score_Black_min=4,score_Black=4,score_White=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 100000\n/execute @e[type=AreaEffectCloud,name=Testfor,score_Black_min=3,score_Black=3,score_White=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 1800\n/execute @e[type=AreaEffectCloud,name=Testfor,score_Black_min=2,score_Black=2,score_White=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 400\n/execute @e[type=AreaEffectCloud,name=Testfor,score_Black_min=1,score_Black=1,score_White=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 15\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White_min=1,score_White=1,score_Black=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 35\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White_min=2,score_White=2,score_Black=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 800\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White_min=3,score_White=3,score_Black=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 15000\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White_min=4,score_White=4,score_Black=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 800000\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White_min=1,score_Black_min=1,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 0\n/execute @e[type=AreaEffectCloud,name=Testfor,score_White=0,score_Black=0,score_Barrier=0] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 7\n/execute @e[type=AreaEffectCloud,name=Testfor,score_Barrier_min=1] ~ ~-1 ~ /scoreboard players add @e[r=0,type=AreaEffectCloud,name=Indeterminate,c=1] Score 0\n/kill @e[type=AreaEffectCloud,name=Testfor]\n......复制代码当所有分数都已经输入到对应点的时候，就可以对这些点排个次序了，分数越高就意味着这个点越值得走。\n这里说一下，极速版就是取这些点分数最高的那个落子，而Beta版还需要对这些分数的第一名和第二名进行深度搜索，原理类似，就贴极速版的命令了。\n其实就是用了计分板的>，与帖子核心内容没啥大关系，就不解释了。\n/summon AreaEffectCloud ~ ~ ~ {Duration:2100000000,CustomName:\"Holder\"}[indent]/scoreboard players operation @e[name=Holder,type=AreaEffectCloud,c=1] Score > @e[name=Indeterminate,type=AreaEffectCloud] Score[/indent]/scoreboard players operation @e[type=AreaEffectCloud,name=Indeterminate] Score -= @e[type=AreaEffectCloud,name=Holder,c=1] Score复制代码这时，Score分数为0的待选点就是分数最大的点，就在这个点落子（极速版）。\n\n下页——深度搜索\n\n\n\n深度搜索\n所谓深度搜索，其实就是对基础搜索选出的点进行模拟推演一遍，然后对推演出的局面进行分析到底孰优孰劣再决定选谁落子。我这里采取的方式是模拟白棋落子之后黑棋落子之后的局面情况，说白了就是预判一回合的意思，没那么深奥。就以基础搜索的图为例：\n\n在这种局面下，白棋最优和次优的点分别是这两个点\n\n\n\n\n那么系统就会模拟白棋落子在这两个点，然后又模拟黑棋会如何应对，对黑棋应招后的局面进行分析。值得一提的是，黑棋应对的棋形权重就是刚才的那个权重，只是把黑白倒置而已，例如AI执白的时候四个黑是10w分，四个白是80w分，现在AI（模拟）执黑，四个黑就是80w分，四个白就是10w分。方法就是基础搜索的方法，这里不再赘述，就说一下黑棋落子之后我是如何对当前局面（推演一回合后的局面）做出评价的。\n\n\n\n\n假设白棋走了左边堵并且自己连成三个，这时黑棋选择连成四个吓唬一下，我们就会对以白棋落子为中心和黑棋应着为中心的点做米字形发散（参见待选点是如何炼成的），但是我这次是直接放置红石块在后面的一块刷出屏幕上，就省了去重的麻烦了。\n\n但是要注意的是，这次生成的点是不会因为这个点有方块而杀死自己的，因为我们是局面评价，如果杀死有棋子的点会出现这样尴尬的情况：\n\n\n黑棋走黑色玻璃获胜，可米字格探测却全部被杀死（因为都有方块），就探测不到如此劣势。\n然后就是对这些米字形的点给一个分数，但是与之前不同的是，这次给的是相对于电脑的优（劣）势分数，如果这个分数是正，就代表电脑在这个点上有优势，如果是负，电脑自然有劣势。其实就是把前面的评分表进行微调，在这就只列出调整的部分：\n五元组内有五个白，无黑子——8000000分\n五元组内有五个黑，无白子——4000000分\n五元组内有三个白，无黑子——2400分\n然后对所有点的相对优势分数相加就得到这个局面的相对优势分数，选相对优势分数大的那个局面的白棋走法落子（或者说相对劣势小），有兴趣的朋友不妨算一下，下面这种局面的分数和之前自己连成三个的局面哪个分数大，答案不言自明。\n\n\n那么，就可以落子了。\n下页——展望\n\n\n\n展望\n其实，五子棋AI依然有很大的改进空间，在这里举出一个可行的方案——对同样棋子个数时不同棋子的排布情况优化评分，比如\n\n上下两种棋子虽然都是三个，但是评分仍然是可以优化的，针对五元组内棋子的顺序，你可以在五次执行中间再加入一个储存位置的计分板，然后综合判定，虽然这样会比较麻烦，但是智商无疑是能得到很好提升的，穷举狂不妨试试（笑\n人工智能特别是下棋，的确是一个很玄学的东西，没有绝对好和绝对坏的算法，但是真正属于你的是——搭建作品时的那份感动，测试时的紧张与成功的喜悦，这真的只是个载体。\n\n\n末路上的烟火\n如此光彩夺目\n\n\n\n\n存档下载地址：http://pan.baidu.com/s/1geCNHKJ\n最后祝The Minecraft Lover\n一周年快乐[bili=5838457]1[/bili]\n\n\n\n\n来自群组:The Minecraft Lover\n",
+    "replies": [
+        {
+            "author": "MojeDes",
+            "timestamp": 1471439760,
+            "txt_content": "原理终于出来了，支持！"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1471440360,
+            "txt_content": "见过最详细的原理讲解"
+        },
+        {
+            "author": "史蒂夫勇者",
+            "timestamp": 1471440660,
+            "txt_content": "BGM有些泛黄，说明年代很久远........."
+        },
+        {
+            "author": "DawnFz",
+            "timestamp": 1471441020,
+            "txt_content": "大神！~~厉害！~~BGM感人！~~"
+        },
+        {
+            "author": "1041159637",
+            "timestamp": 1471443120,
+            "txt_content": "孤注一掷啊……乾坤这是拼了老命了233\n讲的很通俗，适合我们这种小白理解\n（另外……膜也得按照基本法）"
+        },
+        {
+            "author": "tineseack_bk",
+            "timestamp": 1471446360,
+            "txt_content": "末路上的烟火，仍然如此光彩夺目！"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1471447380,
+            "txt_content": " 本帖最后由 乾.坤 于 2016-8-18 09:18 编辑 \n\n@贰逼  申请精华 @Zero_Exact @jianghr"
+        },
+        {
+            "author": "Mcen314",
+            "timestamp": 1471447380,
+            "txt_content": "happy birthday to TML!"
+        },
+        {
+            "author": "MojeDes",
+            "timestamp": 1471478160,
+            "txt_content": " 本帖最后由 MojeDes 于 2016-8-18 09:20 编辑 \n乾.坤 发表于 2016-8-17 23:23\n@jianghr @Zero_Exact @贰逼 \n申请精华\n@贰逼 @jianghr @Zero_Exact 乾坤这艾特都没艾特好。"
+        },
+        {
+            "author": "回调然后他",
+            "timestamp": 1471484340,
+            "txt_content": "末路上的烟火\n\n如此光彩夺目！"
+        },
+        {
+            "author": "七海八千代",
+            "timestamp": 1471484520,
+            "txt_content": "有原理讲解了？"
+        },
+        {
+            "author": "dwch",
+            "timestamp": 1471497780,
+            "txt_content": "不懂但是为你+1s"
+        },
+        {
+            "author": "dwch",
+            "timestamp": 1471498560,
+            "txt_content": "MojeDes 发表于 2016-8-18 07:56\n@贰逼 @jianghr @Zero_Exact 乾坤这艾特都没艾特好。\n@jianghr @Zero_Exact \n你好像也没艾特好"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1471504560,
+            "txt_content": " 本帖最后由 lzs1234 于 2016-8-18 15:26 编辑 \n\n我真是受不了你们楼上几个了@Zero_Exact @MojeDes @乾.坤 @略懂一点 \n召唤一下TML成员\n很不错，原理终于出来了，恩，25号以前\n那两个大坑什么时候好那两个作品什么时候发\nEdit:没记错应该是三个？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1471509120,
+            "txt_content": "看完了 感觉很有趣"
+        },
+        {
+            "author": "Sao_N",
+            "timestamp": 1471686060,
+            "txt_content": "最良心的讲解"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1471693260,
+            "txt_content": "原理很详细的说，慢慢看ing"
+        },
+        {
+            "author": "WD_水前",
+            "timestamp": 1471729860,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471748760,
+            "txt_content": "不过第7页比较有趣\n下面那种情况不堵没关系的，但上面不堵会挂"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1471754100,
+            "txt_content": "MODlover 发表于 2016-8-21 11:06\n不过第7页比较有趣\n下面那种情况不堵没关系的，但上面不堵会挂\n所以给出了细化评分的建议"
+        },
+        {
+            "author": "MojeDes",
+            "timestamp": 1471756260,
+            "txt_content": "@贰逼 为什么又撤精了？"
+        },
+        {
+            "author": "@小羽毛",
+            "timestamp": 1471767420,
+            "txt_content": "虽然听不懂，但感觉好腻害的样子"
+        },
+        {
+            "author": "Java_command",
+            "timestamp": 1471806900,
+            "txt_content": "收到alpha启发233\n我正在准备改一改我的围棋（不是ai）"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471829160,
+            "txt_content": "本主题由 贰逼 于 前天 22:30 解除精华\n竟然解除精华了？这不科学"
+        },
+        {
+            "author": "请无视此ID",
+            "timestamp": 1471843260,
+            "txt_content": "记得我五子棋以前可以完虐路人的...电脑还是有点困难"
+        },
+        {
+            "author": "34105401",
+            "timestamp": 1471855620,
+            "txt_content": "撤精搞毛啊woc\n肯定是被某人PY交易掉了"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1471856220,
+            "txt_content": "@贰逼 能不能有个精华呢？乙烯的回复是有曝光度补偿，不说暂时没看到，奖励也没有精华好吧"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1472467980,
+            "txt_content": "可以，不过为何撤精？\n这果然是个看脸的世界（或者是说前者更早发布？）"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1495899600,
+            "txt_content": "为什么解除精华？"
+        }
+    ]
+}

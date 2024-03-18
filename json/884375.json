@@ -1,0 +1,59 @@
+{
+    "title": "1.14.3 启动后崩溃",
+    "author": "SPGoding",
+    "replyCount": 10,
+    "timestamp": 1562851680,
+    "txt_content": " 本帖最后由 SPGoding 于 2019-7-17 15:00 编辑 \n\n系统信息\nhttps://pastebin.ubuntu.com/p/8r5WnWZRXm/\n\n官方启动器 log\nhttps://pastebin.ubuntu.com/p/YtKX6P5Q3X/\n\nhs_err_pid1416.log\nhttps://pastebin.ubuntu.com/p/hPfhHDVgyd/\n\n尝试过的解决方案\nProblematic frame 中展示的是 ig9icd64.dll，搜了一下：https://bugs.mojang.com/browse/MC-94900，是 Intel 驱动的问题。\n\n我首先进行了系统更新：\n\n\n系统更新完仍然没有解决，我来到 Intel 官网，下载驱动，它表明不兼容：\n\n\n\n我来到 Microsoft Surface 的官网，下载适用于 Pro 6 的驱动包，它说我电脑里已经装了更新的了：\n\n\n现在的境遇是：\n1. 我更新到了最新的 Windows 10 1903 系统；\n2. Intel 官网说我驱动不是最新的，但它提供的「最新」驱动与我电脑不兼容；\n3. Microsoft 官网提供的「最新」驱动比我电脑上现在装的旧。\n4. 我仍然打开 MC 1.14.3 就崩溃。崩溃的时间节点是，Mojang Logo 显示完，标题画面出来的那一刻。\n5. 经测试，1.13.2 也会崩溃，1.12.2 则不会。\n\n感谢。",
+    "replies": [
+        {
+            "author": "gooding300",
+            "timestamp": 1562851680,
+            "txt_content": " 本帖最后由 gooding300 于 2019-7-13 21:31 编辑 \n\n谢邀，人在蒙古，刚下航母（走错片场了）\n\n问题分析\n崩溃是什么时候发生的？\n我们可以在VM崩溃报告中阅读到崩溃发生前的Java调用栈：\nJava frames: (J=compiled Java code, j=interpreted, Vv=VM code)\nJ 5591  org.lwjgl.opengl.GL11C.glDrawArrays(III)V (0 bytes) @ 0x00000000035862c9 [0x0000000003586280+0x49]\nj  org.lwjgl.opengl.GL11.glDrawArrays(III)V+3\nj  com.mojang.blaze3d.platform.GlStateManager.drawArrays(III)V+3\nj  cuq.a(Lcup;)V+238\nJ 5589 C1 cus.b()V (19 bytes) @ 0x0000000003586a5c [0x0000000003586980+0xdc]\nj  cwg.b(Ljava/lang/String;FFIZ)F+440\nj  cwg.a(Ljava/lang/String;FFIZ)I+46\nj  cwg.a(Ljava/lang/String;FFI)I+10\nj  cwi.drawString(Lcwg;Ljava/lang/String;III)V+9\nj  dab.render(IIF)V+702\nJ 6620 C1 dko.a(FJZ)V (755 bytes) @ 0x00000000041ce7ec [0x00000000041cdf40+0x8ac]\nJ 5732 C1 cvo.e(Z)V (916 bytes) @ 0x000000000344f40c [0x000000000344cb80+0x288c]\nj  cvo.b()V+85\nj  net.minecraft.client.main.Main.main([Ljava/lang/String;)V+1168\nv  ~StubRoutines::call_stub\n通过查询相关资料可得，dab是net/minecraft/client/gui/screen/MainMenuScreen的notch全混淆名，也就是说，是在渲染标题画面文字的过程中发生的崩溃。崩溃的时间节点是，Mojang Logo 显示完，标题画面出来的那一刻。\n楼主的观察和描述非常正确，值得肯定。\n在哪里发生的崩溃？\n我们在Java的调用栈顶端可以看到以下内容：J 5591  org.lwjgl.opengl.GL11C.glDrawArrays(III)V (0 bytes) @ 0x00000000035862c9 [0x0000000003586280+0x49]\nglDrawArrays是一个Native方法，用于渲染基元数组，我们将关注点转移到Native调用栈：Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)\nC  [ig9icd64.dll+0x14799b]\nC  [ig9icd64.dll+0x13975e]\nC  [ig9icd64.dll+0x141553]\nC  [ig9icd64.dll+0x51209b]\nC  [ig9icd64.dll+0x1406b8]\nC  [ig9icd64.dll+0x1dedfd]\nC  [ig9icd64.dll+0x1dcd55]\nC  [ig9icd64.dll+0x39f14c]\nC  [ig9icd64.dll+0x951412]\nC  0x000000000358634f\n通过查阅资料可得，ig9icd64.dll是intel核显的一部分，毫无疑问是核显驱动出了问题。\n解决方案\n升级显卡驱动\n毫无疑问，这是最靠谱也是最方便的方法。\nThe Driver Being Installed Is Not Validated For This Computer.\n这代表着设备厂商也就是微软的策略是阻止安装来自微软以外的驱动程序，即便是来自intel的驱动也不例外。\n但是，这个限制是可以绕开的，只需要手动更新显卡驱动即可。\n下载核显驱动\n驱动程序可以在intel官网上下载，请注意下载驱动程序的zip包。\n\n下载完毕后，将其解压到任意文件夹。\n在设备管理器中安装核显驱动\n右键左下角Windows徽标（开始菜单），选择“设备管理器”。\n在打开的设备管理器中找到核显，楼主的i7-8650U理论上应该是“Intel(R) UHD Graphics 620”。\n\n右键这一设备，选择“更新驱动程序”，然后点击“浏览我的计算机以查找驱动程序软件”、“让我从计算机的可用驱动程序列表中选取”。\n在新打开的页面中点击“从磁盘安装”、“浏览”按钮，打开解压后的文件夹、打开“Graphics”文件夹、选择“iigd_dch.inf”，然后“打开”、“确定”、“下一步”。\n\n此时，会显示“正在安装驱动程序”，更新过程中可能会有短时间的黑屏，稍等片刻后可以看到“Windows已成功更新你的驱动程序”，表示驱动程序已更新成功。\n\n随后，重新启动计算机即可完成更新。\n使用独立显卡\n经过查阅资料，Surface Pro 6未配备独立显卡，亦未配备Thunderbolt 3接口用来外接独立显卡，此方案无效。\n\n最后，很抱歉这么迟才来回答这个问题，过程中查了不少资料，了解到了Surface的与众不同，很多解决方案都不能适用于Surface，手动更新驱动应该是目前最靠谱的解决方案了。\n"
+        },
+        {
+            "author": "tamashii",
+            "timestamp": 1562894100,
+            "txt_content": "有可能是启动器有问题，换个启动器看看"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1563003420,
+            "txt_content": "邀请 @gooding300 @ItIsEnderman 二位 dalaoes 答题（雾"
+        },
+        {
+            "author": "苍白的豆子",
+            "timestamp": 1563004440,
+            "txt_content": "66666666666666666"
+        },
+        {
+            "author": "ItIsEnderman",
+            "timestamp": 1563006540,
+            "txt_content": "不要乱更新显卡驱动或者系统，目前我能看到的不同有：\n\n其他人包括我的报错中有一段是：\nEvent: 374.485 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14a64478) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.486 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14a64908) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.486 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14a64d98) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.486 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14a65228) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.486 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14a656b8) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.537 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14b8fe58) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.537 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14b902b8) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.537 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14b921b0) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.537 Thread 0x00cdf000 Exception <a 'java/io/IOException'> (0x14b927f0) thrown at [C:\\...\\jni.cpp, line 709]\nEvent: 374.552 Thread 0x00cdf000 Exception <a 'java/lang/ArrayIndexOutOfBoundsException'> (0x14c8b920) thrown at [C:\\...\\jni.cpp, line 605]复制代码\n大概就是这个格式吧，因为Java版本不同。一般是无视可过，或者更新显卡驱动能过，或者集显换独显也能过。\n而您的呢，同一位置的内容却成了这个：\nEvent: 16.911 Thread 0x0000000021afa000 Exception <a 'java/lang/IncompatibleClassChangeError': Found class java.lang.Object, but interface was expected> (0x00000000bdd82510) thrown at [...]\nEvent: 16.914 Thread 0x0000000020376000 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.lambda$comparing$77a9974f$1(Ljava/util/function/Function;Ljava/lang/Object;Ljava/lang/Object;)I> (0x00000000ba353430) thrown at [...]\nEvent: 16.915 Thread 0x0000000020376000 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.lambda$thenComparing$36697e65$1(Ljava/util/Comparator;Ljava/lang/Object;Ljava/lang/Object;)I> (0x00000000ba35d840) thrown at [...]\nEvent: 17.744 Thread 0x0000000021e43000 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.b(Lbvp;)Ljava/util/function/Predicate;> (0x00000000b00ed268) thrown at [...]\nEvent: 17.744 Thread 0x0000000021e43000 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.a(Lbvp;)Ljava/util/function/Predicate;> (0x00000000b00ef3e0) thrown at [...]\nEvent: 20.330 Thread 0x0000000021afa000 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.lambda$maxBy$1(Ljava/util/Comparator;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;> (0x00000000bd3c2d50) thrown at [...]\nEvent: 21.614 Thread 0x0000000003163800 Exception <a 'java/lang/NoSuchMethodError': java.lang.Object.b(Lbvo;)Z> (0x00000000eb31dd18) thrown at [...]\nEvent: 22.272 Thread 0x0000000003163800 Implicit null exception at 0x00000000041cbc28 to 0x00000000041cbca3\n复制代码\n\n根据所描述症状和lwjgl的差异，我觉得更像是Win10又在背后自动安装更新。新版本组件还真不一定支持新版本游戏。（Mojang继承并发扬微软修bug传统）\n显卡驱动甩不开锅的，因为Problematic frame指着显卡驱动核心dll说话。\n\n这个问题真的是有点罕见，可能只能分析至此了。但是JVM报错指向显卡驱动时需谨慎操作，当多个方法并存时，更改驱动或系统基本都是下策。"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1563023880,
+            "txt_content": "gooding300 发表于 2019-7-13 20:59\n谢邀，人在蒙古，刚下航母（走错片场了）\n\n问题分析\n所以说一开始买什么苏菲，ROG多好啊（"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1563025860,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-7-13 22:04 编辑 \ngooding300 发表于 2019-7-13 20:59\n谢邀，人在蒙古，刚下航母（走错片场了）\n\n问题分析\n感谢 dalao 抽空回复\n\n~~~~~分割线~~~~~\n\n\n\n\n就很 sad：https://pastebin.ubuntu.com/p/yvjJ6xJzSj/\n\n我还有救嘛…\n\n悬赏已再次翻倍，炒到 2048 也不是没有可能，我混论坛这么多年攒的金粒就是为了这一刻的\n好的，你不差金粒，不涨了【跑\n\n"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1563026460,
+            "txt_content": " 本帖最后由 gooding300 于 2019-7-13 23:02 编辑 \nSPGoding 发表于 2019-7-13 21:51\n感谢 dalao 抽空回复\n\n~~~~~分割线~~~~~\n已经按照教程进行手动更新？\n我差这点金粒吗（跑\n金粒不嫌多啊 嘤嘤嘤\n\n@a1294790523 诚邀大佬解答~\n"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1563026700,
+            "txt_content": " 本帖最后由 gooding300 于 2019-7-13 22:06 编辑 \n\n突然注意到了Insider Preview……\n请退出这个计划，如果你还想正常玩游戏的话\n18936已经是下一个release了，驱动程序根本就不适配"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1563030900,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-7-14 01:04 编辑 \n\n结语\n\n删除掉某个第三方资源包后，问题已解决。\n\n\n该资源包中涉及到 TTF 字体文件，由于未知原因引起此崩溃。已将该资源包发给几位 dalaoes 把玩。\n@gooding300 的回答虽未解决本人问题，但其为核显驱动相关问题提供了一般性的解决方案，极具参考价值，因此本人给予其最佳答案。\n\n\n据 @a1294790523 测试，该资源包仅在 I 卡驱动下会引起如此的崩溃。\n该漏洞已被汇报至 Bug Tracker：https://bugs.mojang.com/browse/MC-156672"
+        }
+    ]
+}

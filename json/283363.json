@@ -1,0 +1,94 @@
+{
+    "title": "MC1.8：指令方块实现原版的Watch Dogs中的Profiler （第一版，不精确）",
+    "author": "PotatoMaster101",
+    "replyCount": 17,
+    "timestamp": 1402655460,
+    "txt_content": " 本帖最后由 PotatoMaster101 于 2014-7-19 10:12 编辑 \n\n大家好。今天花了点时间仿造了一个MC中的Profiler。这个灵感来自Watch Dogs这款游戏。\n\n如果大家不知道Watch Dogs是什么，那是Ubisoft出的最新的游戏。这个游戏映像了如今的黑客世界（Hack）。游戏里，主角有一个智能手机叫“Profiler”，这个手机无比强大，走在大街上可以扫描行人，然后可以看出那个行人的名字，收入，信息等等。其他NB的属性就是“Hack”功能，也就是入侵。可以引爆发电机，入侵摄像头，引爆敌人手雷等等，反正就是神器中的神器。\n\n于是本人在MC原版中仿造出了这个Profiler。但是本人并没有加入任何“Hack”功能，就加入了扫描功能。玩家用鼠标瞄准一个生物的附近后，对话框会说出是什么生物。这个目前很不精确，有待更多的修改。这里先感谢87玩家给的一点电路创意。\n\n-----------完美的分割线------------\n这个机器，主要是探测玩家看的目标。由于是个指令方块作品，所以核心还是指令方块高速脉冲。首先是要做一个探测玩家看的方位的积分板。这里本人建了一个叫“Rotation”的积分板，这个积分板只有1-4分，也就是4个方向：东南西北。因为只有4个方向，所以导致机器有点不精确，8个方向会精确点。这里使用的指令：\n/scoreboard objectives add Rotation dummy复制代码这条指令创建一个叫“Rotation”的积分板Objective。是dummy变量，所以无法被玩家调动。\n\n之后就是探测玩家的方位，一共4条指令：\n/scoreboard players set @a[rym=135,ry=-135] Rotation 1复制代码/scoreboard players set @a[ry=45,rym=-45] Rotation 2复制代码/scoreboard players set @a[ry=-45,rym=-135] Rotation 4复制代码/scoreboard players set @a[ry=134,rym=45] Rotation 3复制代码大家看到，这4条指令分辨探测玩家看的不同方位，并且给出输出。输出就是调节Rotation积分板的积分。积分分别是：\n1 - 北 North\n2 - 南 South\n3 - 西 West\n4 - 东 East\n\n这里就是所有的探测玩家方位系统。本人并未加入更多的方位，因为刚开始只是想看看真的能不能做出来。\n\n------[]步骤分割线[]-----\n\n之后就是探测玩家手上是否拿着这个Profiler智能手机，而且不限槽位什么。这个很简单，首先需要一个积分板，让系统探测和知道玩家手上有没有拿着Profiler：\n/scoreboard objectives add Item dummy复制代码这条指令就不多说了，加入“Item”积分板。之后就是探测部位，这里使用了10个指令方块，因为玩家有9个可选槽位，所以9个指令方块是专门控制玩家有没有拿着Profiler。第10个是清空。\n指令：\n/scoreboard players set @a Item 1 \n{SelectedItemSlot:0,Inventory:[{Slot:0b,id:\"minecraft:nether_star\",Damage:0s,tag:{display:{Name:\"Profiler\",Lore:[\"Tags any entity\"]}}}]}复制代码这是选中第一个物品的指令。这条指令探测是否有玩家槽位选中第一个，并且第一格槽位拥有这个“Profiler”，如果正确，那么会把“Item”积分板设置成一分。\n/scoreboard players set @a Item 1 \n{SelectedItemSlot:1,Inventory:[{Slot:1b,id:\"minecraft:nether_star\",Damage:0s,tag:{display:{Name:\"Profiler\",Lore:[\"Tags any entity\"]}}}]}复制代码这条指令和上面一样，就是所有的探测弄到了第二槽。之后有7条这样的指令，以此类推。\n\n最后一个清空，就是不停地把所有玩家的Item积分板重新换回0。这个指令不需要任何探测什么。\n/scoreboard players set @a Item 0复制代码\n最后就是顺序。这个很重要，由于清空未加入任何探测，所以一定要确保清空先激活，然后探测槽位才激活。否则反方向的话会导致探测失效。\n\n------[]步骤分割线[]----- \n\n之后就是第三个积分板：“MobScore”：\n/scoreboard objectives add MobScore dummy复制代码这个积分板主要就是探测目标用的。\n\n接下来就是对MobScore的处理。一共3个指令方块：2个控制一个清空。\n首先是清空，指令：\n/scoreboard players reset * MobScore复制代码清空在MobScore内的所有积分。这个清空要所有积分，因为MobScore是针对生物用的，并非玩家。\n之后就是控制：\n/scoreboard players set @e[type=Slime,name=Profiler] MobScore 1 \n{OnGround:1b}复制代码这条指令探测所有站在地上的史莱姆，也就是落地了的史莱姆，并且带有“Profiler”这个名字。探测成功就把该史莱姆的MobScore积分设置成1。\n不光是要探测史莱姆，史莱姆死后的史莱姆球掉落品也需要探测。具体是为什么帖子下面会慢慢地说。指令：\n/scoreboard players set @e[type=Item] MobScore 1 \n{Item:{id:\"minecraft:slime_ball\",Damage:0s},OnGround:1b}复制代码这条指令探测所有在地上的史莱姆球。探测成功就把该物品的MobScore积分设置1。\n\n------[]步骤分割线[]-----\n\n之后就是探测部分了。这个部分的设置是87同学想出的，因为前面的步骤只是探测玩家方位，玩家手拿物品。这个步骤和前面的落地史莱姆什么有关系。\n原理就是：玩家看的方位会不停的发射隐身史莱姆，之后就以探测史莱姆附近的生物运行。首先是发射史莱姆的指令，因为有4个方位，那就有是向4个方位发射不同角度的史莱姆。指令分别是：\n/execute @a[score_Item_min=1,score_Item=1,score_Rotation=1,score_Rotation_min=1] ~ ~ ~ summon Slime ~ ~1 ~ \n{ActiveEffects:[{Id:14,Amplifier:5,Duration:99,ShowParticles:0}],Size:0,Motion:[0.0,0.5,-1.5],CustomName:\"Profiler\"}复制代码/execute @a[score_Item_min=1,score_Item=1,score_Rotation=2,score_Rotation_min=2] ~ ~ ~ summon Slime ~ ~1 ~ \n{ActiveEffects:[{Id:14,Amplifier:5,Duration:99,ShowParticles:0}],Size:0,Motion:[0.0,0.5,1.5],CustomName:\"Profiler\"}复制代码/execute @a[score_Item_min=1,score_Item=1,score_Rotation=3,score_Rotation_min=3] ~ ~ ~ summon Slime ~ ~1 ~ \n{ActiveEffects:[{Id:14,Amplifier:5,Duration:99,ShowParticles:0}],Size:0,Motion:[-1.5,0.5,0.0],CustomName:\"Profiler\"}复制代码/execute @a[score_Item_min=1,score_Item=1,score_Rotation=4,score_Rotation_min=4] ~ ~ ~ summon Slime ~ ~1 ~ \n{ActiveEffects:[{Id:14,Amplifier:5,Duration:99,ShowParticles:0}],Size:0,Motion:[1.5,0.5,0.0],CustomName:\"Profiler\"}复制代码这4条指令分别探测玩家看的方位积分，然后给出输出，也就是向那个方位发射史莱姆。史莱姆发射距离都一样。\n\n------[]步骤分割线[]-----\n\n最后就是探测史莱姆附近的生物了。这个十分的简单。首先落地的史莱姆：\n/execute @e[score_MobScore_min=1,type=Slime,name=Profiler] ~ ~ ~ say @e[r=15,c=1,name=!Profiler,type=!Item]复制代码这条指令探测所有MobScore积分1的史莱姆（前面说过，也就是落地的。）。然后把附加r=15，c=1的生物说出来。而且史莱姆也不会说出自己和物品。因为如果包括探测史莱姆的话那就无法探测其他生物了，史莱姆的频率太快了。\n\n之后探测落地的物品：\n/execute @e[score_MobScore_min=1,type=Item] ~ ~ ~ say @e[r=15,c=1,type=!Item,name=!Profiler]复制代码有些玩家会问，探测物品又是为什么呢？因为有时玩家很高，史莱姆掉下去会摔死，导致探测失败。所以，即使史莱姆死了，他的掉落物也会在那里，可以继续探测。\n\n最后就是杀死所有的刷出史莱姆和史莱姆球。这个很简单，但是本人用的是/tp做的，因为/kill的话会有烟雾出现。具体就不多说了。\n/tp @e[type=Item,score_MobScore_min=1] ~ ~-999 ~复制代码/tp @e[type=Slime,score_MobScore_min=1] ~ ~-999 ~复制代码把所有史莱姆球或者”Profiler“史莱姆TP到虚空。注意：顺序一定要对，首先是说出生物，然后才/tp到虚空。\n\n百度云盘下载存档 注意：进了存档后请先按下”On“的指令方块按钮，开启机器，以防高速脉冲出错。\n\n这个机器的缺点就是：第一 - 会刷屏，因为是不停地探测，所以会不停地/say。 第二 - 不精确。因为只有4个方位。\n\n视频:\nhttp://v.youku.com/v_show/id_XNzQxMTQ2Mzcy.html\n\n===========END==========\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "RAY5DHao",
+            "timestamp": 1402655580,
+            "txt_content": "触瞎....估计还得研究一段时间才能看懂"
+        },
+        {
+            "author": "我的世界sun123",
+            "timestamp": 1402655640,
+            "txt_content": "CBL速度顶贴！"
+        },
+        {
+            "author": "791296745",
+            "timestamp": 1402656120,
+            "txt_content": "眼花缭乱啊      \n（就是看不懂）"
+        },
+        {
+            "author": "审奥不解释",
+            "timestamp": 1402656480,
+            "txt_content": "额。。。完全没玩过Watchdogs的撸过/gamemode 3\n——审奥菌开启围观模式"
+        },
+        {
+            "author": "捌柒",
+            "timestamp": 1402658220,
+            "txt_content": "没想到你还真的做了一个这么麻烦的东西=A="
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1402705800,
+            "txt_content": "我是刺客白！我是狗哥白！"
+        },
+        {
+            "author": "捌柒",
+            "timestamp": 1402706520,
+            "txt_content": "贰逼 发表于 2014-6-14 08:30\n我是刺客白！我是狗哥白！\n别水了贰逼=A=你正在处于禁言边缘"
+        },
+        {
+            "author": "qq307344058",
+            "timestamp": 1402708020,
+            "txt_content": "发现最近看门狗很火诶"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1402712220,
+            "txt_content": "ghyzhi10086 发表于 2014-6-14 08:42\n别水了贰逼=A=你正在处于禁言边缘\n我在发泄很有意♂义的东西"
+        },
+        {
+            "author": "香香的卤蛋",
+            "timestamp": 1404948120,
+            "txt_content": "审奥不解释 发表于 2014-6-13 18:48\n额。。。完全没玩过Watchdogs的撸过/gamemode 3\n——审奥菌开启围观模式\n= =你玩得起我去你家玩"
+        },
+        {
+            "author": "qxdnfsy",
+            "timestamp": 1404949260,
+            "txt_content": "不明觉厉！"
+        },
+        {
+            "author": "Seekers_05",
+            "timestamp": 1409315820,
+            "txt_content": "其他NB的属性就是“Hack”功能，也就是入侵。可以引爆发电机，入侵摄像头，引爆敌人手雷等等，反正就是神器中的神器。\n黑客帝国。。。"
+        },
+        {
+            "author": "LBL~",
+            "timestamp": 1409316000,
+            "txt_content": "相当的厉害！"
+        },
+        {
+            "author": "jhaiyan01",
+            "timestamp": 1411793100,
+            "txt_content": "籽岷介绍过看门狗模组的。"
+        },
+        {
+            "author": "xueqian",
+            "timestamp": 1411802760,
+            "txt_content": "黑进村民的手机什么的ww"
+        },
+        {
+            "author": "小宇V5",
+            "timestamp": 1412643660,
+            "txt_content": "为何我看到了PM101。。。"
+        },
+        {
+            "author": "小宇V5",
+            "timestamp": 1412643660,
+            "txt_content": "为何我看到了PM101。。。\n"
+        }
+    ]
+}

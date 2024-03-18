@@ -1,0 +1,54 @@
+{
+    "title": "[1.10.2]创建自定义的方块模型（扩展BlockState）出错",
+    "author": "xz2311196368",
+    "replyCount": 9,
+    "timestamp": 1508221680,
+    "txt_content": "参照mcjty的教程：这个崩溃日志：日志\n全部代码：GitHub\n目的在于动态渲染贴图，类似EIO电容库能在每个面显示能量收发状态的那种。\n出错可能是模型构建出问题了，如果身上或者世界没这个方块就不会崩溃。一旦开始渲染物品就崩溃。\n错误可能在这几处：\n1、教程只使用了一个贴图，而我使用了两个：代码\npublic static final ModelResourceLocation POWER_BLOCK_BAKED_MODEL = new ModelResourceLocation(\n                        Info.MODID + \":powerblock\");\n\n        private TextureAtlasSprite sprite[] = new TextureAtlasSprite[2];\n        private VertexFormat format;\n\n        public PowerBlockBakedModel(IModelState state, VertexFormat format,\n                        Function<ResourceLocation, TextureAtlasSprite> bakedTextureGetter)\n        {\n                this.format = format;\n                sprite[0] = bakedTextureGetter.apply(new ResourceLocation(Info.MODID, \"blocks/power_block_in\"));\n                sprite[1] = bakedTextureGetter.apply(new ResourceLocation(Info.MODID, \"blocks/power_block_out\"));\n        }\n复制代码代码\n@Override\n        public Collection<ResourceLocation> getTextures()\n        {\n                return ImmutableSet.of(new ResourceLocation(Info.MODID, \"blocks/power_block_in\"),\n                                new ResourceLocation(Info.MODID, \"blocks/power_block_out\"));\n        }复制代码\n\n2、模型的一个方法返回值是贴图而不是贴图数组，所以我只能返回一个贴图：代码\n@Override\n        public TextureAtlasSprite getParticleTexture()\n        {\n                return sprite[0];\n        }复制代码具体，由于不知道这个自定义模型是怎么工作的，我也弄不清楚崩溃日志的含义，请大佬帮忙看看。\n如果有人知道有关这方面的教程或者其他东西也请帮忙回复一下，谢谢。\n\n\n",
+    "replies": [
+        {
+            "author": "金坷居士",
+            "timestamp": 1508323200,
+            "txt_content": "就方块的模型代码来说，粗略看了看就发现一个问题\nIBakedModel里面的List<BakedQuad> getQuads(IBlockState state, EnumFacing side, long rand)\n里面参数的含义如下：\n1. state代表方块的状态，如果有ExtendedBlockState那就可以cast成ExtendedBlockState然后读取，完全没问题。不过如果这个IBakedModel同时作为了物品的渲染，那么在渲染物品的时候state就素null，这时候对state的访问就会爆炸了。因此需要检查state是否为null。\n2. side这个参数告诉getQuads的实现需要返回哪个面相关的quads，这些quads叫Side Quads。side也可以为null，当为null的时候getQuads需要返回General Quads。Side Quads和General Quads的区别就是，Side Quads是顶着1x1x1方块空间的那些面，比如矿石方块那6个面就素Side Quads。General Quads是在这1x1x1中间的面，比如栏杆那些。Side Quads的存在意义是face culling（面剔除），用来少渲染一些quads来提高性能（对窝萌这种烂脑笔记本玩家很重要QAQ），也就是说Side Quads可能不会被显示，而General Quads永远显示，因为Minecraft认为总能够看到这些不是完整方块的地方x\n3. rand就素一个随机数之类的玩意，forget about it\n\n以上适用与1.10.2之后的全部版本\n希望能帮到乃/w\\"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1508393760,
+            "txt_content": "金坷居士 发表于 2017-10-18 18:40\n就方块的模型代码来说，粗略看了看就发现一个问题\nIBakedModel里面的List getQuads(IBlockState state, Enu ...\n哇，大佬就是6，经过修改，模型正常工作了，但是我发现我的UnlistedProperty有问题\n这是代码UnlistedByteArrayProperty.java具体是字节数组貌似没法存入和取出，调用的时候是null。\n还有，物品渲染怎么让这个BakedModel去实现（json里面是启用forge state的BlockStates json），现在在世界放置是正常的，但是物品形式直接崩溃。\n崩溃日志：日志\n还有一点是，方块渲染，顶部贴图很暗，而底部很亮:\n\n这个是这里设置不对吗？代码（这一部分代码是从mcjty的教程扣过来的，不是很明白具体都是参与哪些工作的）\nprivate BakedQuad createQuad(Vec3d v1, Vec3d v2, Vec3d v3, Vec3d v4, int num)\n        {\n                Vec3d normal = v1.subtract(v2).crossProduct(v3.subtract(v2));\n                UnpackedBakedQuad.Builder builder = new UnpackedBakedQuad.Builder(format);\n                builder.setTexture(sprite[num]);\n                putVertex(builder, normal, v1.xCoord, v1.yCoord, v1.zCoord, 0, 0, num);\n                putVertex(builder, normal, v2.xCoord, v2.yCoord, v2.zCoord, 0, 16, num);\n                putVertex(builder, normal, v3.xCoord, v3.yCoord, v3.zCoord, 16, 16, num);\n                putVertex(builder, normal, v4.xCoord, v4.yCoord, v4.zCoord, 16, 0, num);\n                return builder.build();\n        }\n\n        private void putVertex(UnpackedBakedQuad.Builder builder, Vec3d normal, double x, double y, double z, float u,\n                        float v, int num)\n        {\n                for (int e = 0; e < format.getElementCount(); e++)\n                {\n                        switch (format.getElement(e).getUsage())\n                        {\n                        case POSITION:\n                                builder.put(e, (float) x, (float) y, (float) z, 1.0f);\n                                break;\n                        case COLOR:\n                                builder.put(e, 1.0f, 1.0f, 1.0f, 1.0f);\n                                break;\n                        case UV:\n                                if (format.getElement(e).getIndex() == 0)\n                                {\n                                        u = sprite[num].getInterpolatedU(u);\n                                        v = sprite[num].getInterpolatedV(v);\n                                        builder.put(e, u, v, 0f, 1f);\n                                        break;\n                                }\n                        case NORMAL:\n                                builder.put(e, (float) normal.xCoord, (float) normal.yCoord, (float) normal.zCoord, 0f);\n                                break;\n                        default:\n                                builder.put(e);\n                                break;\n                        }\n                }\n        }复制代码希望大佬能够解答，谢谢！"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1508485860,
+            "txt_content": "金坷居士 发表于 2017-10-18 18:40\n就方块的模型代码来说，粗略看了看就发现一个问题\nIBakedModel里面的List getQuads(IBlockState state, Enu ...\n大佬大佬，经过你的指点，我的Property已经能正常保存了，但是BlockState在退出存档重新进入时就没了，导致崩溃。\n方块物品的渲染我已经找到问题了，使用forge state就要覆写IBakedModel中\n@Override\npublic ItemOverrideList getOverrides()复制代码这个方法，返回一个ItemOverrideList，而使用原版的加载方式就不用。我改回原版加载方式就正常了。\n但是还有一个让我非常懵逼的问题，如下图，如果在方块任意一面放上不透光方块，那么对面就直接黑掉不显示了，Quad我测试了一下，对应方向应该没错\n\n    \n，这个方法应该就是控制每个面的显示方式的，具体是哪个控制这个光亮的渲染我就搞不懂了，希望能帮忙看看，谢谢！\n这一部分的代码\nprivate void putVertex(UnpackedBakedQuad.Builder builder, Vec3d normal, double x, double y, double z, float u,\n                        float v, int num)\n        {\n                for (int e = 0; e < format.getElementCount(); e++)\n                {\n                        switch (format.getElement(e).getUsage())\n                        {\n                        case POSITION:\n                                builder.put(e, (float) x, (float) y, (float) z, 1.0f);\n                                break;\n                        case COLOR:\n                                builder.put(e, 1.0f, 1.0f, 1.0f, 1.0f);\n                                break;\n                        case UV:\n                                if (format.getElement(e).getIndex() == 0)\n                                {\n                                        u = sprite[num].getInterpolatedU(u);\n                                        v = sprite[num].getInterpolatedV(v);\n                                        builder.put(e, u, v, 0f, 1f);\n                                        break;\n                                }\n                        case NORMAL:\n                                builder.put(e, (float) normal.xCoord, (float) normal.yCoord, (float) normal.zCoord, 0f);\n                                break;\n                        default:\n                                builder.put(e);\n                                break;\n                        }\n                }\n        }复制代码\n"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1508506800,
+            "txt_content": "在泥的https://github.com/bxz2311196368 ... cks/PowerBlock.java里面，s.withProperty(SIDE_CONFIG, te.getByte()).withProperty(FACING, state.getValue(FACING));这个其实返回的是新的IBlockState，而原来的IBlockState不会改变\n改成这样就对了@Override\npublic IBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos)\n{\nIExtendedBlockState s = (IExtendedBlockState) state;\nPowerBlockTileEntity te = (PowerBlockTileEntity) world.getTileEntity(pos);\nreturn s.withProperty(SIDE_CONFIG, te.getByte()).withProperty(FACING, state.getValue(FACING));\n}复制代码"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1508555820,
+            "txt_content": "金坷居士 发表于 2017-10-20 21:40\n在泥的https://github.com/bxz2311196368 ... cks/PowerBlock.java里面，s.withProperty(SIDE_CONFIG, te.g ...\n大佬这里已经改了，模型已经可以工作了，但是一旦退出存档再进，这个extend block state又GG了。"
+        },
+        {
+            "author": "xz2311196368",
+            "timestamp": 1508556120,
+            "txt_content": "具体就是\nCaused by: java.lang.ArrayIndexOutOfBoundsException: 0\n        at com.bxzmod.energyconversion.blocks.blockmodel.PowerBlockBakedModel.func_188616_a(PowerBlockBakedModel.java:142) ~[PowerBlockBakedModel.class:?]复制代码\n在代码\nbyte[] a = extendedBlockState.getValue(PowerBlock.SIDE_CONFIG);\nquads.add(this.setQuad(side, a[side.getIndex()]));复制代码\n这里报错，没获取到正确的side type\n是在世界加载的过程中，模型是先于TileEntity加载么？"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1509075240,
+            "txt_content": "bxz2311196368 发表于 2017-10-19 14:16\n哇，大佬就是6，经过修改，模型正常工作了，但是我发现我的UnlistedProperty有问题\n这是代码UnlistedByte ...\nUnpackedBakedQuad.Builder这个窝不懂\n不过窝知道DefaultVertexFormats.ITEM格式的BakedQuad的每个节点含义如下\n一个BakedQuad包括4个点来定义一个面，每个定点有7个参数，分别是：\n0,1,2: XYZ，Float的RawInt形式，代表定点在坐标系里的绝对坐标\n3: 定点的颜色，一般素Color.WHITE.getRGB()，否则可能会染上颜色\n4,5:UV，这个点在UV贴图上对应的位置\n6: 压缩格式储存的法线，??XXYYZZ\n\n什么是法线呢，法线是垂直于这个平面的一条直线，法线的方向就是面的朝向，mc靠这个用来进行面计算。\n这四个顶点和UV的排布需要按一定顺序，不然会看不到\n法线那个需要自己算一下，具体怎么算看\nhttps://github.com/rikka0w0/libr ... akedQuadHelper.java\n里的calculatePackedNormal()\n\n完整的栗子https://github.com/rikka0w0/libr ... er/RawQuadCube.java\n这个也素弄了好久弄出来的QAQ\n\n最近准备发个mc方块渲染从入门到女装（手动划掉"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1509075480,
+            "txt_content": "bxz2311196368 发表于 2017-10-21 11:22\n具体就是\n\n在代码\n有可能，因为getActualState和getExtendedState都可能从别的线程被call\n所以在getExtendedState里需要检查state是否为IExtendedBlockState然后还有检查获取到的tileEntity不素null"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1509077640,
+            "txt_content": "如果只是显示能量的输入和输出面，用六个 PropertyEnum 分别对应每一个面就可以了... 没必要自己重新实现BakedModel。"
+        }
+    ]
+}

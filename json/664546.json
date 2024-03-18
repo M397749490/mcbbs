@@ -1,0 +1,354 @@
+{
+    "title": "[信息|机制][Kar]KarBowShot —— 弓箭信息[开源！][全版本]",
+    "author": "765327061",
+    "replyCount": 69,
+    "timestamp": 1484830380,
+    "txt_content": ",支持Kar",
+    "replies": [
+        {
+            "author": "Karmun_",
+            "timestamp": 1484830440,
+            "txt_content": "765327061 发表于 2017-1-19 20:53\n很棒的插件,支持Kar\n感谢您的支持～ 希望发现Bug后能够迅速告诉我哦"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1484830920,
+            "txt_content": "标题: [信息|机制][Kar]KarBowShot —— 弓箭信息[开源！][全版本] 本帖最后由 1582952890 于 2017-9-16 17:46 编辑 \n\n\n简 介       各位好，本人是国内一个正版服务器的腐竹。服务器内目前开发了不少插件，由于已经不再需要或并不重要，经过团队商议决定发布与MCBBS / Spigot。首先说一声抱歉，本人第二次在MCBBS上发布原创内容不可以保证不出现错误。===--===--===这是一个PVP 插件    本插件并不高端，当玩家使用弓箭/鱼竿射到玩家时，将会提示玩家的血量信息。玩家被射死时提示距离。\n\n\n\n\nQQ截图20170122005030.png (295.75 KB, 下载次数: 0)\n\n下载附件\n\n2017-1-22 00:39 上传\n\n\n\n\n（请原谅我临时截图）[不包含积分榜/物品/掉落头/战斗模式信息/聊天等]===--===--===本插件理论支持全版本。配 置 (Config)#调整数据精度\nAccuracy: 1\n\n#杀死人时是否发出声音\nSound: true\n#杀死人时发出什么声音(需要将Sound设为true才有作用)\n#默认为 ORB_PICKUP,如果报错的话请修改，如果你不知道有哪些声音的话，可以输入/sounds查看声音大全\n#在更高的版本(1.9+),这个声音被改成了 ENTITY_EXPERIENCE_ORB_PICKUP复制代码\n源 代 码/*\nKarBowShot Code v1.3\n更新内容: \n1. 更好的代码布局，更多的注释，更加方便java/Bukkit插件小白的阅读。\n2.添加声音修改功能，你可以在配置文件中修改声音，若不知道有哪些声音，装载插件KarSoundsGUI后输入/sounds即可查看有哪些GUI\n\n*/\n\npackage net.kar.bowshot;\n\nimport java.text.NumberFormat;\nimport org.bukkit.Bukkit;\nimport org.bukkit.ChatColor;\nimport org.bukkit.Location;\nimport org.bukkit.entity.Arrow;\nimport org.bukkit.entity.Damageable;\nimport org.bukkit.entity.Entity;\nimport org.bukkit.entity.FishHook;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.entity.EntityDamageByEntityEvent;\nimport org.bukkit.event.entity.EntityDamageEvent;\nimport org.bukkit.event.entity.PlayerDeathEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\n\npublic class Main extends JavaPlugin //继承JavaPlugin，使本类\"成为一个插件\"\nimplements Listener/*实现监听器接口(使本类成为一个监听器)*/{\n\n    //精度，指精确到小数点后几位\n    int accuracy = 1;\n    //是否开启声音\n    boolean sound = false;\n    //声音的名字\n    String soundName;\n    \n    @Override\n    public void onEnable(){//插件的入口\n        getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', \"&6&l载入插件KarBowShot\"));//将符号'&'替换成颜色符号\"§\",否则不会显示出颜色\n        \n        Bukkit.getPluginManager().registerEvents(this/*注册的监听器对象*/, this/*主类地址*/);//注册事件(由于本类是监听器的子类(或者说本类就是一个监听器),所以这里用一个this表示)\n        //如果监听器在其他类，将第一个this改成 new 监听器类名() 即可，就像这样\n        Bukkit.getPluginManager().registerEvents(new OtherListener(), this);\n        \n        //读取配置文件\n        this.accuracy = getConfig().getInt(\"Accuracy\");\n        this.sound = getConfig().getBoolean(\"Sound\");\n        this.soundName = getConfig().getString(\"SoundName\");\n        \n        //为防止某些腐竹错误地填写精度,我们要对其进行判断\n        if(this.accuracy > 7 || this.accuracy < 1){\n            this.accuracy = 1;\n            getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', \"&6&l错误的精度\"));\n        }\n        \n        //生成配置文件\n        saveDefaultConfig();\n        reloadConfig();\n    }\n    \n    \n    @EventHandler\n    public void onEntityDamageEntity(EntityDamageByEntityEvent event) {\n        //实现鱼竿勾到人时的效果\n        if ((event.getDamager() instanceof FishHook)) {\n            FishHook arrow = (FishHook) event.getDamager();\n            if ((arrow.getShooter() instanceof Player)) {\n                Player shooter = (Player) arrow.getShooter(); //得到使用鱼竿的人\n                Damageable targetEntity = (Damageable) event.getEntity();//得到被鱼竿勾中的实体\n                if ((targetEntity instanceof Player)) { //判断被鱼竿勾中的实体是否为玩家\n                    Player targetPlayer = (Player) targetEntity; //得到被鱼竿勾中的玩家\n                    double targetPlayer_Health = targetEntity.getHealth(); \n                    Double damage = (double) event.getFinalDamage(); //得到实际伤害值(如果用getDamage()的话，得到的是没有被减免的伤害)\n                    if (!targetEntity.isDead()) { //如果对方已经死亡，那么就没必要知道对方的血量了\n                        Double realHealth = (double) (targetPlayer_Health - damage.intValue());\n                        \n                        //对伤害值的精度(即小数点后的位数)进行限制\n                        NumberFormat nf = NumberFormat.getInstance();\n                        nf.setMaximumFractionDigits(this.accuracy);\n                        \n                        if (realHealth.intValue() > 0) {\n                            shooter.sendMessage(\"§a§l\" + targetPlayer.getName() + \"§7剩余血量§f§l\" + nf.format(realHealth) + \"/\"+targetPlayer.getMaxHealth()+\"§c?\");\n                        }\n                    }\n                }\n            }\n        }\n        \n        //实现箭射到人时的效果，同理\n        if ((event.getDamager() instanceof Arrow)) {\n            Arrow arrow = (Arrow) event.getDamager();\n            if ((arrow.getShooter() instanceof Player)) {\n                Player shooter = (Player) arrow.getShooter();\n                Entity targetEntity = event.getEntity();\n                if ((targetEntity instanceof Player)) {\n                    Player targetPlayer = (Player) targetEntity;\n                    double targetPlayer_Health = targetPlayer.getHealth();\n                    Double damage = (double) event.getFinalDamage();\n                    \n                    double flc = KarMath.getDistance(shooter.getLocation(), targetPlayer.getLocation());//算出两名玩家之间的距离\n                    \n                    if (!targetEntity.isDead()) {\n                        Double realHealth = (double) (targetPlayer_Health - damage.intValue());\n                        \n                        NumberFormat nf = NumberFormat.getInstance();\n                        nf.setMaximumFractionDigits(this.accuracy);\n                        \n                        if (realHealth.intValue() > 0) {\n                            shooter.sendMessage(\"§7你在§f§l\"+nf.format(flc)+\"§7米外对 §a§l\" + targetPlayer.getName() + \" §7造成了§f§l\" + nf.format(event.getFinalDamage()) + \"§7点伤害,剩余血量§f\" + nf.format(realHealth) + \"/\"+targetPlayer.getMaxHealth()+\"§c?\");\n                        }\n                    }\n                }\n            }\n        }\n    }\n    \n    @EventHandler\n    public void onPlayerDeath(PlayerDeathEvent event){\n        Player p = event.getEntity();//得到死亡的玩家,注意这里不是getPlayer();\n        EntityDamageEvent ede = p.getLastDamageCause(); // 得到玩家受到的最后一次伤害事件\n        EntityDamageEvent.DamageCause dc = ede.getCause(); //得到玩家受到的最后一次伤害\n        \n        if (dc == EntityDamageEvent.DamageCause.PROJECTILE) { //判断玩家受到的最后一次伤害是否为弓箭伤害\n            if (p.getKiller() != null) { //判断杀手是否存在(有可能会是发射器射出的箭杀死的玩家)，防止NullPointerException的发生\n                Player killer = p.getKiller();//得到杀手\n                \n                double flc = KarMath.getDistance(p.getLocation(), killer.getLocation());//得到两名玩家之间的距离\n                \n                //对伤害值的精度(即小数点后的位数)进行限制\n                NumberFormat nf = NumberFormat.getInstance();\n                nf.setMaximumFractionDigits(this.accuracy);\n                \n                double health = killer.getHealth();\n                event.setDeathMessage(\"§c§l§m\" + p.getDisplayName() + \"§7 被 §a§l\" + killer.getDisplayName() + \"§7(§c§l\" + nf.format(health) + \"§c?§7) 射死了(§f§l\" + nf.format(flc) + \"§7米远)\");\n            }\n        }\n        \n        if(sound){//给杀手发送一段声音\n            if(p.getKiller() != null){\n                p.getKiller().playSound(p.getKiller().getLocation(), soundName, 1, 1);\n            }\n        }\n        \n    }\n}\n\n//写一个工具类，如果工具(方法)数量多，建议这样做\nclass KarMath{\n    \n    //工具类中全是静态函数，为防止该类被实例化，将其构造函数私有化\n    private KarMath(){}\n    \n    public static double getDistance(Location lc1,Location lc2){\n        //关于三维坐标系中两点的距离算法，请自行百度\n        return Math.sqrt(Math.pow(lc1.getX() - lc2.getX() , 2)+ Math.pow(lc1.getY() - lc2.getY() , 2)+ Math.pow(lc1.getZ() - lc2.getZ() , 2));\n    }\n    \n}复制代码\n条 款① 您不允许 转载/发布再次或重新声明作者为他人。[我们将会追究责任]② 本人有权利拒绝任何无理由的栽赃。且不对任何本插件造成的损害负责。（会造成损害？）③ 本人不可以完全保证本插件与其他的兼容性。但目前暂未发现。④ 本人随时可以发布本插件到其他网站。⑤ 本插件为非盈利性插件，免费发布，严禁销售和转卖。\n另： 本插件主要用于给新手学习，可能不是最优化的代码。下 载你们喜欢的刮刮乐。帖子最后别忘记留下金粒和人气哦。人气免费！\n\n\n\nBowShot.jar\n(7.2 KB, 下载次数: 50)\n\n\n\n2017-1-22 00:53 上传\n点击文件名下载附件\n1.1版本 修复最高血量问题\n\n\n\n\n [1.1]\n\n\n\nBowShot.jar\n(6.97 KB, 下载次数: 141)\n\n\n\n2017-1-25 15:05 上传\n点击文件名下载附件\n1.2版本 优化\n\n\n\n\n [1.2]\n\n\n\nKarBowShot.jar\n(10.79 KB, 下载次数: 111)\n\n\n\n2017-8-11 15:14 上传\n点击文件名下载附件\n1.3版本\n\n\n\n\n [1.3]更 新 记 录V1.1 修复最高血量问题V1.2 版本 优化 (出现报错请找到配置文件Sound设为false即可)V1.3 |  更好的代码布局，更多的注释，更加方便java/Bukkit插件小白的阅读。|  添加声音修改功能，你可以在配置文件中修改声音。\n\n本插件所用所有代码均为原创,不存在借用/抄袭/违反协议等行为。\n\n"
+        },
+        {
+            "author": "下面好舒服",
+            "timestamp": 1484832300,
+            "txt_content": "这个插件是不是就跟显血插件差不多呢"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1484832540,
+            "txt_content": "下面好舒服 发表于 2017-1-19 21:25\n这个插件是不是就跟显血插件差不多呢\n本插件只有玩家利用弓箭或鱼竿攻击到他人才有效果。 相对于市面上常见的BowMessage插件做了优化。 增加了距离系统"
+        },
+        {
+            "author": "zcy0127",
+            "timestamp": 1484832720,
+            "txt_content": "赞！前排支持卡姆"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1484882100,
+            "txt_content": "zcy0127 发表于 2017-1-19 21:32\n赞！前排支持卡姆\n感谢支持～ 如果发现Bug迅速告诉我哦"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1484898780,
+            "txt_content": "目前有一个问题：\n我加了控制血量的插件，玩家血量最高40，弓箭射中后提示信息18/20 这里只显示20滴血！\n希望楼主改价下！\n最后，插件很不错！"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1484928300,
+            "txt_content": "红人丶云浩 发表于 2017-1-20 15:53\n目前有一个问题：\n我加了控制血量的插件，玩家血量最高40，弓箭射中后提示信息18/20 这里只显示20滴血！\n希 ...\n我给出了源码 如果懂一点Java的话完全可以自己着手修改哦~\n如果真的不会的话可以稍等我的更新哦"
+        },
+        {
+            "author": "qaz1290701843",
+            "timestamp": 1484930160,
+            "txt_content": "拿走了                     "
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1484930400,
+            "txt_content": "qaz1290701843 发表于 2017-1-21 00:36\n拿走了\n感谢支持～ 如果发现Bug迅速告诉我哦 别忘记评分呀！ 原创不易 ！"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1484983440,
+            "txt_content": "Karmun_ 发表于 2017-1-21 00:05\n我给出了源码 如果懂一点Java的话完全可以自己着手修改哦~\n如果真的不会的话可以稍等我的更新哦 ...\n恩那就等你更新了，反正我是不会- -"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485152640,
+            "txt_content": "红人丶云浩 发表于 2017-1-21 15:24\n恩那就等你更新了，反正我是不会- -\n已更新~ 下载贴内版本哦~"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485240120,
+            "txt_content": "Karmun_ 发表于 2017-1-23 14:24\n已更新~ 下载贴内版本哦~\n好的我去试试！"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485240720,
+            "txt_content": "Karmun_ 发表于 2017-1-23 14:24\n已更新~ 下载贴内版本哦~\n测试没问题！"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485281940,
+            "txt_content": "红人丶云浩 发表于 2017-1-24 14:52\n测试没问题！\n感谢测试~ 发现Bug记得告诉我哦"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485312660,
+            "txt_content": "Karmun_ 发表于 2017-1-25 02:19\n感谢测试~ 发现Bug记得告诉我哦\n恩恩 后台在刷报错！！！！！\n\n\n\n\nQQ截图20170125104837.png (20.73 KB, 下载次数: 0)\n\n下载附件\n\n2017-1-25 10:37 上传\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1485313380,
+            "txt_content": "请问英文数字的字体是怎么弄的=。="
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485326760,
+            "txt_content": "吕乐乐 发表于 2017-1-25 13:33\n插件本体写的不错，但是。。\n优化太差了！刚才拿到YUM进行能耗测试，\n消耗太多！请想办法优化插件，举个例 ...\n为了开源 因此才直接一个主类搞定。 正在优化中"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485326820,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 10:51\n恩恩 后台在刷报错！！！！！\n正在修复ing~ 稍等啊~"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485326940,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 10:51\n恩恩 后台在刷报错！！！！！\n请问一下您的版本？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485326940,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 10:51\n恩恩 后台在刷报错！！！！！\n您服务器的版本有点低呢.. 没有找到ORB_PICKUP这个音效.. 很抱歉马上为您想办法降级.."
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485327060,
+            "txt_content": "吕乐乐 发表于 2017-1-25 13:33\n插件本体写的不错，但是。。\n优化太差了！刚才拿到YUM进行能耗测试，\n消耗太多！请想办法优化插件，举个例 ...\n为了让新手看懂而放弃简化 如果想要优化就较为难懂了。 如果实在想要优化还请稍等。"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485327780,
+            "txt_content": "吕乐乐 发表于 2017-1-25 13:33\n插件本体写的不错，但是。。\n优化太差了！刚才拿到YUM进行能耗测试，\n消耗太多！请想办法优化插件，举个例 ...\n能耗经过我们的测试无问题 非常迅速。\n或许是您服务器加载或其他插件的问题？\n不要抱着YUM 这个插件并没有很强大的插件编写帮助的功能。\n能耗问题推荐LagMonitor 且请您记得配图哦。\n我们的目的不是发布插件 而是发布一个 “教程”\n仅仅希望帮助其他插件编写者 如果非常盯着优化 我们无法保证其他的编写者能够理解我们的代码\n谢谢 \n\n - KarStudio 2017"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485327780,
+            "txt_content": "吕乐乐 发表于 2017-1-25 15:07\n好吧，刚才测试了一下，\n的确是YUM的锅2333\n插件写的还是很不错的，偏小白实用向，\n优化已完成 仅仅去掉了6个变量 您再看看哪里可以优化，告诉我好吗？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485327840,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 10:51\n恩恩 后台在刷报错！！！！！\n完成~ 下载最新版哦~ 加载完成后进入配置文件找到Sound 设为false 即可~ 感谢您的支持~ 如果继续发现Bug请告诉我哦~"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485328920,
+            "txt_content": "Karmun_ 发表于 2017-1-25 15:31\n已经修好啦.. 改配置文件即可\n好了没有问题了！"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485329040,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 10:51\n恩恩 后台在刷报错！！！！！\n刚才一直没看论坛 服务器版本是1.9.4"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1485329460,
+            "txt_content": "红人丶云浩 发表于 2017-1-25 15:24\n刚才一直没看论坛 服务器版本是1.9.4\n已经修好啦.. 改配置文件即可"
+        },
+        {
+            "author": "红人丶云浩",
+            "timestamp": 1485329580,
+            "txt_content": "Karmun_ 发表于 2017-1-25 15:31\n已经修好啦.. 改配置文件即可\n好的！！"
+        },
+        {
+            "author": "ZQT",
+            "timestamp": 1485350640,
+            "txt_content": "和谐前来围观卡姆.不错的插件XDDDD"
+        },
+        {
+            "author": "啾",
+            "timestamp": 1486633200,
+            "txt_content": "插件不错，正在安装~"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1486651260,
+            "txt_content": "迷之芒果 发表于 2017-2-9 17:40\n插件不错，正在安装~\n感谢使用～ 发现Bug记得告诉我哦"
+        },
+        {
+            "author": "啾",
+            "timestamp": 1486688400,
+            "txt_content": "Karmun_ 发表于 2017-2-9 22:41\n感谢使用～ 发现Bug记得告诉我哦\n恩，有bug会告诉您的"
+        },
+        {
+            "author": "啾",
+            "timestamp": 1486705740,
+            "txt_content": "迷之芒果 发表于 2017-2-10 09:00\n恩，有bug会告诉您的\n恩，总体来说，非常好，但是就想问能不能实现打中目标有声音？"
+        },
+        {
+            "author": "SS_Tom",
+            "timestamp": 1486708020,
+            "txt_content": "建议增加可见信息的权限"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1486761960,
+            "txt_content": "迷之芒果 发表于 2017-2-10 13:49\n恩，总体来说，非常好，但是就想问能不能实现打中目标有声音？\n这个1.8自带呢.. 就没有弄了"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1486761960,
+            "txt_content": "SS_Tom 发表于 2017-2-10 14:27\n建议增加可见信息的权限\n源码已经给出 完全可以自己加哦"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1486798500,
+            "txt_content": "WOC卡姆竟然也发插件了，支持一下，顺便问一下Arena竞技场插件出不出售？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1487353920,
+            "txt_content": "王雨晴 发表于 2017-2-11 15:35\nWOC卡姆竟然也发插件了，支持一下，顺便问一下Arena竞技场插件出不出售？\n不是我出售的 请找原作者。"
+        },
+        {
+            "author": "微明道人",
+            "timestamp": 1487851860,
+            "txt_content": "那个战斗状态插件是你们原创的么？我可以买么？正需要！"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1488004680,
+            "txt_content": "微明道人 发表于 2017-2-23 20:11\n那个战斗状态插件是你们原创的么？我可以买么？正需要！\n确实是原创的呢... 但我们不出售哦.."
+        },
+        {
+            "author": "X夕阳",
+            "timestamp": 1488039180,
+            "txt_content": "很棒的插件支持原创"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1488039360,
+            "txt_content": "X夕阳 发表于 2017-2-26 00:13\n很棒的插件支持原创\n感谢支持~"
+        },
+        {
+            "author": "王雨晴",
+            "timestamp": 1489499760,
+            "txt_content": "Karmun_ 发表于 2017-2-18 01:52\n不是我出售的 请找原作者。\n有地址么---我也挺像找原作者，但没有链接或者地址什么的"
+        },
+        {
+            "author": "manin0727",
+            "timestamp": 1489558560,
+            "txt_content": "謝謝LZ，先收藏~~~~"
+        },
+        {
+            "author": "Aaron.Hzy",
+            "timestamp": 1490019840,
+            "txt_content": "求字体！"
+        },
+        {
+            "author": "YPXxiaoK",
+            "timestamp": 1493384520,
+            "txt_content": "不实用。\n很多纯净服务器用基础整合包（有血量显示Mod的）可以达到一样的效果，甚至比这个强\n楼主多多努力"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1493468880,
+            "txt_content": "a946115793 发表于 2017-4-29 20:44\n好吧，这无疑是对Mod党的一个沉重的打击\n话说楼主回复好专业啊\n竟然有错字 ...\n发现了。\n\n改 -> 该\n\n输入法问题，抱歉。"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1493469600,
+            "txt_content": "a946115793 发表于 2017-4-28 21:02\n不实用。\n很多纯净服务器用基础整合包（有血量显示Mod的）可以达到一样的效果，甚至比这个强\n楼主多多努力 ...\n感谢您的回复~\n\n首先，本插件仅为纯净的原版服务器而创建，不考虑任何Mod因素。\n其次，本服(Kar)不允许玩家使用任何显血Mod，因此编写改插件。\n最后，您正在试图用受Bukkti限制的插件和Mod比。\n\n祝您生活愉快。"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1493469720,
+            "txt_content": "a946115793 发表于 2017-4-28 21:02\n不实用。\n很多纯净服务器用基础整合包（有血量显示Mod的）可以达到一样的效果，甚至比这个强\n楼主多多努力 ...\n看了您应该是Mod的玩家，所以您可以这么说。\n\n但是如果您不考虑情况而回复我“不实用”。\n很抱歉，本人不接受。\n\n请您考虑其余服务器的情况。\n更何况这是一个主要为PVP服务器服务的插件。\n\n祝您生活愉快。"
+        },
+        {
+            "author": "YPXxiaoK",
+            "timestamp": 1493469840,
+            "txt_content": "Karmun_ 发表于 2017-4-29 20:40\n感谢您的回复~\n\n首先，本插件仅为纯净的原版服务器而创建，不考虑任何Mod因素。\n好吧，这无疑是对Mod党的一个沉重的打击\n话说楼主回复好专业啊\n竟然有错字"
+        },
+        {
+            "author": "混世",
+            "timestamp": 1493470260,
+            "txt_content": "问一下，开头那个Kar可以改吗？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1493498940,
+            "txt_content": " 混世 发表于 2017-4-29 20:51\n问一下，开头那个Kar可以改吗？\n本次发布的插件开头没有Kar"
+        },
+        {
+            "author": "混世",
+            "timestamp": 1493516340,
+            "txt_content": "Karmun_ 发表于 2017-4-30 04:49\n本次发布的插件开头没有Kar\n可以自定义修改吗？就是我想要Kar，但是我要把Kar改成弓箭消息"
+        },
+        {
+            "author": "老咸鱼Ed",
+            "timestamp": 1493521680,
+            "txt_content": "支持卡姆一发"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1494043920,
+            "txt_content": " 混世 发表于 2017-4-30 09:39\n可以自定义修改吗？就是我想要Kar，但是我要把Kar改成弓箭消息\n这个的话可以自己去修改哦，源代码已经放出来了。"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1494043920,
+            "txt_content": "CH1 发表于 2017-4-30 11:08\n支持卡姆一发\n非常感谢"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1502125080,
+            "txt_content": "\n\n\n\n\nQQ截图20170808004032.png (54.78 KB, 下载次数: 0)\n\n下载附件\n\n2017-8-8 00:56 上传\n\n\n\n\n\n当玩家用弓射杀另一个玩家时发生报错\n服务端是1.12的版本\n"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502257980,
+            "txt_content": "酷车手BB弹 发表于 2017-8-8 00:58\n当玩家用弓射杀另一个玩家时发生报错\n服务端是1.12的版本\n尝试关掉声音呢？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502258040,
+            "txt_content": "酷车手BB弹 发表于 2017-8-8 00:58\n当玩家用弓射杀另一个玩家时发生报错\n服务端是1.12的版本\nSound: true\n#杀死人时是否发出声音(出现报错请设为false)"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1502258880,
+            "txt_content": "Karmun_ 发表于 2017-8-9 13:54\nSound: true\n#杀死人时是否发出声音(出现报错请设为false)\n希望能自定义声音，这样的话不管spigot怎么换声音代码都能自己替换"
+        },
+        {
+            "author": "Gosupernatural",
+            "timestamp": 1502262000,
+            "txt_content": "666666666666666666666"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502389920,
+            "txt_content": "酷车手BB弹 发表于 2017-8-9 14:08\n希望能自定义声音，这样的话不管spigot怎么换声音代码都能自己替换\n收到。\n然而我们现在正在推进新的工程，可能速度有点慢。\n我尽量更新。"
+        },
+        {
+            "author": "yuan_kun",
+            "timestamp": 1502397300,
+            "txt_content": "请问支持MOD服吗？"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502427180,
+            "txt_content": "yuan_kun 发表于 2017-8-11 04:35\n请问支持MOD服吗？\n您尝试一下。"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502435580,
+            "txt_content": "酷车手BB弹 发表于 2017-8-9 14:08\n希望能自定义声音，这样的话不管spigot怎么换声音代码都能自己替换\n已更新自定义声音啦。"
+        },
+        {
+            "author": "877480062",
+            "timestamp": 1502465460,
+            "txt_content": "支持Kar\n但是\n1.12水龙头报错+无法使用[生成配置成功]"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502516940,
+            "txt_content": "877480062 发表于 2017-8-11 23:31\n支持Kar\n但是\n1.12水龙头报错+无法使用[生成配置成功]\n能不能请您看一下配置文件中关于Sound的注释呢？\n#生气"
+        },
+        {
+            "author": "Karmun_",
+            "timestamp": 1502785800,
+            "txt_content": "Gosupernatural 发表于 2017-8-9 15:00\n**** 作者被禁止或删除 内容自动屏蔽 ****\nUmmm，请您注意版规，回复有意义内容，谢谢。"
+        }
+    ]
+}

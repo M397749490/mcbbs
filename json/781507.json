@@ -1,0 +1,199 @@
+{
+    "title": "Sponge服务端优化心得分享[UD|PCD]",
+    "author": "Tollainmear",
+    "replyCount": 38,
+    "timestamp": 1518504480,
+    "txt_content": " 本帖最后由 Tollainmear 于 2018-5-22 22:24 编辑 \n\n  Sponge服务端·优化篇 声明          本贴所有的心得经验都是笔者多年开服的经验中学习和整理的，有些资料在网上能够找到但是本文并不会原文剽窃！\n        本帖将会长期缓慢更新，计划会分多个模块讲解Sponge服务端的优化方法，欢迎各位腐竹参与讨论交流。 第一讲·tileentity-activation  原理       Sponge通过“MIXIN”（我也不是很懂，欢迎dalao指点）对不同mod限制其TileEntity每秒获得的Tick速率，理想情况下，每一个TileEntity每秒获得20tick（你可以理解为刷新20次），但是并不是每一个TileEntity都需要每秒获得20Tick（例如炼药锅），当使用这个方法为部分TileEntity降低tick频率的时候，能够大幅度的降低服务器计算的负担。举例       在MC1.10.2的IC2ExpMod中，风力发电机的刷新占用大量的服务器资源，通过Timings不难发现，多个被加载的风力动能发电机往往会十分直观的增加服务器TPS丢失率，因为这些TileEntity都会不停的检测周围方块（比如周围16格是否有风电机挡住转子接风），因此带来的服务器运算资源的消耗十分可观，但是通过此方法降低风电的Tick获得效率之后，风电的检测次数将会明显下降，服务器的计算负载也会随之降低，但是我们会面临一个问题，以前100EU/Tick的发电量将会因为Tick获得次数的减少导致风电产能的减少，此时我们需要协同修改IC2.ini(工业配置文件)。用法说明使用此功能大概需要以下几步：\n找到并打开Config/Sponge/Globle.cfg文件在“modules”模块下找到“tileentity-activation=false”，将对应的值改为true<b>modules</b> {\n        block-capturing-control=true\n        bungeecord=false\n        entity-activation-range=true\n        entity-collisions=true\n        exploits=true\n        game-fixes=false\n        optimizations=true\n        # Use real (wall) time instead of ticks as much as possible\n        realtime=false\n        # Controls block range and tick rate of tileentities.\n        # Use with caution as this can break intended functionality.\n<b>        tileentity-activation=true</b>\n        timings=true\n        tracking=true\n    }复制代码\n找到“tileentity-activation”模块，将“auto-populate”对应的值设置为truetileentity-activation {\n        # If enabled, newly discovered tileentities will be added to this config with default settings.\n        auto-populate=true（笔者注：自动获取可修改的TileEntity并记录在下面）\n        # Default activation block range used for all tileentities unless overidden.\n        default-block-range=256（笔者注：只有在此范围内有玩家时才为对应的方块激活，否则不会更新）\n        # Default tick rate used for all tileentities unless overidden.\n        default-tick-rate=1（笔者注：若将默认tick率设为X，获得的Tick为20/X，即当x=10，实际获得2tick/秒）\n        # Per-mod overrides. Refer to the minecraft default mod for example.\n        mods {}\n}复制代码\n保存文件并重启服务端 （注意：此处必须重启服务端侧能生效，亲测重载指令无效）重启后，再次打开Global.cfg，修改对应的TileEntity的Tick值（此处以量子太阳能举例）tileentity-activation {\n# If enabled, newly discovered tileentities will be added to this config with default settings.\nauto-populate=true\n# Default activation block range used for all tileentities unless overidden.\ndefault-block-range=256\n# Default tick rate used for all tileentities unless overidden.\ndefault-tick-rate=1\n# Per-mod overrides. Refer to the minecraft default mod for example.\nmods {\n\"advanced_solar_panels\" {\nblock-range {\n[b]\"advanced_solar_panels:quantum_solar_panel\"=512[/b]\n}\n# Set to false if you want mod to ignore tileentity activation rules and always tick.\nenabled=true\ntick-rate {\n[b]\"advanced_solar_panels:quantum_solar_panel\"=20[/b]\n}\n}\n}复制代码此处的量子太阳能将仅在512格内有玩家时才会获得tick，默认每秒获得1tick（每秒产一次电，神特么优化有木有）将你认为卡服并且无需获取过多Tick的TileEntity设置完成后，保存文件，在游戏中输入\"/Sponge -g reload\"大功告成。\n名词解释auto-populate —— 自动检测可修改的tileEntity并记录在下面的mod块内Block-Range —— 方块范围，当指定范围内没有玩家的时候，对应的TileEntity将不会获得tickenable=true —— 你可以将此项设置为false，代表对指定mod都不监听不限制tick。Tick-Rate ——对应方块获取的tick率，默认tick数除以此数值，例如输入2，实际表达式为:默认tick数 /2(即原有tick的一半)。\n已知问题在加载AEmod的服务端，请关闭此功能对AEmod的限制，丢失tick可能会导致与输出总线连接的箱子卡出双倍的道具。在加载末影接口的服务端，请在调低导管术Tick的同时提高导管术的流体携带量，不然可能导致IC2的热核冷却液加载不够而炸核。在调低风力动能发电机的同时请调高风力产能，不然会导致发电量大减。sponge配置文件只会读取世界已出现的可以调整tick的方块，也就是说这方法最好是等玩家发展到一定程度再去调，不然一开始配置文件读取的方块就只有几个如上所述，开启自动计算之后不会立马出现所有方块数量，没有记录过的方块只有在出现在世界终止后才会记录在“Global.conf”文件中，所以请定期检查这一优化方法。\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "八柔",
+            "timestamp": 1519039260,
+            "txt_content": "感觉得不偿失"
+        },
+        {
+            "author": "Barry_Allen",
+            "timestamp": 1519277040,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "Barry_Allen",
+            "timestamp": 1519277100,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "Barry_Allen",
+            "timestamp": 1519277100,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1519383300,
+            "txt_content": "原来这个是这么用的，但自己也不知道改多少合适呀，怕改出问题。有可能的话，希望楼主列出一些常见的卡服"
+        },
+        {
+            "author": "543589341",
+            "timestamp": 1519388940,
+            "txt_content": "66666666顶"
+        },
+        {
+            "author": "543589341",
+            "timestamp": 1519444440,
+            "txt_content": "这下渣渣服务器都能运行minecraft服务端了"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1519552860,
+            "txt_content": "haixing 发表于 2018-2-23 18:55\n原来这个是这么用的，但自己也不知道改多少合适呀，怕改出问题。有可能的话，希望楼主列出一些常见的卡服 ...\n建议配合timings的tileentityTick报告做调整，1.10.2比较卡的是末影管道和工业电动分拣机，请跟进你的服务器情况而定吧，或者在这里回复你的timings报告，我帮你看看"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1519558200,
+            "txt_content": "Tollainmear 发表于 2018-2-25 18:01\n建议配合timings的tileentityTick报告做调整，1.10.2比较卡的是末影管道和工业电动分拣机，请跟进你的服 ...\nhttps://timings.aikar.co/?id=6fef5480e84b4d85b938cd56dee8b0e6\n麻烦大佬了，30+在线都掉TPS了，很闹心"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1519818360,
+            "txt_content": "haixing 发表于 2018-2-25 19:30\nhttps://timings.aikar.co/?id=6fef5480e84b4d85b938cd56dee8b0e6\n麻烦大佬了，30+在线都掉TPS了，很闹心 ...\n越开越卡了，感觉MEK卡爆"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1520760720,
+            "txt_content": " 本帖最后由 酷车手BB弹 于 2019-4-2 16:02 编辑 \n\nBB弹的优化教程\n目前我所知道的优化方式就只有以下四种①、增加优化相关的MOD          \n②、修改Sponge端的配置文件   \n③、修改启动参数                    \n④、修改玩法                          \n\n第①点，增加优化MOD推荐服务端安装以下MODClumpsFoamFixBetterFpsAI ImprovementsLag Goggles\n其中，前三个对玩家的影响几乎没有，却能降低服务器的负担第一个 Clumps 是用来缓解经验球过多导致卡服的问题， FoamFix 和 BetterFps 则是通过优化算法来降低延迟第四个 AI Improvements 是通过优化怪物与动物的AI算法来降低对CPU的负担，或许会对游戏难度有微量的降低，但也能降低CPU占用第五个 Lag Goggles 就是靠腐竹和管理们在游戏中找出卡服原因用的，通常在比较多科技MOD的情况下较为管用\n第②点，修改配置文件forgeChunkLoading.cfg 文件该文件在config文件夹内\nasyncChunkLoading ，这是异步区块加载的开关，如果是 false 请改为true\nforge.cfg 文件该文件在config文件夹内\n鉴于我国有强大的防火墙，建议将检查更新全部关闭。分别是forge检查 disableVersionCheck=false 将 false 改为 true；以及mod检查 Global=true 将 true 改为 false 。\nremoveErroringEntities ; removeErroringTileEntities ，这两个选项是用来自动移除出错的实体。假设有MOD的实体出错了导致蹦服，如果将该选项打开的话就能避免实体问题导致蹦服，建议这两项都改为 true 。\nserver.properties 文件该文件在根目录下\nmax-world-size ，该选项用于设定世界边界，可通过设置该数值来减少玩家跑图导致卡服的现象，该选项设置的数值为中心点到边界的距离，例如设置为2000，则世界边界为4000*4000。\nnetwork-compression-threshold ，此选项是用于设置数据的封包，默认为256，如果想节省带宽量可以降低该数值，但是可能会增加对CPU的开销，强烈不建议低于64。\ngenerate-structures ，定义是否在生成世界时生成结构（例如村庄）不影响地牢及要塞，设置为false可以减少这些特殊环境生成和周期性检查带来的开销。但是会导致一些常见的玩法不能用，例如刷铁机。\nview-distance ，视距，即以玩家为中心加载区块的半径。默认是10，通过修改该选项可以大幅度的提升服务器性能，建议改为4~6。\nglobal.conf 文件该文件在config\\sponge文件夹内\n\n\n待更……\n\n待更……咕咕咕\n\n2019-4-2\n已合并至我的教程贴内并更新了新的内容\nhttp://www.mcbbs.net/thread-786074-1-1.html\n"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1520781120,
+            "txt_content": "haixing 发表于 2018-2-28 19:46\n越开越卡了，感觉MEK卡爆\n\nmekanism:LogisticalTransporter\nmekanism:MechanicalPipe\nmekanism:UniversalCable\nbotania:botania:specialFlower\nimmersiveengineering:immersiveengineering:Belljar\n以上五个尝试酌情减少tick"
+        },
+        {
+            "author": "ejoke233",
+            "timestamp": 1521033000,
+            "txt_content": "酷车手BB弹 发表于 2018-3-11 17:32\nBB弹的优化教程\n目前我所知道的优化方式就只有以下四种①、增加优化相关的MOD        \n②、修改Sponge端的 ...\n不要停"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1521276060,
+            "txt_content": " 本帖最后由 haixing 于 2018-3-17 16:56 编辑 \n\n测试了一下，感觉1.12.2的这个功能是失效的，我把漏斗的tick-rate从1改成了1000，按楼主的解释，生效的话，应该是50秒漏斗刷新一次，但并未发现与原来有什么变化，漏斗还是一秒漏好几个物品"
+        },
+        {
+            "author": "_DIM_",
+            "timestamp": 1521277200,
+            "txt_content": "标题那加上个HAYO呗XD"
+        },
+        {
+            "author": "wangct19839",
+            "timestamp": 1521807060,
+            "txt_content": "问个问题，我用Sponge端开服现在OP无法被普通玩家攻击，没法PVP啊，是Sponge端设置的还是某个插件导致的呢？"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1521865020,
+            "txt_content": "haixing 发表于 2018-3-17 16:41\n测试了一下，感觉1.12.2的这个功能是失效的，我把漏斗的tick-rate从1改成了1000，按楼主的解释，生效的话， ...\n我这就测试"
+        },
+        {
+            "author": "haixing",
+            "timestamp": 1521958740,
+            "txt_content": "Tollainmear 发表于 2018-3-24 12:17\n我这就测试\n这个已经反馈给sponge\nhttps://github.com/SpongePowered/SpongeCommon/issues/1838"
+        },
+        {
+            "author": "2474134908",
+            "timestamp": 1526811240,
+            "txt_content": "能补充一下楼主说的吗？\nsponge配置文件只会读取世界已出现的可以调整tick的方块，也就是说这方法最好是等玩家发展到一定程度再去调，不然一开始配置文件读取的方块就只有几个，我懵逼了挺久后来才发现，希望楼主加上说明。。。（如果说的不对无视就好了qwq）"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1526998920,
+            "txt_content": "2474134908 发表于 2018-5-20 18:14\n能补充一下楼主说的吗？\nsponge配置文件只会读取世界已出现的可以调整tick的方块，也就是说这方法最好是等 ...\n是的，开启自动计算之后，没有记录过的方块出现的时候才会被记录，所以不能立刻看到。"
+        },
+        {
+            "author": "sbsg5s55",
+            "timestamp": 1528004040,
+            "txt_content": "主要是海绵内存占用太厉害了"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1528004400,
+            "txt_content": "sbsg5s55 发表于 2018-6-3 13:34\n主要是海绵内存占用太厉害了\n我觉得这个评价有失偏颇，主要问题在服务端Forge加载的mod，海绵只是mod中的一个，就算卸了海绵该卡还会卡"
+        },
+        {
+            "author": "qq2415786013",
+            "timestamp": 1531754280,
+            "txt_content": "服务器20人都卡 大佬能不能帮我看看\nhttps://timings.aikar.co/?id=7103dab89a5e4743909e23ceb203427d"
+        },
+        {
+            "author": "1152085744",
+            "timestamp": 1535536020,
+            "txt_content": "宝可梦重铸最新版的10个人tps就开始严重大幅度的下跌上升，可以解决吗？"
+        },
+        {
+            "author": "xoxoiii",
+            "timestamp": 1542703080,
+            "txt_content": "收藏一下 以后应该用的上"
+        },
+        {
+            "author": "193645",
+            "timestamp": 1543145160,
+            "txt_content": "围观get√"
+        },
+        {
+            "author": "超级菜鸡白",
+            "timestamp": 1547686500,
+            "txt_content": "大佬求更新"
+        },
+        {
+            "author": "zq176848515",
+            "timestamp": 1568219520,
+            "txt_content": "这个感觉真的比较直白"
+        },
+        {
+            "author": "musour",
+            "timestamp": 1573088100,
+            "txt_content": "前来观摩"
+        },
+        {
+            "author": "Super_SA",
+            "timestamp": 1573709340,
+            "txt_content": "楼主你好\n参数前面的空格怎么填？我写上去以后直接就报错了，能不能给我一个参考？\nsponge还在学习中。tileentity-activation {\n# If enabled, newly discovered tileentities will be added to this config with default settings.\nauto-populate=true\n# Default activation block range used for all tileentities unless overidden.\ndefault-block-range=256\n# Default tick rate used for all tileentities unless overidden.\ndefault-tick-rate=1\n# Per-mod overrides. Refer to the minecraft default mod for example.\nmods {\n\"advanced_solar_panels\" {\nblock-range {\n[b]\"advanced_solar_panels:quantum_solar_panel\"=512[/b]\n}\n# Set to false if you want mod to ignore tileentity activation rules and always tick.\nenabled=true\ntick-rate {\n[b]\"advanced_solar_panels:quantum_solar_panel\"=20[/b]\n}\n}\n}复制代码\n"
+        },
+        {
+            "author": "Tollainmear",
+            "timestamp": 1573721640,
+            "txt_content": "Super_SA 发表于 2019-11-14 13:29\n楼主你好\n参数前面的空格怎么填？我写上去以后直接就报错了，能不能给我一个参考？\nsponge还在学习中。{:69 ...\n“auto-populate=true”改成true之后，不要改其他的，启动服务器，配置文件会自动生成可以控制的TileEntity的名称并且默认值为1，等待优化的方块被加载之后，再重新加载配置文件进行修改即可，另外，旧版的Sponge配置文件无法热加载， 不知道最新的版本有没有修正这个问题，如果没有，请在服务器关闭后修改配置文件，然后再启动"
+        },
+        {
+            "author": "qin_qi",
+            "timestamp": 1580064300,
+            "txt_content": "太有帮助了，谢谢lz w"
+        },
+        {
+            "author": "3450271761",
+            "timestamp": 1582252860,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "零之轩",
+            "timestamp": 1585392600,
+            "txt_content": "感谢楼主  很适合小白的教程"
+        },
+        {
+            "author": "零之轩",
+            "timestamp": 1585392600,
+            "txt_content": "10号开的服 至今已经时常20人在线了！"
+        },
+        {
+            "author": "零之轩",
+            "timestamp": 1585392660,
+            "txt_content": "BB弹的教程真的很良心"
+        },
+        {
+            "author": "零之轩",
+            "timestamp": 1585392720,
+            "txt_content": "BB弹 想问你  全息指令添加的文字  重启服务器还是会消失  那个领地指令已经打过了的- -"
+        },
+        {
+            "author": "零之轩",
+            "timestamp": 1585392720,
+            "txt_content": "一重启就要重新设置全息文字属实烦"
+        }
+    ]
+}

@@ -1,0 +1,54 @@
+{
+    "title": "如何编写reload?",
+    "author": "25012770130",
+    "replyCount": 9,
+    "timestamp": 1566862860,
+    "txt_content": "昨天刚入门。 我搞了一个服务端测试插件 错了就改插件但每次改完都要重启服务器很麻烦， 怎么写一个reload插件指令？",
+    "replies": [
+        {
+            "author": "吕易天",
+            "timestamp": 1566863640,
+            "txt_content": "用PlugMan插件就行了/plugman reload 插件名"
+        },
+        {
+            "author": "25012770130",
+            "timestamp": 1566864120,
+            "txt_content": "吕易天 发表于 2019-8-27 07:54\n用PlugMan插件就行了/plugman reload 插件名\n那自己写呢？ 我想多学点"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566866580,
+            "txt_content": " 本帖最后由 吕易天 于 2019-8-27 11:20 编辑 \n25012770130 发表于 2019-8-27 08:02\n那自己写呢？ 我想多学点\nboolean reloadlisteners = true;\nBukkit.getPluginManager().disablePlugin(this);\ntry {\nField pluginsField = Bukkit.getPluginManager().getClass().getDeclaredField(\"plugins\");\npluginsField.setAccessible(true);\nList<Plugin> plugins = (List<Plugin>)pluginsField.get(pluginManager);\nField lookupNamesField = Bukkit.getPluginManager().getClass().getDeclaredField(\"lookupNames\");\nlookupNamesField.setAccessible(true);\nMap<String, Plugin> names = (Map<String, Plugin>)lookupNamesField.get(pluginManager);\nMap<Event, SortedSet<RegisteredListener>> listeners = null;\ntry {\n                    Field listenersField =  Bukkit.getPluginManager().getClass().getDeclaredField(\"listeners\");\n                    listenersField.setAccessible(true);\n                    listeners = (Map<Event, SortedSet<RegisteredListener>>)listenersField.get(pluginManager);\n                }\n                catch (Exception e3) {\n                    reloadlisteners = false;\n                }\nField commandMapField = Bukkit.getPluginManager().getClass().getDeclaredField(\"commandMap\");\ncommandMapField.setAccessible(true);\nSimpleCommandMap commandMap = (SimpleCommandMap)commandMapField.get(pluginManager);\nField knownCommandsField = SimpleCommandMap.class.getDeclaredField(\"knownCommands\");\nknownCommandsField.setAccessible(true);\nMap<String, Command> commands = (Map<String,Command>)knownCommandsField.get(commandMap);\nif(plugins!=null)\n  plugins.remove(this);\nif(names!=null)\n  names.remove(this.getName());\nif (listeners != null && reloadlisteners) {\n            for (SortedSet<RegisteredListener> set : listeners.values()) {\n                Iterator<RegisteredListener> it = set.iterator();\n                while (it.hasNext()) {\n                    RegisteredListener value = it.next();\n                    if (value.getPlugin() == plugin) {\n                        it.remove();\n                    }\n                }\n            }\n        }\n\nif (commandMap != null) {\n            Iterator<Map.Entry<String, Command>> it2 = commands.entrySet().iterator();\n            while (it2.hasNext()) {\n                Map.Entry<String, Command> entry = it2.next();\n                if (entry.getValue() instanceof PluginCommand) {\n                    PluginCommand c = (PluginCommand)entry.getValue();\n                    if (c.getPlugin() != this) {\n                        continue;\n                    }\n                    c.unregister((CommandMap)commandMap);\n                    it2.remove();\n                }\n            }\n        }\n\nClassLoader cl = this.getClass().getClassLoader();\n        if (cl instanceof URLClassLoader) {\n            try {\n                Field pluginField = cl.getClass().getDeclaredField(\"plugin\");\n                pluginField.setAccessible(true);\n                pluginField.set(cl, null);\n                Field pluginInitField = cl.getClass().getDeclaredField(\"pluginInit\");\n                pluginInitField.setAccessible(true);\n                pluginInitField.set(cl, null);\n            }\n            catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex4) {\n                Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex4);\n            }\n            try {\n                ((URLClassLoader)cl).close();\n            }\n            catch (IOException ex2) {\n                Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex2);\n            }\n        }\n\nSystem.gc();\nPlugin target = null;\nFile pluginDir = new File(\"plugins\");\nif (!pluginDir.isDirectory())\n  return true;\nFile pluginFile = null;\ntry{\nField tempFile=this.getClass().getDeclaredField(\"file\");\ntempFile.setAccessible(true);\npluginFile=(File)tempFile.get(this);\n}catch(Throwable e){e.printStackTrace();return true;}\nif(!pluginFile.exists() || !pluginFile.isFile())  return true;\ntry {\n            target = Bukkit.getPluginManager().loadPlugin(pluginFile);\n        }\n        catch (InvalidDescriptionException e) {\n            e.printStackTrace();\n            return true;\n        }\n\n    catch (InvalidPluginException e2) {\n            e2.printStackTrace();\n            return true;\n        }\n\ntarget.onLoad();\nBukkit.getPluginManager().enablePlugin(target);\n\nreturn true;\n            }\n            catch (NoSuchFieldException e) {\n                e.printStackTrace();\n                return true;\n            }\n\n           catch (IllegalAccessException e2) {\n                e2.printStackTrace();\n                return true;\n            }\n\n\n\n"
+        },
+        {
+            "author": "25012770130",
+            "timestamp": 1566873540,
+            "txt_content": "吕易天 发表于 2019-8-27 08:43\nboolean reloadlisteners = true;\nBukkit.getPluginManager().disablePlugin(this);\ntry {\n感谢大佬"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566874800,
+            "txt_content": " 本帖最后由 凋灵兔子 于 2019-8-27 11:18 编辑 \n\n确实是我错了, 抱歉 @吕易天 . 没能看清楚题意, 不过说真的...."
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566875520,
+            "txt_content": "凋灵兔子 发表于 2019-8-27 11:00\nSystem.gc???? 不是我怼你, 兄弟, 你的技术是真的有点不过关. 这样的代码放在服务器上简直就是毒瘤.\n\n另 ...\n他说了，重载是为了让修改的代码生效，还有，那句System.gc()是PlugMan里面的，很多人都在用PlugMan，也没什么问题出现"
+        },
+        {
+            "author": "guo1060924736",
+            "timestamp": 1567003620,
+            "txt_content": "简单的reload方法\npublic void Reload(){\n     reloadConfig()；\n}复制代码"
+        },
+        {
+            "author": "25012770130",
+            "timestamp": 1567232280,
+            "txt_content": "guo1060924736 发表于 2019-8-28 22:47\n**** 作者被禁止或删除 内容自动屏蔽 ****\n这么短 真的可以么。。。。  而且我是里面的  代码重新改  不是配置文件重新改"
+        },
+        {
+            "author": "Jonjs_Dada",
+            "timestamp": 1567240020,
+            "txt_content": " 本帖最后由 Jonjs_Dada 于 2019-8-31 16:28 编辑 \n\nreloadConfig();\n我呸，重载插件还是自己用其他插件好些\n看错了\n\n"
+        }
+    ]
+}

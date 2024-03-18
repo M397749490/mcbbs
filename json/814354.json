@@ -1,0 +1,54 @@
+{
+    "title": "【1.13】原版命令方块模组教程",
+    "author": "卡比三卖萌",
+    "replyCount": 9,
+    "timestamp": 1534231380,
+    "txt_content": "\n我们先理一理思路，清理应该分两个步骤，清理实体和清理方块，如果只使用命令方块矿车，那么清理掉一种东西以后注定清理不掉另一种东西（先清理方块会缺少红石块激活清理实体的命令方块矿车，先清理实体会把清理方块的命令方块矿车清理掉），所以我们需要把清理中的一个步骤“外包”给一个命令方块，让其在下一刻清理，本文先清理了实体后清理了方块：\nsetblock ~ ~ ~1 command_block{Command:\"fill ~ ~-3 ~-1 ~ ~ ~ air”}        //这一步放置了清理方块的命令方块\nsetblock ~ ~-1 ~1 redstone_block        //放置了红石块，清理方块的命令方块会在更新后执行\nkill @e[type=command_block_minecart,distance=..1]        //清理已经召唤的命令方块矿车\n\n为什么不使用函数功能？\n函数功能同样也能实现一个命令方块多条指令，而且制作过程简单的多。论优势，命令方块模组最大的优势就是安装方便，它没有那么繁琐的操作存档目录的过程。\n\n我该如何使用这篇教程？\n如果你的版本是Java版1.13，将你的指令写在这个位置：\n/summon minecraft:falling_block ~ ~1 ~ \n{BlockState:{Name:\"minecraft:stone\"},Time:1,Passengers:[\n    {id:falling_block,BlockState:{Name:\"minecraft:redstone_block\"},Time:1,Passengers:[\n        {id:falling_block,BlockState:{Name:\"minecraft:activator_rail\"},Time:1,Passengers:[\n            {id:command_block_minecart,Command:\"你的指令1\"},\n            {id:command_block_minecart,Command:\"你的指令2\"},\n            ……\n            {id:command_block_minecart,Command:\"你的指令n\"},\n            {id:command_block_minecart,Command:\"你的指令n + 1\"},\n            {id:command_block_minecart,Command:\"setblock ~ ~ ~1 command_block{Command:\\\"fill ~ ~-3 ~-1 ~ ~ ~ air\\\"}\"},\n            {id:command_block_minecart,Command:\"setblock ~ ~-1 ~1 redstone_block\"},\n            {id:command_block_minecart,Command:\"kill @e[type=command_block_minecart,distance=..1]\"}\n        ]}\n    ]}\n]}\n如果不是，你可能需要改动命令中的部分细节（如“distance=..1”替换为“r=1”，“command_block_minecart”替换为“MinecartCommandBlock”等）。\n\n本篇教程到此结束，希望你的模组取得成功。\n注：本文在MCBBS和百度贴吧上发布，转载请注明出处。\n百度贴吧：5839832585",
+    "replies": [
+        {
+            "author": "卡比三卖萌",
+            "timestamp": 1534231860,
+            "txt_content": "标题: 【1.13】原版命令方块模组教程相信不少人都知道原版命令方块模组，这类模组虽比不上forge模组功能强大，但有方便加载，无需forge等诸多优点。然而，国内关于原版命令方块模组的教程少之又少，今天我向大家分享我对原版命令方块模组的研究成果，希望大家喜欢。\nps：1.我希望这篇文章能有更多的人读的懂，所以废话比较多，有一定技术的人可以跳着看。\n      2.本文使用的游戏版本为Java版1.13，其它的版本请将命令中部分内容替换。\n\n原版命令方块模组的实质，是使用一个命令方块完成多项指令。可惜的是，不说执行多项指令，仅仅放置多个不同种类的方块已经很让人头疼了，那么我们应该如何同时放置多块方块呢。\n这就需要利用到下落的沙子，玩过指令的很多人可能都知道，下落的沙子作为一个实体，可能不一定要是沙子，原版中，下落的铁砧、沙硕、龙蛋都属于下落的沙子。当我们玩起指令时，任何方块都可以成为下落的沙子了（我会告诉你“任何”是我的猜测吗）。\n\n有人可能会问了，放置多个方块要下落的沙子有什么用呢？别急，将放置方块转为召唤下落的沙子，自然是要利用到下落的沙子作为实体的特性，这就需要我们知道一个叫Passengers的标签。\n顾名思义，Passengers指乘客，也就是骑乘的关系，比如蜘蛛骑士，就是蜘蛛的Passengers标签是一个骷髅，使用指令/summon minecraft:spider ~ ~ ~ {Passengers:[{id: skeleton}]}可在原地召唤一个蜘蛛骑士。\n\n所以，我们的目标是召唤一排互相骑乘的下落的沙子，其中有一个是红石块，用这个红石块去激活其它的命令方块，实现多条指令重复执行。\n一种比较理想的方法是，用这个红石块激活一个激活铁轨，激活铁轨再激活上方的命令方块矿车。\n不要问任何理由，先将下面这段代码粘贴进一个命令方块中并激活。\n/summon minecraft:falling_block ~ ~1 ~ {BlockState:{Name:\"minecraft:stone\"},Time:1,Passengers:[{id:falling_block,BlockState:{Name:\"minecraft:redstone_block\"},Time:1,Passengers:[{id:falling_block,BlockState:{Name:\"minecraft:activator_rail\"},Time:1,Passengers:[{id:command_block_minecart,Command:\"say 1\"},{id:command_block_minecart,Command:\"say 2\"}]}]}]}\n效果如图。\n\n可以看到，我们已经成功实现了一个命令方块执行多条指令，虽然我们看到命令在不断执行，我们将会稍后改进它。现在我们把指令展开来分析：\n/summon minecraft:falling_block ~ ~1 ~ \n{BlockState:{Name:\"minecraft:stone\"},Time:1,Passengers:[\n    {id:falling_block,BlockState:{Name:\"minecraft:redstone_block\"},Time:1,Passengers:[\n        {id:falling_block,BlockState:{Name:\"minecraft:activator_rail\"},Time:1,Passengers:[\n            {id:command_block_minecart,Command:\"say 1\"},\n            {id:command_block_minecart,Command:\"say 2\"}\n        ]}\n    ]}\n]}\n首先命令召唤了一个石头的下落方块，它的目的是将我们放置的命令方块与红石块隔开，防止命令二次触发。\n接着我们让一个红石块“骑”在石头上，当石头判定落地成为真正的方块时，红石块也会判定落在石头上成为方块。\n接着是激活铁轨，它会被红石块激活。\n激活铁轨的下落方块上并行骑着两个命令方块矿车，它们会被激活铁轨激活并执行其中的”say 1”和”say 2”两条指令。\n\n那么我们怎么改进让它只执行一遍呢，根本方法是在执行完后将所有的方块和命令方块矿车全部移除。二话不说，先复制下面这段到命令方块中并执行：\n/summon minecraft:falling_block ~ ~1 ~ {BlockState:{Name:\"minecraft:stone\"},Time:1,Passengers:[{id:falling_block,BlockState:{Name:\"minecraft:redstone_block\"},Time:1,Passengers:[{id:falling_block,BlockState:{Name:\"minecraft:activator_rail\"},Time:1,Passengers:[{id:command_block_minecart,Command:\"say 1\"},{id:command_block_minecart,Command:\"say 2\"},{id:command_block_minecart,Command:\"setblock ~ ~ ~1 command_block{Command:\\\"fill ~ ~-3 ~-1 ~ ~ ~ air\\\"}\"},{id:command_block_minecart,Command:\"setblock ~ ~-1 ~1 redstone_block\"},{id:command_block_minecart,Command:\"kill @e[type=command_block_minecart,distance=..1]\"}]}]}]}\n现象：聊天框出现1,2，随后所有放置的物体消失的无影无踪。\n然后还是分析：\n/summon minecraft:falling_block ~ ~1 ~ \n{BlockState:{Name:\"minecraft:stone\"},Time:1,Passengers:[\n    {id:falling_block,BlockState:{Name:\"minecraft:redstone_block\"},Time:1,Passengers:[\n        {id:falling_block,BlockState:{Name:\"minecraft:activator_rail\"},Time:1,Passengers:[\n            {id:command_block_minecart,Command:\"say 1\"},\n            {id:command_block_minecart,Command:\"say 2\"},\n            {id:command_block_minecart,Command:\"setblock ~ ~ ~1 command_block{Command:\\\"fill ~ ~-3 ~-1 ~ ~ ~ air\\\"}\"},\n            {id:command_block_minecart,Command:\"setblock ~ ~-1 ~1 redstone_block\"},\n            {id:command_block_minecart,Command:\"kill @e[type=command_block_minecart,distance=..1]\"}\n        ]}\n    ]}\n]}\n我们先理一理思路，清理应该分两个步骤，清理实体和清理方块，如果只使用命令方块矿车，那么清理掉一种东西以后注定清理不掉另一种东西（先清理方块会缺少红石块激活清理实体的命令方块矿车，先清理实体会把清理方块的命令方块矿车清理掉），所以我们需要把清理中的一个步骤“外包”给一个命令方块，让其在下一刻清理，本文先清理了实体后清理了方块：\nsetblock ~ ~ ~1 command_block{Command:\"fill ~ ~-3 ~-1 ~ ~ ~ air”}\n\n\n\n\n\n\n2018-08-14_14.02.20.png\n(240.54 KB, 下载次数: 10)\n\n\n\n\n下载附件\n\n\n2018-8-14 15:31 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "卡比三卖萌",
+            "timestamp": 1534232100,
+            "txt_content": "卡比三卖萌 发表于 2018-8-14 15:23\n吃掉了一部分，补：\n我们先理一理思路，清理应该分两个步骤，清理实体和清理方块，如果只使用命令方块矿车 ...\n百度贴吧这个数字你们应该会用"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1534232160,
+            "txt_content": "卡比三卖萌 发表于 2018-8-14 15:41\n教程使用版本是1.13，没说只有1.13能用这个方法啊。\n一键ooc有办法通过工具弄出来吗？如果有，那算我不知 ...\n一键ooc的工具肯定是有的……\n我的意思是你这个方法应该说做ooc的大家肯定都知道，版内应该也有帖子讲过（我没找）……\n另一方面，从1.12起就已经不需要这种方法了，用函数来实现效率会高得多\n\n当然我还是欢迎你分享你的技巧的……"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1534232280,
+            "txt_content": "你都1.13了，还用什么矿车堆叠啊！\n再说了，你这不是一键OOC的指令么……"
+        },
+        {
+            "author": "卡比三卖萌",
+            "timestamp": 1534232460,
+            "txt_content": " 本帖最后由 卡比三卖萌 于 2018-8-14 15:45 编辑 \nruhuasiyu 发表于 2018-8-14 15:38\n你都1.13了，还用什么矿车堆叠啊！\n再说了，你这不是一键OOC的指令么……\n教程使用版本是1.13，没说只有1.13能用这个方法啊，我之所以用1.13是我懒得下旧版本而已，总体上还是个服务旧版本的教程。我还可以说出了函数就不要命令方块模组了，但不能改变这是一项技术的事实吧。\n一键ooc有办法通过工具弄出来吗？如果有，那算我不知道。如果没有，那这不就是个搞出这种东西的教程吗。"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1534245780,
+            "txt_content": "你这个属于挂羊头卖狗肉的1.13。。。OOC是什么年代的技术了，8102年了就别往论坛发了吧"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1534253100,
+            "txt_content": "我只想说...\n原版模组不同OOC，你这是写的OOC\n原版模组只是透过数据包、命令、资源包等方式，为游戏加入新的特性\nOOC是一次过导入多条命令（在1.13一般不需要），只是导入原版模组的其中一种方法（但也不只能导入原版模组，以前制作地图时也会使用OOC导入多条命令）"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1534410060,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2018-8-16 17:04 编辑 \n\n当我看到标题里有命令方块的时候就猜到了接下来会发生什么……\n这里和百度贴吧还是有些区别的……\n尤其是这里大佬特别多，有质量的技术贴也不少，水特别深，\n以至于现在很少有新的教程帖了，大多都是旧的教程发了一遍又一遍（除非有新版本更新）\n来自某个刚入MCBBS的萌新"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1534522620,
+            "txt_content": "原版模组教程精华区就有。\n文不对题，此篇文章并未介绍原版模组，仅介绍了如何导入大批量指令。\nooc为1.7-1.8时代就诞生的技术。\n生成器、教程、使用、原理讲解本版均有。\n现在游戏版本为1.13。这意味着内容非常过时。\n既文不对题，又内容过时，本当直接删除。\n但楼主愿意思考，值得鼓励。\n可是信息的匮乏并不是一句不知道就能盖过的。\n思而不学则殆。\n按版规给个限时关闭。\n\n希望楼主理清思绪，友善交流。"
+        }
+    ]
+}

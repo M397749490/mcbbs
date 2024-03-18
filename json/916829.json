@@ -1,0 +1,49 @@
+{
+    "title": "根据物品nbt任意渲染物品模型",
+    "author": "云闪",
+    "replyCount": 8,
+    "timestamp": 1569914280,
+    "txt_content": " 本帖最后由 云闪 于 2019-10-2 12:55 编辑 \n\nmod物品的任意渲染请参考：https://harbinger.covertdragon.team/chapter-11/baked/custom-mesh.html\n\n今天一个小伙伴来问我原版物品的模型的任意渲染，很可惜直接根据上方的教程是行不通的。\n不过基于该教程提供的思路研究了一下，以下方式可以任意渲染原版物品(以煤炭示例)\npublic void postInit(FMLPostInitializationEvent event) {\n        ItemModelMesher itemModelMesher = Minecraft.getMinecraft().getRenderItem().getItemModelMesher();\n        Map<IRegistryDelegate<Item>, Int2ObjectMap<IBakedModel>> models = ReflectionHelper\n            .getPrivateValue(ItemModelMesherForge.class, (ItemModelMesherForge) itemModelMesher, \"models\");\n        models.remove(Items.COAL.delegate);\n        Map<IRegistryDelegate<Item>, Int2ObjectMap<ModelResourceLocation>> locations = ReflectionHelper\n            .getPrivateValue(ItemModelMesherForge.class, (ItemModelMesherForge) itemModelMesher, \"locations\");\n        locations.remove(Items.COAL.delegate);\n\n        itemModelMesher.register(Items.COAL,\n            item -> {\n                // 可根据ItemStack的各种信息决定返回值，此处直接返回苹果的模型\n                return new ModelResourceLocation(\"apple\", \"inventory\");\n            });\n        itemModelMesher.rebuildCache();\n    }\n\n效果\n\n\n此方案暂不清楚强行反射是否会造成某些负面影响，虽然暂时是没有发现\n\n\n此方案仍然只能添加已经加载的模型，由于mc只会主动加载已注册物品的模型，这里再给一个主动加载任意模型的代码吧(仍然需要材质包中已有相应模型/材质文件)\n其中的getDynamicResourcePack().getResMap()是我自己定义的获取模型的方法，这个keySet是资源包中的文件路径列表，所以对name再做了一次处理后才进行注册。\n我觉得应该不难理解\n@SubscribeEvent\n    public void onModelBake(ModelBakeEvent event) {\n        ICustomModelLoader modelLoader = ReflectionHelper.getPrivateValue(\n            ReflectionHelper.getClass(MinecraftForge.class.getClassLoader(), \"net.minecraftforge.client.model.ModelLoader$VanillaLoader\"),\n            null, \"INSTANCE\");\n        Function<ResourceLocation, TextureAtlasSprite> textureGetter = ModelLoader.defaultTextureGetter();\n        for (String name : getDynamicResourcePack().getResMap().keySet()) {\n            if (name.endsWith(\".json\")) {\n                int left = name.lastIndexOf('/') + 1;\n                int right = name.lastIndexOf('.');\n                try {\n                    ModelResourceLocation res = new ModelResourceLocation(DynamicResourcePack.DOMAIN + \":\" + name.substring(left, right));\n                    ModelResourceLocation actualRes = new ModelResourceLocation(res.getResourceDomain() + \":models/item/\" + res.getResourcePath());\n                    IModel model = modelLoader.loadModel(actualRes);\n                    event.getModelRegistry().putObject(res, model.bake(model.getDefaultState(), DefaultVertexFormats.ITEM, textureGetter));\n                } catch (Exception e) {\n                    e.printStackTrace();\n                }\n            }\n        }\n    }\n\n\n欢迎各位大佬指正！再次感谢 Harbinger - 面向中文社区的 1.12.2 Forge Mod 开发指南",
+    "replies": [
+        {
+            "author": "小木吖",
+            "timestamp": 1569914820,
+            "txt_content": "看起来用来做整人地图不错"
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1569916020,
+            "txt_content": "这个操作让我想到了这个模组\n"
+        },
+        {
+            "author": "wshycaa",
+            "timestamp": 1569925620,
+            "txt_content": "是只可以用已经注册了的材质吗？"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1569940200,
+            "txt_content": "wshycaa 发表于 2019-10-1 18:27\n是只可以用已经注册了的材质吗？\n是的，我修改了一下帖子加了一份主动注册材质的方案，但仍然需要提前在材质包有相应的json和图片 只是不再依赖必须是某个物品的材质"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1569940620,
+            "txt_content": "原版材质的任意渲染\n用资源包替换原版物品模型莫非不可以？"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1569943500,
+            "txt_content": " 本帖最后由 云闪 于 2019-10-1 23:27 编辑 \n3TUSK 发表于 2019-10-1 22:37\n用资源包替换原版物品模型莫非不可以？\n指的是根据display name/lore或者其它nbt，对相同id和damage的物品渲染不同的材质"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1569955440,
+            "txt_content": "云闪 发表于 2019-10-1 23:25\n指的是根据display name/lore或者其它nbt，对相同id和damage的物品渲染不同的材质 ...直接根据上方的教程是行不通的\n诚然是行不通的，原版物品的 mesh definition 已经被原版自己先加载完了，自然不能重新指定新的 ItemMeshDefinition。（待查：并没有找到哪里有对 key 进行查重，为什么新的 value 不会覆盖旧的？理论上应该是可以用 ItemMeshDefinition 的。）\n你给出的解决方案是通过反射把原版的 mesh definition 先干掉然后重新注册一个新的……\n\n有一个更安全的解决方案是自己实现一个新的 IBakedModel+ItemOverrideList 然后用资源包覆盖原版模型，新模型指向你新实现的 IBakedModel。优点是无需反射，以及 1.13 以上迁移的时候方便（1.13 起 ItemMeshDefinition 直接消失了）。\n\n主动加载任意材质的代码\n更准确地说，这是在加载任意方块/物品模型…… 纹理（“材质”）和模型是分开的。\n毕竟，有办法在没有模型的情况下只把纹理加载进 TextureMap（Forge 的 TextureStitchEvent）。\n\n自然地，也有不需要反射的办法，但是比较麻烦……"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1569990660,
+            "txt_content": " 本帖最后由 云闪 于 2019-10-2 12:54 编辑 \n3TUSK 发表于 2019-10-2 02:44\n诚然是行不通的，原版物品的 mesh definition 已经被原版自己先加载完了，自然不能重新指定新的 ItemMes ...（待查：并没有找到哪里有对 key 进行查重，为什么新的 value 不会覆盖旧的？理论上应该是可以用 ItemMeshDefinition 的。）\n原版物品是通过register(Item item, int meta, ModelResourceLocation location)注册并储存在这样一个map中的\nMap<IRegistryDelegate<Item>, Int2ObjectMap<ModelResourceLocation>> locations\n而自定义的ItemMeshDefinition是储存在\nMap<Item, ItemMeshDefinition> shapers中的\n查找时优先从locations查找(因为locations是固定模型位置所以还有一个models缓存 实际上是从缓存中拿)，找不到再去shapers找ItemMeshDefinition 如果定义了ItemMeshDefinition 就用它获取模型位置并实时生成IBakedModel(由于模型位置不固定所以这个没有缓存)  \n(待查：按理说mod物品的模型直接储存在locations也没问题，但似乎forge没有这样做，因为直接注册mod物品的ItemMeshDefinition是有效的，具体情况不明)  \nIBakedModel+ItemOverrideList的方案我研究一下\n已将材质修改为模型"
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "title": "获取原版 ItemMeta 产生空指针！大佬求救！！",
+    "author": "诺凡克罗诺",
+    "replyCount": 7,
+    "timestamp": 1573127100,
+    "txt_content": " 本帖最后由 835937470 于 2019-11-7 19:49 编辑 \nItemMeta meta = itemStack.getItemMeta();\n        meta = meta==null?Bukkit.getItemFactory().getItemMeta(itemStack.getType()):meta;\n        if(meta == null){\n            meta = new ItemStack(itemStack.getType()).getItemMeta();\n        }\n        List<String> lore = meta.hasLore()?meta.getLore():new ArrayList<>();复制代码代码如上，我想获取物品的lore，如果放入了原版物品就会产生空指针\n已经添加了好几个新建 ItemMeta 的方法，但是返回的都是 null，在最后获取list的时候\n都会因为meta产生空指针然后报错！\n实在是不知道问题出在哪里\n\n\n\n\nimage.png (32.09 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-7 19:48 上传\n\n\n\n\n\n蜜汁报错~以前不会出现这个问题(原版物品获取meta空指针)\n[groupid=1511]Server CT[/groupid]",
+    "replies": [
+        {
+            "author": "粘兽",
+            "timestamp": 1573130400,
+            "txt_content": "itemStack.hasItemMeta()"
+        },
+        {
+            "author": "诺凡克罗诺",
+            "timestamp": 1573130460,
+            "txt_content": "粘兽 发表于 2019-11-7 20:40\nitemStack.hasItemMeta()\n都试过了"
+        },
+        {
+            "author": "Bryan33",
+            "timestamp": 1573131480,
+            "txt_content": "/**\n     * Get a copy of this ItemStack's {[url=home.php?mod=space&uid=41191]@link[/url] ItemMeta}.\n     *\n     * [url=home.php?mod=space&uid=491268]@Return[/url] a copy of the current ItemStack's ItemData\n     */\n    public ItemMeta getItemMeta() {\n     return this.meta == null ? Bukkit.getItemFactory().getItemMeta(this.type) : this.meta.clone();\n    }\n复制代码这是Bukkit的ItemStack里的代码\n实际上你在get的时候就已经帮你做了判断了\n即使如此返回依然是null的情况\n只能说明一点\n这个物品的Material是AIR\n空气是没有ItemMeta的"
+        },
+        {
+            "author": "诺凡克罗诺",
+            "timestamp": 1573182720,
+            "txt_content": "Bryan33 发表于 2019-11-7 20:58\n这是Bukkit的ItemStack里的代码\n实际上你在get的时候就已经帮你做了判断了\n即使如此返回依然是null的情况\n正如你说的，我在itemstackli也看了这个方法所以我代码里引用了Bukkit.getItemFactory()\n但是依然返回空，并且我百分百确定那个material不是air，因为只有当引用原版物品的时候才会产生空指针(就是说-只要物品带一点别的属性,displayname、lore、附魔。。这些就不会产生空指针)，\n并且代码运行到这里其实已经排除了物品为空，物品是空气的情况。"
+        },
+        {
+            "author": "诺凡克罗诺",
+            "timestamp": 1573183260,
+            "txt_content": "Bryan33 发表于 2019-11-7 20:58\n这是Bukkit的ItemStack里的代码\n实际上你在get的时候就已经帮你做了判断了\n即使如此返回依然是null的情况\n当然，也有可能是在一些神秘的情况下获取了一个air，bukkit本身也有一些小bug，比如说背包点击事件点击一个没有物品的空槽位，然后执行替换或者放置该背包内物品后还需要点击下背包有物品的格子才会更新物品……\n甩个锅给bukkit\n另外这个点击问题我用BukkitRunnable解决了"
+        },
+        {
+            "author": "Bryan33",
+            "timestamp": 1573194120,
+            "txt_content": "835937470 发表于 2019-11-8 11:21\n当然，也有可能是在一些神秘的情况下获取了一个air，bukkit本身也有一些小bug，比如说背包点击事件点击一 ...\n目测是和Inventory有关的事件吧\n在事件上有说明的\nThis event is called when a player clicks a slot in an inventory.\nBecause InventoryClickEvent occurs within a modification of the Inventory, not all Inventory related methods are safe to use.\n\nThe following should never be invoked by an EventHandler for InventoryClickEvent using the HumanEntity or InventoryView associated with this event:\n\nHumanEntity.closeInventory()\nHumanEntity.openInventory(Inventory)\nHumanEntity.openWorkbench(Location, boolean)\nHumanEntity.openEnchanting(Location, boolean)\nInventoryView.close()\nTo invoke one of these methods, schedule a task using BukkitScheduler.runTask(Plugin, Runnable), which will run the task on the next tick. Also be aware that this is not an exhaustive list, and other methods could potentially create issues as well.复制代码\n事件中是不能调用以上四个方法"
+        },
+        {
+            "author": "弥猫うた",
+            "timestamp": 1573206120,
+            "txt_content": "看你问题大致写了一下，不知道是不是检测穿戴的物品，有mate输出，没有则添加\n@EventHandler\n        public void b(final InventoryCloseEvent e) {\n\n                Player p = (Player) e.getPlayer();\n                ItemStack is = p.getInventory().getHelmet();\n                if (p.getInventory().getHelmet() != null) {\n                        if (is.hasItemMeta()) {\n                                if (is.getItemMeta().hasLore()) {\n                                        List<String> list = is.getItemMeta().getLore();\n                                        for(String k : list)\n                                        p.sendMessage(k);        \n                                }\n                        }else {\n                                ItemMeta meta = is.getItemMeta();\n                            List<String> lore = meta.getLore();\n                            if (lore == null) {\n                              lore = new LinkedList<String>();\n                            }\n                            lore.add(\"xxxxx\");\n                            meta.setLore(lore);\n                            is.setItemMeta(meta);\n                        }\n                }\n\n        }"
+        }
+    ]
+}

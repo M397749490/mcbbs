@@ -1,0 +1,74 @@
+{
+    "title": "分析数据包漏洞修复插件为什么没用",
+    "author": "落花雨喵",
+    "replyCount": 13,
+    "timestamp": 1582983900,
+    "txt_content": "本帖仅从源码角度分析数据包漏洞修复插件, 意在避免服主被误导安装导致损失, 不提供任何作弊教程\n\n近期出现很多数据包漏洞修复插件, 我很好奇插件是如何做到修复MOD漏洞的\n于是反编译看了下源码:\n\nW***h插件:\n\n\n\n\n\n\n1.png (3.09 KB, 下载次数: 0)\n\n下载附件\n\n2020-2-29 21:33 上传\n\n\n\n\n\n\n\nA**P**x插件:\n\n\n\n\n\n2.png (2.98 KB, 下载次数: 0)\n\n下载附件\n\n2020-2-29 21:33 上传\n\n\n\n\n\n这些插件的逻辑基本都是判断某个数据包长度大于等于64或者判断长度为64的倍数\n\n\n为什么这样就可以修复?\n\n因为某作弊端发包存在一个缺陷, 数据包初始长度为64, 不够用时以64的倍数增长\n而刷物品根本不需要64长度, 只要指定一个初始化长度例如55, 所有插件都会被绕过\n这些修复插件只是投机取巧, 而且容易误拦截正常数据包\n所以根本不存在所谓的修复插件, 建议所有服主使用AnotherCommonBugFix从底层彻底修复漏洞\n\n\n",
+    "replies": [
+        {
+            "author": "jiangshui",
+            "timestamp": 1582984020,
+            "txt_content": " 的确"
+        },
+        {
+            "author": "BellTune",
+            "timestamp": 1582984200,
+            "txt_content": " 本帖最后由 BellTune 于 2020-3-1 08:50 编辑 \n\n你好，亲爱的楼主，\n我已联系到AntiPayloadHax的作者本人，\n这是他说他即将更新的代码，\n虽然我看不懂，但作者要求我贴出来给你看\npackage com.relatev.minecraft.antipayloadhax.modules;\n\nimport com.relatev.minecraft.antipayloadhax.AntiPayloadHax;\nimport org.bukkit.Bukkit;\nimport org.bukkit.block.Block;\nimport org.bukkit.entity.Player;\n\npublic class TConstruct extends PayloadModuel {\n\n    public TConstruct() {\n        AntiPayloadHax.MainPlugin.getLogger().info(this.getClass().getSimpleName() + \" 防御系统启动中!\");\n        AntiPayloadHax.MainPlugin.getLogger().info(\"部分防御已交给 AnotherCommonBugFix!\");\n        if (AntiPayloadHax.MainPlugin.classNameMap != null && AntiPayloadHax.MainPlugin.classNameMap.containsKey(\"tconstruct.util.network.PatternTablePacket\")) {\n            AntiPayloadHax.MainPlugin.getLogger().info(\"AnotherCommonBugFix已安装,本插件此模块已被接替!\");\n        } else {\n            AntiPayloadHax.MainPlugin.getLogger().info(this.getClass().getSimpleName() + \" 防御系统已经启用!\");\n            this.enable();\n        }\n    }\n\n    @Override\n    public boolean onReceivePayload(Player player, String channel, Object buf) {\n        if (channel.equals(\"TConstruct\")) {\n            byte packetid = this.readBufByte(buf);\n            if (packetid == 8) {\n                int x = this.readBufInt(buf);\n                int y = this.readBufInt(buf);\n                int z = this.readBufInt(buf);\n                Block block = player.getWorld().getBlockAt(x, y, z);\n                if (block.getType().name().equals(\"TCONSTRUCT_TOOLSTATIONBLOCK\") && (block.getData() == 10 || block.getData() == 11 || block.getData() == 12 || block.getData() == 13)) {\n                    return false;\n                } else {\n                    Bukkit.broadcastMessage(AntiPayloadHax.MainPlugin.configManager.BoardcastMessage.replaceAll(\"%Player%\", player.getName()).replaceAll(\"%Mod%\", channel));\n                    return true;\n                }\n            }\n        }\n        return false;\n    }\n}\n复制代码\n\n来自原作者的QQ信息，要求留言：\n落花雨，你先举报我的APH，现在又举报我的AATRL\n首先，APH的上个版本的确存在漏洞可以绕过\n但现在，它从机理上被修复了\n让我们解读一下这部分代码：\n首先，我进行了反射，编写了工具类【PayloadModuel.java】，它可以允许我的插件随意收发Mod的数据包\n其次，我通过疯狂地反射，超出了Bukkit限制，得以将byte[]反序列化\n\n而修复版的工匠修复逻辑如上\n现在已经不是小儿科地检测看着哪个方块了\n而是彻底检测数据包极其合法性\n\n在这里必须感谢GK和司徒小莫（AnotherBug修复Mod作者）提供了大量的帮助\n目前，此修复逻辑和AnotherCommonBugFix的修复逻辑等同\n如果你能绕过去新版本APH的修复，那么你也绕过了ACBF的修复\n最后，我希望落花雨你可干点好事吧\n成天攻击别人服务器，我修复漏洞，你在那里破解漏洞危害社会\n来自原作者的二次回复：@Override\n    public boolean onReceivePayload(Player player, String channel, Object buf) 此方法为工具类调用，为主线程操作，不会出现异步，也不可能崩服，你俩连我工具类都没有就瞎嚷嚷。\n最后，我作为一个旁观者也实在看不下去了\n咋？这两天时间到处针对乐乐，先是在群内各种谩骂，然后举报APH，举报AATRL，现在又来搞这一出？\n还写非传播漏洞如何如何，你可得了吧，你这就是赤裸裸的针对，彻彻底底搞破坏\n人家在那里修复漏洞，你在这里制造漏洞，破解修复，你可真行，危害真是大\n\n来自原作者的三次回复：\n会触发区块大量加载导致崩服？\n我提前检查一下区块是否加载就好了，\n另外从同步转异步了\n\n不真不愧是压测软件的作者，随便一个插件你都能找出个崩服的漏洞来\n厉害厉害，那我得谢谢你，帮我抓BUG\n"
+        },
+        {
+            "author": "iKoumimi",
+            "timestamp": 1582984200,
+            "txt_content": "且A**P**x插件检测热力膨胀刷东西的方法为：检测收到数据包时，玩家是否正在看着CACHE方块。绕过方法为：修改作弊mod。选中方块。移动视角，发送数据包。则可以绕过检测"
+        },
+        {
+            "author": "落花雨喵",
+            "timestamp": 1582984320,
+            "txt_content": " 本帖最后由 落花雨喵 于 2020-2-29 22:12 编辑 \nBellTune 发表于 2020-2-29 21:50\n你好，亲爱的楼主，\n我已联系到AntiPayloadHax的作者本人，\n这是他说他即将更新的代码，\nnetty线程获取方块\n只要指定一个未加载区块的坐标 导致触发异步区块加载 将直接崩服\n即使切换主线程操作 依然可以发包触发大量区块加载导致崩服\n"
+        },
+        {
+            "author": "iKoumimi",
+            "timestamp": 1582984620,
+            "txt_content": "落花雨喵 发表于 2020-2-29 21:52\nnetty线程获取方块\n只要指定一个未加载区块的坐标 导致触发异步区块加载 将直接崩服 ...\n吕乐乐这种代码写的还少吗？"
+        },
+        {
+            "author": "Soul_cutting",
+            "timestamp": 1582985880,
+            "txt_content": "落花雨喵 发表于 2020-2-29 21:52\nnetty线程获取方块\n只要指定一个未加载区块的坐标 导致触发异步区块加载 将直接崩服\n即使切换主线程操作  ...\n我用了这插件这么久我崩都没崩过"
+        },
+        {
+            "author": "落花雨喵",
+            "timestamp": 1582986000,
+            "txt_content": " 本帖最后由 落花雨喵 于 2020-2-29 22:22 编辑 \nSoul_cutting 发表于 2020-2-29 22:18\n我用了这插件这么久我崩都没崩过\nBUG存在 没人利用而已\n本帖也不提供作弊教程\n"
+        },
+        {
+            "author": "Soul_cutting",
+            "timestamp": 1582986420,
+            "txt_content": "落花雨喵 发表于 2020-2-29 22:20\nBUG存在 没人利用而已\n本帖也不提供作弊教程\n你加这APX你作弊都作弊不了\n你那什么lj操死乐乐吊用没有"
+        },
+        {
+            "author": "dogeop",
+            "timestamp": 1582986480,
+            "txt_content": "老子把FML所有的private field和method都扔进sun.reflect.Reflection的黑名单里，注入都给你扬咯！"
+        },
+        {
+            "author": "iKoumimi",
+            "timestamp": 1583072340,
+            "txt_content": " 本帖最后由 iKoumimi 于 2020-3-1 22:35 编辑 \n\n\n\n\n\nK6J071@6~PGYJF)(A7(LZ28.png (12.96 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-1 22:16 上传\n\n\n\n\n\n你说的彻底反制呢？我不锤你了是我不想理你了。结果你自己跑出来蹦跶。那就没办法咯\n\n\n\n\n2TLZUDYR(E71H@)9VI_R}K2.jpg (17.71 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-1 22:14 上传\n\n\n\n\n\n此方法已绕过3.1-22.15的最新版本。\n吕乐乐小朋友。你怎么还是不懂插件无法防御此bug的道理呢？\n花了点钱外包让别人写了个插件就蹦跶了？\n异步调用BukkitAPI？别以为判断一下区块是否加载就没事了。不把你netty线程崩死？\n还说你能同步调用？醒醒吧。plib的包处理是在异步。你调回同步你拿什么去拦截？\n"
+        },
+        {
+            "author": "血亦寒",
+            "timestamp": 1583315880,
+            "txt_content": "感觉都挺有道理的.......不如插件mod都安装......"
+        },
+        {
+            "author": "猥琐的小王",
+            "timestamp": 1585630380,
+            "txt_content": "如果2个一起装会有问题吗"
+        },
+        {
+            "author": "CCCP982315698",
+            "timestamp": 1587201540,
+            "txt_content": "谢谢楼主！get到了"
+        }
+    ]
+}

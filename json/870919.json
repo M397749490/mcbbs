@@ -1,0 +1,54 @@
+{
+    "title": "BedwarsRel小游戏插件的回档原理",
+    "author": "hemp",
+    "replyCount": 9,
+    "timestamp": 1559796240,
+    "txt_content": " 本帖最后由 hemp 于 2019-6-6 12:43 编辑 \n\n起床战争小游戏大家应该都玩过(或听说过)，他最神奇的地方就是，开始一个新游戏后，上一次游戏中玩家放置的方块，以及其他打斗痕迹就会消失不见。很多小游戏都能够回档地图(当然，是那些可以操作方块的)。对于要开发小游戏插件的开发者来说，实现地图回档也许是一个重要部分。\n值得庆幸的是，BedwarsRel是一个开源的插件，我们可以分析源代码来了解它的地图回档机制。\n\n\nBedwarsRel的项目地址:https://github.com/BedwarsRel/BedwarsRel\n\n由于项目较大，我们一点点翻会比较浪费时间，所以用github强大的代码搜索功能。\n那么，搜什么呢？我们先想想有关回档的插件，例如Coreprotect,他的原理是记录所有的存档变化，然后回档的时候进行一次反操作。BedwarsRel会不会也是如此呢？\n我们假设是这个原理，那么方块破坏事件一定少不了。对！我们先找找它对方块破坏事件的处理！！！\n搜索框输入\"BlockBreakEvent\",然后自信的按下回车。\n\n\n我们看到，这个插件里有两个关于此事件的处理器，那么哪个是呢？\n@EventHandler(priority = EventPriority.HIGH)复制代码这里说明他有很高优先级，回头想想，对于记录方块变化来说，这是不利的，因为他会被最先执行。这样的话如果后面事件被取消，那么记录与实际就矛盾了。再根据类名判断\"TrapListener\"，这应该是涉及游戏中的玩法的。所以，第一个不是我们要找的！\n那么接下来，我们就要到下面那个类里面去找我们想要的了。\n\n在L102-124的地方，我们发现这样一段代码\n\n    Material targetMaterial = g.getTargetMaterial();\n    if (e.getBlock().getType() == targetMaterial) {\n      e.setCancelled(true);\n\n      g.handleDestroyTargetMaterial(p, e.getBlock());\n      return;\n    }\n\n    Block breakedBlock = e.getBlock();\n\n    if (!g.getRegion().isPlacedBlock(breakedBlock)) {\n      if (breakedBlock == null) {\n        e.setCancelled(true);\n        return;\n      }\n\n      if (BedwarsRel.getInstance().isBreakableType(breakedBlock.getType())) {\n        g.getRegion().addBreakedBlock(breakedBlock);\n        e.setCancelled(false);\n        return;\n      }\n复制代码\n\n这应该就是我们要找的东西了。为什么这样说呢？\n\ng.getRegion().addBreakedBlock(breakedBlock);复制代码我们看这段代码，从字面意思上看是\"在游戏区域添加已破坏的的方块\"，这就很接近开头提到的记录方块变化了。我们再看看Game类.\n我们并不能找到getRegion()方法，因为它使用了\"lombok\"\n我们直接找\"region\"这个变量就好了。\nprivate Region region = null;复制代码\n\n嗯....我们再看看Region类\n\n开头的一堆HashMap和List,让我们感觉到我们的猜测很可能是对的。\n public final static int CHUNK_SIZE = 16;\n  private HashMap<Block, Byte> breakedBlockData = null;\n  private HashMap<Block, BlockFace> breakedBlockFace = null;\n  private HashMap<Block, Boolean> breakedBlockPower = null;\n  private HashMap<Block, Integer> breakedBlockTypes = null;\n  private List<Block> breakedBlocks = null;\n  private List<Inventory> inventories = null;\n  private Location maxCorner = null;\n  private Location minCorner = null;\n  private String name = null;\n  private List<Block> placedBlocks = null;\n  private List<Block> placedUnbreakableBlocks = null;\n  private List<Entity> removingEntities = null;\n  private World world = null;复制代码\n\n但是我们不能妄下结论，我们应该看看这个类的方法。\nreset()方法引起了我们的注意，这会不会就是我们开头提到的回档？？\n \n  public void reset(Game game) {\n    this.loadChunks();\n\n\n    for (Inventory inventory : this.inventories) {\n      inventory.clear();\n    }\n\n\n    for (Block placed : this.placedBlocks) {\n      Block blockInWorld = this.world.getBlockAt(placed.getLocation());\n      if (blockInWorld.getType() == Material.AIR) {\n        continue;\n      }\n\n\n      if (blockInWorld.equals(placed)) {\n        blockInWorld.setType(Material.AIR);\n      }\n    }\n\n\n    this.placedBlocks.clear();\n\n\n    for (Block placed : this.placedUnbreakableBlocks) {\n      Block blockInWorld = this.world.getBlockAt(placed.getLocation());\n      if (blockInWorld.getType() == Material.AIR) {\n        continue;\n      }\n\n\n      if (blockInWorld.getLocation().equals(placed.getLocation())) {\n        blockInWorld.setType(Material.AIR);\n      }\n    }\n\n\n    this.placedUnbreakableBlocks.clear();\n\n\n    for (Block block : this.breakedBlocks) {\n      Block theBlock = this.getWorld().getBlockAt(block.getLocation());\n      theBlock.setTypeId(this.breakedBlockTypes.get(block));\n      theBlock.setData(this.breakedBlockData.get(block));\n\n\n      if (this.breakedBlockFace.containsKey(theBlock)) {\n        MaterialData data = theBlock.getState().getData();\n        if (data instanceof Directional) {\n          ((Directional) data).setFacingDirection(this.breakedBlockFace.get(block));\n          theBlock.getState().setData(data);\n        }\n      }\n\n\n      if (theBlock.getState().getData() instanceof Lever) {\n        Lever attach = (Lever) theBlock.getState().getData();\n        BlockState supportState = theBlock.getState();\n        BlockState initalState = theBlock.getState();\n        attach.setPowered(this.breakedBlockPower.get(block));\n        theBlock.getState().setData(attach);\n\n\n        supportState.setType(Material.AIR);\n        supportState.update(true, false);\n        initalState.update(true);\n      } else {\n        theBlock.getState().update(true, true);\n      }\n    }\n\n\n    this.breakedBlocks.clear();\n\n\n    Material targetMaterial = game.getTargetMaterial();\n    for (Team team : game.getTeams().values()) {\n      if (team.getHeadTarget() == null) {\n        continue;\n      }\n\n\n      if ((targetMaterial.equals(Material.BED_BLOCK) || targetMaterial.equals(Material.BED))\n          && team.getFeetTarget() != null) {\n        Block blockHead = this.world.getBlockAt(team.getHeadTarget().getLocation());\n        Block blockFeed = this.world.getBlockAt(team.getFeetTarget().getLocation());\n        BlockState headState = blockHead.getState();\n        BlockState feedState = blockFeed.getState();\n\n\n        headState.setType(Material.BED_BLOCK);\n        feedState.setType(Material.BED_BLOCK);\n        headState.setRawData((byte) 0x0);\n        feedState.setRawData((byte) 0x8);\n        feedState.update(true, false);\n        headState.update(true, false);\n\n\n        Bed bedHead = (Bed) headState.getData();\n        bedHead.setHeadOfBed(true);\n        bedHead.setFacingDirection(blockHead.getFace(blockFeed).getOppositeFace());\n\n\n        Bed bedFeed = (Bed) feedState.getData();\n        bedFeed.setHeadOfBed(false);\n        bedFeed.setFacingDirection(blockFeed.getFace(blockHead));\n\n\n        feedState.update(true, false);\n        headState.update(true, true);\n      } else {\n        Block blockHead = this.world.getBlockAt(team.getHeadTarget().getLocation());\n        BlockState headState = blockHead.getState();\n\n\n        headState.setType(targetMaterial);\n        headState.update(true, true);\n      }\n    }\n\n\n    for (ResourceSpawner spawner : game.getRessourceSpawner()) {\n      spawner.getLocation().getChunk().load();\n    }\n\n\n    for (Entity entity : this.removingEntities) {\n      entity.remove();\n    }\n\n\n    Iterator<Entity> entityIterator = this.world.getEntities().iterator();\n    while (entityIterator.hasNext()) {\n      Entity e = entityIterator.next();\n\n\n      if (this.removingEntities.contains(e)) {\n        continue;\n      }\n\n\n      if (!this.isInRegion(e.getLocation())) {\n        continue;\n      }\n\n\n      if (e instanceof Item) {\n        e.remove();\n        continue;\n      }\n\n\n      if (e.getType().equals(EntityType.CREEPER) || e.getType().equals(EntityType.CAVE_SPIDER)\n          || e.getType().equals(EntityType.SPIDER) || e.getType().equals(EntityType.ZOMBIE)\n          || e.getType().equals(EntityType.SKELETON) || e.getType().equals(EntityType.SILVERFISH)\n          || e.getType().equals(EntityType.ARROW)) {\n        e.remove();\n        continue;\n      }\n\n\n      if (e instanceof LivingEntity) {\n        LivingEntity le = (LivingEntity) e;\n        le.setRemoveWhenFarAway(false);\n      }\n    }\n\n\n    this.removingEntities.clear();\n  }复制代码\n\n加载世界区块。\n清空容器物品。\n清理放置的方块(如果那个方块的位置不是空气的话就设置为空气)\n恢复被破坏的的方块，并还原其数据(如朝向，是否被充能等)\n恢复队伍的床。\n清除掉落物\n清除游戏玩法中生成的实体(比如TNT羊)\n清除的敌对生物(以及箭)\n其他生物设置离远后不会被刷掉。复制代码\n\n实锤！起床战争插件就是通过记录世界变化来实现回档的！！！我们也可以根据此实现类似的回档功能啦！！\n",
+    "replies": [
+        {
+            "author": "a8105",
+            "timestamp": 1559860380,
+            "txt_content": "emmmmmm\n其实这种方法如果有其他插件通过setType改变了方块而且没与起床做兼容的话那个方块就永久消失了\n我写过游戏插件,复原的方法是服主或其他人员要改变世界只能在Copy世界进行改变\nGame世界改变后下次开服还是Copy世界的内容\n说白了就是插件在开启服务器的时候\nCopy世界的内容被复制到了Game世界"
+        },
+        {
+            "author": "hemp",
+            "timestamp": 1559882880,
+            "txt_content": "810587921 发表于 2019-6-7 06:33\nemmmmmm\n其实这种方法如果有其他插件通过setType改变了方块而且没与起床做兼容的话那个方块就永久消失了\n我 ...\n这是个不错的方法，几乎不会出现还原问题。\n在运行过程中可以Copy吗？"
+        },
+        {
+            "author": "a8105",
+            "timestamp": 1559905800,
+            "txt_content": "hemp 发表于 2019-6-7 12:48\n这是个不错的方法，几乎不会出现还原问题。\n在运行过程中可以Copy吗？\nCopy=实时加载或卸载世界\n参考mv多世界插件"
+        },
+        {
+            "author": "1915254255",
+            "timestamp": 1560072360,
+            "txt_content": "666666666666666"
+        },
+        {
+            "author": "481878616",
+            "timestamp": 1562543640,
+            "txt_content": "大佬分析的不错，感谢"
+        },
+        {
+            "author": "子然君",
+            "timestamp": 1562937480,
+            "txt_content": "我之前写的小游戏插件，是通过卸载世界后，然后copy地图文件，在载入2333"
+        },
+        {
+            "author": "知白倾黑",
+            "timestamp": 1564243380,
+            "txt_content": "大佬，问一下，地图不重置怎么办"
+        },
+        {
+            "author": "2280761425",
+            "timestamp": 1565098440,
+            "txt_content": "copy如果是多局游戏在一个世界就不能使用了（一个世界一个游戏资源消耗还是比较大的），所以状态记录也是有好处的"
+        },
+        {
+            "author": "1478655928",
+            "timestamp": 1565150280,
+            "txt_content": "已明白谢谢作者"
+        }
+    ]
+}

@@ -1,0 +1,74 @@
+{
+    "title": "<函数|高悬赏>获取鼠标指针所对的方块的坐标",
+    "author": "(=°ω°)丿",
+    "replyCount": 13,
+    "timestamp": 1521252540,
+    "txt_content": " 本帖最后由 Teenager_Yang 于 2018-3-17 11:36 编辑 \n\n如题，我想要获取鼠标指针所对的方块的坐标。\n版本：Minecraft 18w11a\n问题：鼠标指针所对的方块即使是在范围之内也无法正确地报出方块的坐标。\n首先，有4个计分板：\n1. map_tools-x\n2. map_tools-y\n3. map_tools-z\n4. distance\n这是加了\"minecraft:tick\"的函数：\n1. execute as @a[tag=map_tools-click] at @s run summon minecraft:armor_stand ~ ~1.62 ~ {NoGravity:1b,Tags:[\"map_tools-searcher\"],Invisible:1b,Invulnerable:1b}\n2. execute as @a[tag=map_tools-click] at @s run tp @e[tag=map_tools-searcher] ~ ~1.62 ~ ~ \n3. execute as @e[limit=1,tag=map_tools-searcher] run function map_tools:tick/searcher\n这是函数\"map_tools:tick/searcher\"的内容：\n1. execute as @s at @s run tp @s ^ ^ ^1\n2. tag @s add map_tools-find\n3. scoreboard players add @s distance 1\n4. execute at @s if block ~ ~ ~ air run tag @s remove map_tools-find\n5. execute as @s[tag=!map_tools-find,scores={distance=0..256}] run function map_tools:tick/find\n这是函数\"map_tools:tick/find\"的内容：\n1. execute as @a[tag=map_tools-click] store result score @a[tag=map_tools-click] map_tools-x run data get entity @e[limit=1,tag=map_tools-searcher]\n2. execute as @a[tag=map_tools-click] store result score @a[tag=map_tools-click] map_tools-y run data get entity @e[limit=1,tag=map_tools-searcher]\n3. execute as @a[tag=map_tools-click] store result score @a[tag=map_tools-click] map_tools-z run data get entity @e[limit=1,tag=map_tools-searcher]\n4. execute if entity @e[limit=1,tag=map_tools-searcher,tag=map_tools-find] run tellraw @a [\"\",{\"text\":\"You are looking at: \",\"color\":\"yellow\"},{\"text\":\"[\"},{\"score\":{\"name\":\"*\",\"objective\":\"map_tools-x\"}},{\"text\":\",\"},{\"score\":{\"name\":\"*\",\"objective\":\"map_tools-y\"}},{\"text\":\",\"},{\"score\":{\"name\":\"*\",\"objective\":\"map_tools-z\"}},{\"text\":\"]\"}]\n5. execute if entity @e[limit=1,tag=map_tools-searcher,tag=!map_tools-find] run tellraw @a [\"\",{\"text\":\"Distance between you and the block you are seeing cannot be maximum 256 blocks\",\"color\":\"red\"}]\n6. kill @e[limit=1,tag=map_tools-searcher]\n7. tag @a remove map_tools-click\n",
+    "replies": [
+        {
+            "author": "pca006132",
+            "timestamp": 1521252540,
+            "txt_content": "Teenager_Yang 发表于 2018-3-17 15:18\n经测试，标签\"map_tools-click\"，未被删除，即函数\"map_tools:_main\"中的\"tag @a[tag=map_tools-click] r ...\n哦对...你加个counter数第二条function的执行次数，超过比如50次就不继续递归执行"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1521253620,
+            "txt_content": " 本帖最后由 pca006132 于 2018-3-17 10:28 编辑 \n\n1.13啊\nhttp://www.mcbbs.net/thread-771638-1-1.html\n改为用marker，接触到非空气方块时停止\n然后用execute store ... run data get ...\n获取该marker的Pos并存到记分板里。\n\n你是需要方法还是看你那东西出了啥bug？\n如果要看的话请把格式改改。。。这样很难看"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1521263880,
+            "txt_content": " 本帖最后由 pca006132 于 2018-3-17 20:56 编辑 \n\n很久没看依赖高频来做循环的命令了...\n你这命令有几个重要问题\n1. 没立即删除map_tools-click，导致不停生成marker\n2. searcher在多于1个玩家点击的时候会多于一个，但#minecraft:tick函数内第三条命令只让一个searcher使用，这代表逻辑有问题。\n3. armor_stand的朝向其实和生成它的玩家不同，所以map_tools:tick/searcher不能如预期的运作。\n4. map_tools:tick/find那里的execute store错了，你不应该储存在所有玩家的记分板内，应该分辨玩家\n5. map_tools:tick/find那里execute store之后的data get也是错了，没指定获取哪个NBT的分数，需要指定Pos[0] Pos[1] Pos[2]\n\n简单来说就是你这不能用，解决方案:\n我是用的是1gt内完成的嵌套。\nfunction map_tools:_main (tag: #minecraft:tick)\n    execute as @a[tag=map_tools-click] at @s positioned ~ ~1.62 ~ run function map_tools:raycast\n    tag @a[tag=map_tools-click] remove map_tools-click\n\nfunction map_tools:raycast\n    execute if entity @s[distance=..50] if block ~ ~ ~ air positioned ^ ^ ^0.3 run function map_tools:raycast\n    execute if entity @s[distance=..50] unless block ~ ~ ~ air run function map_tools:store_result\n    execute as @s[distance=..50] unless block ~ ~ ~ air run tellraw @s [\"\",\"x: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-x\"}},\"y: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-y\"}},\"z: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-z\"}}]\n\nfunction map_tools:store_result\n    summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Tags:[\"map_tools-searcher\"],Invisible:1b,Invulnerable:1b}\n    execute store result score @s map_tools-x run data get entity @e[limit=1,tag=map_tools-searcher] Pos[0]\n    execute store result score @s map_tools-y run data get entity @e[limit=1,tag=map_tools-searcher] Pos[1]\n    execute store result score @s map_tools-z run data get entity @e[limit=1,tag=map_tools-searcher] Pos[2]\n    kill @e[tag=map_tools-searcher]复制代码\n\n实测可以了"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1521271080,
+            "txt_content": "pca006132 发表于 2018-3-17 13:18\n很久没看依赖高频来做循环的命令了...\n你这命令有几个重要问题\n1. 没立即删除map_tools-click，导致不停生 ...\n经测试，标签\"map_tools-click\"，未被删除，即函数\"map_tools:_main\"中的\"tag @a[tag=map_tools-click] remove map_tools-click\"没有运行，据我猜测，有可能是因为在它之前的命令\"execute as @a[tag=map_tools-click] at @s positioned ~ ~1.62 ~ run function map_tools:raycast\"的运行次数已经达到了最大上限：65536次。"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1521275460,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2018-3-17 17:54 编辑 \npca006132 发表于 2018-3-17 15:33\n哦对...你加个counter数第二条function的执行次数，超过比如50次就不继续递归执行 ...\n函数：\"map_tools:store_result\"（部分）：\n1. execute store result score @s map_tools-x 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[0]\n2. execute store result score @s map_tools-y 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[1]\n3. execute store result score @s map_tools-z 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[2]\n我想问其中的1是不是多余的；还有删掉之后重新运行，一点反应也没有是什么情况。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1521276480,
+            "txt_content": "Teenager_Yang 发表于 2018-3-16 22:31\n函数：\"map_tools:store_result\"（部分）：\n1. execute store result score @s map_tools-x 1 run data ge ...\n这个1的位置是不是写错了...应该是以下的格式吧\nexecute store result score @s scb run data get entity @s Pos[0] 1\n然后想保留精确度的话，后面的这个1可改成100或1000或10000..."
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1521283620,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-3-17 18:55 编辑 \n⊙v⊙ 发表于 2018-3-17 16:48\n这个1的位置是不是写错了...应该是以下的格式吧\nexecute store result score @s scb run data get entity ...\n1的位置无所谓，但如果要保留精度：\nexecute store result score @s scb 0.001 run data get entity @s Pos[0] 1000\n然而这并没有什么卵用，因为不需要对记分板做任何计算。直接都写1或者只在第一个写就可以了。"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1521284040,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-3-17 18:58 编辑 \n\npca的raycast中 有更简便的防止超过65535的方法，不需要新建counter记分板。那太麻烦了。\nfunction map_tools:raycast\n    execute if entity @s[distance=..65535] at @s if block ~ ~ ~ air positioned ^ ^ ^1 run function map_tools:raycast\n    execute if entity @s[distance=..65535] at @s unless block ~ ~ ~ air run function map_tools:store_result\n\n删掉以后没有反应，因为不能删。execute store的scale值不是可省值。\n而data get的scale值可选，因此命令末尾没有加上1。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1521284640,
+            "txt_content": "所以说了那么多，咱们还是把贴子链接发一下吧...\nhttp://www.mcbbs.net/thread-771638-1-1.html"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1521284940,
+            "txt_content": "所以说……有谁可以给我一个最终的解决方案么……\n就是有一套完整的、可以在18w11a使用的、可以获取鼠标指针所对的方块的坐标并直接告诉玩家的方案，\n如果是一个数据包也可以，我会自己翻。\n@pca006132 @⊙v⊙ @SPGoding"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1521285720,
+            "txt_content": "Teenager_Yang 发表于 2018-3-17 01:09\n所以说……有谁可以给我一个最终的解决方案么……\n就是有一套完整的、可以在18w11a使用的、可以获取鼠标指 ...\nPca已经告诉你了啊，然后把那个^^^1前行的命令补个distance=定义最大检测范围就可以了。我目前做的获取指向也是那样做的\n或许把^^^改低点，毕竟^^^1可能会出现斜着过去把目标跳过的情况"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1521285840,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-3-17 19:26 编辑 \n\npca的方案显然已经是最终方案，只需进行少许修改即可使用。如果解决了，最佳给pca吧。\n我修正了recursive次数，并加入了实时坐标显示\n\n#function map_tools:_main (tag: #minecraft:tick)\n    execute as @a[tag=map_tools-click] at @s positioned ~ ~1.62 ~ run function map_tools:raycast\n    tag @a[tag=map_tools-click] remove map_tools-click\n\n#function map_tools:raycast\n    execute if entity @s[distance=..50] at @s if block ~ ~ ~ air positioned ^ ^ ^1 run function map_tools:raycast\n    execute if entity @s[distance=..50] at @s unless block ~ ~ ~ air run function map_tools:store_result\n    execute as entity @s[distance=..50] at @s unless block ~ ~ ~ air run tellraw @s [\"\",\"x: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-x\"}},\"y: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-y\"}},\"z: \",{\"score\":{\"name\":\"@s\",\"objective\":\"map_tools-z\"}}]\n\n#function map_tools:store_result\n    summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Tags:[\"map_tools-searcher\"],Invisible:1b,Invulnerable:1b}\n    execute store result score @s map_tools-x 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[0]\n    execute store result score @s map_tools-y 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[1]\n    execute store result score @s map_tools-z 1 run data get entity @e[limit=1,tag=map_tools-searcher] Pos[2]\n    kill @e[tag=map_tools-searcher]\n复制代码"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1521288300,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2018-3-17 20:27 编辑 \nSPGoding 发表于 2018-3-17 19:24\npca的方案显然已经是最终方案，只需进行少许修改即可使用。如果解决了，最佳给pca吧。\n我修正了recursive次 ...\n没法用……（←_←）\n（不排除快照的锅）\n"
+        }
+    ]
+}

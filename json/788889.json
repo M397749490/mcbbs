@@ -1,0 +1,84 @@
+{
+    "title": "[娱乐]ParticleEffectCombinator——定制属于服务器自己的粒子特效[1.10.2-1.12.2]",
+    "author": "土球球",
+    "replyCount": 15,
+    "timestamp": 1522433520,
+    "txt_content": " 本帖最后由 ustc_zzzz 于 2018-4-5 18:34 编辑 \n\nParticle Effect Combinator\n粒子特效组合器\n\n粒子特效组合器（ParticleEffectCombinator ，简称PEC）是一个理论上可以同时作用于Sponge 1.10-1.12等服务端的Sponge插件。\n\n事情起因\n\n没啥原因，就是我想写一个基本不需要编程的基于Sponge的粒子特效插件，没了。\n\n使用方法\n\n首先，你要扔进mods/目录底下，然后启动服务端。\n\n启动后会出现一个名为config/pec/effects的目录，所有可以调用的粒子特效都在里头，均应为以.conf为后缀的HOCON格式文件。\n\n比如说你想画个半径为2.5格的球，这个配置文件格式应该长这样：\n\npec {\n  type = sphere\n  radius = 2.5\n}复制代码\n然后你把它放到名为sphere.conf的文件里，启动服务端，运行一下/pec display sphere命令，你就能看到一个光滑圆润的球出现在你旁边了。\n\n但是这个球球心的位置在你的脚下，你需要平移一下。你可以把配置文件改成这样：\n\npec {\n  type = offset\n  interpolation = 1.5\n  child = {\n    type = sphere\n    radius = 2.5\n  }\n}复制代码\n我们首先定义了一个偏移（Offset），然后通过设置interpolation代表偏移的量为1.5格，然后child代表偏移的究竟是什么。你还可以定义orientation决定偏移的方向，默认方向是(0, 1, 0)，也就是向y轴正方向，在游戏中向上偏移。\n\n然后你想要让这个球随着时间流逝以渐变的形式一点点出现。你可以这么改配置文件：\n\npec {\n  type = offset\n  interpolation = 1.5\n  child = {\n    type = sphere\n    radius = 2.5\n    child {\n      type = time-offset\n      interpolation = { 0 = 0, 1 = 20 }\n    }\n  }\n}复制代码\n现在开始出现的情况稍微有一点费解了——我们指定了一个球的child，这是怎么一回事？\n\n一个球的child是什么？其实就是组成这个球的每一个粒子。我们只要通过控制每一个粒子的出现时间，就可以让整个球的出现方式渐变化了。\n\ntime-offset就是用于调整延时的——我们通过设置interpolation修改它的延时。Interpolation的中文翻译是插值，相当于各位中学数学课上手绘函数图像的连线阶段——根据几个特定的点把整个函数图像画出来。\n\ninterpolation = { 0 = 0, 1 = 20 }规定了这个函数当自变量为0时的值为0，自变量为1的时候为20，那么自变量为0.5的时候自然就是10，自变量为0.75的时候自然就是15，依此类推。这个函数的图像是一条直线。\n\n实际上，PEC还规定了一种简写方式：interpolation = 5等价于interpolation = { 0 = 5, 1 = 5 }，也就是常数值函数，这种方式刚刚我们已经用到过了。\n\nPEC还规定，球面底部的点对应自变量为0的情况，顶部的点对应1。也就是说，最先出现的是底部的点，然后过了20tick也就是大概1s后顶部的点最后出现。也就是说，会观察到下面的现象：\n\n\n\n最后说一下PEC中很可能会用到的东西：表达式。\n\n可以这么说，只要出现数字的地方，都可以替换成表达式，比如说interpolation = 1.5，你可以写成interpolation = 3/2，可以写成interpolation = 1-cos(2pi/3)，可以写成啥都行，只要它是个格式正确的表达式。不过需要注意的一点是，HOCON中如果要用到加号和乘号，需要在两边加上引号，比如说：interpolation = 1+1/2是不行的，你必须写成interpolation = \"1+1/2\"。\n\n你还可以定义一些constant，然后在表达式里引用它们，比如说：\n\npec {\n  type = offset\n  constant {\n    s = 25pi\n    r = sqrt(s/(4pi))\n  }\n  interpolation = 3/2\n  child = {\n    type = sphere\n    radius = r\n    child {\n      type = time-offset\n      interpolation = { 0 = 0, 1 = 20 }\n    }\n  }\n}复制代码\n我们定义了s，紧接着我们定义的r就用到了s，然后我们在球的radius里引用到了r。\n\n命令权限\n\n所有命令都以/pec开头。\n\n可用命令如下：\n\n/pec version\n用来查看版本信息/pec list\n用于列出所有可用的粒子特效/pec reload\n用于重新加载所有配置文件中的粒子特效（Sponge自带的reload系统也可以）/pec display <effect-name>\n用于释放粒子特效\n/pec display <effect-name>\n本身代表在玩家脚下位置释放粒子特效给所有玩家/pec display <effect-name> for zzzz_ustc\n代表释放的粒子特效只给zzzz_ustc看（for和at可以一起使用）/pec display <effect-name> at 233 33 333\n代表在(233, 33, 333)处释放粒子特效（for和at可以一起使用）\n\n\n可配置权限如下：\n\npec\n代表这个插件需要用到的所有权限pec.list\n代表执行/pec list命令需要用到的权限pec.reload\n代表执行/pec reload命令需要用到的权限pec.send.<effect-name>\n代表执行/pec display <effect-name>命令需要用到的权限\n\n下载链接\n\n帖子的开头有。\n\n更新日志\n\n请移步https://github.com/ustc-zzzz/ParticleEffectCombinator/releases。\n\n原创声明\n\n本插件所用代码部分来自开源作品exp4j，用于配置文件中表达式的解析\nexp4j使用Apache-2.0协议开源，本插件使用LGPL-3.0协议开源\nMarkdown备份\n\n整个主题帖使用Markdown编写，并使用相关工具转换为BBCode。该部分内容为备份，和主题正文无关。\n\n[align=center][size=4][b]Particle Effect Combinator  \n粒子特效组合器[/b][/font][/align]\n\n粒子特效组合器（ParticleEffectCombinator ，简称PEC）是一个理论上可以同时作用于Sponge 1.10-1.12等服务端的Sponge插件。\n\n### 事情起因\n\n没啥原因，就是我想写一个基本不需要编程的基于Sponge的粒子特效插件，没了。\n\n### 使用方法\n\n首先，你要扔进`mods/`目录底下，然后启动服务端。\n\n启动后会出现一个名为`config/pec/effects`的目录，所有可以调用的粒子特效都在里头，均应为以`.conf`为后缀的HOCON格式文件。\n\n比如说你想画个半径为2.5格的球，这个配置文件格式应该长这样：\n```\npec {\n  type = sphere\n  radius = 2.5\n}\n```\n然后你把它放到名为`sphere.conf`的文件里，启动服务端，运行一下`/pec display sphere`命令，你就能看到一个光滑圆润的球出现在你旁边了。\n\n但是这个球球心的位置在你的脚下，你需要平移一下。你可以把配置文件改成这样：\n```\npec {\n  type = offset\n  interpolation = 1.5\n  child = {\n    type = sphere\n    radius = 2.5\n  }\n}\n```\n我们首先定义了一个偏移（Offset），然后通过设置`interpolation`代表偏移的量为1.5格，然后`child`代表偏移的究竟是什么。你还可以定义`orientation`决定偏移的方向，默认方向是`(0, 1, 0)`，也就是向y轴正方向，在游戏中向上偏移。\n\n然后你想要让这个球随着时间流逝以渐变的形式一点点出现。你可以这么改配置文件：\n```\npec {\n  type = offset\n  interpolation = 1.5\n  child = {\n    type = sphere\n    radius = 2.5\n    child {\n      type = time-offset\n      interpolation = { 0 = 0, 1 = 20 }\n    }\n  }\n}\n```\n现在开始出现的情况稍微有一点费解了——我们指定了一个球的`child`，这是怎么一回事？\n\n一个球的`child`是什么？其实就是组成这个球的每一个粒子。我们只要通过控制每一个粒子的出现时间，就可以让整个球的出现方式渐变化了。\n\n`time-offset`就是用于调整延时的——我们通过设置`interpolation`修改它的延时。Interpolation的中文翻译是插值，相当于各位中学数学课上手绘函数图像的连线阶段——根据几个特定的点把整个函数图像画出来。\n\n`interpolation = { 0 = 0, 1 = 20 }`规定了这个函数当自变量为0时的值为0，自变量为1的时候为20，那么自变量为0.5的时候自然就是10，自变量为0.75的时候自然就是15，依此类推。这个函数的图像是一条直线。\n\n实际上，PEC还规定了一种简写方式：`interpolation = 5`等价于`interpolation = { 0 = 5, 1 = 5 }`，也就是常数值函数，这种方式刚刚我们已经用到过了。\n\nPEC还规定，球面底部的点对应自变量为0的情况，顶部的点对应1。也就是说，最先出现的是底部的点，然后过了20tick也就是大概1s后顶部的点最后出现。也就是说，会观察到下面的现象：\n\n![](https://i.loli.net/2018/03/31/5abe771bd84a3.gif)\n\n最后说一下PEC中很可能会用到的东西：表达式。\n\n可以这么说，只要出现数字的地方，都可以替换成表达式，比如说`interpolation = 1.5`，你可以写成`interpolation = 3/2`，可以写成`interpolation = 1-cos(2pi/3)`，可以写成啥都行，只要它是个格式正确的表达式。不过需要注意的一点是，HOCON中如果要用到加号和乘号，需要在两边加上引号，比如说：`interpolation = 1+1/2`是不行的，你必须写成`interpolation = \"1+1/2\"`。\n\n你还可以定义一些`constant`，然后在表达式里引用它们，比如说：\n```\npec {\n  type = offset\n  constant {\n    s = 25pi\n    r = sqrt(s/(4pi))\n  }\n  interpolation = 3/2\n  child = {\n    type = sphere\n    radius = r\n    child {\n      type = time-offset\n      interpolation = { 0 = 0, 1 = 20 }\n    }\n  }\n}\n```\n我们定义了`s`，紧接着我们定义的`r`就用到了`s`，然后我们在球的`radius`里引用到了`r`。\n\n### 命令权限\n\n所有命令都以`/pec`开头。\n\n可用命令如下：\n* `/pec version`\n用来查看版本信息\n* `/pec list`\n用于列出所有可用的粒子特效\n* `/pec reload`\n用于重新加载所有配置文件中的粒子特效（Sponge自带的reload系统也可以）\n* `/pec display <effect-name>`\n用于释放粒子特效\n    * `/pec display <effect-name>`\n    本身代表在玩家脚下位置释放粒子特效给所有玩家\n    * `/pec display <effect-name> for zzzz_ustc`\n    代表释放的粒子特效只给zzzz_ustc看（`for`和`at`可以一起使用）\n    * `/pec display <effect-name> at 233 33 333`\n    代表在`(233, 33, 333)`处释放粒子特效（`for`和`at`可以一起使用）\n\n可配置权限如下：\n* `pec`\n代表这个插件需要用到的所有权限\n* `pec.list`\n代表执行`/pec list`命令需要用到的权限\n* `pec.reload`\n代表执行`/pec reload`命令需要用到的权限\n* `pec.send.<effect-name>`\n代表执行`/pec display <effect-name>`命令需要用到的权限\n\n### 下载链接\n\n帖子的开头有。\n\n### 更新日志\n\n请移步<https://github.com/ustc-zzzz/ParticleEffectCombinator/releases>。\n\n### 原创声明\n\n> 本插件所用代码部分来自开源作品[exp4j](https://github.com/fasseg/exp4j)，用于配置文件中表达式的解析\n> exp4j使用Apache-2.0协议开源，本插件使用LGPL-3.0协议开源\n\n### Markdown备份\n\n整个主题帖使用Markdown编写，并使用相关工具转换为BBCode。该部分内容为备份，和主题正文无关。复制代码",
+    "replies": [
+        {
+            "author": "海贼王#",
+            "timestamp": 1522449960,
+            "txt_content": "帅帅，支持原创"
+        },
+        {
+            "author": "2726932825",
+            "timestamp": 1522912080,
+            "txt_content": "谢谢四z大佬，就是这个简写和宝可梦模组的/pc打开pc的指令重合了"
+        },
+        {
+            "author": "Sea_god",
+            "timestamp": 1522912500,
+            "txt_content": "不会不会不会 好难"
+        },
+        {
+            "author": "Sea_god",
+            "timestamp": 1522912560,
+            "txt_content": "2333333333333333"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1522924680,
+            "txt_content": "2726932825 发表于 2018-4-5 15:08\n谢谢四z大佬，就是这个简写和宝可梦模组的/pc打开pc的指令重合了\n解决了。\n我把插件名字从ParticleCombinator换成了ParticleEffectCombinator。\n我也同时把插件ID、插件命令名称、以及权限字符串前缀，全都换成了pec。"
+        },
+        {
+            "author": "中华博",
+            "timestamp": 1524911340,
+            "txt_content": "可惜普通核心不支持啊不然多好"
+        },
+        {
+            "author": "423618228",
+            "timestamp": 1524916140,
+            "txt_content": "有没有考虑过，可以直接设置某路径，然后形成粒子效果，成为rpg领路的一个功能？一个个设置路径表示很麻烦！"
+        },
+        {
+            "author": "liuyuzeng",
+            "timestamp": 1524930480,
+            "txt_content": "很棒的插件，666，辛苦喽"
+        },
+        {
+            "author": "想起你的吻",
+            "timestamp": 1567155480,
+            "txt_content": "很棒的作品！十分感谢"
+        },
+        {
+            "author": "907450101",
+            "timestamp": 1567216560,
+            "txt_content": "期待楼主更多更新！"
+        },
+        {
+            "author": "yahinstudio",
+            "timestamp": 1577866680,
+            "txt_content": "好插件，支持一下~"
+        },
+        {
+            "author": "苏子峰",
+            "timestamp": 1596549840,
+            "txt_content": "插件很牛逼 就是不会用"
+        },
+        {
+            "author": "虎牙-朦胧",
+            "timestamp": 1599372720,
+            "txt_content": "MCBBS有你更精彩~~"
+        },
+        {
+            "author": "Mr的世界",
+            "timestamp": 1600489380,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "2845418066",
+            "timestamp": 1611247440,
+            "txt_content": "感谢分享"
+        }
+    ]
+}

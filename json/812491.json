@@ -1,0 +1,89 @@
+{
+    "title": "[Bukkit]如何写一个领地插件",
+    "author": "jiangzizhong",
+    "replyCount": 16,
+    "timestamp": 1533613200,
+    "txt_content": " 本帖最后由 jiangzizhong 于 2018-8-7 11:47 编辑 \n\n感谢飞儿的诈尸，让我回归MC！这是回归后的礼物吧。。。\n首先，要了解领地插件的工作原理。我们都知道，一进入领地就会受到各种权限的制约，那到底是如何判定的呢？\n\n\n\n\n346f9d5e4b38bc6b7603f31dfe9bd29c_70.png (54.15 KB, 下载次数: 0)\n\n下载附件\n\n图片来源网络，如侵权，请联系删除！\n2018-8-7 10:31 上传\n\n\n\n\n\n其实就是：判定一个点在是否在一个长方体内(如图)\n\n好，我们已经了解了领地插件的工作原理。那么，首先得选取领地范围：\n\n预先写好一些常量:\npublic HashMap<String, String> pos = new HashMap();\npublic boolean isSelectPos1 = false;\nString pos1andpos2 = null;复制代码\n\n圈地工具的使用事件：\n\n@EventHandler\n//代码老是粘在一起，相亲了？？\npublic void selectRegion(PlayerInteractEvent e) {\n                Player p = e.getPlayer();\n                if(p.getItemInHand() != null && p.getItemInHand().getType().equals(Material.WOOD_HOE)) {\n                        Location loc1;\n                        Location loc2;\n                        if(e.getAction().equals(Action.LEFT_CLICK_BLOCK)) {\n                                loc1 = e.getClickedBlock().getLocation();\n                                isSelectPos1 = true;\n                                //在每个坐标后加空格是为了等下好分割字符串\n                                pos1andpos2 = loc1.getBlockX() + \" \" + loc1.getBlockY() + \" \" + loc1.getBlockZ();\n                                p.sendMessage(\"选择了第一个点！\");\n                        }else if (e.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {\n                                if(!isSelectPos1) {\n                                        p.sendMessage(\"请先选择第一个点！\");\n                                        return;\n                                }\n                                loc2 = e.getClickedBlock().getLocation();\n                                //加“and”是为了分割字符串\n                                pos1andpos2 = pos1andpos2+\"and\" + loc2.getBlockX() + \" \" + loc2.getBlockY() + \" \" + loc2.getBlockZ();\n                                //清空所赋的值，以免BUG\n                                isSelectPos1 = false;\n                                pos1andpos2 = null;\n                                this.pos.put(p.getName(), pos1andpos2);\n                                p.sendMessage(\"选择了第二个点！\");\n                        }\n                }\n}复制代码\n\n当然，还有一些判定代码（领地已存在、命令使用有误、未选择领地区域等）我就不写了，会写插件的人都会写！\nRemove指令：\n\n// X是指：指令中获取到玩家打上领地名的那一参数的序数（以零开头，依次递进）\ngetConfig().set(args[X], null);\nsaveConfig();\nreloadConfig();\n\np.sendMessage(\"领地 \"+ args[X]+ \"已删除！\");复制代码\n和上面一样忽略了判定代码\n\nList指令（列出所有领地）：\n\n首先预先写好一个常量：\nList<String> 领地所有区域 = new ArrayList();\n变量是可以用中文命名的，这一点很舒服。\n\nStringBuffer sb = new StringBuffer();\nif (getConfig().getConfigurationSection(\"\") != null) {\n                for (String area : getAreaProtectConfig().getConfigurationSection(\"\").getKeys(false)) {\n                                领地所有区域.clear();\n                                领地所有区域.add(area.toLowerCase());\n                }\n}\n\nfor(String s : 领地所有区域){\n       sb.append(s+\" \");\n}\np.sendMessage(\"已建立的领地有：§c\" + sb.toString());复制代码\n\n最后，最重要的环节：判定玩家是否在领地范围内，或方块、实体是否在领地范围内。\n讲解一下以下方法的判定原理：\n\n设领地某边缘最底部的坐标为(a,b,c)，领地某边缘对角最高部的坐标为(l,m,n)，实体、方块所在位置的坐标为(X,Y,Z)，由题意得：\n如果 (a<X<l 或者 a>X>l) 并且 (b<Y<m 或者 b>Y>m) 并且 (c<Z<n 或者 c>Z>n) PS：括号表示优先级\n那么 就返回值为true，否则为false。\n\npublic boolean isLocationInRegion(Location l) {\n                for (String area : this.领地所有区域) {\n                        if (!l.getWorld().getName().equals(this.getConfig().getString(area + \".World\"))) {\n                                continue;\n                        }\n                        int X = this.getConfig().getInt(area + \".POS1.X\");\n                        int Y = this.getConfig().getInt(area + \".POS1.Y\");\n                        int Z = this.getConfig().getInt(area + \".POS1.Z\");\n                        int X2 = this.getConfig().getInt(area + \".POS2.X\");\n                        int Y2 = this.getConfig().getInt(area + \".POS2.Y\");\n                        int Z2 = this.getConfig().getInt(area + \".POS2.Z\");\n                        if ((Y > l.getY() && Y2 < l.getY()) || (Y < l.getY() && Y2 > l.getY())) {\n                                if ((X > l.getX() && X2 < l.getX()) || (X < l.getX() && X2 > l.getX())) {\n                                        if ((Z > l.getZ() && Z2 < l.getZ()) || (Z < l.getZ() && Z2 > l.getZ())) {\n                                                return true;\n                                        }\n                                }\n                        }\n                }\n                return false;\n}复制代码\n\n\n好了，到现在领地插件已经做好了，你现在可以写一些事件，用 isLocationInRegion() 方法来获取玩家是否在领地范围内了。\n\n最后个大家推荐一款游戏：熊出没之熊大农场 （滑稽）\n\n没有源码哦，都是纯手撸的\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "2151561541451",
+            "timestamp": 1533613740,
+            "txt_content": "沙发！！！！！！！ 支持楼主"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1533614940,
+            "txt_content": "熊出没之熊大农场？？？\n\n…………这到底是童心未泯还是什么呢？\n\n这么小就能写插件，还算不错"
+        },
+        {
+            "author": "jiangzizhong",
+            "timestamp": 1533618600,
+            "txt_content": "langyo_v3 发表于 2018-8-7 12:09\n熊出没之熊大农场？？？\n\n…………这到底是童心未泯还是什么呢？\n滑稽是个好东西，了解一下..."
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1533641100,
+            "txt_content": "楼主写教程的初心是值得鼓励和赞赏的，但还是有一些不足之处。请允许我为教程进行补充，如有不当之处欢迎指出。\n\n第一、使用Config反复地进行存储，使得插件的效率变得相当低下。正确地方法应该是创建一个新类来存储对应的领地。（以下代码来自UDPLib）。\npublic class Area implements ConfigurationSerializable {\n        /**\n         * 两坐标\n         */\n        private final Location minLocation,maxLocation;\n\n        /**\n         * 用于存储该区域数据的 Map，你可以在该 Map 中放入任何你需要的内容。\n         * 如：拥有者、价格等。\n         */\n        private AreaDataContainer data;\n}复制代码\n\n第二、判断领地的方法是直接遍历整个领地名，这样效率也是相当低。鄙人研究领地插件，发现其使用Map储存对应区块内的所有领地，在判断时先计算出对应区块，再遍历对应区块的所有领地。这样虽然消耗内存，但可以在多领地的情况下极大地提升效率。\n\n我也同样实现了一个领地API，欢迎大家批评指正。\n"
+        },
+        {
+            "author": "jiangzizhong",
+            "timestamp": 1533691440,
+            "txt_content": " 本帖最后由 jiangzizhong 于 2018-8-8 09:32 编辑 \n耗子 发表于 2018-8-7 19:25\n楼主写教程的初心是值得鼓励和赞赏的，但还是有一些不足之处。请允许我为教程进行补充，如有不当之处欢迎指 ...\n你好，非常感谢你补充的两点建议！\n\n第一点补充，我完全不懂，我只是萌新，连MySQL都没学。所有就任它摆在那了。\n\n第二点补充，真心精辟！在您实现的领地API中，里面判断玩家位置对应区块的方法在哪？我好去参考一下\n帖子我也懒得再写了，我可以把您的领地API放到顶楼让其他开发者借鉴么？"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1533699060,
+            "txt_content": " 本帖最后由 耗子 于 2018-8-8 11:36 编辑 \njiangzizhong 发表于 2018-8-8 09:24\n你好，非常感谢你补充的两点建议！\n\n第一点补充，我完全不懂，我只是萌新，连MySQL都没学。所有就任它摆在 ...\n关于整个世界的领地管理代码都在这个类。首先有一个区块映射领地的Map。\nprivate final Map<Chunk,List<Area>> chunks = new HashMap<>();复制代码然后，添加领地时遍历它所在的全部区块。\npublic void addArea(Area area){\n                if(!area.getMinLocation().getWorld().equals(world)) \n                        throw new IllegalArgumentException(\"Different world\");\n\n                areas.add(area);\n                World world = area.getWorld();\n                Chunk chunk1 = new Chunk(area.getMinLocation()), chunk2 = new Chunk(area.getMaxLocation());\n                for(int x = chunk1.getChunkX();x<=chunk2.getChunkX();x++)\n                        for(int z = chunk1.getChunkZ();z<=chunk2.getChunkZ();z++)\n                                getAreas(new Chunk(world, x, z)).add(area);\n        }复制代码最后，通过对Location计算区块快速获得对应领地。\n public List<Area> getAreas(Location location){\n                List<Area> areas = new ArrayList<>();\n                \n                if(!location.getWorld().equals(world)) \n                        return areas;\n                \n                for(Area area:getAreas(new Chunk(location))) \n                        if(area.contain(location)) \n                                areas.add(area);\n                \n                return areas;\n        }复制代码注：本API返回的领地是一个List<Area>是因为本API允许领地之间相互重叠，如有需要请自行修改。\n\nChunk类的实现代码在这里。\n"
+        },
+        {
+            "author": "jiangzizhong",
+            "timestamp": 1533702060,
+            "txt_content": "耗子 发表于 2018-8-8 11:31\n关于整个世界的领地管理代码都在这个类。首先有一个区块映射领地的Map。\n然后，添加领地时遍历它所在的全 ...\n哦哦，谢谢了。那要怎么防止领地重叠呢？我脑子短路了QAQ"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1533702300,
+            "txt_content": "jiangzizhong 发表于 2018-8-8 12:21\n哦哦，谢谢了。那要怎么防止领地重叠呢？我脑子短路了QAQ\n有getAreas(Area area)方法，可以获取一个区域内的所有领地，判断返回的结果是不是空就行。如果非空，说明领地重叠了。"
+        },
+        {
+            "author": "Hai_tun",
+            "timestamp": 1533960960,
+            "txt_content": "空间判断用Vector.isinAABB(min,max);\n实体Entiy.getVelocity()\n位置Location.toVector()\n"
+        },
+        {
+            "author": "KagariAtsuko",
+            "timestamp": 1534053480,
+            "txt_content": "熊出没是真的出戏哈哈哈哈哈，支持楼主！"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1534054140,
+            "txt_content": "原来不止我一个人爱玩 熊出没之熊大农场 (滑稽)\n\n继续加油, 变量名用中文给个差评.\n不过这种实例向开发资料也是比较需要的."
+        },
+        {
+            "author": "1916609964",
+            "timestamp": 1536736560,
+            "txt_content": "求怎么获得一个以个人为中心10x10x10的领地呢，求诸位大佬解答"
+        },
+        {
+            "author": "堕落男",
+            "timestamp": 1585754580,
+            "txt_content": "耗子 发表于 2018-8-7 19:25\n楼主写教程的初心是值得鼓励和赞赏的，但还是有一些不足之处。请允许我为教程进行补充，如有不当之处欢迎指 ...\n点名批评\n老哥，在你UPBLib的链接中，Area类判断两区域是否相交的方法根本不成立！希望老哥你能够更正一下，不要误人子弟！！！\n\n\n\n\n\n\nScreenshot_2020-04-01-23-19-39-83.png\n(203.25 KB, 下载次数: 1)\n\n\n\n\n下载附件\n\n\n2020-4-1 23:21 上传\n\n\n\n\n\n\n\n\n就是这里，气的我不在电脑前就想批评你\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1585759560,
+            "txt_content": "堕落男 发表于 2020-4-1 23:23\n点名批评\n老哥，在你UPBLib的链接中，Area类判断两区域是否相交的方法根本不成立！希望老哥你能够更正一 ...\n您好，您所反馈的问题已经及时修复了，感谢您对UDPLib的关注与支持。"
+        },
+        {
+            "author": "堕落男",
+            "timestamp": 1585803540,
+            "txt_content": "耗子 发表于 2020-4-2 00:46\n您好，您所反馈的问题已经及时修复了，感谢您对UDPLib的关注与支持。\n你好敷衍啊。。。。\n\n\n\n\n\nimage.png\n(106.7 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2020-4-2 12:58 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "QWERTY770",
+            "timestamp": 1585875180,
+            "txt_content": "其实领地功能原版指令就能实现"
+        }
+    ]
+}

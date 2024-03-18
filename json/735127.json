@@ -1,0 +1,89 @@
+{
+    "title": "[1.12function]在原版添加自定义自然生成建筑<第三代精简易修改版>（附带下载）",
+    "author": "pineapple_",
+    "replyCount": 16,
+    "timestamp": 1509813180,
+    "txt_content": " 本帖最后由 pineapple_ 于 2017-11-7 12:19 编辑 \n\n\n仍然是以一堆废话开头\n  Hello又是我pineapple_，我有大概40天没有在技巧版水帖了，因为最近时间都比较紧，也没有什么新的灵感（其实还是有的，但是全都行不通）。突然想起这个原版添加自定义生成建筑这个坑我还没有填完http://www.mcbbs.net/thread-727808-1-1.html，因为这个帖子里面讲的原理，我自己都看不懂了!甚至我写的那些玩意里还有些误导元素!我就又打开这个帖子里的function看来一眼，发现居然有错误命令！我把上次写错的地方改了一下，并把一些五毛特效去掉了（比如什么石英树啦，可以当装饰的苹果啦，通通不要了），然后做了一些优化，作为最\"终版本:第三代精简易修改版\"发布，并且详细地说下思路。  我就先直接把下载放出来吧。\n\n\n\ndata.rar\n(8.17 KB, 下载次数: 98)\n\n\n\n2017-11-5 00:34 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n  把压缩包复制到.minecraft\\saves\\任意地图下，解压到当前文件夹并覆盖原来的data文件夹，打开游戏即可。  在原版添加自然生成的建筑是什么意思就不用多说了吧，我做的这个东西的效果是玩家进入平原生物群系就会在附近随机生成3×3×3铁块，每次尝试生成成功几率为1/2。\n\n又是最让人闹心的原理\n仍然是先得把advancement和function放在这里data\\advancement\\generat\\enter_plains.json\n{\n    \"criteria\":{\n        \"generat\":{\n            \"trigger\":\"minecraft:location\",\n                        \"conditions\": {\n                            \"biome\": \"plains\"\n                                    }\n        }\n    },\n    \"rewards\":{\n        \"function\":\"generat:main\"\n    }\n}复制代码\ndata\\functions\\generat\\main.mcfunction\ngamerule sendCommandFeedback false\ngamerule commandBlockOutput false\ngamerule logAdminCommands false\nadvancement revoke @a from generat:enter_plains\nentitydata @e[tag=Chunk] {Age:0}\nexecute @a ~-32 0 ~-32 function generat:mark unless @e[dx=65,dy=0,dz=65,tag=Chunk]复制代码\ndata\\functions\\generat\\mark.mcfunciton\nexecute @s ~ ~ ~ summon area_effect_cloud ~ 0 ~ {Tags:[\"Chunk\"],Duration:2147483647}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"Spread\",\"False\"]}复制代码\ndata\\functions\\generat\\spread.mcfunction\nscoreboard players tag @e[tag=SpreadHelper] add False\nexecute @s ~ ~ ~ spreadplayers ~ ~ 17 33 false @e[tag=False]\nscoreboard players tag @e[tag=SpreadHelper] remove False\nscoreboard players tag @e[tag=Spread] remove False\nexecute @e[tag=Chunk] ~-32 0 ~-32 scoreboard players tag @e[tag=Spread,dx=65,dy=255,dz=65] add False\nfunction generat:spread if @e[tag=False]复制代码\ndata\\functions\\generat\\build.mcfunction\nfill ~-1 ~ ~-1 ~1 ~1 ~1 iron_block复制代码\n除去advancement，命令一共只有22条，如果你觉太多不好理解，那么看看下面，\n\n因为那个advancement我研究的不是很深，是照wiki扒的，我就只能说说它是干什么用的了：\n当玩家进入平原生物群系的时候，会达成进度enter_plains，达成进度就会执行generat:main，而generat:main中有一个命令\nadvancement revoke @a from generat:enter_plains\n清除玩家的enter_plains进度，意思是generat:main执行一次就会清除玩家的enter_plains进度，\n也就是说玩家在平原生物群系会一直高频执行generat:main这个function，advancement的作用就是限制生物群系并省着高频。\n\n看上面那些22条命令，其中一条已经知道什么意思了吧（明白上面那个advancement的意思了就知道命令什么用了），\n还剩下21条命令，你再看看这三条main.mcfunction里的命令\ngamerule sendCommandFeedback false\ngamerule commandBlockOutput false\ngamerule logAdminCommands false\n这三条命令分别是禁止玩家在聊天栏受到命令信息反馈防止聊天栏刷屏、禁止命令方块输出提示、禁止生成日志文件防止日志文件被刷爆。\n就是基础设置，那么就还有18条看起来有用的命令了，还是很精简的对吧。还是觉得不够精简，那……我能怎么办啊，继续往下看吧!\n\n那么些命令是干什么的呢，我们稍后再说，我们是时候说一下制作思路了，你得先考虑一下你的目标：\n\n首先是把生成建筑限制在平原生物群系，然后每到一个没人进入过的区域，就将这个区域标记为有人到过（就像在墙上刻一个\"到此一游\"一样）并尝试在附近没人到过的另一个区域尝试生成建筑，几率还要可控，嗯目标已经明确了，那么怎么实现呢？\n\n还是看看下面的图解大概理一下思路吧，\n\n你现在就站在一个非平原区域，什么都没有发生\n\n\n然后你走进了平原区域\n\n\n你讲要对附近进行标记（到此一游）\n\n\n并选择几个边缘上的点尝试生成建筑，随机选择一个点，如果这个点是绿色的那个点那么生成建筑，如果是蓝色的点，尝试失败，可以看出图中的生成几率为1/5吧，这也就做到了限制几率，从图中也能看出它可能会把建筑生成到该生物群系外，嗯，这是个特性\n\n然后你移动到了一个其他区域，就又得进行一次标记\n\n并再次尝试在为标记过的区域生成建筑，也就是说图中加粗的红色边框处不会尝试生成，保证生成几率固定为1/5\n\n\n当你把附近的区域都标记过了，你就不能尝试生成建筑了，保证去过的区域不会生成建筑\n\n\n\n如何用命令实现它呢，我们首先要对没有被标记的区域进行标记，这里采用实体标记法简单方便快捷美观，\n所谓实体标记法，就是在一个位置summon一个实体，让这个实体标记这个范围，那怎么才算是标记了这个范围呢，\n看main.mcfunction中的命令execute @a ~-32 0 ~-32 function generat:mark unless @e[dx=65,dy=0,dz=65,tag=Chunk]\n以玩家为原点，xz相对坐标都为-32，y绝对坐标为0的方块为基点，如果向xz轴延伸65格选定的65×1×65的范围内没有tag为Chunk的实体，就执行generat:mark（这里必须提前透露一下generat:make有标记区域的作用，所以说就是如果没有tag为Chunk的实体，标记这个区域）\n\n把上面那句话简化说，就是以玩家为正方形中心画一个边长为65的正方形，如果这里面没有tag为Chunk的实体就会标记这个区域，tag为Chunk的实体又是什么？就是刚刚我说的那个\"就是在一个位置summon一个实体\"的那个实体啊，其实就是让玩家检测区域内没有实体标记，就把这个区域设置为被标记区域，\n\n绝对坐标为什么为0，下面就知道了\n然后看generat:mark中的第一条命令为\nexecute @s ~ ~ ~ summon area_effect_cloud ~ 0 ~ {Tags:[\"Chunk\"],Duration:2147483647}\n让执行generat:mark的玩家在xz无偏移，绝对坐标为0的地方(绝对坐标为0是为了方便检测，所有aec都对其到同一高度较好)summon一个tag为Chunk的药水云（简称aec），刚刚也说了，这是用来标记这个区域的实体，由于药水云会在三年之后消失，generat:main里的entitydata @e[tag=Chunk] {Age:0}\n就是防止它消失的啦，把它的age（年龄）一直设置为0它就不会消失了哈哈哈哈哈（大误）\n就在刚刚，我们不知不觉已经把generat:main里面所有的命令的用处都说完了，有没有发现，main.mcfunction里的命令只有execute @a ~-32 0 ~-32 function generat:mark unless @e[dx=65,dy=0,dz=65,tag=Chunk]\n这一条是有用的，去掉generat:mark里的第一条命令，我们就只剩下15条命令了!\n\n言归正传，我们已经知道标记该用tag=Chunk的aec标记区域了，那么怎么尝试生成建筑呢，有没有注意到generat:mark里只有第一条命令是有关标记区域的，generat:mark里的其他命令，都是有关于尝试生成建筑的，\n\n仍然是图解，假设你现在站在一个已标记区域里(这幅图里的虚线变得美观了不少233)\n\n\n然后你走出了这个区域并把你所在的区域标记了一下，你现在随机扩散一堆tag=Spread的aec在你所在的区域里面\n\n\n只要tag=Spread的aec处于被标记的范围内，就会被重新扩散，直到所有aec都处于未被标记区域，为了能够使最后一个marker被扩散到未被标记区域的几率增大，使用了一个tag=SpreadHelper的aec来“协助扩散”（载体蛋白既视感），这个SpreadHelper图中未标出，因为所有除SpreadHelper的aec被扩散到未标记区域后，这个helper就会被销毁（kill）\n\n\n而这写可能生成建筑的aec中间，真正能生成建筑的只有一个[变绿（他可能原谅了*#%*）的那个]，使用@r选择到的如果是这个绿色的，则让他生成建筑，如果不是这个绿色的就无效果\n\n\n无论尝试生成建筑成功与否，这些aec都会被清除，之后留下的只有标记Chunk的marker\n\n好了我们接着看命令，\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"Spread\",\"False\"]}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"Spread\",\"False\"]}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"SpreadHelper\"]}\n这三条命令看起来都差不多，第三也就是summon之前我说的那个SpreadHelper\n前两条都是生成tag为Spread的aec，也就是生成了两个，自带tag=False\n\n生成完之后，\nfunction generat:spread\n就要执行generat:spread这个function了\n由于开头写的已经比较远了，我再把generat:spread复制过来，\n\nscoreboard players tag @e[tag=SpreadHelper] add False\nexecute @s ~ ~ ~ spreadplayers ~ ~ 17 33 false @e[tag=False]\nscoreboard players tag @e[tag=SpreadHelper] remove False\nscoreboard players tag @e[tag=Spread] remove False\nexecute @e[tag=Chunk] ~-32 0 ~-32 scoreboard players tag @e[tag=Spread,dx=65,dy=255,dz=65] add False\nfunction generat:spread if @e[tag=False]复制代码这里稍微有些难理解，我也不知道怎么描述，只能把各条命令的作用给出来了：\n玩家先给elper(这里SpreadHelper简称helper)加上False标签\n然后把标签为False的aec都在以玩家为中心66为边长的正方形内扩散（一个区域边长是64，所以这个扩散范围只比区域边长多1格）\n把Helper的False标签再清除\n再把所有tag=Spread的aec的False标签清除\n如果还有Spread在被标记过的区域里，就给它加上False标签\n如果存在带有False标签的实体，那么就重新在同一时刻再次执行generat:spread（helper又会加上false然后扩散没被扩散到标记区域外的aec）\n直到所有的marker都扩散到被标记区域外（没有带False的aec了）才继续执行其他命令，这样把固定数量个的aec扩散到标记区域外，就可以确定几率了，像上面我summon了两个tag=Spread，几率就是1/2，如果我写10个，几率就是1/10，当然这是有一定限制的，稍后再说。\n\n现在回到generat:mark，\nkill @e[tag=SpreadHelper]\nscoreboard players tag @r[type=area_effect_cloud,tag=Spread,c=1] add True\nexecute @r[type=area_effect_cloud,tag=Spread,c=1] ~ ~ ~ function generat:build if @s[tag=True]\nkill @e[tag=Spread]\n刚刚我说过这个generat:spread的循环完成后才会继续执行其他命令，所以说，上面这四条命令，是在尝试生成建筑之后才执行的，我也说过尝试生成建筑之后不管成功与否，这些aec都要被清除，还是说这四个命令的作用：\n清除SpreadHelper\n随机把一个Spread加上True标签（也就是我说的那个原谅变绿的过程）\n随机选择一个Spread，如果它是带有True标签的（如果它是绿的），它就会执行generat:build，generat:build的里面只有一条命令，就是fill制造一些铁块，也就所谓的\"生成建筑\"用的function，很简单吧\n然后清除那些被扩散的aec\n\n好了，现在所有的命令都已经讲完了，是不是很精简，很易懂呢？\n\n如果还是不是很懂，再看一遍吧\n\n如何修改成自己想要的效果\n\n觉得我就放个铁块太丑？觉得生成几率太高？想要换个生物群系？可以！\n\n标题也说了这不仅精简，还十分易修改，自定义自然生成建筑so easy！\n\n1.修改建筑\n修改建筑，只要修改generat:build即可。你可以用命令一块一块setblock和fill拼出你要的效果，或者你可以使用一个结构方块来保存你要的结构，在generat:build中只要加载一个结构方块和一个红石块即可，这个结构方块的nbt你要怎么弄呢，有个简单的方法，你放一个要加载你保存的结构的命令方块在地上，放一个命令方块在上面2格处，里面写上/blockdata ~ ~-2 ~ {}，然后激活它，复制它的反馈输出框，去掉些看起来没有用的nbt即可 ，然后如果你想分享这个建筑，除了saves\\地图\\data以外，你还要把saves\\地图\\structures一起打包。\n结构方块具体建议去看 @chyx 的结构方块教程http://www.mcbbs.net/thread-652937-1-1.html\n你甚至还可以增加一些五毛特效(比如上个帖子的苹果)\n2.修改生成几率\n首先你generat:mark里的\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"Spread\",\"False\"]}\n写了几个，生成几率就是几分之一，但是spreadplayers命令后面要稍微做些调整，保证有足够的空间来扩散这么多实体，这也就是我刚刚说的限制，如果实体太多了，是会将生成几率降为0的，因为spreadplayers指令执行会失败，那如果想要生成超低几率又不想用太多实体，比如想要1/1000的几率，你只需要summon10次（甚至更少），\nscoreboard players tag @r[type=area_effect_cloud,tag=Spread,c=1] add True1\nscoreboard players tag @r[type=area_effect_cloud,tag=Spread,c=1] add True2\nscoreboard players tag @r[type=area_effect_cloud,tag=Spread,c=1] add True3复制代码被选中true1/2/3的几率都是1/10，被同时选中的几率就是1/(10×10×10)=1/1000咯\n至于如何检测true1/2/3同时满足就要自己去想了，你可以创建几个记分板来代替true1，true2，true3，就不多说了\n3.修改生物群系\n关于生物群系，就得改advancement了\n{\n\"criteria\":{\n\"generat\":{\n\"trigger\":\"minecraft:location\",\n\"conditions\": {\n\"biome\": \"plains\"\n}\n}\n},\n\"rewards\":{\n\"function\":\"generat:main\"\n}\n}复制代码其中\"biome\":\"xxx\"，后面加的就是生物群系了，修改成其他生物群系的即可，生物群系id列表在这，把它的id前面的\"minecraft:\"去掉即可https://minecraft-zh.gamepedia.com/%E6%95%B0%E6%8D%AE%E5%80%BC#.E7.94.9F.E7.89.A9.E7.BE.A4.E7.B3.BBID\n另外提醒一句advancement(json)文件最好用Notepad++这个软件打开\n4.增加生成条件或者根据环境改变细节\nexecute @r[type=area_effect_cloud,tag=Spread,c=1] ~ ~ ~ function generat:build if @s[tag=True]\n巧用detect，多创建几个generat:build1,generat:build2，generat:build3………………然后检查到不同方块用不同的function\n\n没人看的后记\n*这篇教程我从20:40左右码到现在，头一次写了这么长的教程（那些插图，画到我手抽筋哇），一共近四个小时，有点困\n\n\n\n\n*这玩意只能检测玩家所在的生物群系，而不能检测被扩散的aec所在的生物群系，所以，在特性里得加上\"罕见地，该建筑会生成在其他生物群系（与预定生物群系交界附近）\"\n*未经测试，如果有bug求告知\n*字数统计了一下，大概13000+字节\n*你看我灵魂画手画了这么多图，能不能……，你懂我的意思吧\n*然后好像就没有什么了……\n都说了让你点下面的标题点这个干什么？如果你是手机版就当我没说……\n\n\n",
+    "replies": [
+        {
+            "author": "易伞R",
+            "timestamp": 1509849300,
+            "txt_content": "hhasgssagasgas"
+        },
+        {
+            "author": "2759159258",
+            "timestamp": 1509978300,
+            "txt_content": "一脸懵X\n不过比上个帖好理解多了\n(明早配早饭吃)"
+        },
+        {
+            "author": "1366020327",
+            "timestamp": 1509979020,
+            "txt_content": "不错，支持，辛苦了。\n等我有时间也试试自己做做"
+        },
+        {
+            "author": "SilentSkyShine",
+            "timestamp": 1511173380,
+            "txt_content": "好东西，意思是不是可以在大陆上添加各种原版没有的建筑？这样的话我的RPG生存有着落了！"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1511186340,
+            "txt_content": "骑猪的僵尸 发表于 2017-11-20 18:23\n好东西，意思是不是可以在大陆上添加各种原版没有的建筑？这样的话我的RPG生存有着落了！ ...\n是的，不过要1.12"
+        },
+        {
+            "author": "123456789548548",
+            "timestamp": 1511326440,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "不动要塞",
+            "timestamp": 1512958800,
+            "txt_content": "这是要逼死自然建筑类mod啊\n最后不懂转函数，晕，纯支持了"
+        },
+        {
+            "author": "印度小仨",
+            "timestamp": 1534495620,
+            "txt_content": "人气+1           6666"
+        },
+        {
+            "author": "夏逆大大",
+            "timestamp": 1534568520,
+            "txt_content": "有空自己做出来"
+        },
+        {
+            "author": "afjl",
+            "timestamp": 1534641240,
+            "txt_content": "要是函数支持循环和递归，再加上点STL，然后给加方块、物品、实体、命令的接口就好玩了\n插件和MOD就快完了\n（没有特殊含义）"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1543997400,
+            "txt_content": "这个压缩包里面的villages.dat必须覆盖还是可选？你这个靠进度和函数实现的应该不要覆盖村庄信息吧"
+        },
+        {
+            "author": "1289296032",
+            "timestamp": 1544029500,
+            "txt_content": "赞赞赞~~~~~~"
+        },
+        {
+            "author": "zhouaixue1212",
+            "timestamp": 1544051700,
+            "txt_content": "建筑的我都喜欢  顶起来"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1544334720,
+            "txt_content": "liach 发表于 2018-12-5 16:10\n这个压缩包里面的villages.dat必须覆盖还是可选？你这个靠进度和函数实现的应该不要覆盖村庄信息吧 ...\n不需要覆盖，我就是把data文件直接压缩拿出来了"
+        },
+        {
+            "author": "LM_FC",
+            "timestamp": 1544351700,
+            "txt_content": "都是大佬都是大都是大佬都是大佬都是大佬都是大佬"
+        },
+        {
+            "author": "北街",
+            "timestamp": 1562046300,
+            "txt_content": ""
+        }
+    ]
+}

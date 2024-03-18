@@ -1,0 +1,59 @@
+{
+    "title": "【CBL|SPG】台阶工艺 SlabCraft",
+    "author": "SPGoding",
+    "replyCount": 10,
+    "timestamp": 1540051620,
+    "txt_content": " 本帖最后由 梓榆 于 2019-7-25 00:23 编辑 \n\n（所有水平台阶、垂直台阶一览）\n\n今天带来的原版模组 SlabCraft 添加了两个新方块——水平台阶与垂直台阶。这两个新台阶可以使用任意方块的材质。\n\n简介\n\n具体使用方法为：在手中握着新的台阶，在副手中放置想要使用它的材质的方块，然后就可以像平时放置方块一样将其放出。\n\n\n在生存模式下，可以将任意方块状的方块水平/垂直摆放来合成水平台阶/垂直台阶。\n\n\n\n在创造模式下，「建筑」分类下有这两种新台阶。原版的那些台阶因为可以被水平台阶完全替代，因此全部被移除。\n\n\n不同材质的台阶可以直接堆叠。\n\n\n缺点：\n使用 /kill @e 等命令会让台阶的材质丢失所有台阶会发光。\n实体过多，卡\n\n\n原理\n\n两种台阶的基本原理为使用材质修改为透明的方块作为碰撞箱，使用盔甲架显示方块材质。\n\n当 advancement 检测到玩家背包变动时，会执行 slabcraft:get_texture 函数。该函数穷举了 233 种方块，将玩家副手中的方块映射到 scTextureID 分数中。\n\n水平台阶\n\n水平台阶是原版石台阶的修改品，因为石台阶是唯一一种可以修改 [type=double] 时的模型的台阶。将模型 block/stone_slab block/stone_slab_top block/stone_slab_double 清空，将 item/stone_slab 的材质修改为微软配色。\n\n当 advancement 检测到玩家放置水平台阶以后，玩家执行 slabcraft:horizon/recursion 函数。该函数会递归找到玩家放置的水平台阶位置，然后在该位置生成头戴特定模型的盔甲架（由上文提到的玩家的 scTextureID 分数决定模型）。\n\n当盔甲架处没有石台阶时，kill 盔甲架，以此达到破坏方块时材质同时消失的效果。\n\n垂直台阶\n\n垂直台阶相比水平台阶复杂许多。垂直台阶使用 birch_slab 修改，不过这只是为了能够触发右键，触发以后会立刻把 birch_slab 设置为 air。垂直台阶分为了 south、north、east、west 四个朝向，每个朝向下都有 front、back 与 double 三种状态。front 与 back 状态的碰撞箱使用铁栅栏提供，为 T 字形\n\n\ndouble 状态的碰撞箱使用 stone_slab[type=double] 提供。\n\n当 advancement 检测到玩家放置垂直台阶以后，玩家执行 slabcraft:verticle/recursion 函数。为了能够检测到玩家指向的方块的具体某一面，该函数采用一种奇怪的方式递归向前：\n\n首先，用一种你喜欢的方式获取沿玩家朝向方向的长度为 0.01 米的线段在世界坐标系的 x y z 三轴上的投影长度。本人提供以下两种方法：\n\n【法 1】\nexecute positioned ~ ~1.62 ~ run summon minecraft:area_effect_cloud ^ ^ ^ {Tags:[\"sc_recursion_marker\",\"sc_recursion_marker_1\"]}\nexecute positioned ~ ~1.62 ~ run summon minecraft:area_effect_cloud ^ ^ ^0.01 {Tags:[\"sc_recursion_marker\",\"sc_recursion_marker_2\"]}\n\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaX run data get entity @s Pos[0] 1000\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaY run data get entity @s Pos[1] 1000\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaZ run data get entity @s Pos[2] 1000\n\nscoreboard players operation @e[tag=sc_recursion_marker,tag=sc_recursion_marker_2,limit=1] scDeltaX -= @e[tag=sc_recursion_marker,tag=sc_recursion_marker_1,limit=1] scDeltaX\nscoreboard players operation @e[tag=sc_recursion_marker,tag=sc_recursion_marker_2,limit=1] scDeltaY -= @e[tag=sc_recursion_marker,tag=sc_recursion_marker_1,limit=1] scDeltaY\nscoreboard players operation @e[tag=sc_recursion_marker,nbt=tag=sc_recursion_marker_2,limit=1] scDeltaZ -= @e[tag=sc_recursion_marker,tag=sc_recursion_marker_1,limit=1] scDeltaZ复制代码\n\n@e[tag=sc_recursion_marker,tag=sc_recursion_marker_2] 的 scDelta 分数中即是我们想要的数据。\n\n【法 2】\nexecute positioned 0.0 0.0 0.0 run summon minecraft:area_effect_cloud ^ ^ ^0.01 {Duration:1,Tags:[\"sc_recursion_marker\"]}\n\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaX run data get entity @s Pos[0] 1000\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaY run data get entity @s Pos[1] 1000\nexecute as @e[tag=sc_recursion_marker] store result score @s scDeltaZ run data get entity @s Pos[2] 1000复制代码\n\n@e[tag=sc_recursion_marker] 的 scDelta 分数中即是我们想要的数据。这种方法比上一种简洁许多，但是必须提前执行 /forceload add -1 -1 1 1，否则可能会无法生成实体。\n\n然后，我们让一个 marker 根据 scDelta 移动。流程如下：\n将自身 Pos[0] 加上 scDeltaX如果 marker 移动以后碰上除铁栅栏以外的方块，说明玩家视线接触的方块的面在 x 轴上：若 scDeltaX < 0，说明该面是方块的东面，应该在这次移动以前的位置放置 west 朝向的 front 类型的垂直台阶；反之亦然。若碰上铁栅栏，则通过函数 slabcraft:verticle/set_marker/double 将该位置的垂直台阶补全为 double 类型。如果 marker 移动以后没有碰上任何方块，则继续向下执行函数。将自身 Pos[2] 加上 scDeltaZ如果 marker 移动以后碰上除铁栅栏以外的方块，说明玩家视线接触的方块的面在 z 轴上：若 scDeltaZ < 0，说明该面是方块的南面，应该在这次移动以前的位置放置 north 朝向的 front 类型的垂直台阶；反之亦然。若碰上铁栅栏，则通过函数 slabcraft:verticle/set_marker/double 将该位置的垂直台阶补全为 double 类型。如果 marker 移动以后没有碰上任何方块，则继续向下执行函数。将自身 Pos[1] 加上 scDeltaY如果 marker 移动以后碰上方块，说明玩家视线接触的方块的面在 y 轴上：若 scDeltaY < 0，说明该面是方块的上面，执行函数 slabcraft:verticle/set_marker/on_ground，该函数会根据玩家的朝向决定垂直台阶的朝向，根据玩家指向方块的部分（前半部分或后半部分）决定垂直台阶的类型为 front 或 back；反之则执行函数 slabcraft:verticle/set_marker/reach_top。如果 marker 移动以后没有碰上任何方块，且玩家与 marker 的距离小于等于 6，则继续递归执行本函数。\n\n\n这样就可以检测到玩家指向的方块的面了。肯定有更好的做法，懒…\n\n当破坏铁栅栏时，会把掉落物换回 birch_slab，同时用于显示材质的 marker 会随之消失。\n\n下载\n\n有条件的玩家可以到 GitHub 下载：https://github.com/CommandBlockLogic/SlabCraft/releases\n当然，在论坛这里下载也是可以的：\n\n\n\nSlabCraft.zip\n(169.2 KB, 下载次数: 19)\n\n\n\n2018-10-21 09:13 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n使用命令 /function slabcraft:unload 可以将有关记分板注销，之后就可以移除该数据包了。\n\n",
+    "replies": [
+        {
+            "author": "Оil",
+            "timestamp": 1540053000,
+            "txt_content": "我记得某FHC绿石有个方块重叠黑科技的帖子……\n虽然想拿来作为枪械雕塑的修边……但是看到“实体过多，卡”这句以及修边方块单只枪10^2的量级和巨大的地图尺寸就退缩了……"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1540056420,
+            "txt_content": "Oil 发表于 2018-10-21 00:30\n我记得某FHC绿石有个方块重叠黑科技的帖子……\n虽然想拿来作为枪械雕塑的修边……但是看到“实体过多，卡” ...\n如果 Mojang 能做出「不渲染被别的实体挡住的实体」应该会快很多【\n现在有大量的资源用在渲染被别的台阶挡住的那些台阶…"
+        },
+        {
+            "author": "nggcgg2",
+            "timestamp": 1540061280,
+            "txt_content": "噗 如果官方有这个就好了 可惜只是个数据包 但是还是很赞"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1540080720,
+            "txt_content": "建筑师表示:你想卡死我啊"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1540081380,
+            "txt_content": "过于真实，膜了！"
+        },
+        {
+            "author": "xiaowei233v",
+            "timestamp": 1540090380,
+            "txt_content": "一开始以为这东西可以运用在地图的细节建造上  看了一遍命令，1.看的云里雾里  2.玩家一加载：未响应awa"
+        },
+        {
+            "author": "逗比鸡",
+            "timestamp": 1540095480,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "zhuxuanup",
+            "timestamp": 1540098180,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "GCVillager",
+            "timestamp": 1540118040,
+            "txt_content": "呃……为什么是紫黑色丢失的材质……什么鬼"
+        },
+        {
+            "author": "wzz0116",
+            "timestamp": 1540124100,
+            "txt_content": "所以为什么mojang不出竖直台阶呢"
+        }
+    ]
+}

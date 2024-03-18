@@ -1,0 +1,34 @@
+{
+    "title": "关于npcmod的问题",
+    "author": "qianji20000420",
+    "replyCount": 5,
+    "timestamp": 1499167260,
+    "txt_content": "本人要做一个 固定npc射箭击中玩家后会有雷电效果我本来的思路是这样的\n1.通过EntityDamageByEntity事件获取到抛射物对象(但是为啥抛射物是UNKNOWN。。。)2.判断抛射物是不是我想要赋予能力的npc发出的，因为npc属于CraftCreature类的 获取到的所有NPC的名字或者说是其他属性均是一样的。。\n然后我就换了个思路   通过获取npc身上的装备  看是否有某个lore 来判断是不是那个npc  这个解决了\n3.然后通过Bukkit的lightning指令来打雷\n\n\n但是我现在想要使用World的类的lightning 就是不用非得击中玩家才能打雷 只要落地了 就打雷  但是我并没有发现抛射物落地的事件。。\n有没有什么办法能获取到抛射物落地的位置。。。\n@大佬\n",
+    "replies": [
+        {
+            "author": "平凡的行者",
+            "timestamp": 1499594700,
+            "txt_content": " 本帖最后由 平凡的行者 于 2017-7-9 18:14 编辑 \n\n不确定你的npcmod的版本是哪个，这边我就先假设是1.7.10好了\n\nnpc的抛射物中有一项变数，代表抛射物是否嵌在方块内\n这应该就是你要的东西\n\n不过我并没有找到类似的事件来描述一个抛射物嵌到方块内了(可能有，但我没找到...)\n所以目前比较实际的做法大概就是：搜索一定范围内嵌入地面上的抛射物，如果这东西是特定NPC丢的，那么就打雷并移除这个抛射物\n\n但有一个难处：描述抛射物是否嵌入方块内的变数是protected，而另一个ticksInGround变数(描述抛射物嵌在地上多久了)是private\n所以如果要取得这些资讯的话，要不是从NBT里找，要不就是用反射修改权限后存取。\n\n\n我刚刚根据你的状况，写了个脚本来试试(NPCmod的版本是1.7.10)，代码如下：\nInit:\nvar projectileClass = java.lang.Class.forName(\"noppes.npcs.entity.EntityProjectile\");\nvar inGroundFile = projectileClass.getDeclaredField(\"field_70193_a\");\ninGroundFile.setAccessible(true);\nnpc.setTempData(\"reflect_inGround\",inGroundFile);复制代码Update:\nvar se = npc.getSurroundingEntities(30);\nfor(var i = 0 ; i<se.length ; i++){\n if(se[i].getType() == 0 && se[i].getMCEntity().class.getName() == \"noppes.npcs.entity.EntityProjectile\"){\n  var pro = se[i].getMCEntity();\n  if(npc.getTempData(\"reflect_inGround\").getBoolean(pro) && pro.func_85052_h()==npc.getMCEntity()){\n   world.thunderStrike(pro.field_70165_t,pro.field_70163_u,pro.field_70161_v);\n   pro.func_70106_y();\n  }\n }\n}复制代码\n\n\n\n\n1.png (35.41 KB, 下载次数: 0)\n\n下载附件\n\n2017-7-9 18:00 上传\n\n\n\n\n\n\n\n\n2.png (48.9 KB, 下载次数: 1)\n\n下载附件\n\n2017-7-9 17:56 上传\n\n\n\n\n\n\nnpc每0.5秒会以自身为中心，搜索半径30格内的投射物\n如果该投射物是自己射出的，且嵌入方块里了，就打雷并移除该投射物。\n判断投射物是否嵌入方块里，我是用反射绕过了protected权限存取的\n\n如果需要对30格外的投射物打雷，理论上有办法做到，不过程序上需要再多几步比较麻烦的步骤...\n\n\n\n"
+        },
+        {
+            "author": "qianji20000420",
+            "timestamp": 1499661360,
+            "txt_content": "平凡的行者 发表于 2017-7-9 18:05\n不确定你的npcmod的版本是哪个，这边我就先假设是1.7.10好了\n\nnpc的抛射物中有一项变数，代表抛射物是否嵌 ...\n十分感谢，但是不知道为什么， 控制台会显示ClassNotFound  但是Npcmod里的确有EntityProjectile这个类啊。。\nsun.org.mozilla.javascript.internal.WrappedException: Wrapped java.lang.ClassNotFoundException: noppes.npcs.entity.EntityProjectile (<Unknown Source>#1) in <Unknown Source> at line number 1\nsun.org.mozilla.javascript.internal.WrappedException: Wrapped java.lang.ClassNotFoundException: noppes.npcs.entity.EntityProjectile (<Unknown Source>#1) in <Unknown Source> at line number 1"
+        },
+        {
+            "author": "平凡的行者",
+            "timestamp": 1499668920,
+            "txt_content": " 本帖最后由 平凡的行者 于 2017-7-10 14:46 编辑 \nqianji20000420 发表于 2017-7-10 12:36\n十分感谢，但是不知道为什么， 控制台会显示ClassNotFound  但是Npcmod里的确有EntityProjectile这个类啊 ...\n我测试时用的npcmod是1.7.10d版的(CustomNPCs_1.7.10d(21feb16))且是在单人下测试的\njava的版本是java8\n\n你那边的mod同样是这个版本吗?...\n还是说你不小心多打一个空格给这个类的名字?\n\n如果你那边测试不行的话，要不要我把地图档发给你?\n"
+        },
+        {
+            "author": "qianji20000420",
+            "timestamp": 1500031800,
+            "txt_content": "平凡的行者 发表于 2017-7-10 14:42\n我测试时用的npcmod是1.7.10d版的(CustomNPCs_1.7.10d(21feb16))且是在单人下测试的\njava的版本是java8\n好的好的 发一下吧 感谢"
+        },
+        {
+            "author": "平凡的行者",
+            "timestamp": 1500053940,
+            "txt_content": "qianji20000420 发表于 2017-7-14 19:30\n好的好的 发一下吧 感谢\n原则上不需要额外插件即可有效\n你可以先以单人模式看看功能正不正常\n再到服务器里看功能正不正常。\n\n\n\n\n\nNew World1710_projectilThunder.zip\n(555.39 KB, 下载次数: 3)\n\n\n\n2017-7-15 01:37 上传\n点击文件名下载附件\n\n\n\n\n\n\n"
+        }
+    ]
+}

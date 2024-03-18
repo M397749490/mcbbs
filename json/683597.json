@@ -1,0 +1,134 @@
+{
+    "title": "[CBL|玄素]17w13a 新成就系统及自定义",
+    "author": "玄素",
+    "replyCount": 25,
+    "timestamp": 1490899200,
+    "txt_content": " 本帖最后由 玄素 于 2017-4-4 21:00 编辑 \n\n17w13a里，整个成就体系发生了巨大的改动……\n/achievement命令被重做，新命令为/advancement。/advancement <grant|revoke|test> <player> <advancement> [criterion]复制代码目前语言文件有错误，后两个的显示十分有毒。可能这次快照出的非常赶，很快就会发现酱猪蹄不止一处……作用分别是给予/夺取/检测玩家是否有某个成就项。虽然现在叫它成就已经很不妥当，但是由于叫顺口了不想改了就先这么叫着吧23333可选参数criterion会匹配某成就项下的某条准则。这些准则和它们的具体内容可以在成就文件中找到。命令返回信息的语言文件存在同样的问题……同时这个更改也宣告，过去版本通过检测achievement进行e键检测这个做法废了……真是个悲伤的故事。\n加入了新命令/recipe，效果是给予/清除玩家的某个合成配方。/recipe <give|take> [player] <name|*>复制代码虽然官方给出的格式如此，但是如果你省略玩家名/选择器就会出现“在执行此命令时出现了未知的错误”，所以我还是没搞懂为什么player是个可选参……可以用*来指代全部合成配方。\n加入了新gamerule：doLimitedCrafting，默认值为false。当值为true时，玩家将只能合成自己已经有合成配方的物品，无论游戏模式。\n加入了物品knowledge_book，目前只能用指令调出，不存在于创造物品栏中。右键使用，会消耗该物品，并使得玩家解锁其携带的配方(怀疑通过触发合成表解锁条件的has_the_recipe)。可用标签Recipes指定其携带的合成配方，例如：/give @p minecraft:knowledge_book 1 0 {Recipes:[\"minecraft:torch\",\"minecraft:redstone_torch\"]}复制代码将给予玩家一本使用后能解锁火把和红石火把合成表的姿势知识之书。\n\n玩家可以自行定义新的成就/合成配方获取方式/合成表。前两者的自定义文件保存在路径saves\\xxxxx\\data\\advancements下，和loot table、structure一样都是跟着存档走的东西。合成表现在还没有开放比较正常的自定义方式，但文件可以在17w13a.jar\\assets\\minecraft\\recipes下找到。\n成就文件的格式如下：{\n    \"display\": {\n        \"icon\": \"minecraft:glass_bottle\",        //显示时使用的图标\n        \"title\": \"Brew a Potion\"        //显示名\n    },\n    \"parent\": \"minecraft:story/obtain_blaze_rod\",        //父成就（在成就树显示中所属于的成就）\n    \"criteria\": {\n        \"potion\": {        //准则名，仅调取用\n            \"trigger\": \"minecraft:inventory_changed\",        //触发要求（种类）\n            \"conditions\": {        //触发要求具体内容\n                \"items\": [\n                    {\n                        \"item\": \"minecraft:potion\"\n                    }\n                ]\n            }\n        }\n    }\n}复制代码每个成就list存在一个root.json，作为整条成就树的根成就存在。只有当根成就被满足，成就树才会在选项/advancement里显示(?)。定义根成就时不需指定父成就。\n合成配方获取方式文件格式如下：{\n  \"rewards\": {        //获取的合成配方，怀疑能获得别的？\n    \"recipes\": [\n      \"minecraft:wooden_pickaxe\"\n    ]\n  },\n  \"criteria\": {\n    \"has_stick\": {        //准则名\n      \"trigger\": \"minecraft:inventory_changed\",        //触发要求\n      \"conditions\": {        //触发要求的具体内容\n        \"items\": [\n          {\n            \"item\": \"minecraft:stick\"\n          }\n        ]\n      }\n    },\n    \"has_the_recipe\": {\n      \"trigger\": \"minecraft:recipe_unlocked\",\n      \"conditions\": {\n        \"recipe\": \"wooden_pickaxe\"\n      }\n    }\n  },\n  \"requirements\": [        //需求满足的准则，同一个list内的准则需同时满足\n    [\n      \"has_stick\"\n    ],\n    [        //不同list之间并列，只要满足任意一个list即算满足条件\n      \"has_the_recipe\"\n    ]\n  ]\n}复制代码\n其中，目前扒出来的trigger有以下这些：名称匹配具体要求内容minecraft:impossible无法完成(?)// minecraft:inventory_changed 物品栏改变(某种意义\n上，获得过该物品)items,slots:{occupied,full,\nempty}item_format,range minecraft:construct_beacon 构造信标levelintminecraft:player_damaged伤害相关信息damage:{blocked,is_projectile,\nis_explosion,bypasses_armor,\nbypasses_invulnerability,\nbypasses_magic,is_fire,is_magic,\ndealt(range),taken(range),\nsource_entity(type)}没写单位的全是boolminecraft:enchanted_item附魔物品 item,levelsitem_format,rangeminecraft:enter_block进入方块block,state:{}block ID,stateminecraft:used_ender_eye使用末影之眼distance(我没猜到具体指啥，\n距离最终落点距离？)rangeminecraft:summoned_entity生成实体entitytypeminecraft:recipe_unlocked 配方解锁recipe recipe nameminecraft:location位置position:{x,y,z},biomerange,biome nameminecraft:player_killed_entity生物击杀entitytypeminecraft:bred_animals动物喂养(包括繁殖和\n喂养小动物长大)parents:[],childtypeminecraft:brewed_potion药水酿造potionpotion name*其中item_format许可内容为{item(string), count(range), data(int), enchantments[{enchantment(string), \nlevels(range)}...], potion(string)}这玩意儿我感觉和pe的Add-on的准则一个习性……官方写了的你知道可以这么用，然而并不知道到底有哪些用法。期待后续有人拆了mc。↑感谢梨子@andylizi 真的就把mc拆了……以其内容对上面的表格做了更新并再次十分感谢。然而就算说了方法我也不会拆23333由于MC-115067的存在，其中不少项目尚不可用（可被定义，也能正常被显示，但是无法用正常方式完成）。据说下个版本修复。\n合成表的定义方式很简洁明了……还是拿木镐做例子吧：{\n  \"type\": \"crafting_shaped\",        //是否为有序合成\n  \"pattern\": [        //配方图\n    \"XXX\",\n    \" # \",\n    \" # \"\n  ],\n  \"key\": {        //上图中key对应的value\n    \"#\": {\n      \"item\": \"minecraft:stick\"\n    },\n    \"X\": {\n      \"item\": \"minecraft:planks\"\n    }\n  },\n  \"result\": {        //合成结果\n    \"item\": \"minecraft:wooden_pickaxe\"\n  }\n}复制代码书本/地图的复制不由这种方法指定合成表。至少我找了半天也是没找到。\n加了(?)的为存疑内容，困了不想试了果断还是先睡觉……↑二更一发，后面发现了有趣的细节再继续补充吧↑附带一个笑一年的mjsb：{\n    \"display\": {\n        \"icon\": \"minecraft:nether_star\",\n        \"title\": \"Summon the Wither\"\n    },\n    \"parent\": \"minecraft:story/enter_the_nether\",\n    \"criteria\": {\n        \"summoned\": {\n            \"trigger\": \"minecraft:summoned_entity\",\n            \"conditions\": {\n                \"entity\": {\n                    \"type\": \"ender_dragon\"\n                }\n            }\n        }\n    }\n} 复制代码一定是吃了酱猪蹄没洗手——手滑。\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1490899740,
+            "txt_content": "最后一条。。也不是不可以嘛。。"
+        },
+        {
+            "author": "YPXxiaoK",
+            "timestamp": 1490913480,
+            "txt_content": "喂喂喂，又来收膝盖了吗"
+        },
+        {
+            "author": "langyo_v2",
+            "timestamp": 1490914020,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1490915700,
+            "txt_content": "试着研究了 但是怎么也不知道触发器能写什么没研究成（其实还是害怕以后再改）\n\n\n\n\n听说这个版本切换成gm2能够清理合成列表\n\n\n还加了一个新的物品 绿色的书\n能够往里面写合成列表 右键就能获得里面写的合成列表"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1490936100,
+            "txt_content": " 本帖最后由 andylizi 于 2017-4-1 09:24 编辑 \n\n我还找到了/补充以下trigger：（省略前缀minecraft:）\n\n预定义类型 range，其结构为 {min(float), max(float)} 或 value(float)\n预定义类型 item_format，其结构为 {item(string), count(range), data(int), enchantments[{enchantment(string), levels(range)}...], potion(string)}\n预定义类型 entity，其结构为 {type(string)}\n\nimpossible\n无条件，顾名思义的不可能获得location\n条件：{position{x(range), y(range), z(range)}, biome(string)}player_killed_entity\n条件：{entity(entity)}bred_animals\n条件：{parents[entity...], child(entity)}brewed_potion\n条件：{potion(string)}inventory_changed\n条件：{items[item_format...], slots{occupied(range), full(range), empty(range)}}enchanted_item\n条件：{item(item_format), levels(range)}enter_block\n条件：{block(string),state{}}player_damaged\n条件：{is_projectile, is_explosion, bypasses_armor, bypasses_invulnerability, bypasses_magic, is_fire, is_magic, dealt(range), taken(range), blocked, source_entity(entity)}\n（没标明类型的全部为 boolean）recipe_unlocked\n条件：{recipe(string)}\n\n\n查找方法：jd-gui带字符串常量搜索功能（注意：低版本jd-gui的搜索不知为何无法使用，请去github下最新版），先在核心内查找已知的trigger的名称（不带minecraft:），发现trigger的类结构有规律：实现了 p 接口，有一个修饰符为 private static final，类型为 md 的字段，e.gpublic class ae implements p<ae.b> {\n  private static final md a = new md(\"inventory_changed\");复制代码所以使用jd-gui搜索所有调用了 md 构造器的类，就能找到。研究一下trigger类是怎么实现 p 接口里签名为 z.b b(JsonObject, JsonDeserializationContext) 的方法，就知道这个trigger接受哪些条件。\n（不过 md 这个类看起来就相当于 minecraft: 标识，搜出了260个结果。。。得耐心一个个翻）\n\nedit：后来发现其实有个叫 m 的类里面集中了所有的trigger，所以其实完全不用一个个找的…………哭"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1490936400,
+            "txt_content": "andylizi 发表于 2017-3-31 12:55\n我还找到了/补充以下trigger：（省略前缀minecraft:）\n\n预定义类型 range，其结构为 {min(float), max(floa ...\n谢谢！！！\n你一定是拆了游戏吧！"
+        },
+        {
+            "author": "迷失★夜空",
+            "timestamp": 1490938020,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1490967900,
+            "txt_content": "andylizi 发表于 2017-3-31 12:55\n我还找到了/补充以下trigger：（省略前缀minecraft:）\n\n预定义类型 range，其结构为 {min(float), max(floa ...\n那个 扔末影之眼有哪些？"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1491010080,
+            "txt_content": "chyx 发表于 2017-3-31 21:45\n那个 扔末影之眼有哪些？\n不清楚。末影之眼的trigger的“判定是否触发”的类（代码里称之为“CriterionInstance”）里，逻辑是这样的：传入一个double，然后判断：如果 distance 的 min * min > 传入的参数，则返回 false如果 distance 的 max * max < 传入的参数 ，则返回 false否则返回 true\n关键在于：传入的参数究竟是什么东西，而这个我没找到。。\n\n另：我发现我在筛选250个使用了 md 的类时，漏掉了 recipe_unlocked，已经补进去了。\n\n@langyo 我又发现了一个完全不笨的新查找方法→_→这下不麻烦了吧→_→新方法编辑进去了"
+        },
+        {
+            "author": "Java_command",
+            "timestamp": 1491087600,
+            "txt_content": "666\n话说mjsb是什么……\n感谢教程，正在做生成器：\n"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1491142740,
+            "txt_content": "没实操过依旧是懵逼的雷鸣鸣x所以窝要抱抱啦x！"
+        },
+        {
+            "author": "拥友",
+            "timestamp": 1491150960,
+            "txt_content": "没实际操作过，懵逼的我，"
+        },
+        {
+            "author": "2656072228",
+            "timestamp": 1491178800,
+            "txt_content": "为什么我输入\n/recipe give Fred minecraft:book\n就提示\ncommands.recipe.unknownrecipe"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1491180420,
+            "txt_content": "2656072228 发表于 2017-4-3 08:20\n为什么我输入\n/recipe give Fred minecraft:book\n就提示\n语言文件锅，没有在lang里找到对应条目就直接把索引扔给你了。\n不过光看这个索引也就够了，book压根就没有合成表啊2333那肯定就unknown recipe了。"
+        },
+        {
+            "author": "2656072228",
+            "timestamp": 1491216780,
+            "txt_content": "玄素 发表于 2017-4-3 08:47\n语言文件锅，没有在lang里找到对应条目就直接把索引扔给你了。\n不过光看这个索引也就够了，book压根就没 ...\n为什么book没有合成表啊，我游戏文件可没有任何改动啊"
+        },
+        {
+            "author": "死寂星辰乄",
+            "timestamp": 1491216900,
+            "txt_content": "玄素！抓活的！"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1491218040,
+            "txt_content": "2656072228 发表于 2017-4-3 18:53\n为什么book没有合成表啊，我游戏文件可没有任何改动啊\n当前版本的jar里的确没有book的合成表。高度怀疑mojang手滑写漏。"
+        },
+        {
+            "author": "TPL_YouTong",
+            "timestamp": 1491560640,
+            "txt_content": "andylizi 发表于 2017-3-31 12:55\n我还找到了/补充以下trigger：（省略前缀minecraft:）\n\n预定义类型 range，其结构为 {min(float), max(floa ...\n厉害,去试试"
+        },
+        {
+            "author": "唔咩",
+            "timestamp": 1498320660,
+            "txt_content": "所以现在e键检测该怎么弄呀（ 哭晕在厕所"
+        },
+        {
+            "author": "枷尔GarR",
+            "timestamp": 1498452180,
+            "txt_content": "我这些渣看不懂，但是很想学"
+        },
+        {
+            "author": "Ph-苯",
+            "timestamp": 1498919400,
+            "txt_content": "我估计拆了MC后MJAB就真改名叫MJSB了。"
+        },
+        {
+            "author": "xiao_tong_tong",
+            "timestamp": 1498928100,
+            "txt_content": "看不懂啊"
+        },
+        {
+            "author": "xiao_tong_tong",
+            "timestamp": 1498928340,
+            "txt_content": "大佬编程？"
+        },
+        {
+            "author": "amongbackzi",
+            "timestamp": 1541806620,
+            "txt_content": "我在做起床，要么和我一起玩"
+        },
+        {
+            "author": "疑离寒",
+            "timestamp": 1567010040,
+            "txt_content": "厉害厉害，更新了这么多[官方逼死模组系列233] 添加了一个合成和删除配方指令这一操作简直是地图作者的福利=W="
+        }
+    ]
+}

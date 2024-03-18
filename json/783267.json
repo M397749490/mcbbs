@@ -1,0 +1,109 @@
+{
+    "title": "[PCD]让你的插件使用MySQL存储数据吧！5.3",
+    "author": "dengyu",
+    "replyCount": 20,
+    "timestamp": 1519119360,
+    "txt_content": " 本帖最后由 dengyu 于 2020-10-24 18:43 编辑 \n\n 让你的插件使用MySQL存储数据吧！  \n 众所周知，MySQL比用SQLite等存储方式具有体积更小、速度快等优点，下面我就为大家带来插件使用MySQL的教程\n本教程所有代码采用GPLv3协议开源教程目标：实现一个插件，使得创建一个表，包含一个int类型数据和一个最大长度为50的字符串数据并且可以通过/ms add [int] [data]添加一行数据通过/ms del [int]移除主键为[int]的一行数据通过/ms find [int]获取主键为[int]的[data]数据本教程将实现3个类Main —— 插件的主类MySQLManager —— 连接、控制MySQL的核心类SQLCommand —— 包含一些MySQL指令集（枚举类型）若此教程有任何错误请大家提出指正！\n一、编写config.yml使用过MySQL的人都知道，一般MySQL需要配置以下的东西：\n主机IP数据库名字用户名密码端口\n这些东西可以说是缺一不可，这样的话，我们创建一份config.yml，只需要设置这五个参数，供接下来的类使用。\n在插件在plugins目录下生成config.yml的时候，我们应该将其设置为自己的用户名等\n上传一份作为参考：\n代码点这里\n\n二、编写插件主类首先，我们需要实现以下功能：\n可以连接上MySQL数据库服务器关闭时断开数据库连接获取到配置的内容填写命令执行器\n由于Bukkit只有一个线程，如果直接在主线程弄SQL，可能会导致服务器GG，这样的话，咱们就利用BukkitRunnable新建一个线程，重写run方法即可解决这个冲突。这个类的getConfigString和getConfigInt方法用于获取配置文件里面的相应配置在关闭服务器的时候别忘记调用shutdown关闭连接代码点这里\n三、编写SQLCommand枚举类型在处理MySQL的时候，我们将使用大量的数据库指令。然而一个一个写的话会很麻烦，而且在更改的时候也容易出错。我们创建一个叫做SQLCommand的枚举类型，存储着基本MySQL指令，需要时候随时用。先给出代码再详细讲解代码点这里这个类型我给出了3个指令：CREATE_TABLE1：查找是否存在一个叫做table1的表，如果没有，创建之，这个表包含一个int类型数据和一个最大长度为50的字符串数据，设置int列为主键，也就是说这个列就是代表，此列的int数据代表了该行其他的数据。ADD_DATA：添加一行数据；这个?在SQL语句里面是通配符，下文将通过调用setInt等方法将其替换掉。使用通配符的原因是相对于直接拼接SQL语句来说，使用PrepaerdStatement可以防止SQL注入式攻击。下文将讲述替换的方法，附录3讲述防止攻击的原理。DELETE_DATA：删除主键为[int]的一行数据；SELECT_DATA：查找主键为[int]的一行数据，返回该行包含的[String]数据。\n四、编写MySQLManager类这个类处理插件希望传给MySQL的各种命令，配合SQLCommand生成MySQL命令提交给MySQL执行，如果是查询的话同时返回查询结果。我们需要先写get方法。get方法主要是返回一个MySQLManager类的实例，可以帮助我们静态引用非静态方法。首先我们可以先声明一个叫做instance的字段。设置为null，之后编写get方法。由于如果onCommand方法或者onEnable方法在调用instance的时候是null会抛出空指针异常。那么我们就可以编写方法了。代码点这里之后，我们编写一个很重要的方法，即初始化数据库的方法enableMySQL。首先，声明一下前面提到的“五要素”，而这个方法利用写在主类里面的getConfigString和getConfigInt方法，获取配置文件的设置，通过调用connectMySQL方法连接上数据库，顺便创建一个叫做table1的表，这个创建的过程是这样的。我不会美工啊别吐槽这图\n\n\n\n\nTIM图片20180223124333.png (37.76 KB, 下载次数: 13)\n\n下载附件\n\n2018-2-23 13:25 上传\n\n\n\n\n而connectMySQL方法，主要就是发送连接数据库指令，格式为jdbc:mysql://IP:端口/数据库?参数1=值1&参数2=值2用户名和密码单独放在后面Connection类型的connection是一个连接对象，在通过DriverManager.getConnection方法获取之后就可以代表一个连接。doCommand方法需要一个PreparedStatement类型的字段为参数，调用ps.executeUpdate();即可发送给MySQL执行了。至于为什么要新写一个doCommand方法，而不在下面直接executeUpdate，我们马上说。代码点这里注意：由于在编写代码时使用了异步（多线程）操作，也就是说connection在执行任务时服务器不需要等待其执行完毕（如果等待了就卡服了），那么会出现一个问题：在多线程环境中,线程A正在doCommand，还没有结束的时候线程B却意外的申请doCommand，这个情况该怎么办。换句话说，如果你执行/ms add 12 data1，在没有执行完的时候又以极快的速度执行了/ms add 13 data2，那么就很尴尬。有一个解决办法是在doCommand加上synchronized关键字，表示给方法上锁（使得执行同步化），这就是为什么我们要新写一个doCommand方法的原因。因为加上之后如果出现这种情况，让第二个操作等待之，直到doCommand执行完之后再执行。当然这个方法在执行大量SQL语句的时候效率降低了很多。另一个解决办法的使用连接池技术。这个技术将在下文附录1介绍。之后，我们要写shutdown方法connection.close();指令表示关闭数据库连接对象。\n现在，我们进入重点：实现对数据库的增删查增加：编写insertData方法，用于添加一个int类型的数据和一个String类型的数据上文提到，?是通配符，使用PreparedStatement可以防止SQL注入式攻击，原理在附录3中讲解。那么，我们需要替换之。我们可以先这样写：public void insertData(String data1, String data2, CommandSender sender) {\n                try {\n                        PreparedStatement ps;\n                        String s = SQLCommand.ADD_DATA.commandToString();\n                        ps = connection.prepareStatement(s);\n                        ps.setInt(1, Integer.parseInt(data1));\n                        ps.setString(2, data2);\n                        doCommand(ps, sender);\n                } catch (SQLException e) {\n                        e.printStackTrace();\n                } catch (NumberFormatException e) {\n                        sender.sendMessage(\"输入的不是整数，插入失败\");\n                }\n        }复制代码\n这样的话，我们可以将通配符?替换掉了，而且由于已经预编译了，在一定程度上防止了注入攻击。删除差不多，由于我们设置了int键为主键，所以我们可以照葫芦画瓢，轻轻松松写出删除的代码public void deleteData(String data1, CommandSender sender) {\n                try {\n                        PreparedStatement ps;\n                        String s = SQLCommand.DELETE_DATA.commandToString();\n                        ps = connection.prepareStatement(s);\n                        ps.setInt(1, Integer.parseInt(data1));\n                        doCommand(ps, sender);\n                } catch (SQLException e) {\n                        e.printStackTrace();\n                } catch (NumberFormatException e) {\n                        sender.sendMessage(\"输入的不是整数，删除失败\");\n                }\n        }复制代码而查询，这个是数据库操作指令中使用得最频繁最多的指令之一。为此我们先大致介绍一下用法，更高级使用请学习附录2的“实现异步回调，并且获取结果”部分。由于我们要获取结果，所以我们需要调用executeQuery方法。这个方法返回一个ResultSet类型的结果集，而我们可以遍历这个集合获得结果。public void findData(String data1, CommandSender sender) {\n                try {\n                        String s = SQLCommand.SELECT_DATA.commandToString();\n                        PreparedStatement ps = connection.prepareStatement(s);\n                        \n                        ps.setInt(1, Integer.parseInt(data1));\n                        ResultSet rs = ps.executeQuery();\n                        while (rs.next())\n                        {\n                                String str = rs.getString(\"string\");\n                                sender.sendMessage(str);\n                        }\n                } catch (SQLException e) {\n                        // TODO 自动生成的 catch 块\n                        sender.sendMessage(\"查询失败\");\n                } catch (NumberFormatException e) {\n                        sender.sendMessage(\"输入的不是整数，查询失败\");\n                }\n        }复制代码至此，我们已经学习完毕所有关于MySQL的最基本的内容了，编写一款MySQL插件应该不难了。不过，我还是推荐大家学习一下附录的内容，这部分内容不是必须掌握的，但是可以帮助理解上文提到的部分问题。这个类的最终代码：代码点这里\n附录1 连接池连接池，顾名思义，就是一个提供连接的“池子”，这个“池子”是干什么用的呢？一般而言，如果我们要连接数据库，我们应该是这样的：\n\n\n\n\nTIM图片20180222095847.png (25.76 KB, 下载次数: 5)\n\n下载附件\n\n2018-2-22 09:59 上传\n\n\n\n\n由于创建（connect）、关闭（close）连接都需要消耗性能，而且如果连接量达到几百几千的话，那么我们频繁创建、销毁连接就会导致有大量性能被消耗，也就是说，实际上此时一个连接就是一种资源。于是有了连接池技术。如果我们创建若干的已经有了的连接，这些连接就是一个“池子”，此连接不被close掉，当有大量请求过来的时候，那么服务器将会从这“池子”中调出一个连接（我们称之为getConnection），当用完连接的时候，我们不关闭，而是释放使之成为空闲状态（我们称之为releaseConnection），那么，我们可以这样理解：\n\n\n\n\nTIM图片20180222101709.png (29.8 KB, 下载次数: 10)\n\n下载附件\n\n2018-2-22 10:17 上传\n\n\n\n\n这样的话，我们在刚刚那份代码里面创建一个Connection类型的数组（链表更好），最好提供Statement，ResultSet的字段，当需要连接时，提供一份Connetion、Statement与ResultSet，不用时回收之即可。不过对于普通使用MySQL的Bukkit插件而言，一个持久的连接足够了。但是如果需要同步进行大量的访问数据库，使用连接池技术可以避免上文出现的尴尬局面，因为一个连接只能同时处理一个指令，多个并行指令使用连接池的确要好很多。一般而言，我们不必自己写连接池，因为已经存在很快的连接池系统，叫做HikariCP。这款连接池是目前为止最快的连接池系统了，性能、稳定性都非常好。\n附录2 实现异步回调，并且获取结果一、什么是同步调用和异步调用\n众所周知，我们在调用函数的时候，总会出现一个现象：\n等待上一个指令执行完了才执行下一个指令。\n这个执行方式叫做同步调用。\n这一过程大致是这样的：\n\n\n\n\nTIM图片20180222152628.png (30.16 KB, 下载次数: 11)\n\n下载附件\n\n2018-2-22 15:27 上传\n\n\n\n\n\n那么，如果函数1和函数2之间毫无联系，我们为了等待函数1执行完，必定会耗费大量的时间。\n举个例子：如果你需要在六点钟给一个人打一个电话（执行函数1），现在时间为五点钟，而你还需要写作业（执行函数2），很明显这两个事件之间毫无联系，那么，如果你采取同步调用就会出现一个问题，在五点钟和六点钟这一段时间里面你需要干等，也不会做作业。为了解决这个问题，我们采取另一个方式，叫做异步调用。\n异步调用允许你在函数1没有执行完的情况下执行函数2。\n那我们如何实现异步调用呢？这就需要新建一个线程了。\n如果你编写普通的Java程序，则普遍存在2种方法创建线程：\n写一个类，继承Thread类型实现Runnable接口\n而对于Bukkit插件而言，我们可以通过上文提到的方式，使用BukkitRunnable来创建新线程。\n大致就像这样：\n\n\n\n\nTIM图片20180222155149.png (33.86 KB, 下载次数: 9)\n\n下载附件\n\n2018-2-22 15:52 上传\n\n\n\n\n\n\n二、实现异步回调，并且获取结果\n回调，最重要的一点就是先“调用”，如果A调用了B，B调用了“调用了B”的A，则称之为回调。\n实现回调需要一个接口，姑且称之为CallBack。\n我们先重写一下findData方法：\nfindData方法（有问题）public void findData(String data1, CommandSender sender) {\n        try {\n                ConnectServer cs = new ConnectServer();\n                ResultSet rs = cs.getData(connection);\n                //你可以随意使用这个ResultSet\n                //本例先给sender发送消息\n                while (rs.next())\n                {\n                        String str = rs.getString(\"string\");\n                        sender.sendMessage(str);\n                }\n        } catch (SQLException e) {\n                // TODO 自动生成的 catch 块\n                e.printStackTrace();\n        }\n}复制代码这里我们看出，我们没有及时地把整条SQL命令送给服务器执行，而是调用了上级类ConnectServer的getData方法。那么，我们应该写一下这个上级类：\nConnectServer类（有问题）package com.dengyu.mysql;\n\nimport java.sql.Connection;\nimport java.sql.PreparedStatement;\nimport java.sql.ResultSet;\nimport java.sql.SQLException;\n\npublic class ConnectServer {\n        \n        public ResultSet getData(Connection connection) throws SQLException {\n                ResultSet rs;\n                String sql = \"SELECT * FROM \";\n                PreparedStatement ps = connection.prepareStatement(sql);\n                rs = ps.executeQuery();\n                return rs;\n        }\n}复制代码\n这个类就执行了查询数据的指令。\n然而，我们发现，这个指令是残缺的，因为上级类并不知道下级类想干啥。\n于是，就讲到我们所说的接口回调了。\n我们先写一个接口，充当两个类之间反向沟通的桥梁。\npackage com.dengyu.mysql;\n\npublic interface CallBack {\n        public String getSQLCommand();\n}\n复制代码然后，这个类需要实现这个接口，这个方法应该极其重要，掌握了查询的大权。\n @Override\n        public String getSQLCommand() {\n                /*\n                 * 此处你应该大做文章\n                 * 比如写判断什么的\n                 * 反正就是把剩下的一半SQL指令补完\n                 */\n                return \"`TABLE1`\";\n        }复制代码\n由于我们需要把这个类提供给上级类，那么我们就把findData方法小修一下：\nfindData方法public void findData(String data1, CommandSender sender) {\n        try {\n                ConnectServer cs = new ConnectServer();\n                ResultSet rs = cs.getData(MySQLManager.this, connection);//修改的是这里\n                //你可以随意使用这个ResultSet\n                //本例先给sender发送消息\n                while (rs.next())\n                {\n                        String str = rs.getString(\"string\");\n                        sender.sendMessage(str);\n                }\n        } catch (SQLException e) {\n                // TODO 自动生成的 catch 块\n                e.printStackTrace();\n        }\n}复制代码之后，我们也将ConnectServer类修一下：\nConnectServer类package com.dengyu.mysql;\n\nimport java.sql.Connection;\nimport java.sql.PreparedStatement;\nimport java.sql.ResultSet;\nimport java.sql.SQLException;\n\npublic class ConnectServer {\n        \n        public ResultSet getData(CallBack cb, Connection connection) throws SQLException {\n                ResultSet rs;\n                String sql = \"SELECT * FROM \";\n                String sql2 = cb.getSQLCommand();\n                PreparedStatement ps = connection.prepareStatement(sql + sql2);\n                rs = ps.executeQuery();\n                return rs;\n        }\n}复制代码这样的话，我们就实现了回调方法。\n整个过程大约是这样的：\n\n\n\n\nTIM图片20180223194857.png (46.88 KB, 下载次数: 16)\n\n下载附件\n\n2018-2-23 19:51 上传\n\n\n\n\n\n至于异步嘛，由于你执行指令的时候用了BukkitRunnable，异步也已经实现了\n一般的开发上面，库编写者一般会将上级类封装，只提供一个接口，开发者编写下级类的时候，如果想用调用上级类的方法，就需要实现接口供上级类回调，使得下级类可以方便地控制上级类的运作。\n\n附录3 预防SQL注入式攻击一、什么是SQL注入式攻击\n我们可以先实现一些代码，代码如下：\npublic void findData(String data1, CommandSender sender) {\n        try {\n                Statement s = connection.createStatement();\n                ResultSet rs;\n                String sqlcmd = \"SELECT * FROM `TABLE1` WHERE `int` = \" + data1;\n                rs = s.executeQuery(sqlcmd);\n                while (rs.next())\n                {\n                        String str = rs.getString(\"string\");\n                        sender.sendMessage(str);\n                }\n        } catch (SQLException e) {\n                // TODO 自动生成的 catch 块\n                sender.sendMessage(\"查询失败\");\n        }\n}复制代码这个和刚刚我们在教程里面写的查询语句功能上是一样的，即查询int = [data1]时候的string数据\n那么，这个代码有什么问题呢\n实施攻击的人，如果把data1赋值成 0 OR 1=1\n那么SQL语句就变成这个了：\nSELECT * FROM `TABLE1` WHERE `int` = 0 OR 1=1\n由于1恒等于1，故前面的条件它将返回所有的string数据，不会返回特定的与int值有关联的string值。\n这种在输入时候输入一些恶意字符串，改变查询等原来的SQL语句的本意，欺骗服务器执行恶意的SQL命令的攻击，就叫做SQL注入式攻击。\n二、如何防止注入式攻击\n1.我们可以对输入字符串进行检验\n上述代码中，如果我们检验一下是不是输入的是数字，不是就catch掉，比如加上这样一段代码：\ntry {\n        int i = Integer.parseInt(data1);\n} catch (NumberFormatException e) {\n        System.out.println(\"您输入的不是数字！\");\n}复制代码就可以catch掉0 OR 1=1这样的输入\n2.（推荐）我们可以用PreparedStatement代替Statement\n我们像教程一样写PreparedStatement，代替掉Statement。\n因为Statement是SQL语句的拼接，安全性小\n而PreparedStatement，我们只需要预留出占位符?，通过setInt和setString来替换\n而且更好的是，PreparedStatement在调用prepareStatement方法的时候，就已经进行预编译了。\n也就是说，即使再按老套路注入恶意字符串，那一些字符串也没有特殊含义，不会在SQL命令里面起“其他作用”了\n这就是为什么教程代码这样写的原因。\n\n更新日志2020.1.28 由于某种原因（可能是论坛更新的缘故），部分代码被压缩，修复此问题2019.5.3 测试、修正并优化了代码，修正文章的概念性、代码上等错误2018.2.23 删除原来所有的代码并重写，更新附录\n2018.2.20 创建此文章\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "星",
+            "timestamp": 1519119840,
+            "txt_content": "支持一下 感觉国内支持MySql的插件貌似不是太多\n有教程应该会更好的!"
+        },
+        {
+            "author": "dengyu",
+            "timestamp": 1519123440,
+            "txt_content": " 本帖最后由 dengyu 于 2018-2-22 11:47 编辑 \nyunpiao1907 发表于 2018-2-20 18:33\n你好.请问\npublic void doCommand(String cmd)\n这个是返回空的我怎么得到查询后的结果\n这个方法主要是把已经生成了的mysql命令提交给服务器执行，要返回结果请使用ResultSet"
+        },
+        {
+            "author": "liuyipeng001",
+            "timestamp": 1519135500,
+            "txt_content": "线程安全是什么 可以吃吗"
+        },
+        {
+            "author": "liuyipeng001",
+            "timestamp": 1519279980,
+            "txt_content": "先不说你这个像单例又不是的东西安不安全，你想想如果线程A拿你这个connection操作的时候，线程B同时操作并且提交了事务会怎么样。"
+        },
+        {
+            "author": "dengyu",
+            "timestamp": 1519292400,
+            "txt_content": "liuyipeng001 发表于 2018-2-22 14:13\n先不说你这个像单例又不是的东西安不安全，你想想如果线程A拿你这个connection操作的时候，线程B同时操作并 ...\n感谢建议，解决这个方法可以为方法加上synchronized关键字，不过我还是推荐使用我附录提供的连接池技术。您可以看一下谢谢"
+        },
+        {
+            "author": "ddyy163",
+            "timestamp": 1519437540,
+            "txt_content": " 本帖最后由 ddyy163 于 2018-2-24 11:03 编辑 \n\n一般来说写客户端要预防注入攻击吧,插件属于服务端的东西,基本用不到\n\n其实我之前也不知道prepareStatment是做啥用的 嘻嘻嘻嘻嘻,多谢楼主科普"
+        },
+        {
+            "author": "Kugana",
+            "timestamp": 1536946140,
+            "txt_content": "想请问该如阿获得储存的物品，让它从文字变回物品"
+        },
+        {
+            "author": "阿淼",
+            "timestamp": 1536970740,
+            "txt_content": "这个采用了阻塞模型，会导致整个服务器的卡顿，来和我弄非阻塞ORM吗"
+        },
+        {
+            "author": "纯白剑姬",
+            "timestamp": 1537334520,
+            "txt_content": "请问楼主我在使用你的SQLCommand类时出现报错\njava.sql.SQLException: Parameter index out of range (2 > number of parameters, which is 1).\n百度一下说明是sql注入参数出错了。\n所以我找到sqlcommand的sql语句\nADD_DATA(\n                        \"INSERT INTO `TABLE1` \" +\n                        \"(`int`, `string`)\" +\n                        \"VALUES (?, \\'?\\')\"\n        ),复制代码\n把\"VALUES (?, \\'?\\')\"修改成\"VALUES (?, ?)\"后能正常增删改查了\n所以我想问问 \\'?\\'这个是什么写法？我这样删掉后会出什么问题嘛？"
+        },
+        {
+            "author": "lucksheep",
+            "timestamp": 1571997240,
+            "txt_content": "liuyipeng001 发表于 2018-2-20 22:05\n线程安全是什么 可以吃吗\n不可以吃，线程安全简单理解就是 按照你的预期得到结果，不受到其它线程干扰而影响结果"
+        },
+        {
+            "author": "lucksheep",
+            "timestamp": 1571997360,
+            "txt_content": "其实现在 纯 java 项目可以直接支持 mysql，引入 mybatis sql注入就能解决了，而且数据源，事务等，挺容易管理的"
+        },
+        {
+            "author": "素衣颜如初",
+            "timestamp": 1590152220,
+            "txt_content": "MySQLManager是啥啊"
+        },
+        {
+            "author": "xiaozia",
+            "timestamp": 1592491560,
+            "txt_content": "学到知识了"
+        },
+        {
+            "author": "592764254",
+            "timestamp": 1592982840,
+            "txt_content": "楼主请问你的代码是不是没有注册指令ms"
+        },
+        {
+            "author": "thesamesummer",
+            "timestamp": 1593761460,
+            "txt_content": "教程很详细！鼎力支持！"
+        },
+        {
+            "author": "我的丶老公",
+            "timestamp": 1593778620,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "2469012478",
+            "timestamp": 1595837220,
+            "txt_content": "获取连接不需要引入mysql的驱动包吗？spigot是否自带了驱动呢？"
+        },
+        {
+            "author": "逍遥先生.",
+            "timestamp": 1613721780,
+            "txt_content": "收藏了，免得以后找不到，感谢楼主的分享"
+        },
+        {
+            "author": "whatfilmae",
+            "timestamp": 1613748180,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "鞎腿推",
+            "timestamp": 1613791200,
+            "txt_content": "一阵蒙，可能还是我太年轻了吧"
+        }
+    ]
+}

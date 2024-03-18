@@ -1,0 +1,49 @@
+{
+    "title": "利用Forge API开发联机MOD【基础篇】【第八章】",
+    "author": "yuxuanchiadm",
+    "replyCount": 8,
+    "timestamp": 1367805840,
+    "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-8-4 17:14 编辑 \n\n利用Forge API开发联机MOD【基础篇】【第八章】\n为你的MOD添加网络通信能力\n作者：yuxuanchiadm\n\n索引贴地址：http://www.mcbbs.net/thread-38211-1-1.html\n\n请确定你已经阅读完成第七章的内容:\nhttp://www.mcbbs.net/thread-38770-1-1.html\n否则不要阅读此贴！\n\n序：\n在上一章里，我们让我们的刷怪笼能够像普通刷怪笼一样，刷出生物，但还不能自定义所刷生物和刷怪间隔，所以这一章本应该用来制作GUI，但由于我们开发的是联机MOD，而自定义刷怪笼需要网络通信，所以，让我们一起来制作我们MOD的网络通信框架吧 XD。\n\n原版Minecraft是如何进行网络通信的：\n在Minecraft中，不管是单机还是联机，都使用同样的框架进行数据通信（因为单人游戏需要允许其他玩家从局域网加入）。\n\n如果是客户端发送数据到服务端，客户端一般会获取到EntityClientPlayerMP的实例（例如通过Minecraft.getMinecraft().thePlayer（确实这没任何问题且通用，但一般会采取别的更简单，但不通用的方法）），然后通过这个实例的sendQueue属性获取到客户端网络通信句柄（NetClientHandler类的实例），接着会创建一个数据封包（继承自Packet类），并通过NetClientHandler类的addToSendQueue方法发送封包到服务端。\n\n如果是服务端发送数据到单个客户端，那么服务端会获取到那个客户端的EntityPlayerMP的实例，然后通过这个实例的playerNetServerHandler属性获取到服务端网络句柄（NetServerHandler类的实例），然后创建数据封包，最后调用NetServerHandler类的sendPacketToPlayer方法发送给客户端。\n\n如果是服务端发送数据到所有客户端，那么服务端一般会先获取到ServerConfigurationManager类的实例（可以通过MinecraftServer类的getConfigurationManager方法获取到），然后创建封包，最后调用ServerConfigurationManager类的sendPacketToAllPlayers方法。\n\n使用Forge API的MOD如何进行网络通信：\n在Forge中，也使用Minecraft的那套通信机制，但是，几乎所有的MOD都不会创建新的封包，而是使用Packet250CustomPayload这个封包。那么Forge是如何通过这一个封包区分是哪个MOD发送的数据，和数据的用途呢？其实Forge只帮助Modder区分MOD，使用channel（管道）的方式来判断哪个MOD应该接受此数据，并不帮助我们区分数据的用途。所以，一般我们发送数据时都要自行包含一个ID，用于更好的判断数据的用途。\n\n几个关键类的继承结构：\nNetHandler:\nNetHandler\n┗    NetClientHandler\n      NetLoginHandler\n      NetServerHandler\n\nEntityPlayer:\nEntity\n┗    EntityLiving\n      ┗    EntityPlayer\n            ┗    EntityOtherPlayerMP\n                  EntityPlayerMP\n                  EntityPlayerSP\n                  ┗    EntityClientPlayerMP\n\nINetworkManager:\nINetworkManager\n┗    MemoryConnection\n      TcpConnection\n\n建立一个我们自己的Packet：\n在Forge中实现网络通信的手段有很多，在这里，我介绍一种方式来进行网络通信。既然我们使用Packet250CustomPayload这个封包来发送消息，为什么我们还需要创建自己的封包呢？其实，我们并不准备创建Minecraft原本的封包，而是准备对Packet250CustomPayload这个封包这个封包进行包装，使其更容易使用，并在发送和接收时自动对其进行转换。\n在myFirstMod包下新建包Network，并新建类myFristModPacket。首先，我们需要发送三种类型的数据，和数据类型，所以先新建4个字段：public int packetType;\npublic String[] dataString;\npublic int[] dataInt;\npublic byte[] dataByte; 复制代码然后添加构造函数（别问我为啥要把那三个赋值null）：public myFristModPacket()\n{\n    this.packetType = 0;\n    this.dataString = null;\n    this.dataInt = null;\n    this.dataByte = null;\n}复制代码现在，我们开始实现转换我们自己的封包到Minecraft的封包的方法：public Packet toPacket()\n{\n    //因为最终我们需要Byte数组，所以使用ByteArrayOutputStream。\n    ByteArrayOutputStream bytes = new ByteArrayOutputStream();\n    //因为我们要写入其他类型的数据，所以使用DataOutputStream。\n    DataOutputStream data = new DataOutputStream(bytes);\n    //新建一个MC的封包。\n    Packet250CustomPayload pkt = new Packet250CustomPayload();\n    try\n    {\n        //通过这个函数来写入数据，等会再实现。\n        writeData(data);\n    }\n    catch (IOException e)\n    {\n        e.printStackTrace();\n    }\n    //封包使用的管道\n    pkt.channel = \"myFirstMod\";\n    //数据\n    pkt.data = bytes.toByteArray();\n    //封包大小 \n    pkt.length = pkt.data.length;\n    return pkt;\n} 复制代码然后，我们实现转换Minecraft的封包到我们自己的封包的方法：public static myFristModPacket parse(byte[] bytes) throws IOException\n{\n    //我们需要DataInputStream作为输入。\n    DataInputStream data = new DataInputStream(new ByteArrayInputStream(bytes));\n    //新建一个我们自己的封包。\n    myFristModPacket pkt = new myFristModPacket();\n    //通过这个函数来读取数据，等会再实现。\n    pkt.readData(data);\n    return pkt;\n}复制代码接着创建writeData函数：private void writeData(DataOutputStream data) throws IOException\n{\n    //首先写入封包类型\n    data.writeInt(this.packetType);\n    if (this.dataString != null)\n    {\n        //dataString不为null则写入其长度\n        data.writeByte(this.dataString.length);\n    }\n    else\n    {\n        //dataString为null则写入0\n        data.writeByte(0);\n    }\n    if (this.dataInt != null)\n    {\n        //dataInt不为null则写入其长度\n        data.writeByte(this.dataInt.length);\n    }\n    else\n    {\n        //dataInt为null则写入0\n        data.writeByte(0);\n    }\n     if (this.dataByte != null)\n    {\n        //dataByte不为null则写入其长度\n        data.writeByte(this.dataByte.length);\n    }\n    else\n    {\n        //dataByte为null则写入0\n        data.writeByte(0);\n    }\n    //写入dataString数组的所有内容\n    if (this.dataString != null)\n    {\n        for (String s : this.dataString)\n        {\n            data.writeUTF(s);\n        }\n    }\n    //写入dataInt数组的所有内容\n    if (this.dataInt != null)\n    {\n        for (int i : this.dataInt)\n        {\n            data.writeInt(i);\n        }\n    }\n    //写入dataByte数组的所有内容\n    if (this.dataByte != null)\n    {\n        for (byte b : this.dataByte)\n        {\n            data.writeByte(b);\n        }\n    }\n}复制代码最后创建readData函数：private void readData(DataInputStream data) throws IOException\n{\n    //首先读取封包类型\n    this.packetType = data.readInt();\n    //读取String数组长度\n    byte nString = data.readByte();\n    //读取int数组长度\n    byte nInt = data.readByte();\n    //读取byte数组长度\n    byte nByte = data.readByte();\n    if ((nString > 128) || (nInt > 128) || (nByte > 128) || (nString < 0) || (nInt < 0) || (nByte < 0))\n    {\n        //如果其中任何一个长度大于128或小于0，则抛出IOException异常\n        throw new IOException(\"\");\n    }\n    if (nString == 0)\n    {\n        //如果String长度为0，则dataString为null\n        this.dataString = null;\n    }\n    else\n    {\n        //如果String长度不为0，则创建一个String数组，长度为nString\n        this.dataString = new String[nString];\n        //读取String数据\n        for (int k = 0; k < nString; k++)\n        {\n            this.dataString[k] = data.readUTF();\n        }\n    }\n    if (nInt == 0)\n    {\n        //如果int长度为0，则dataInt为null\n        this.dataInt = null;\n    }\n    else\n    {\n        //如果int长度不为0，则创建一个int数组，长度为nInt\n        this.dataInt = new int[nInt];\n        //读取int数据\n        for (int k = 0; k < nInt; k++)\n        {\n            this.dataInt[k] = data.readInt();\n        }\n    }\n    if (nByte == 0)\n    {\n        //如果byte长度为0，则dataByte为null\n        this.dataByte = null;\n    }\n    else\n    {\n        //如果byte长度不为0，则创建一个byte数组，长度为nByte\n        this.dataByte = new byte[nByte];\n        //读取byte数据\n        for (int k = 0; k < nByte; k++)\n        {\n            this.dataByte[k] = data.readByte();\n        }\n    }\n}复制代码建立数据接收转换系统：\n在第二章时，我们留下了一个没有完成的类：PacketHandler，在Forge中，通过在MOD启动类中添加NetworkMod注解，并设置其channels和packetHandler属性的方式来注册一个通信管道，并和packetHandler关联，来实现接收数据。\n首先在myFirstMod.Network包下新建类PacketHandler，并使其实现IPacketHandler接口。然后实现onPacketData函数：public void onPacketData(INetworkManager manager, Packet250CustomPayload _packet, Player player)\n{\n    try\n    {\n        //首先装换Packet250CustomPayload到我们自己的封包\n        myFristModPacket packet = myFristModPacket.parse(_packet.data);\n        if(player instanceof EntityPlayerMP)\n        {\n            //如果player参数是EntityPlayerMP的实例，那么调用handlePacketFromClient方法\n            mod_myFirstMod.handlePacketFromClient(packet, (EntityPlayerMP)player);\n        }\n        else\n        {\n            //反之调用handlePacketFromServer方法\n            mod_myFirstMod.handlePacketFromServer(packet);\n        }\n    }\n    catch (Exception e)\n    {\n        \n    }\n}复制代码然后在mod_myFirstMod类中添加函数：public static void handlePacketFromClient(myFristModPacket packet, EntityPlayerMP player)\n{\n    \n}\n@SideOnly(Side.CLIENT)\npublic static void handlePacketFromServer(myFristModPacket packet)\n{\n    \n}复制代码总结：\n这一章里，我们为我们的MOD建立了一个完整的网络通信环境，在下一章里我们将实现刷怪笼的GUI，并运用这个环境来实现数据通信。",
+    "replies": [
+        {
+            "author": "冰与火",
+            "timestamp": 1367805900,
+            "txt_content": "占沙发···"
+        },
+        {
+            "author": "ATTEL",
+            "timestamp": 1367807280,
+            "txt_content": "这还是基础篇．"
+        },
+        {
+            "author": "wolski",
+            "timestamp": 1367807520,
+            "txt_content": "很高端的样子，马一个先........"
+        },
+        {
+            "author": "enamela",
+            "timestamp": 1369842600,
+            "txt_content": "标题: 是这样吗？public class PacketHandler implements IPacketHandler 本帖最后由 enamela 于 2013-5-29 23:55 编辑 \n\n最后一段说实现IPacketHandler接口，请问怎么实现？"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1369856460,
+            "txt_content": "enamela 发表于 2013-5-29 23:50 \n最后一段说实现IPacketHandler接口，请问怎么实现？\n孩子先学好JAVA再说（此教程是个面向程序猿的入门贴，不是零基础教学贴）"
+        },
+        {
+            "author": "kuafuzhuguang",
+            "timestamp": 1375710420,
+            "txt_content": "算是弄完了吧。。。读写函数跳过，等有问题再说。\n课程学完，签名。"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1384664460,
+            "txt_content": "好吧抱歉没看到这里。。。"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1384666020,
+            "txt_content": "那个包Packet132TileEntityData怎么用？"
+        }
+    ]
+}

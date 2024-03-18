@@ -1,0 +1,49 @@
+{
+    "title": "[1.12]利用function在原版添加自定义的自然生成建筑[一堆特(B)性(U)版(G)]",
+    "author": "pineapple_",
+    "replyCount": 8,
+    "timestamp": 1501748940,
+    "txt_content": " 本帖最后由 pineapple_ 于 2017-8-4 11:27 编辑 \n\n我是菠萝Pineapple_，这个作品是:逼死mod系列-原版\"更多遗迹模组\"这次我做完的仅仅是一个雏形，没有观赏性，还可能不是很实用，而且很多\"特性(BUG?)\"\n但是我还是控制不住我记几要来这里再水一贴\n正文\n自然生成遗迹大家应该都知道是什么意思吧，比如村庄，要塞，废弃矿洞……\n所以效果就不用展示了(因为真的没有什么观赏性，我生成的遗迹就是5×5×5石砖火柴盒里面有个钻石块)\n\n思路\n如果只用文字叙述则很难理解，所以有些部分用windows的画图画了一下示意图(您的好友灵魂画手已上线)\n在生成建筑之前，要先确定该区块是否被玩家加载过，被玩家加载过的区块可不能生成建筑\n如果被加载过的区块可以生成建筑，那玩家在某处造了个房子，跑图回来发现自己的房子变成了遗迹就……\n所以在玩家经过的区块上必须被标记上无法生成遗迹，记号(marker)可以选用area_effect_cloud(药水云，简称aec)\n因为一个地图同时加载较大量的aec并不会影响性能，但是如果一个区块标记一次，假如玩家跑了\n面积为2560×2560=6553600方块，一个区块是16×16=256方块，则需要6553600÷256=25600个marker，\n这样marker的数量会较大，但是如果一次个marker标记8×8=64个区块即64×256=16384方块，\n只需要6553600÷16384=400个marker，以上都是理论值，marker标记的区域还可能重复\n这里我们把8×8个mc区块在定义为1个区块，\n\n现在玩家第一次进入世界，会对所在区块进行一次标记\n\n玩家每次标记区块，之后都会尝试生成一次建筑\n会spreadplayers(随机扩散)x个aec(标签为BuildMarker,下同)到64格内\n(x位大于等于2的整数，大小与精度有关)\n只有扩散到64格之外，即到第65个的aec才会生成建筑\n\n现在假设x=2\n\nx为什么要大于等于2，因为设置了aec之间的最小距离是64，这样就增大了扩散到外圈的几率\n生成的x个aec只有y个是TrueMarker，只有TrueMarker才可以生成建筑，这样可以控制几率，\n如果x=2，y=1，则几率非常高，当x=10，y=1的时候，几率可能要比地牢还低\n\n如果玩家从这个区域内移动出就会生成新的marker\n\n并再次尝试生成建筑，扩散x个aec，这次不仅需要满足在65格之外和需要时TrueMarker，还需要满足不在其他marker所标记的区块里，如果玩家尝试生成建筑范围全部被marker的范围覆盖，那么就一定不会生成建筑\n\n简单点说，就是每次进入没有被标记过的区块，就尝试生成建筑，满足不在被标记的区块和其余条件，就可以生成建筑\n实现\n实现这个自然生成建筑，仅仅需要很少的命令\n首先这是用到的三个mcfunction文件\ngenerat\\generat_main.mcfunction\ngamerule commandBlockOutput false\ngamerule logAdminCommands false\ngamerule sendCommandFeedback false\nexecute @a ~-64 0 ~-64 function generat:generat_mark unless @e[dx=129,dy=0,dz=129,tag=ChunkMarker]\nentitydata @e[tag=ChunkMarker] {Age:0}复制代码generat\\generat_mark.mcfunction\nexecute @s ~ ~ ~ summon area_effect_cloud ~ 0 ~ {Tags:[\"ChunkMarker\"],Duration:2147483647}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\",\"TrueMarker\"]}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\"]}\nexecute @s ~ ~ ~ spreadplayers ~ ~ 64 65 false @e[tag=GeneratBuild]\nexecute @e[tag=ChunkMarker] ~-32 0 ~-32 kill @e[tag=GeneratBuild,dx=64,dy=255,dz=64]\n<blockquote>execute @s ~ ~ ~ execute @e[tag=GeneratBuild,c=-1] ~ ~ ~ detect ~ ~-1 ~ grass -1 function generat:generat_build if @s[tag=TrueMarker]复制代码generat\\generat_build.mcfunction\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load1\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load2\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load3\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load4\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load5\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load6\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load7\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load8\"]}\nexecute @s ~ ~ ~ spreadplayers ~16 ~16 0 1 false @e[tag=Load1]\nexecute @s ~ ~ ~ spreadplayers ~16 ~ 0 1 false @e[tag=Load2]\nexecute @s ~ ~ ~ spreadplayers ~16 ~-16 0 1 false @e[tag=Load3]\nexecute @s ~ ~ ~ spreadplayers ~ ~16 0 1 false @e[tag=Load4]\nexecute @s ~ ~ ~ spreadplayers ~ ~-16 0 1 false @e[tag=Load5]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~16 0 1 false @e[tag=Load6]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~ 0 1 false @e[tag=Load7]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~-16 0 1 false @e[tag=Load8]\n\nexecute @s ~ ~ ~ fill ~-5 ~-1 ~-5 ~5 ~4 ~5 minecraft:stonebrick 0 hollow\nexecute @s ~ ~ ~ fill ~-1 ~ ~-1 ~1 ~ ~1 minecraft:cobblestone 0\nexecute @s ~ ~ ~ setblock ~ ~1 ~ diamond_block 0复制代码generat_main需要高频执行\n把它挂在gameLoopFunction即可\n/gamerule gameLoopFunction generat:generat_main复制代码\n\n首先我们一点一点分析\nmain部分：\n只有\nexecute @a ~-64 0 ~-64 function generat:generat_mark unless @e[dx=129,dy=0,dz=129,tag=ChunkMarker]复制代码是实际有用的命令，其它都是设置消除命令提示和防止aec在三年之后消失(误)的命令这条命令的意思就是一直让玩家以~-64 0 ~-64为基准，如果129×1×129内没有marker，则执行mark部分\n实际上就是当玩家走到的区块内和其它区块并不重合的时候，就会执行mark部分标记这个区块和尝试生成建筑\n\nmark部分：\n首先summon一个aec标记这个区块\nexecute @s ~ ~ ~ summon area_effect_cloud ~ 0 ~ {Tags:[\"ChunkMarker\"],Duration:2147483647}复制代码然后生成两个aec并扩散到65格内，但是只有一个aec是TureMarker\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\",\"TrueMarker\"]}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\"]}\nexecute @s ~ ~ ~ spreadplayers ~ ~ 64 65 false @e[tag=GeneratBuild]复制代码如果想降低生成几率，那么就可以这样写：\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\",\"TrueMarker\"]}\nexecute @s ~ ~ ~ summon area_effect_cloud ~ ~ ~ {Tags:[\"GeneratBuild\"]}复制代码\n扩散aec之后，如果aec在任何marker标记的区域内，就会被清除(kill)\nexecute @e[tag=ChunkMarker] ~-32 0 ~-32 kill @e[tag=GeneratBuild,dx=64,dy=255,dz=64]复制代码这条就是对生成建筑条件的限制，必须自身TrueMarker，而且下面必须是草方块，且没有被清除，才会执行build部分\n<blockquote>execute @s ~ ~ ~ execute @e[tag=GeneratBuild,c=-1] ~ ~ ~ detect ~ ~-1 ~ grass -1 function generat:generat_build if @s[tag=TrueMarker]复制代码最后清掉所有的非marker的aec\nkill @e[tag=GenerantBuild]复制代码build部分：\n就是当aec满足生成建筑条件之后会执行的部分，没什么好说的\n先加载一下周围的区块防止无法放置方块\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load1\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load2\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load3\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load4\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load5\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load6\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load7\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"Load8\"]}\nexecute @s ~ ~ ~ spreadplayers ~16 ~16 0 1 false @e[tag=Load1]\nexecute @s ~ ~ ~ spreadplayers ~16 ~ 0 1 false @e[tag=Load2]\nexecute @s ~ ~ ~ spreadplayers ~16 ~-16 0 1 false @e[tag=Load3]\nexecute @s ~ ~ ~ spreadplayers ~ ~16 0 1 false @e[tag=Load4]\nexecute @s ~ ~ ~ spreadplayers ~ ~-16 0 1 false @e[tag=Load5]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~16 0 1 false @e[tag=Load6]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~ 0 1 false @e[tag=Load7]\nexecute @s ~ ~ ~ spreadplayers ~-16 ~-16 0 1 false @e[tag=Load8]复制代码然后生成建筑\nexecute @s ~ ~ ~ fill ~-5 ~-1 ~-5 ~5 ~4 ~5 minecraft:stonebrick 0 hollow\nexecute @s ~ ~ ~ fill ~-1 ~ ~-1 ~1 ~ ~1 minecraft:cobblestone 0\nexecute @s ~ ~ ~ setblock ~ ~1 ~ diamond_block 0复制代码\n然后就没有然后了\n这样就可以自然生成遗迹了\n补充*用来标记区块的marker会被kill，所以就目前来看，还逼不死mod，哪有mod会受kill @e的影响的\n除非把marker换成rcb，不过在最下面那层放上一个rcb感觉可能也不是太好\n*利用1.12的advancement，可以检测玩家所在的生物群系，利用这点可以限制建筑生成的群系，\n实际上还可以省下gameLoopFunction，比如进入生物群系即reward一个function，限制一个生物群系只能生成一个这样的建筑\n*如果出现了这样的状况，可能会导致标记区块的空档(红色部分)，空档部分无法被标记，但是在上面尝试生成建筑可能会成功，也就是说就算你到过这个区块，也可能会生成建筑，不过这个问题影响并不算太大，解决办法其实就是得把dx和dz都从128改成64，但是我懒得改它了=-=而且哪样会大大增加marker的量\n\n*可以给建筑都加上标记，利用单刻获得实体坐标伪locate帮助寻找遗迹\n*最后，这个帖子里可能会有些难以理解的错误[滑稽]\n\n下载:\n\n\n\n\ngenerat.rar\n(974 Bytes, 下载次数: 29)\n\n\n\n2017-8-3 16:31 上传\n点击文件名下载附件\n\n\n\n\n\n\n建议新开一个经典的超平坦地图\n把这个复制到.minecraft\\saves\\地图名称\\data\\function中解压到当前文件夹\n进入该地图输入\n/gamerule gameLoopFunction generat:generat_main复制代码然后跑图找遗迹即可，几率超高.",
+    "replies": [
+        {
+            "author": "Java_command",
+            "timestamp": 1501768320,
+            "txt_content": "[沙发]\n这个厉害了……\n推荐生成的时候用结构方块，这样方便修改建筑XD\nfunction都有了为什么不再来几个结构文件呢"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1501778400,
+            "txt_content": "Java_command 发表于 2017-8-3 21:52\n[沙发]\n这个厉害了……\n推荐生成的时候用结构方块，这样方便修改建筑XD\n这样我就得吧data文件打包了，正好还可以加上advancement，有时间我再更新这个玩意，"
+        },
+        {
+            "author": "17805807851",
+            "timestamp": 1501809960,
+            "txt_content": "萌新表示看不懂 qwq"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1501817340,
+            "txt_content": "17805807851 发表于 2017-8-4 09:26\n萌新表示看不懂 qwq\n难道思路也看不懂的吗"
+        },
+        {
+            "author": "1368552027",
+            "timestamp": 1502195820,
+            "txt_content": "厉害厉害"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1502214300,
+            "txt_content": "有意思有意思，还可以考虑配合进度探测生物群系来实现生物群系特有的建筑"
+        },
+        {
+            "author": "MC_Miter",
+            "timestamp": 1502217240,
+            "txt_content": "mojang的东西怎么能叫bug呢~"
+        },
+        {
+            "author": "1300323776",
+            "timestamp": 1502265000,
+            "txt_content": "2333333333333333333333"
+        }
+    ]
+}

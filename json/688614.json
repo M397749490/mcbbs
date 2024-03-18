@@ -1,0 +1,94 @@
+{
+    "title": "关于《尝试用py解决盔甲架的角度》的进一步补充",
+    "author": "土球球",
+    "replyCount": 17,
+    "timestamp": 1493037720,
+    "txt_content": " 本帖最后由 ustc_zzzz 于 2017-4-25 01:35 编辑 \n\n我一个管软件资源和编程开发的版主，怎么就跑来游戏技巧版发帖了呢？\n\n第一次在游戏技巧版发主题帖，还请多多关照2333\n\n昨天我突然对这个名为《尝试用py解决盔甲架的角度》的主题产生了兴趣，因为原帖只给了一套乱七八糟的代码，所以决定把生成三个方位角的过程解读一下。不过先说一句，本人最后整理的代码完全没有按照原帖的代码进行改写，而是重新编写了一份。\n\nWARNING：以下内容会大量涉及到三角函数和线性代数两门课程的内容，看得下去的可以凑和看看，看不下去的可以考虑补充下三角函数和线性代数的知识2333\n\n欧拉角\n\n实际上这就是个求欧拉角的问题，只不过由于MC的关系，实体的坐标轴和世界上方块的坐标轴并不一样，y方向和z方向是反过来的，导致原本比较简单的问题变得复杂起来。不过，这里为了方便讨论，一律以MC的方块坐标轴为准，也就是x轴朝东，y轴朝天，z轴朝南。\n\n然后通过修改盔甲架的三个方位角，也就是NBT中Head的三个参数，我们可以注意到是这个样子的：\n\n第一个参数代表头部围绕x轴逆时针的旋转角度（360度为一周）第二个参数代表头部围绕y轴顺时针的旋转角度（360度为一周）第三个参数代表头部围绕z轴顺时针的旋转角度（360度为一周）\n\n我们注意到，后两个参数和正常的坐标系里逆时针为正的约定不一致，所以在后续计算时要加上负号取相反数。在下面的内容中，如无旋转方向的特殊声明，以上面的约定为准。\n\n当然了，在三维空间里我们经常分不清顺时针和逆时针，这里有一个简单的办法：像竖大拇指一样掏出你的右手，把大拇指和坐标轴的正方向重合，那么剩下四个手指旋转的方向就是绕该轴逆时针的方向，如果换成左手，那么就是顺时针，相信读者只要学过中学物理，都应该玩过这套把戏。\n\n此外，旋转的次序是先x后y再z，也就是xyz顺规。为什么要强调旋转的次序？因为不同的次序导致的旋转结果是不一样的，这个大家仔细想想就很容易明白了。\n\n而原帖希望转换到这个xyz顺规的旋转方式是什么样子呢？\n输入的ABC是这个部件的木杆指向的方向 （比如1 1 1或者2 2 2 是沿着体对角线方向 -1 -1 -1 是和那俩相反的方向）t是指向这个方向之后再绕着轴旋转的弧度。\n一种可行的旋转方式如下：\n\n先让脑袋对应的那根木杆绕y轴旋转t再让木杆绕x轴逆时针旋转一个角度theta_1再让木杆绕y轴顺时针旋转一个角度theta_2，使木杆正对着(A, B, C)的方向\n\n同理，这三个方位角同样被称为欧拉角，只不过使用的是yxy顺规。\n那么这个theta_1和theta_2怎么样才能使木杆正对着(A, B, C)的方向呢？\n\n根据球坐标系和直角坐标系的转换关系，我们知道，对于y轴上的点：(0, r, 0)复制代码经旋转后的坐标是：(-r*sin(theta_2)*sin(theta_1), r*cos(theta_2), r*cos(theta_2)*sin(theta_1))复制代码注意负号。\n\n自然，我们要选取合适的r，theta_1，和theta_2，使这三个数正好和(A, B, C)一致。经过简化，我们需要解决这样一个问题：\n给定两个数x，y，满足（r大于0）：x = r*cos(theta), y = r*sin(theta)复制代码求r和theta。\nr自然很好求，取x和y的平方和再开根号就行了，theta自然也和arctan(y/x)有关。\n不过，由于x和y的正负号不同，x甚至可能出现0，对于计算机而言，arctan(y/x)求起来总有一些小问题，需要多做不少额外的操作。\n\n不过，计算机总归是给人用的，又不只是给数学家用的。作为非程序猿，原帖楼主可能不知道的一点就是：主流编程语言为此专门提供了一个名为atan2的方法。表达式atan2(y, x)复制代码返回的就是想要求得的theta。\n\n最后解得：theta_1 = atan2(sqrt(A*A+C*C), B)\ntheta_2 = atan2(-A, C)复制代码\n至此，问题演变为：把yxy顺规的三个欧拉角表示的旋转，用xyz顺规的三个欧拉角表示。\n\n在可行性这一点，我们倒是不用担心表示不出来，因为数学上已经证明，对于任意的旋转，都可以使用三个欧拉角表示。\n\n\n线性变换\n\n对于线性代数熟悉的读者可以跳过这一部分。\n\n为了方便理解，我们先从一个二维的例子开始：对于坐标点(x, y)，求其绕原点逆时针旋转theta角后的结果。\n\n这个明显是送分题嘛。我们令x = r*cos(phi)\ny = r*sin(phi)复制代码那么旋转后的结果就是x' = r*cos(phi+theta) = r*cos(phi)*cos(theta)-r*sin(phi)*sin(theta) = x*cos(theta)-y*sin(theta)\ny' = r*sin(phi+theta) = r*sin(phi)*cos(theta)+r*cos(phi)*sin(theta) = x*sin(theta)+y*cos(theta)复制代码\n现在直接把问题放到三维：对于坐标点(x, y, z)，求其绕z轴逆时针旋转theta角后的结果。\n\n这个也很明显是送分题嘛。绕z轴旋转自然z坐标不会动了，x坐标和y坐标和上面描述的是一样的。\n基于原点还有什么操作比较有用呢？绕z轴逆时针旋转：(x, y, z) => (x*cos(theta)-y*sin(theta), x*sin(theta)+y*cos(theta), z)\n沿z轴放大两倍：(x, y, z) => (x, y, 2z)\n沿x轴中心对称：(x, y, z) => (x, -y, -z)\n把上面两个操作复合一下：(x, y, z) => (x, -y, -2z)复制代码\n我们可以注意到，这些变换都有着以下的形式（a-i都是常数）：x => a*x+b*y+c*z\ny => d*x+e*y+f*z\nz => g*x+h*y+i*z复制代码\n变换后的坐标都只包含x/y/z分别和一个整数的乘积的和。这种变换我们称之为线性变换。\n如果我们不想考虑坐标而只考虑变换这件事，我们可以单独变换所需要的九个数提出来，排成一张3x3的表：a b c\nd e f\ng h i复制代码我们称这张表为一个3x3的矩阵。\n\n把两个矩阵代表的变换复合的过程，我们称其为矩阵的乘法。\n\n对于矩阵乘法，百度百科上的定义已经够清楚了，这里只是想让读者知道，变换的复合可以使用矩阵乘法的方式表示。\n\n现在我们把对于三个坐标轴旋转的矩阵写出来：\n\n绕x轴逆时针旋转theta：                 1                0                0\n                 0  math.cos(theta) -math.sin(theta)\n                 0  math.sin(theta)  math.cos(theta)复制代码\n绕y轴顺时针旋转theta：   math.cos(theta)                0 -math.sin(theta)\n                 0                1                0\n   math.sin(theta)                0  math.cos(theta)复制代码\n绕z轴顺时针旋转theta：   math.cos(theta)  math.sin(theta)                0\n  -math.sin(theta)  math.cos(theta)                0\n                 0                0                1复制代码\n注意顺时针和逆时针的符号区别。\n\n很明显，如果两种旋转是等价的，那么它们对应的矩阵中的九个数，应该是一模一样的。\n\n\n最后的求解\n\n现在我们需要做的就是把已知的yxy顺规的旋转变换对应的矩阵和最终我们需要求解的xyz顺规的旋转变换对应的矩阵分别求出，然后进行比较。\n已知的yxy顺规对应的矩阵的每个数都是已知的，可以直接在计算机中存储，我们假定为：\n\n\n\n\nlatex_842040af0fb56f27e41357f624b9caf1.jpg (3.54 KB, 下载次数: 0)\n\n下载附件\n\n2017-4-24 20:45 上传\n\n\n\n\n\n而未知的xyz顺规对应的矩阵需要以表达式的形式求出来：\n\n\n\n\nlatex_f74f23850370291a282d630284143160.jpg (15.55 KB, 下载次数: 1)\n\n下载附件\n\n2017-4-24 20:45 上传\n\n\n\n\n\n当然啦，这个式子很复杂，但是只有左下角的五个元素是需要关心的，我们把它和已知的矩阵一对应，就可以很容易地把结果求出来了。\n\n这是最后的代码。使用了numpy简化了矩阵运算，可读性应该比原帖好一些：\n#!/usr/bin/python3\n\nimport math, numpy\n\ndef calculate_armorstand_rotation(a, b, c, theta):\n\n    def matrix_rotate_x(theta):\n        return numpy.matrix([[               1,                0,                0], \n                             [               0,  math.cos(theta), -math.sin(theta)], \n                             [               0,  math.sin(theta),  math.cos(theta)]])\n\n    def matrix_rotate_y(theta):\n        return numpy.matrix([[ math.cos(theta),                0, -math.sin(theta)], \n                             [               0,                1,                0], \n                             [ math.sin(theta),                0,  math.cos(theta)]])\n\n    def matrix_rotate_z(theta):\n        return numpy.matrix([[ math.cos(theta),  math.sin(theta),                0],\n                             [-math.sin(theta),  math.cos(theta),                0],\n                             [               0,                0,                1]])\n\n    def norm(x, y):\n        return math.sqrt(x * x + y * y)\n\n    theta_0, theta_1, theta_2 = math.radians(theta), math.atan2(norm(a, c), b), math.atan2(-a, c)\n\n    matrix = matrix_rotate_y(theta_2) * matrix_rotate_x(theta_1) * matrix_rotate_y(theta_0)\n    m11, m21, m31, m32, m33 = matrix[0, 0], matrix[1, 0], matrix[2, 0], matrix[2, 1], matrix[2, 2]\n    \n    z_rotation = math.atan2(-m21, m11)\n    y_rotation = math.atan2(2 * m31, norm(m21, m11) + norm(m32, m33))\n    x_rotation = math.atan2(m32, m33)\n    \n    return math.degrees(x_rotation), math.degrees(y_rotation), math.degrees(z_rotation)\n\nif __name__ == '__main__':\n    a, b, c, theta = eval(input())\n    result = calculate_armorstand_rotation(a, b, c, theta)\n    print('/summon Armor_Stand ~0 ~1 ~0 {Pose:{Head:[%.8fF,%.8fF,%.8fF]}}' % result)\n复制代码\n别的编程语言？不管不管，你们自己折腾去。\n\n\n全文结束。\n\n\n\n\ntimg.jpg (31.62 KB, 下载次数: 0)\n\n下载附件\n\n2017-4-24 20:23 上传\n\n\n\n\n\n随便圈几个人：@chyx @ruhuasiyu @langyo_v3 @乙烯_中国 \n\n从开始研究到现在足足折腾了一下午。你们的金粒和人气将是给我的最好的支持和鼓励。",
+    "replies": [
+        {
+            "author": "langyo_v3",
+            "timestamp": 1493038320,
+            "txt_content": "我知道,你做这鬼玩意是因为我在悬赏里@了你XD\n\n辛苦你了"
+        },
+        {
+            "author": "快乐数字3",
+            "timestamp": 1493038500,
+            "txt_content": "虽然没搞懂但是好厉害的样子，给点金子！"
+        },
+        {
+            "author": "dhji",
+            "timestamp": 1493038740,
+            "txt_content": "学霸的世界，是真的看不懂"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1493039100,
+            "txt_content": "= =\n\n500金粒呐…下次找机会问你能解决的问题时@你,先等你个三天"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1493046240,
+            "txt_content": "所以土球当时就念了两句诗……"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1493046480,
+            "txt_content": "谢谢你～\n\n“大拇指一样掏出你的右手，把大拇指和坐标轴的正方向重合，那么剩下四个手指旋转的方向就是绕该轴逆时针的方向，如果换成右手，那么就是逆时针，相信”\n\n把右手换成右手"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1493092680,
+            "txt_content": "嗯嗯 谢谢您 真的是简单易懂。\n最后的一段假设cos y_rotation非负了？ 所以还能得到一个解\n\n怎么想到如何通过矩阵的相等求xyz_rotation的？是把http://attachment.mcbbs.net/foru ... c211e.jpg.thumb.jpg乘出来之后观察到的么？\n\n\n\n还有atan2简直神器啊 你不说我真不知道\n（顺便看见了符号函数。。。我当时用的）"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1493126820,
+            "txt_content": "chyx 发表于 2017-4-25 11:58\n嗯嗯 谢谢您 真的是简单易懂。\n最后的一段假设cos y_rotation非负了？ 所以还能得到一个解最后的一段假设cos y_rotation非负了？\n我没在主题帖说这件事，结果被机智的你发现了XD\n怎么想到如何通过矩阵的相等求xyz_rotation的？\n这个纯粹靠直觉啊= =描述旋转的最简单也是最常用的方式就是旋转矩阵嘛= ="
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1493160060,
+            "txt_content": "ustc_zzzz 发表于 2017-4-25 21:27\n我没在主题帖说这件事，结果被机智的你发现了XD\n\n这个纯粹靠直觉啊= =描述旋转的最简单也是最常用的方式 ...\n不是啦 我是说怎么想到可以比矩阵 而且为什么比较这5个数 是乘好了矩阵之后观察出来的吗"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1493165400,
+            "txt_content": "还有 a c 都是0  b不是0 怎么办"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1493193360,
+            "txt_content": "不是啦 我是说怎么想到可以比矩阵\n因为两个矩阵相同，当且仅当它们表示的线性变换相同。\n而且为什么比较这5个数 是乘好了矩阵之后观察出来的吗\n因为左下角这五个数简单啊。。。你也可以比较右上角四个数，如果你觉得计算起来简单的话→_→\n还有 a c 都是0  b不是0 怎么办\n这就涉及到atan2的两个参数都是零的情况了。这些其实都是有约定的，当取值为NaN、正无穷、负无穷、正零、负零（你没听错，现行通用的计算机浮点数标准有正零和负零两个零的定义）的时候，atan2的返回值都有明确的约定。这些细节我都没有写进主题帖里，原因在于会给读者增加不必要的理解内容（并不是所有读者都知道有两个零的对吧2333）。"
+        },
+        {
+            "author": "369493699",
+            "timestamp": 1497360840,
+            "txt_content": "虽然没看懂但是好像很厉害的样子"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1504110360,
+            "txt_content": "嗯？\n[[ 0,  0, -1],\n[ 0,  1,  0],\n[ 1,  0,  0]]\n\n这个矩阵\n[[ 0, -1,  0],\n[ 0,  0, -1],\n[ 1,  0,  0]]\n是不同的两个旋转矩阵\n\n但是左下角的5个数是一样的？？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1504540740,
+            "txt_content": "\n\n\n\ncube.zip\n(134.98 KB, 下载次数: 115)\n\n\n\n2017-9-4 23:59 上传\n点击文件名下载附件\n\n\n\n\n\n\n做好了 您看看"
+        },
+        {
+            "author": "红茶海盗",
+            "timestamp": 1504924380,
+            "txt_content": "还没入手正版。"
+        },
+        {
+            "author": "903402421",
+            "timestamp": 1505040480,
+            "txt_content": "签到签到签到签到签到签到签到签到签到签到签到"
+        },
+        {
+            "author": "wszsdqwq",
+            "timestamp": 1505123580,
+            "txt_content": "从不知道盔甲架那么厉害= ="
+        }
+    ]
+}

@@ -1,0 +1,159 @@
+{
+    "title": "[管理|网页]DooBStat —— 清理长期不在线玩家[1.5.1-1.6.2]",
+    "author": "john180",
+    "replyCount": 30,
+    "timestamp": 1373027100,
+    "txt_content": " 本帖最后由 john180 于 2013-9-29 18:48 编辑 \n\n插件介绍：\n此插件会收集以下信息\n      玩家的名字\n　　玩家最后登录IP\n　　在线/离线状态\n　　第一次登录的日期和时间\n　　最后一次登录的日期和时间\n　　登录次数\n　　最后注销日期和时间\n　　在线时间（秒）\n　　距离统计(米/块)\n　　  步行\n　　  飞行\n　　  游泳\n　　  骑猪\n　　  矿车\n　　  船\n　　  捕获的鱼的数量\n　　  使用过的床的数量\n\n安装方法：\n扔进plugins文件夹\n\n启动服务器\n设置配置文件\nmysql:\n  host: \"\"\n  port: 3306\n  dbname: \"\"\n  user: \"\"\n  pass: \"\"\n  prefix: \"dstat_\"         #以上是服务器mysql数据库设置不做解释\nclean:\n  days: 180                #如超过此期限玩家将被T出\n  auto: false               #是否自动清理\n  commands:\n  - say Player $player_name$ has been removed due to a long absence from the server.  #清理时将执行的命令可以自定义$player_name\n$代表被清理玩家名字复制代码pluginStats: true\ndebug: false\ndbversion: 5\n\n此插件包含网页查看功能\n网页代码如下\n<?php\n// \n// THIS FILE IS NOT FOR USE IN PRODUCTION!!!\n// THIS IS ONLY EXAMPLE HOW THINGS CAN BE DEONE!!!\n//\n// --- CONFIG -----------------------------------------------------------------\n\n$db = array();\n$db[\"host\"] = \"\";\n$db[\"port\"] = 3306;\n$db[\"name\"] = \"\";\n$db[\"user\"] = \"\";\n$db[\"pass\"] = \"\";\n$db[\"prefix\"] = \"dstat_\";\n\n// if you like you can copy above array to separate file...\n@include('cfg.php');\n\n// set timezone for php\n// List of Supported Timezones http://www.php.net/manual/en/timezones.php\ndate_default_timezone_set('Europe/Warsaw');\n\n// --- /CONFIG ----------------------------------------------------------------\n\n\nheader('Content-Type: text/html; charset=utf-8');\n\n// Connecting, selecting database\n$link = mysql_connect($db[\"host\"].\":\".$db[\"port\"], $db[\"user\"], $db[\"pass\"])\n    or die('Could not connect: ' . mysql_error());\nmysql_select_db($db[\"name\"]) or die('Could not select database');\n\n\n/**\n * Function converts time in secons to \"XXXd XXh XXm XXs\" format.\n * \n * @param int $sek\n * @return string\n */\nfunction stodgms($sek) {\n    $d = 0;\n    $g = 0;\n    $m = 0;\n    \n    $dd = 60*60*24;\n    $gg = 60*60;\n    $mm = 60;\n    \n    if($sek >= $dd) {\n        $d = (int)floor($sek/$dd);\n    }\n    $sek = $sek%$dd;\n    \n    if($sek >= $gg) {\n        $g = (int)floor($sek/$gg);\n    }\n    $sek = $sek%$gg;\n    \n    if($sek >= $mm) {\n        $m = (int)floor($sek/$mm);\n    }\n    $sek = $sek%$mm;\n    \n    if($d > 0) {\n        return $d.'d '.$g.'h '.$m.'m '.$sek.'s';\n    } else {\n        return $g.'h '.$m.'m '.$sek.'s';\n    }\n}\n\n/**\n * Player details view\n * \n * @param string $player_name\n */\nfunction player_view($player_name)\n{\n    global $db;\n    \n    // Performing SQL query\n    $query = \"SELECT * \n                      FROM \".$db[\"prefix\"].\"players \n                      INNER JOIN \".$db[\"prefix\"].\"morestats USING(id)\n                      WHERE player_name='\".$player_name.\"' LIMIT 1\";\n    \n    $result = mysql_query($query) or die('Query failed: ' . mysql_error());\n    \n    \n    if($result && mysql_num_rows($result) > 0):\n    $row = mysql_fetch_assoc($result);\n    \n    $first_login = strtotime($row['firstever_login']);\n    $last_login = strtotime($row['last_login']);\n    $this_login = strtotime($row['this_login']);\n    $last_logout = strtotime($row['last_logout']);\n    \n    $last_seen = $row['online'] ? time() : $this_login;\n    $last_seen = ($last_logout > $last_seen) ? $last_logout : $last_seen;\n    \n    if($row['online'])\n    {\n        $lastplaytime = $last_logout - $last_login;\n    }\n    else\n    {\n        $lastplaytime = $last_logout - $this_login;\n    }\n    \n    \n    $ldni = (int)floor((time() - $first_login)/(60*60*24))+1;\n    $srednio = (int)round($row['num_secs_loggedon']/$ldni, 0);\n?>\n<div id=\"center\">\n<h1><?php echo $row['player_name'] ?></h1>   \n<span>Status: <strong><?php echo $row['online'] ? 'online' : 'offline'; ?></strong></span>\n<div class=\"clear\"> </div>\n<div class=\"infobox\">\n    <h2>Time:</h2>\n    <ul>\n        <li>First login: <strong><?php echo date('Y-m-d H:i:s', $first_login).\" (\".stodgms(time() - $first_login).\")\"; ?></strong></li>\n        <li>Last seen: <strong><?php echo date('Y-m-d H:i:s', $last_seen).\" (\".stodgms(time() - $last_seen).\")\"; ?></strong></li>\n        <li>Play time: <strong><?php echo stodgms($row['num_secs_loggedon']); ?></strong></li>\n        <li>Last login play time: <strong><?php echo stodgms($lastplaytime); ?></strong></li>\n        <li>Daily average: <strong><?php echo stodgms($srednio); ?></strong></li>\n    </ul>\n</div>\n\n<div class=\"infobox\">\n<h2>Distance traveled</h2>\n<ul>\n    <li>By foot: <strong><?php echo number_format($row['dist_foot']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>When flying: <strong><?php echo number_format($row['dist_fly']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>When swimming: <strong><?php echo number_format($row['dist_swim']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>On pig: <strong><?php echo number_format($row['dist_pig']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>On horse: <strong><?php echo number_format($row['dist_horse']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>On minecart: <strong><?php echo number_format($row['dist_cart']/1000.0, 3, ',', ' '); ?></strong> km</li>\n    <li>On boat: <strong><?php echo number_format($row['dist_boat']/1000.0, 3, ',', ' '); ?></strong> km</li>\n</ul>\n</div>\n\n<div class=\"infobox\">\n<h2>Other:</h2>\n<ul>\n    <li>Number of logins: <strong><?php echo $row['num_logins']; ?></strong></li>\n    <li>Bed entered: <strong><?php echo $row['bed_enter']; ?></strong></li>\n    <li>Number of fish caught: <strong><?php echo $row['fish']; ?></strong></li>\n</ul>\n</div>\n\n<?php\n    else:\n        echo \"Player not found.\";\n    endif;\n?>   \n</div>\n<?php\n}\n\n/**\n * Players list view\n */\nfunction list_view()\n{\n    global $db;\n    \n    // Performing SQL query\n    $query = 'SELECT `firstever_login`, `last_login`, `this_login`, `last_logout`,\n              `online`, `num_secs_loggedon`, `num_logins`, `player_name`\n              FROM '.$db[\"prefix\"].'players \n              ORDER BY online DESC, this_login DESC';\n    $result = mysql_query($query) or die('Query failed: ' . mysql_error());\n    \n    ?>\n<table>\n    <thead>\n        <tr>\n            <th>#</th>\n            <th>Player name</th>\n            <th>Online</th>\n            <th>First login</th>\n            <th>Last seen</th>\n            <th>Last login<br />play time</th>\n            <th>Play time</th>\n            <th>Daily average</th>\n        </tr>\n    </thead>\n    <tbody>\n    \n<?php\n// Printing results in HTML\n$count = 0;\nwhile ($line = mysql_fetch_array($result, MYSQL_ASSOC)):\n    $count += 1;\n    $first_login = strtotime($line['firstever_login']);\n    $last_login = strtotime($line['last_login']);\n    $this_login = strtotime($line['this_login']);\n    $last_logout = strtotime($line['last_logout']);\n    \n    $last_seen = $line['online'] ? time() : $this_login;\n    $last_seen = ($last_logout > $last_seen) ? $last_logout : $last_seen;\n    \n    if($line['online'])\n    {\n        $lastplaytime = $last_logout - $last_login;\n    }\n    else\n    {\n        $lastplaytime = $last_logout - $this_login;\n    }\n    \n    \n    $ldni = (int)floor((time() - $first_login)/(60*60*24))+1;\n    $srednio = (int)round($line['num_secs_loggedon']/$ldni, 0);\n\n?>\n    <tr>\n        <td class=\"right\">\n            <?php echo $count; ?>\n        </td>\n        <td class=\"nazwa\" title=\"logins: <?php echo $line['num_logins']; ?>, days: <?php echo $ldni; ?>\">\n            <a href=\"<?php echo $_SERVER['PHP_SELF'].\"?v=player&name=\".$line['player_name']; ?>\"><?php echo $line['player_name']; ?></a>\n        </td>\n        <td class=\"centr\">\n            <?php echo $line['online'] ? 'ONLINE' : 'offline'; ?>\n        </td>\n        <td title=\"<?php echo date('Y-m-d H:i:s', $first_login); ?>\">\n            <?php echo date('Y-m-d', $first_login); ?>\n        </td>\n        <td class=\"right\" title=\"<?php echo date('Y-m-d H:i:s', $last_seen); ?>\">\n            <?php echo stodgms(time() - $last_seen); ?>\n        </td>\n        <td class=\"right\">\n            <?php echo stodgms($lastplaytime); ?>\n        </td>\n        <td class=\"right\">\n            <?php echo stodgms($line['num_secs_loggedon']); ?>\n        </td>\n        <td class=\"right\">\n            <?php echo stodgms($srednio); ?>\n        </td>\n    </tr>\n<?php\nendwhile;\n\n// Free resultset\nmysql_free_result($result);\n\n?>\n    </tbody>\n</table>    \n    \n<?php\n}\n?>\n\n<?php\nob_start();\nif(isset($_GET['v']) && $_GET['v'] != '')\n{\n    switch ($_GET['v']) {\n        case 'player':\n            player_view($_GET['name']);\n           break;\n        \n        default:\n             list_view();\n            break;\n    }\n}\nelse\n{\n    list_view();\n}\n$view_output = ob_get_clean();\n\n// Closing connection\nmysql_close($link);\n?>\n\n\n\n\n<?php // ---- HTML TEMPLATE ------------------------------------------------- ?>\n\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"\n    \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n        \n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"pl\">\n<head> \n    <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\" />\n    <title>DooBStat</title> \n    \n    <style type=\"text/css\">\n    /* <![CDATA[ */\n    \n    body {\n        font-size: 18px;\n        text-align: center;\n    }\n    #center {\n        width: 960px;\n        margin: 10px auto;\n        border: 1px solid #666;\n        padding: 10px;\n        border-radius: 16px;\n        text-align: left;\n        height: auto;\n        overflow: hidden;\n    }\n    #center div.infobox {\n        float: left;\n        width: 400px;\n        margin-right: 20px;\n        padding: 10px;\n    }\n    table {\n        border-collapse: collapse;\n        border: 1px solid #000;\n        margin: 0 auto;\n        text-align: left;\n    }\n    table th {\n        text-align: center;\n    }\n    table th,\n    table td {\n        border: 1px solid #000;\n        padding: 3px 5px;\n    }\n    table td.nazwa {\n        font-weight: bold;\n    }\n    table td.centr {\n        text-align: center;\n    }\n    table td.right {\n        text-align: right;\n    }\n    .clear {\n        clear: both;\n        height: 3px;\n        padding: 0;\n        margin: 0;\n    }\n    /* ]]> */\n    </style>\n    \n    \n</head>\n<body>\n\n<div id=\"menu\" style=\"padding: 5px; margin: 15px; border: 1px solid #555;\">\n    <a href=\"<?php echo $_SERVER['PHP_SELF']; ?>\">index</a>\n</div>\n\n<?php echo $view_output; ?>\n\n<div id=\"example\" style=\"color: red; margin: 20px; padding: 10px; border: 1px solid red;\">\n    This page is just an example.<br />\n    It is not safe to use it in a production environment!!!\n</div>\n\n</body>\n</html>复制代码\n\n\n\n\n权限：\ndstat.dstat  \ndstat.dstat.clean  \ndstat.dstat.*\n\n",
+    "replies": [
+        {
+            "author": "294188078",
+            "timestamp": 1373027160,
+            "txt_content": "碉堡可惜我没有服务器"
+        },
+        {
+            "author": "马赛克了",
+            "timestamp": 1373027220,
+            "txt_content": "有意思。自己汉化一下界面就倍儿有趣了"
+        },
+        {
+            "author": "1457666076",
+            "timestamp": 1373027220,
+            "txt_content": "这个插件好坑"
+        },
+        {
+            "author": "西楚世界",
+            "timestamp": 1373027520,
+            "txt_content": "我东西    我收藏起来"
+        },
+        {
+            "author": "john180",
+            "timestamp": 1373027700,
+            "txt_content": "马赛克了 发表于 2013-7-5 20:27 \n有意思。自己汉化一下界面就倍儿有趣了\n主要是汉化一下网页\n插件本身基本无需汉化"
+        },
+        {
+            "author": "987324123",
+            "timestamp": 1373203560,
+            "txt_content": "MCPC好像用不了，我哭慘了。(找很久)  {:10_494:}"
+        },
+        {
+            "author": "halfcigarette",
+            "timestamp": 1375681800,
+            "txt_content": "不错。。。收起来。。。"
+        },
+        {
+            "author": "a26603320",
+            "timestamp": 1376013420,
+            "txt_content": "294188078 发表于 2013-7-5 20:26 \n碉堡可惜我没有服务器\n安慰人爱人orijsemu9rb9"
+        },
+        {
+            "author": "a26603320",
+            "timestamp": 1376015880,
+            "txt_content": "1457666076 发表于 2013-7-5 20:27 \n这个插件好坑\nafiaiiiiafffffffffffffff"
+        },
+        {
+            "author": "renyue200",
+            "timestamp": 1380408240,
+            "txt_content": "网页要怎么打开？？？？？？？？？？？？？？？？？？？？"
+        },
+        {
+            "author": "Nick200814",
+            "timestamp": 1395996300,
+            "txt_content": "很好，很好，不错，不错，继续努力。。。。。。。。。。。。。。。。"
+        },
+        {
+            "author": "炫蓝三叶草",
+            "timestamp": 1395997140,
+            "txt_content": "是把玩家的dat删除吗？"
+        },
+        {
+            "author": "McMachina",
+            "timestamp": 1398577200,
+            "txt_content": "网页如何查看？"
+        },
+        {
+            "author": "Jms",
+            "timestamp": 1398693900,
+            "txt_content": "谢谢分享···"
+        },
+        {
+            "author": "cyh1312192622",
+            "timestamp": 1403700840,
+            "txt_content": "感觉很好的样子，但是还是谢谢分享"
+        },
+        {
+            "author": "1219948268",
+            "timestamp": 1411052760,
+            "txt_content": "{:10_531:}还行"
+        },
+        {
+            "author": "辅助啊",
+            "timestamp": 1442851140,
+            "txt_content": "那个  时间 180 是 天还是小时还是？？求回答"
+        },
+        {
+            "author": "opple永恒",
+            "timestamp": 1457786820,
+            "txt_content": "谢谢分享"
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1457793780,
+            "txt_content": "可惜没有1.7的诶。。。"
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1457793840,
+            "txt_content": "可惜没有1.7的诶。。。"
+        },
+        {
+            "author": "酷酷的幻梦",
+            "timestamp": 1500538020,
+            "txt_content": "很好的插件有没有1.11版本呢"
+        },
+        {
+            "author": "love2466322e",
+            "timestamp": 1505982000,
+            "txt_content": "有没有1.8的"
+        },
+        {
+            "author": "小悠酱",
+            "timestamp": 1578126360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qaz1290701843",
+            "timestamp": 1578300660,
+            "txt_content": "谢谢楼主的分享~"
+        },
+        {
+            "author": "Mark最抽象",
+            "timestamp": 1578305520,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "陈饶2003",
+            "timestamp": 1578742440,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "48846328",
+            "timestamp": 1578797700,
+            "txt_content": "哦吼~收藏一手！留着开服用！"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578814200,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "w2200219297",
+            "timestamp": 1578824880,
+            "txt_content": "很好的插件"
+        },
+        {
+            "author": "し不懂丶装懂つ",
+            "timestamp": 1587516300,
+            "txt_content": "网页如何查看？"
+        }
+    ]
+}

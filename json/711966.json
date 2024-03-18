@@ -1,0 +1,54 @@
+{
+    "title": "[未知之域]简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信",
+    "author": "耗子",
+    "replyCount": 9,
+    "timestamp": 1501153740,
+    "txt_content": " 本帖最后由 耗子 于 2018-8-3 11:13 编辑 \n\n简单网络通信包装类(SimpleNetworkWrapper)——简单地进行网络通信\n在实际开发过程中，我们常常需要用到网络通信。用到网络通信的地方有很多，例如按下按键释放技能，同步玩家属性，监听图形界面按钮按下，让客户端播放特效等等。那么怎么样进行网络通信呢？\n\n简单网络通信包装类 SimpleNetworkWrapper\n\n为了方便的进行网络通信，Forge提供一个简单的网络通信包装类——SimpleNetworkWrapper。这个类位于net.minecraftforge.fml.common.network.simpleimpl包下。\n\n那么，怎么使用这个类呢？首先我们需要获取一个SimpleNetworkWrapper对象。\n\nNetworkRegistry.INSTANCE.newSimpleChannel(channel);复制代码\n在此解释一下channel(频道)参数，该参数是一个字符串(String)，表示网络通信频道名，只有在相同的频道，数据才能互相传输。\n\n以上代码可以获取到一个SimpleNetworkWrapper对象，然后我们将这个对象储存至一个静态字段中以便在模组的任何地方调用，比如这样：\n\n@Mod(modid = ChinaCraft.MODID, name = ChinaCraft.NAME, version = ChinaCraft.VERSION)\npublic final class ChinaCraft {\n    public static final String MODID = \"chinacraft\";\n    public static final String NAME = \"ChinaCraft 2\";\n    public static final String VERSION = \"0.0.1\";\n\n    private static SimpleNetworkWrapper network;\n\n    @EventHandler\n    public void init(FMLInitializationEvent event) {\n        network = NetworkRegistry.INSTANCE.newSimpleChannel(MODID);\n    }\n\n    public static SimpleNetworkWrapper getNetwork() {\n        return network;\n    }\n}复制代码\n这样，我们就可以使用ChinaCraft.getNetwork()方法在模组的任何地方调用SimpleNetworkWrapper对象了。\n\n消息类和消息处理类\n\n接下来，我们开始编写我们的消息类和消息处理类。消息类需要实现IMessage接口，该类必须要有一个无参构造方法，并且需要实现fromBytes和toBytes方法。\n\npublic class RedPacketMessage implements IMessage {\n\n    public RedPacketMessage() {} //必须要有一个无参构造方法\n\n    @Override\n    public void fromBytes(ByteBuf buf) {} //将字节流转换为信息\n\n    @Override\n    public void toBytes(ByteBuf buf) {} //将信息转换为字节流\n}复制代码\n可以看到，fromBytes和toBytes方法都有一个ByteBuf类型的参数，ByteBuf类中提供了很多read和write方法，那么我们该如何使用呢？举个例子：\n\npublic class RedPacketMessage implements IMessage {\n\n    private String sender;\n\n    public RedPacketMessage() {}\n\n    public RedPacketMessage(String sender) {\n        this.sender = sender;\n    }\n\n    @Override\n    public void fromBytes(ByteBuf buf) {\n        char chars[] = new char[buf.readInt()]; //读取字符串长度\n        for(int i=0;i<chars.length;i++) //读取字符\n            chars = buf.readChar();\n        sender = String.valueOf(chars); //创建字符串对象\n    }\n\n    @Override\n    public void toBytes(ByteBuf buf) {\n        buf.writeInt(sender.length()); //写入字符串长度\n        for(char c:sender.toCharArray()) //写入字符串\n            buf.writeChar(c); \n    }复制代码\n提示：可以看到ByteBuf类有些不方便使用，所以可以使用MC实现的PacketBuffer类和Forge提供的ByteBufUtils类。\n接下来，我们需要为这个消息编写一个处理类，来处理收到的消息，消息处理类需要实现IMessageHandler接口，并且需要实现onMessage方法。此外，该接口还是一个泛型接口，拥有两个泛型形参REQ extends IMessage和REPLY extends IMessage，其中REQ表示收到的消息类，REPLY表示回复的消息类。\n\npublic class RedPacketMessageHandler implements IMessageHandler<RedPacketMessage, IMessage> {\n\n        @Override\n        public IMessage onMessage(RedPacketMessage message, MessageContext ctx) {\n            return null; //当你不需要回复消息时，可以将REPLY填写为IMessage，并且返回null;\n        }\n}复制代码\n接下来，我们需要将消息类和消息处理类注册到SimpleNetworkWrapper对象中。\n\nnetwork.registerMessage(handler,message,id,side);复制代码\n解释一下registerMessage方法的四个参数，第一个参数handler需要一个IMessageHandler对象，第二个参数message则是对应的消息类的类对象，第三个参数id表示该消息的id，范围为0~255，且不得重复，第四个参数side表示收到消息的对象，Side.SERVER表示消息由客户端发送，服务器接收，Side.CLIENT表示消息由服务端发送，客户端接收。\n\n发送消息\n\n那么，注册好了以后我们怎么发送消息呢？SimpleNetworkWrapper类实现了五个发送方法，分别有不同的作用。\n\n    /**\n     * 发送消息给所有玩家（服务端调用该方法）\n     */\n    public void sendToAll(IMessage message)\n\n    /**\n     * 发送消息到指定玩家（服务端调用该方法）\n     */\n    public void sendTo(IMessage message, EntityPlayerMP player)\n\n    /**\n     * 发送消息到指定范围内的所有玩家（服务端调用该方法）\n     */\n    public void sendToAllAround(IMessage message, NetworkRegistry.TargetPoint point)\n\n    /**\n     * 发送消息到指定世界内的所有玩家（服务端调用该方法）\n     */\n    public void sendToDimension(IMessage message, int dimensionId)\n\n    /**\n     * 发送消息到服务器（客户端调用该方法）\n     */\n    public void sendToServer(IMessage message)复制代码\n例如：\n\nChinaCraft.getNetwork().sendToServer(new RedPacketMessage());复制代码\nByteBufUtils优化的字符串处理\n\npublic class RedPacketMessage implements IMessage {\n\n    private String sender;\n\n    public RedPacketMessage() {}\n\n    public RedPacketMessage(String sender) {\n        this.sender = sender;\n    }\n\n    @Override\n    public void fromBytes(ByteBuf buf) {\n        sender = ByteBufUtils.readUTF8String(buf);\n    }\n\n    @Override\n    public void toBytes(ByteBuf buf) {\n        ByteBufUtils.writeUTF8String(buf,sender);\n    }复制代码\n本篇教程到这就结束了，感谢您的阅读。\n本教程来自ChinaCraft2代码详解——大型模组开发笔记    Github\n\n欢迎各位支持作者，以编写和翻译更多优秀教程。[afd]mouse[/afd]\n\n[groupid=1181]Unknown Domain[/groupid]",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1501217880,
+            "txt_content": "\n    @Override\n    public void fromBytes(ByteBuf buf) {} //将字节码转换为信息\n\n    @Override\n    public void toBytes(ByteBuf buf) {} //将信息转换为字节码复制代码\n\n字节码？字节流？是不是有一点歧义？\n（第一眼看到字节码时，我还以为我看到的是bytecode... 仔细一看发觉不对。）\n\nAnyhow, nice work"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1501219140,
+            "txt_content": "u.s.knowledge 发表于 2017-7-28 12:58\n字节码？字节流？是不是有一点歧义？\n（第一眼看到字节码时，我还以为我看到的是bytecode... 仔细一看发 ...\n确实在这里揣摩了一段时间，不知道用啥好，感谢您的建议"
+        },
+        {
+            "author": "godone",
+            "timestamp": 1544151480,
+            "txt_content": "mark 刚好看到"
+        },
+        {
+            "author": "Lovely_Penguin",
+            "timestamp": 1544272560,
+            "txt_content": "膜拜大佬\n太棒了"
+        },
+        {
+            "author": "lrsoft",
+            "timestamp": 1545227820,
+            "txt_content": "registerMessage里前两个参数handler和message是类不是对象吧\n"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1545231120,
+            "txt_content": "lrsoft 发表于 2018-12-19 21:57\nregisterMessage里前两个参数handler和message是类不是对象吧\nregisterMessage方法有两个，声明不同罢了"
+        },
+        {
+            "author": "155746899",
+            "timestamp": 1550036340,
+            "txt_content": "很棒的帖子"
+        },
+        {
+            "author": "Clemens_Mine",
+            "timestamp": 1550055060,
+            "txt_content": "感谢楼主分享资源！"
+        },
+        {
+            "author": "minecraft65536",
+            "timestamp": 1551968760,
+            "txt_content": "我来补充两点：\n①要注意读取包字节流时和写入包字节流时要注意不同数据的读取次序要一样\n②NBT标签可以直接传送：\n//写入NBT到字节流\nByteBufUtils.writeTag(buf, nbt);\n//从字节流读取NBT\nNBTTagCompound nbt = ByteBufUtils.readTag(buf);复制代码"
+        }
+    ]
+}

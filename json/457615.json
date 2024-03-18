@@ -1,0 +1,29 @@
+{
+    "title": "[MC源码解读] [1.8] 挖掘效率",
+    "author": "etflly",
+    "replyCount": 4,
+    "timestamp": 1434776520,
+    "txt_content": " 本帖最后由 etflly 于 2015-6-21 23:50 编辑 \n本文最初发表于我的个人博客\n为了使各种变量函数看起来更清晰，本文中所引用的源代码，均为在MCP反编译的基础上进行了进一步的反混淆，可能与刚反编译出的代码不同。\n另外本文基于Minecraft 1.8的源码，在其他版本中可能和本文所述不符。\n\n挖掘机制\n在net.minecraft.client.multiplayer.PlayerControllerMP中，挖掘进度存由float型变量curBlockDamageMP保存，初始为0，每1游戏刻根据挖掘工具、挖掘方块、玩家位置等因素增加一定值（后文称这个值为挖掘效率），增加至1时方块被破坏。每个游戏刻只能破坏一个方块。破坏两个方块之间有5游戏刻的冷却时间。但是，在非创造模式下，如果挖掘效率>=1，将不会有这个冷却，比如效率V的铲子可以一下子破坏很多土方块。在创造模式下，通过连点的方式（连续点鼠标）也可以无视这个冷却。\n挖掘效率计算挖掘效率由net.minecraft.block.Block的getPlayerRelativeBlockHadrdness函数给出，其定义如下public float getPlayerRelativeBlockHardness(EntityPlayer playerIn, World worldIn, BlockPos pos)\n{\n    float blockHardness = this.getBlockHardness(worldIn, pos);\n    return blockHardness < 0.0F ? 0.0F : (!playerIn.canHarvestBlock(this) ? playerIn.getEfficiency(this) / blockHardness / 100.0F : playerIn.getEfficiency(this) / blockHardness / 30.0F);\n}复制代码其中getBlockHardness()函数所求的是方块的硬度，当硬度为负数则代表不能被破坏（挖掘效率为0），比如基岩，当硬度为0的时候，挖掘效率为无穷大。canHarvestBlock()函数的含义是所用工具是否能收割此方块（即破坏方块后得到物品），因为涉及很多关于工具、方块、材料的内容，不作进一步展开。getEfficiency()定义如下\npublic float getEfficiency(Block block)\n{\n    float efficiency = this.inventory.getStrVsBlock(block); // 工具原有效率\n\n    if (efficiency > 1.0F) // 效率附魔\n    {\n        int enchantmentLevel = EnchantmentHelper.getEfficiencyModifier(this);\n        ItemStack item = this.inventory.getCurrentItem();\n\n        if (enchantmentLevel > 0 && item != null)\n        {\n            efficiency += (float)(enchantmentLevel * enchantmentLevel + 1);\n        }\n    }\n\n    if (this.isPotionActive(Potion.digSpeed)) // 挖掘增益buff\n    {\n        efficiency *= 1.0F + (float)(this.getActivePotionEffect(Potion.digSpeed).getAmplifier() + 1) * 0.2F;\n    }\n\n    if (this.isPotionActive(Potion.digSlowdown)) // 挖掘减益debuff\n    {\n        float slowDownModifier = 1.0F;\n\n        switch (this.getActivePotionEffect(Potion.digSlowdown).getAmplifier())\n        {\n            case 0:\n                slowDownModifier = 0.3F;\n                break;\n\n            case 1:\n                slowDownModifier = 0.09F;\n                break;\n\n            case 2:\n                slowDownModifier = 0.0027F;\n                break;\n\n            case 3:\n            default:\n                slowDownModifier = 8.1E-4F;\n        }\n\n        efficiency *= slowDownModifier;\n    }\n\n    if (this.isInsideOfMaterial(Material.water) && !EnchantmentHelper.getAquaAffinityModifier(this)) // 玩家是否在水中\n    {\n        efficiency /= 5.0F;\n    }\n\n    if (!this.onGround) // 玩家是否着地\n    {\n        efficiency /= 5.0F;\n    }\n\n    return efficiency;\n}复制代码\n综合以上代码，可以得到挖掘效率的公式为\n挖掘效率 = (工具效率 + 附魔修正值 ) * 增益修正值 * 减益修正值 / 水中修正值 / 悬空修正值 / 硬度 / 收割修正值\n复制代码式中几个值的计算方式如下：工具效率：如果没有用工具或者所用工具不适用于挖所挖方块（比如用铲子砍树），工具效率为1；铲子、稿子、斧头对适用方块的效率与工具的材料有关（木2，石4，铁6，钻8，金12）；剑对网的效率为15，对草、花、瓜、树叶等效率为1.5；剪刀对树叶和网的效率为15，对羊毛的效率为5。附魔修正值：如果工具效率为1，附魔修正值为0；否则为“效率附魔等级的平方 + 1”。增益修正值：即“急迫”buff。值为“1 + 增益等级 * 0.2 ”。减益修正值：即“挖掘疲劳”debuff。值为0.3^(减益等级)，最大为0.3^4=8.1e-3。不过原版游戏中貌似只出现了挖掘疲劳III，修正值为2.7e-2。水中修正值：如果玩家在水中为5，否则为1。水下速掘附魔会移除此修正值。悬空修正值：如果玩家脚离地为5，否则为1。收割修正值：如果此工具（或空手）可以在破坏此方块后得到物品，为30，否则为100。\n\n示例为了进一步说明挖掘速度的算法，我们来举几个例子急迫II效率V钻石镐挖圆石钻石镐挖圆石的工具效率为8，效率V的附魔修正值为5^2+1=26，急迫II的修正值为1+2*0.2=1.4，圆石的硬度为2，收割修正值为30（稿子可以收集圆石）。综合起来挖掘效率为(8+26)*1.4/2/30=0.7933，需要2T破坏，两次破坏之间还会触发5T的冷却，总计7T可以破坏一个圆石。急迫II效率V钻石镐挖石头石头的硬度是1.5，本例其他部分与上例相同。故挖掘效率为(8+26)*1.4/1.5/30=1.0578，需要1T破坏，不会触发5T冷却，总计1T破坏一个石头。从这两个例子可以看出如果造石机想要高效率，必然是要生成石头而不是圆石，而且需要急迫II效率V钻石镐做支持，少任意一个条件都会使效率大大下降。达到1T破坏草方块所需要钻石铲的最低附魔钻石铲挖草方块的工具效率为8，设附魔等级为x，附魔修正值为x^2+1，草方块的硬度为0.6，收割修正值为30。可得不等式(8+x^2+1)/0.6/30>=1，解得x>=3。然而，由于浮点数计算误差，x=3时游戏会认为效率是0.99999994，不足1，所以要2T才能破坏一个草方块，还会触发5T延迟。另外泥土方块的硬度为0.5，相应不等式为(8+x^2+1)/0.5/30>=1，解得x>2。本例可以看出铲子附魔效率III（不考虑草方块）或IIII（快速挖草方块）就可以了，更高的附魔基本上是在浪费修理花费的等级……而考虑到快速破坏泥土经常会导致误操作，可以附魔效率II作为“精修铲”。被蜘蛛网黏在空中时徒手破坏蜘蛛网徒手的工具效率为1，悬空修正5，蜘蛛网的硬度为4（牛逼蛛网硬比石头），由于徒手不能收集蛛网，收割修正为100。综合起来挖掘效率为1/5/4/100=1/2000，也就是2000T=100s可以逃脱。另外，如果改为用剑，由于剑可以收割网（获得线），收割修正改为30，而且剑对网的效率为15，故挖掘效率为15/5/30=0.1，只要10T就可以逃脱。在海底遗迹没有杀死远古守卫者的情况下站在海底用效率V钻石镐挖海晶石钻石镐挖海晶石效率为8，效率V的附魔修正值为5^2+1=26，远古守卫者给予的挖掘疲劳III的减益修正值为0.0027，水中修正值为5，收割修正值为30。挖掘效率即(8+26)*0.027/5/30=0.00612，大约163T=8.2s可以挖掉一个方块。就算你在旁边先建个信标加急迫II的buff，那么挖掘效率也只是0.00612*1.4=0.008568，仍需要116.7T=5.8s才能挖掉一个方块。\n",
+    "replies": [
+        {
+            "author": "鳥妖",
+            "timestamp": 1434778920,
+            "txt_content": "天哪，看不懂。。。。。。"
+        },
+        {
+            "author": "ricky31415",
+            "timestamp": 1434779460,
+            "txt_content": "太久没碰java，都忘得差不多了"
+        },
+        {
+            "author": "821938089",
+            "timestamp": 1434780660,
+            "txt_content": "圆石挖掘效率算式错了\n(8+26)*1.4/2/100=0.7933（错的）\n(8+26)*1.4/2/30=0.7933（对的）"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1470026880,
+            "txt_content": "用钻石镐挖石头很明显是亏的"
+        }
+    ]
+}

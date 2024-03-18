@@ -1,0 +1,154 @@
+{
+    "title": "利用Forge API开发联机MOD【基础篇】【第五章】",
+    "author": "yuxuanchiadm",
+    "replyCount": 29,
+    "timestamp": 1343781600,
+    "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-2-13 04:40 编辑 \n\n利用Forge API开发联机MOD【基础篇】【第五章】\n给你的MOD添加一个物品\n作者：yuxuanchiadm\n\n索引贴地址：http://www.mcbbs.net/thread-38211-1-1.html\n\n请确定你已经阅读完成第四章的内容:\nhttp://www.mcbbs.net/thread-83003-1-1.html\n否则不要阅读此贴！\n\n序：\n在上一章里，我们已经学会了如何制作一个MOD的配置文件，是时候做一个功能强大的MOD了把 : )。现在，我将要手把手教你做一个有一定内容的MOD。\n\n添加一个新的物品：\n（这次的教程我准备讲解一个名为刷怪笼手工艺的MOD，当然这是我自己的MOD :D，顺便把这MOD做成联机的，一举两得:D，此MOD的老版本下载地址：http://www.mcbbs.net/thread-37772-1-1.html）\n首先，我们需要做一个镐子，来采集传说中的刷怪笼 :D\n新建一个包：myFirstMod.Item\n新建一个类，命名为ItemSpawnerPickaxe，继承自ItemPickaxe，\n然后写入如下代码：package myFirstMod.Item;\n\nimport net.minecraft.block.Block;\nimport net.minecraft.entity.EntityLiving;\nimport net.minecraft.entity.item.EntityItem;\nimport net.minecraft.item.EnumToolMaterial;\nimport net.minecraft.item.ItemPickaxe;\nimport net.minecraft.item.ItemStack;\nimport net.minecraft.world.World;\npublic class ItemSpawnerPickaxe extends ItemPickaxe\n{\n    //构造函数（参数1：物品ID）\n    public ItemSpawnerPickaxe(int par1)\n    {\n        super(par1, EnumToolMaterial.EMERALD);\n        this.setItemName(\"SpawnerPickaxe\");\n    }\n    //破坏方块时调用（参数1：玩家拿着的物品栈（此物品的物品栈），参数2：方块世界，参数3：方块ID，参数4-6：方块坐标，参数7：使方块被摧毁的玩家）\n    public boolean onBlockDestroyed(ItemStack par1ItemStack, World par2World, int par3, int par4, int par5, int par6, EntityLiving par7EntityLiving)\n    {\n        //损伤这个物品\n        par1ItemStack.damageItem(1, par7EntityLiving);\n        //如果被破坏的方块等于刷怪笼\n        if(par3 == Block.mobSpawner.blockID)\n        {\n            //新建一个掉落的方块\n            EntityItem entityitem = new EntityItem(ModLoader.getMinecraftInstance().theWorld, (float)par4, (float)par5, (float)par6, new ItemStack(Block.mobSpawner.blockID,1,0));\n            //设置可拿起的间隔\n            entityitem.delayBeforeCanPickup = 10;\n            //抛出这个方块\n            ModLoader.getMinecraftInstance().theWorld.spawnEntityInWorld(entityitem);\n        }\n        return true;\n    }\n}复制代码现在，我们已经成功的创建了一把可以回收刷怪笼的稿子，别急着编译，先添加到MOD里：\n首先，上次创建的配置文件管理类有用处了=w=，在mod_myFirstMod的字段区域添加：\npublic static int ItemSpawnerPickaxeID;复制代码这个字段储存我们制作的稿子的ID。然后在preInit方法里添加：\nmyFirstModConfig.InitliazeConfig(event.getSuggestedConfigurationFile());\ntry\n{\n    ItemSpawnerPickaxeID = myFirstModConfig.GetItemID(\"ItemSpawnerPickaxe\",12001);\n}\ncatch(Exception error)\n{ \n    System.out.println(error.getMessage());\n    System.out.println(error.getStackTrace());\n}\nmyFirstModConfig.SaveConfig();复制代码\n现在，我们已经成功的获取到了镐子的ID，默认为12001，并且可以在配置文件修。\n是时候了，编译此MOD，再运行一次游戏，你将在MCP62ForgeMod\\jars\\config下得到一个漂亮的配置文件LOL，虽然此MOD任然不能玩。\n\n\n\n\n\nQQ截图20120801095811.png (86.94 KB, 下载次数: 11)\n\n下载附件\n\n2012-8-1 09:52 上传\n\n\n\n\n\n现在，我们需要把这个镐子添加进游戏里。\n\n第一步：我们需要纹理\n\n首先，复制这个图片：\n\n\n\n\n\nitems.png (1.52 KB, 下载次数: 42)\n\n下载附件\n\n2013-2-5 20:53 上传\n\n\n\n\n\n到\\mcp725ForgeMOD\\src\\minecraft\\myFirstMod\\sprites并命名为items.png。\n打开此文件，用PS乱涂一番，保存为items.png，建议把.psd文件一起保存，方便日后修改，就得到了我们镐子的纹理：)。\n\n\n\n\nitems.png (3.71 KB, 下载次数: 50)\n\n下载附件\n\n2013-2-5 21:04 上传\n\n\n\n\n\n（记得注意透明通道 :D）\n\n第二步：纹理需预载入\n\n还记得我们在第四章做的代理类么，现在派上用处了 :D\n打开myFirstModProxyCommon类，添加：public void registerRenderers()\n {\n  \n }复制代码打开myFirstModProxyClient类，添加：public final static String ITEMS_PNG_PATH = \"/myFirstMod/sprites/items.png\";\npublic void registerRenderers()\n{\n                    MinecraftForgeClient.preloadTexture(ITEMS_PNG_PATH);\n}复制代码第三步：给物品绑定纹理\n\n打开ItemSpawnerPickaxe，在构造函数中添加代码：this.setTextureFile(myFirstModProxyClient.ITEMS_PNG_PATH);this.setIconIndex(0);复制代码第四步：注册物品到游戏中\n\n在mod_myFirstMod中新建字段：public static Item SpawnerPickaxe;复制代码然后导入类：\nimport net.minecraft.src.EnumToolMaterial;\nimport net.minecraft.src.Item;\nimport myFirstMod.Item.ItemSpawnerPickaxe;复制代码 在load方法里添加：\nSpawnerPickaxe = new ItemSpawnerPickaxe(ItemSpawnerPickaxeID);\nModLoader.addName(SpawnerPickaxe, \"刷怪笼回收镐\");复制代码\n这样，你就成功的把你的镐子添加进了游戏：)，现在，再添加个合成公式：\nModLoader.addRecipe(new ItemStack(SpawnerPickaxe,1), new Object[]\n{\n    \"###\",\" * \",\" * \",Character.valueOf('#'),Item.redstone,Character.valueOf('*'),Item.stick\n});复制代码\n现在，编辑并测试的的MOD，尝试合成一个镐子，如果你能够合成，就说明你成功了！\n\n\n\n\nQQ截图20120801102802.png (181.83 KB, 下载次数: 13)\n\n下载附件\n\n2012-8-1 10:21 上传\n\n\n\n\n\n\n\n\n\nQQ截图20120801102741.png (1.44 KB, 下载次数: 14)\n\n下载附件\n\n2012-8-1 10:21 上传\n\n\n\n\n\n（好吧，代码编辑功能极度不好用，空格键差点被我敲坏）",
+    "replies": [
+        {
+            "author": "KYCN.卡神",
+            "timestamp": 1343782740,
+            "txt_content": "好复杂！！！！！！！！！！！！{:10_527:}"
+        },
+        {
+            "author": "jacky1440",
+            "timestamp": 1343784060,
+            "txt_content": "看懂了~用Modloader做Mod路过..."
+        },
+        {
+            "author": "xmq1991",
+            "timestamp": 1348363260,
+            "txt_content": "如何在调试的时候加上其他mod，方便测试"
+        },
+        {
+            "author": "xmq1991",
+            "timestamp": 1348364340,
+            "txt_content": "LZ有些偷懒了\n\n\n\n\nQQ截图20120923093147.png (1.62 KB, 下载次数: 5)\n\n下载附件\n\n2012-9-23 09:36 上传\n\n\n\n\n\n这个函数在哪里，我表示没看到\n而且这个类的写法与之前你的写法不同，这个是采用实现接口的方式实现的\n"
+        },
+        {
+            "author": "xmq1991",
+            "timestamp": 1348365960,
+            "txt_content": " 本帖最后由 xmq1991 于 2012-9-23 10:06 编辑 \n\n这个问题不大，就在刚才，我已经实现了这一部分的功能\n除了索引贴之外，你还有其他的资料吗，能发给我看看嘛?\n214773474@qq.com\n在这里先谢过了"
+        },
+        {
+            "author": "mcpan",
+            "timestamp": 1359193980,
+            "txt_content": "xmq1991 发表于 2012-9-23 09:39 \nLZ有些偷懒了\n这个函数在哪里，我表示没看到\n而且这个类的写法与之前你的写法不同，这个是采用实现接口的 ...\n我也遇到这个问题，怎么解决？"
+        },
+        {
+            "author": "yyfish",
+            "timestamp": 1359299640,
+            "txt_content": "楼主跨度太大了，如果是新人，不太可能会看懂\ngetName()是继承于BaseMod下的\nOrz..."
+        },
+        {
+            "author": "painkilling",
+            "timestamp": 1365087660,
+            "txt_content": "成功了 写的很详细 明天继续看"
+        },
+        {
+            "author": "Devilk",
+            "timestamp": 1366968420,
+            "txt_content": "为什么在导入   \nimport net.minecraft.src.EnumToolMaterial;\nimport net.minecraft.src.Item;\nimport myFirstMod.Item.ItemSpawnerPickaxe;\n的时候 无法解析。"
+        },
+        {
+            "author": "Devilk",
+            "timestamp": 1366970640,
+            "txt_content": "为什么无法读取 纹理图片。"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1368686400,
+            "txt_content": "在Forge7.7就是那个对应MC1.5.1的版本中楼主的代码可以掉落刷怪龙但是会掉落两个而且都不能捡起来"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1368693420,
+            "txt_content": "金坷居士 发表于 2013-5-16 14:40 \n在Forge7.7就是那个对应MC1.5.1的版本中楼主的代码可以掉落刷怪龙但是会掉落两个而且都不能捡起来\n此教程1.4.7不谢（PS：为啥总是扯1.5的）"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1368699300,
+            "txt_content": "yuxuanchiadm 发表于 2013-5-16 16:37 \n此教程1.4.7不谢（PS：为啥总是扯1.5的）\n窝错了QAQ\n顺便说下1.5.1的贴图神马东西变化都好大"
+        },
+        {
+            "author": "WH的MC",
+            "timestamp": 1371903480,
+            "txt_content": "知道吗，我快死了"
+        },
+        {
+            "author": "kuafuzhuguang",
+            "timestamp": 1375629900,
+            "txt_content": "成功。终于完事了。。。从头来了好几遍。\n不过\nimport net.minecraft.src.EnumToolMaterial;\nimport net.minecraft.src.Item;\nimport myFirstMod.Item.ItemSpawnerPickaxe;\n这几个确实有问题。。注了之后似乎也没啥影响"
+        },
+        {
+            "author": "饕餮魍魉枭蹀躞",
+            "timestamp": 1377259800,
+            "txt_content": "最坑爹的是什么？setItemname()报错！"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1377269640,
+            "txt_content": "饕餮魍魉枭蹀躞 发表于 2013-8-23 20:10 \n最坑爹的是什么？setItemname()报错！\n无JAVA基础请买书看或放弃"
+        },
+        {
+            "author": "饕餮魍魉枭蹀躞",
+            "timestamp": 1377397440,
+            "txt_content": "yuxuanchiadm 发表于 2013-8-23 22:54 \n无JAVA基础请买书看或放弃\n翻了翻Item.java\n似乎在1.5.2里把setItemname()改成setUnlocalizedName()了"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1377404280,
+            "txt_content": "饕餮魍魉枭蹀躞 发表于 2013-8-25 10:24 \n翻了翻Item.java\n似乎在1.5.2里把setItemname()改成setUnlocalizedName()了\n教程1.4.7没看见么"
+        },
+        {
+            "author": "1123fff",
+            "timestamp": 1385351940,
+            "txt_content": "yuxuanchiadm 发表于 2013-8-25 12:18 \n教程1.4.7没看见么\n楼主神马时候来个 ·1.52的教程······"
+        },
+        {
+            "author": "adaer",
+            "timestamp": 1386600060,
+            "txt_content": "金坷居士 发表于 2013-5-16 14:40 \n在Forge7.7就是那个对应MC1.5.1的版本中楼主的代码可以掉落刷怪龙但是会掉落两个而且都不能捡起来\n在掉落的时候应该用参数传进去的world而不是从API得到world的实例，这样才能捡取掉落物品。然后掉落两个的原因大概是在掉落的时候没有判断传入的world是不是isRemote。"
+        },
+        {
+            "author": "adaer",
+            "timestamp": 1386600660,
+            "txt_content": "金坷居士 发表于 2013-5-16 14:40 \n在Forge7.7就是那个对应MC1.5.1的版本中楼主的代码可以掉落刷怪龙但是会掉落两个而且都不能捡起来\n        研究了下其他方块掉落的代码，然后改成这个样子了。为了测试打土方快掉刷怪笼，并且掉耐久，判断了world是否是远程以后就没有掉两个刷怪笼了\n        @Override\n        public boolean onBlockDestroyed(ItemStack _itemStackAtHand, World _world,\n                        int _blockId, int _blockX, int _blockY, int _blockZ,\n                        EntityLivingBase _destorier)\n        {\n                if(_world.isRemote) return false;\n                if (_blockId == Block.dirt.blockID)\n                {\n                        // damage the itemstack\n                        _itemStackAtHand.damageItem(1, _destorier);\n                        EntityItem dropedItem = new EntityItem(_world, _blockX, _blockY,\n                                        _blockZ, new ItemStack(Block.mobSpawner.blockID, 1, 0));\n                        dropedItem.delayBeforeCanPickup = 10;\n                        _world.spawnEntityInWorld(dropedItem);\n                        return true;\n                }\n                return false;\n        }\n"
+        },
+        {
+            "author": "kimisnan",
+            "timestamp": 1387080120,
+            "txt_content": "MinecraftForgeClient这个类里面没有 preloadTexture这个静态方法？是不是换掉了我用的1.6.4 还有关于路径的问题，这个里面是是从根目录开始算么？"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1387084020,
+            "txt_content": "kimisnan 发表于 2013-12-15 12:02 \nMinecraftForgeClient这个类里面没有 preloadTexture这个静态方法？是不是换掉了我用的1.6.4 还有关于路径的 ...\n1.6有很大改动，使用资源包以及不需要预载入材质"
+        },
+        {
+            "author": "kimisnan",
+            "timestamp": 1387156680,
+            "txt_content": "yuxuanchiadm 发表于 2013-12-15 13:07 \n1.6有很大改动，使用资源包以及不需要预载入材质\nMinecraftForgeClient这个类里面没有 preloadTexture这个静态方法？如果我按照上面的教程在1.6里面去做，如何才能运行呢？还有您好，您知道哪里有1.6的API 就是每个类的解释，每个类的方法，或者您有没有参与什么类似的群，我也想进去探讨一下。"
+        },
+        {
+            "author": "kimisnan",
+            "timestamp": 1387156740,
+            "txt_content": "yuxuanchiadm 发表于 2013-12-15 13:07 \n1.6有很大改动，使用资源包以及不需要预载入材质\n如果在1.6里面我要如何去运行添加自己mod呢？还是您比较不推荐使用1.6呢？"
+        },
+        {
+            "author": "kimisnan",
+            "timestamp": 1387156800,
+            "txt_content": "yuxuanchiadm 发表于 2013-12-15 13:07 \n1.6有很大改动，使用资源包以及不需要预载入材质\nMinecraftForgeClient这个类里面没有 preloadTexture这个静态方法？如果我按照上面的教程在1.6里面去做，如何才能运行呢？还有您好，您知道哪里有1.6的API 就是每个类的解释，每个类的方法，或者您有没有参与什么类似的群，我也想进去探讨一下。"
+        },
+        {
+            "author": "zheng2002119",
+            "timestamp": 1406191800,
+            "txt_content": "xmq1991 发表于 2012-9-23 09:39\nLZ有些偷懒了\n这个函数在哪里，我表示没看到\n而且这个类的写法与之前你的写法不同，这个是采用实现接口的方 ...\n可以说好像要把名字双写= =233333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+            "author": "cten",
+            "timestamp": 1444815600,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

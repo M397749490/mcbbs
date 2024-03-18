@@ -1,0 +1,24 @@
+{
+    "title": "Bukkit插件开发：非主线程修改方块时遇到的问题",
+    "author": "HQcxf",
+    "replyCount": 3,
+    "timestamp": 1588399860,
+    "txt_content": " 本帖最后由 HQcxf 于 2020-5-2 14:46 编辑 \n\n新手开发 Bukkit 插件，测试于 Spigot 1.15.2\n遇到了一些问题，寻求大家的帮助。\n-\n每当玩家破坏方块后（众所周知，由于不知道从哪来的bug，这个事件总会被触发两次）：\n@EventHandler\npublic void onBreak(BlockBreakEvent e)\n{\n    e.setCancelled(true);\n    ... // 创建延时任务，传入 e.getBlock()\n}复制代码在玩家破坏方块后创建延时任务，一定时间后将破坏的方块替换为钻石块，在非主线程执行。\n本来打算将 e.getBlock() 传入，在非主线程\nBlock block = task.getTargetBlock(); // 是上面的 e.getBlock()\nblock.setType(Material.DIAMOND_BLOCK);复制代码执行上面第二行时，引发了如下异常，线程中止。\n[13:19:22] [Thread-19/WARN]: Exception in thread \"Thread-19\"\n[13:19:22] [Thread-19/WARN]: java.lang.IllegalStateException: Asynchronous block remove!\n[13:19:22] [Thread-19/WARN]:    at org.spigotmc.AsyncCatcher.catchOp(AsyncCatcher.java:14)\n[13:19:22] [Thread-19/WARN]:    at net.minecraft.server.v1_15_R1.Block.remove(Block.java:396)\n[13:19:22] [Thread-19/WARN]:    at net.minecraft.server.v1_15_R1.IBlockData.remove(SourceFile:259)\n[13:19:22] [Thread-19/WARN]:    at net.minecraft.server.v1_15_R1.Chunk.setType(Chunk.java:287)\n[13:19:22] [Thread-19/WARN]:    at net.minecraft.server.v1_15_R1.World.setTypeAndData(World.java:224)\n[13:19:22] [Thread-19/WARN]:    at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setTypeAndData(CraftBlock.java:192)\n[13:19:22] [Thread-19/WARN]:    at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setBlockData(CraftBlock.java:177)\n[13:19:22] [Thread-19/WARN]:    at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setType(CraftBlock.java:166)\n[13:19:22] [Thread-19/WARN]:    at org.bukkit.craftbukkit.v1_15_R1.block.CraftBlock.setType(CraftBlock.java:160)\n[13:19:22] [Thread-19/WARN]:    at worldguardstrangemining.WorldGuardStrangeMining.DoWork(WorldGuardStrangeMining.java:62)\n[13:19:22] [Thread-19/WARN]:    at java.lang.Thread.run(Unknown Source)复制代码这不是我所期望的。而如果这么写：\n@EventHandler\npublic void onBreak(BlockBreakEvent e)\n{\n    e.setCancelled(true);\n    e.getBlock.setType(Material.DIAMOND_BLOCK);\n}复制代码是能够正常执行的。\n-\n问题已经解决，感谢用户\nhttps://www.mcbbs.net/?2388218\n-\n只需确保修改方块的操作在主线程执行即可。可以这样：\nBlock block = task.getTargetBlock();\nBukkit.getScheduler().runTask(getPlugin(), () ->\n{\n    block.setType(task.getMaterialAfterBeingChanged());\n});复制代码请参阅沙发。\n",
+    "replies": [
+        {
+            "author": "William_Shi",
+            "timestamp": 1588400520,
+            "txt_content": " 本帖最后由 William_Shi 于 2020-5-2 14:23 编辑 \n\n这不是很正常吗\n几乎与mc相关的东西都不是线程安全的\n像这种放置方块什么的肯定得放在主线程执行\n\n可以看一下https://www.mcbbs.net/forum.php?mod=viewthread&tid=725571\n\n海螺螺大佬写到了线程安全相关问题\n关于线程安全\n以上接收时的事件全部是在网络线程被触发，所以对于线程不安全的Minecraft来说，线程安全问题需要额外注意。\n由于本人对 Forge 的操作并不是很熟练，所以只能以 Bukkit 作为例子，如果你接收到的信息只是一条字符串，并且你只是想将其发送给玩家（Player#sendMessage），那么你可以随意在网络线程中使用，因为这个方法是线程安全的；但是，如果你需要进行踢出（Player#kickPlayer），那么你必须在主线程（Server Thread）进行这个操作，否则可能得到一个报错、崩溃或者意想不到的结果（尽管 Bukkit 会阻止 Async Kick 的行为并发出警告）。\n那么，我们可以用以下的方法将数据转交给主线程处理：\n使用 Bukkit 或者 Sponge 的调度器\n展开 / 收起隐藏文字\nBukkit#getScheduler 返回一个 Bukkit 的调度器，Sponge#getScheduler 返回一个 Sponge 的调度器。\n实例如下：\nBukkit 错误的做法：\n        @Override\n        public void onPluginMessageReceived(String channel, Player player, byte[] data) {\n                player.kickPlayer(\"你因为给服务器发 plugin message 被踢了\");\n                <font color=\"#808080\">// 报错</font>\n        }\n复制代码\nBukkit 的正确做法，将涉及服务器的操作使用调度器交给主线程完成：\n        @Override\n        public void onPluginMessageReceived(String channel, Player player, byte[] data) {\n                Bukkit.getScheduler().runTask(插件实例, () -> player.kickPlayer(\"被服务器用调度器踢出\"));\n        }\n复制代码\nSponge 的调度器操作类似。\n\n利用管道IO\n展开 / 收起隐藏文字\n管道IO，PipedInputStream 和 PipedOutputStream 用于线程间的通信，主要思想为：\n连接管道（PipedOutputStream#connect(PipedInputStream in)）-> 线程W写入流（即网络线程） -> 线程R读取流（即Server Thread）\n示例用法见帖尾链接\n管道流可以用于线程间的通信，使用 byte[] 传输。\nPipedInputStream 的 read 方法，如果没有读取到管道流中的数据，将会阻塞线程，请务必注意！\n还需要注意的是，Minecraft 使用的网络线程可能有多条，需要额外注意。默认的 Netty IO 线程有 4 条。\n当然这是netty数据传输的例子\n但是原理是相通的\n你可以使用BukkitRunnable、MinecraftScheduler、BukkitScheduler等多种方式把任务推给主线程"
+        },
+        {
+            "author": "狡诈师",
+            "timestamp": 1588401060,
+            "txt_content": " 本帖最后由 童鞋鞋 于 2020-5-2 14:33 编辑 \nAsynchronous block remove!不能用异步删除块，请使用主线程方式操作"
+        },
+        {
+            "author": "HQcxf",
+            "timestamp": 1588401480,
+            "txt_content": "William_Shi 发表于 2020-5-2 14:22\n这不是很正常吗\n几乎与mc相关的东西都不是线程安全的\n像这种放置方块什么的肯定得放在主线程执行\n问题解决了。谢谢！\n但是金粒上限15……有点尴尬……是不是要您多写几条回复"
+        }
+    ]
+}

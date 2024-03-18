@@ -1,0 +1,84 @@
+{
+    "title": "来个不一样的～教你自定义事件",
+    "author": "桃渊林",
+    "replyCount": 15,
+    "timestamp": 1450445340,
+    "txt_content": " 本帖最后由 hcrgm1 于 2018-8-10 12:10 编辑 \n\n现在编程版的插件开发教程早已“落地生根，枝繁叶茂”，相信大家都能够学会开发插件的一些步骤，这次我就来个不同的，扩展一下大家的知识。\n学过如何开发插件的童鞋们也都知道事件api的使用，这会我就发个高级货——自定义事件。\nBukkitAPI提供的event包已经包含了我们可能用到的绝大多数事件，但是，可能遇到没有想要的事件的情况，或者想扩展一个事件供某些插件使用（比如这个玩家用某装备插件的一个命令修理了一个装备，这个装备插件就能传唤一个事件，供其它插件响应这个事件）。下面开始正文吧\n我们就先新建一个类，用来描述这个自定义事件，确定好名字后就新建，然后使这个类继承org.bukkit.event.Event类（如果有多个事件是统一种类，那你也可新建一个抽象类继承Event类，表示这个种类的事件，写上需要用到的变量和方法，然后子事件类继承这个类就可以了，也可以提高代码重用性）\n然后，写上必须写的一段代码（再次强调这个不能丢！！），如下代码块所示：\nprivate static final HandlerList handlers = new HandlerList();\n@Override\npublic HandlerList getHandlers() {\n    return handlers;\n}\npublic static HandlerList getHandlerList() {\n    return handlers;\n}复制代码\nHandlerList干什么用的？就是用来存储事件的，还有如果要注销事件也要用到HandlerList，具体就自己探讨吧\n然后这个事件的雏形基本就出来了，这时已经定义好了一个事件，不过还没有任何用处。接下来只需写好可能会用到的方法，比如获取这个事件涉及的玩家啊(比如getPlayer())，这个事件发生在哪个事件啊(比如getWorld())，等等，这些我形象地称这些方法为getter，当然setter有时是必不可少的，千万不要忘记。\n然后就大功告成，成功写好了自定义事件。我写的如下，友友们可以参考下：\nimport org.bukkit.event.Event;\nimport org.bukkit.event.HandlerList;\n\npublic class MyEvent extends Event {\n    private static final HandlerList handlers = new HandlerList();\n    private Player player;\n\n    /* 这是类的构造器，按事件要实现的功能来取舍 */\n    public MyEvent(final Player player) {\n        this.player = player;\n    }\n\n    /* 获取这个事件涉及的玩家 */\n    public Player getPlayer() {\n        return player;\n    }\n\n    public void setMoney(double money) {\n        // 这个调用胡扯的哈，不要直接复制，怎么实现还得您自己码哈，而且这个方法也不是必要的，要看什么场合用\n        player.setMoney(money, true);\n    }\n\n    /* 这就是我在强调的要加上的两个方法 */\n    @Override\n    public HandlerList getHandlers() {\n        return handlers;\n    }\n\n    public static HandlerList getHandlerList() {\n        return handlers;\n    }\n}复制代码\n写好了，然而并没有结束，因为这个事件总得被传唤嘛！没有传唤就永远都不会响应，接下来教你如何传唤（调用）事件\norg.bukkit.plugin.PluginManager类下有一个callEvent方法，其唯一的参数为Event event，你只需要创建你的Event的实例传入这个参数就可以了\n怎么获取PluginManager对象呢？Bukkit.getServer().getPluginManager()这个方**返回PluginManager对象，然后就很简单了\n语句大概就是这样：\nMyEvent event = new MyEvent(player);\nBukkit.getServer().getPluginManager().callEvent(event);复制代码\n注意：你必须时刻牢记传唤你的事件，否则将不起作用！！！！注意：该方法使线程安全的，也就是说你可以放心地在异步线程/任务中调用此方法.\n有些人就可能在这里问：“事件的取消呢！！”，别急，其实很简单，只要让你的事件实现Cancellable类，定义一个表示事件取消的布尔值然后写上下面的两个方法即可。\npublic boolean isCancelled() {\n    return cancelled;\n}\npublic void setCancelled(boolean cancel) {\n    this.cancelled = cancel;\n}复制代码\n而且，这两个方法不写IDE也会提醒你“Cancellable 接口的方法 xxx 未实现”\n另外，我建议你在处理之前检测这个事件有没有被取消，没取消就执行相应动作，比如以下代码：\nif(!event.isCancelled()) {\n    // do sth......\n} else {\n    // do sth......\n}复制代码\n嗯。。写完了，接下来就跟普通事件一样去监听啦～\npublic class MyListener implements Listener {\n    @EventHandler//(priority=EventPriority.等级，LOWEST最先执行但对事件产生地影响等级最低，MONITIR最后执行但对事件产生地影响等级最高，如果保持默认等级就不需要注释后的内容)\n    public voud onxxx(MyEvent event) {\n        // 自己写啦\n    }\n}复制代码\n上一个空白事件模板，大家可以偷偷懒\nimport org.bukkit.event.Event;\nimport org.bukkit.event.HandlerList;\n\n/* 一个简简单单的自定义事件模板，能够取消（如果您不希望你的事件能被取消，请不要实现Cancellable接口以及删去与此相关的一切代码） */\npublic class EmptyEvent extends Event implements Cancellable {\n    private static final HandlerList handlers = new HandlerList();\n    private String mes;\n    private boolean cancelled; // 如果您希望你的事件能被取消这行不要删\n\n    public EmptyEvent(String mes) {\n        this.mes = mes;\n    }\n\n    public String getMessage() {\n        return mes;\n    }\n\n    public void setMessage(String mes) {\n        this.mes = mes;\n    }\n\n    /* 这两个方法绝对不能少 */\n    @Override\n    public HandlerList getHandlers() {\n        return handlers;\n    }\n\n    public static HandlerList getHandlerList() {\n        return handlers;\n    }\n\n    /* 如果您希望你的事件能被取消以下两个方法不要删去 */\n    public boolean isCancelled() {\n        return cancelled;\n    }\n\n    public void setCancelled(boolean cancel) {\n        this.cancelled = cancel;\n    }\n\n}复制代码\n顺便给点人气金粒嘛＠(￣-￣)＠\n\n[groupid=324]上古之石美工工作组[/groupid]",
+    "replies": [
+        {
+            "author": "可可可可可乐",
+            "timestamp": 1450460760,
+            "txt_content": "感谢，刚刚还在问人怎么自定义"
+        },
+        {
+            "author": "MC_Miter",
+            "timestamp": 1450876260,
+            "txt_content": "感谢教程\n但是看不懂诶！"
+        },
+        {
+            "author": "4one_R",
+            "timestamp": 1450912560,
+            "txt_content": "一直用PluginManager注册listener，现在发现原来callEvent在这里…学习了！"
+        },
+        {
+            "author": "Syro",
+            "timestamp": 1452962220,
+            "txt_content": "请问语言？"
+        },
+        {
+            "author": "EndOfStreamly",
+            "timestamp": 1453076160,
+            "txt_content": "_(:зゝ∠)_蛮不错的,支持一下！"
+        },
+        {
+            "author": "t9044",
+            "timestamp": 1453128540,
+            "txt_content": "非常不错的教程贴~\n编程开发帖就需要更多你这样的进阶的、非基础性教学的教学帖"
+        },
+        {
+            "author": "yanggexuyang",
+            "timestamp": 1470975600,
+            "txt_content": "感谢教程！终于明白我自定义事件不行的原因是没有getHandlerList了"
+        },
+        {
+            "author": "2571612311",
+            "timestamp": 1488631800,
+            "txt_content": "楼楼，有一个问题想请教一下\n举个例子onPlayerJoin这个是在玩家加入的时候触发\n但自定义事件我比如说要让两个玩家在一起时监听器触发\n又该怎么做呢"
+        },
+        {
+            "author": "w_cn",
+            "timestamp": 1495944960,
+            "txt_content": "MyEvent event = new MyEvent(player);\nBukkit.getServer().getPluginManager().callEvent(event);\n这两句代码 一般放在哪里？"
+        },
+        {
+            "author": "TRLLolita",
+            "timestamp": 1495945020,
+            "txt_content": "支持楼主一下！"
+        },
+        {
+            "author": "w_cn",
+            "timestamp": 1496048280,
+            "txt_content": "自定义事件的触发 一般都是放在 Bukkit自带的事件里面吗？\n感觉没有好的例子 想不出来。。。\n大佬们教导小弟一下"
+        },
+        {
+            "author": "404565377",
+            "timestamp": 1542616500,
+            "txt_content": "    public voud onxxx(MyEvent event) {\n        // 自己写啦\n    }\nvoud可还行(各种刁钻)"
+        },
+        {
+            "author": "猿汐",
+            "timestamp": 1552194120,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "MT_meng",
+            "timestamp": 1552311660,
+            "txt_content": "看不懂。。。"
+        },
+        {
+            "author": "xiaodong150",
+            "timestamp": 1552338960,
+            "txt_content": "建议大佬多加点注解，小白略有看不懂"
+        }
+    ]
+}

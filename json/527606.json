@@ -1,0 +1,174 @@
+{
+    "title": "[mod开发高级教程]维度生成",
+    "author": "xiweihai",
+    "replyCount": 33,
+    "timestamp": 1449134220,
+    "txt_content": " 本帖最后由 xiweihai 于 2015-12-5 01:52 编辑 \n\n先说明一下mc的创建新世界是靠一个叫WorldProvider的类，然后每个维度（也就是世界）都有一个独立的id，比如说mc的三个世界id分别是-1,0,1当然这个世界也不列外，你只需要提供一个世界供应者和chunk供应者就能生成一个独立的维度，很幸运的是，保存地图数据玩家数据等等，mc都已经帮完成了，当然其中也有毕竟困难的地方也就是地形生成，这个我后面会说道。\n\n首先我们先写一个世界供应者稍后注册世界会用到（不要在意中二的类命），代码如下\n/**\n * 生成世界\n * @author xwh\n *\n */\npublic class WorldProviderPollute extends WorldProvider{\n            /**\n             * 注册世界和维度id和设置管理者\n             * \n             */\n            public void registerWorldChunkManager()\n            {\n               this.worldChunkMgr = new WorldChunkManager(worldObj);\n                this.dimensionId = 21;\n            }\n            /**\n             * 设置世界时间的函数，你设置world时间会调用这个函数,我设置是平常时间两倍速度\n             */\n            public void setWorldTime(long time)\n            {\n                worldObj.getWorldInfo().setWorldTime(time/2);\n            }\n            /**\n             * 返回世界时间，同理\n             */\n            @Override\n            public long getWorldTime() {\n                    return worldObj.getWorldInfo().getWorldTime()*2;\n            }\n            /**\n             * 返回天空颜色，三个值是rgb值我也不知道为啥要用Vec3表示...，mc源码就是这样\n             */\n            @Override\n            @SideOnly(Side.CLIENT)\n            public Vec3 getSkyColor(Entity cameraEntity, float partialTicks) {\n                    return Vec3.createVectorHelper(0.20000000298023224D, 0.029999999329447746D, 0.029999999329447746D);\n            }\n            /**\n             * 返回chunk供应者后面会写到\n             */\n            public IChunkProvider createChunkGenerator()\n            {\n                return new ChunkProviderPollute(this.worldObj, this.worldObj.getSeed();\n            }\n            /**\n             * 是否是平常世界\n             */\n            public boolean isSurfaceWorld()\n            {\n                return true;\n            }\n            /**\n             * 世界存档文件夹名称\n             */\n            public String getDimensionName()\n            {\n                return \"pulluteWorld-\"+dimensionId;\n            }\n}复制代码说明：\n    这个就是所谓的世界供应者，待会需要在mod入口注册,每个方法都有说明不过多解释\n    当然这个类里面有很多返回各种参数的方法，比如说云朵高度，雾的颜色你可以重新那个方法自己定义\n然后我们需要写一个WorldTeleporter类，这是因为mc一个坑爹的机制后面会讲到\npublic class WorldTeleporterPollute extends Teleporter{\n\n        public WorldTeleporterPollute(WorldServer p_i1963_1_) {\n                super(p_i1963_1_);\n        }\n        @Override\n        public boolean placeInExistingPortal(Entity p_77184_1_, double p_77184_2_,\n                        double p_77184_4_, double p_77184_6_, float p_77184_8_) {\n                return false;\n        }\n        \n        @Override\n        public void placeInPortal(Entity p_77185_1_, double p_77185_2_,\n                        double p_77185_4_, double p_77185_6_, float p_77185_8_) {\n        }\n        \n        @Override\n        public boolean makePortal(Entity p_85188_1_) {\n                return false;\n        }\n        \n        @Override\n        public void removeStalePortalLocations(long p_85189_1_) {\n        }\n}复制代码说明：\n这个类主要的作用就是传送门的管理以及传送时需要用到，当然现在我们忽略不计后面的章节会讲\n但是搞这样一个空白的类有什么意义呢，别急意义一定是有的，为什么不能用travelToDimension这个方法直接传送呢，\n因为如果你调用这个传送的话，是可以传送到这个世界，但是传送到新维度后，会生成一个传送门有把你传送会以前的世界了，\n这样的结果就是你永远传不过去2333，所以我们要写一个这样的类\n\n然后需要写一个chunk供应者，作用就是提供每个chunk里面的方块,代码如下/**\n * @author xwh\n *chunk供应\n */\npublic class ChunkProviderPollute implements IChunkProvider{\n        /** RNG. */\n    private Random rand;\n    private NoiseGeneratorOctaves noiseGeneratorOctaves;\n    /** Reference to the World object. */\n    private World worldObj;\n    private WorldType field_147435_p;\n    private MapGenScatteredFeature scatteredFeatureGenerator = new MapGenScatteredFeature();\n    private BiomeGenBase[] biomesForGeneration;\n    double[] genBuff;\n    /**\n     * \n     * @param worldObj 世界\n     * @param seed 地图种子\n     * @param mapFeaturesEnabled 是否生成基本结构\n     */\n    public ChunkProviderPollute(World worldObj, long seed)\n    {\n        this.worldObj = worldObj;\n        this.field_147435_p = worldObj.getWorldInfo().getTerrainType();\n        this.rand = new Random(seed);\n        this.noiseGeneratorOctaves = new NoiseGeneratorOctaves(this.rand, 16);\n        this.genBuff = new double[16*16];\n    }\n    /**\n     * 生成地\n     * @param x\n     * @param z\n     * @param blocks\n     */\n    public void generation(int x, int z, Block[] blocks)\n    {\n            this.genBuff = this.noiseGeneratorOctaves.generateNoiseOctaves(this.genBuff,x*16,0,z*16, 16, 1,16, 1000, 8000, 1000);\n        int i=0;\n        //遍历每个生成的高度\n        for(double d:genBuff){\n                //根据幅度的大小取一个合适的高度,太高了会导致数组溢出太低了效果不好，自己看着办,在高度60米左右的地方生成基本地形\n                int by=(int) (60+d/8000);\n                //生成地面以及地下的方块\n                for(int in=0;in<by;in++){\n                        int bi =(i * 256)| in;\n                        //在最下面两层生成基岩\n                        if(in<2){\n                                blocks[bi]=Blocks.bedrock;\n                        }else if(in>=by-2){//最上面两层生成泥土\n                                blocks[bi]=Blocks.dirt;\n                        }else{//中间生成原石\n                                blocks[bi]=Blocks.stone;\n                        }\n                }\n                        int bi =(i * 256)| by;\n                        //顶层生成草地\n                        blocks[bi]=blocks[bi]=Blocks.grass;\n                i++;\n        }\n\n    }\n    public Chunk loadChunk(int p_73158_1_, int p_73158_2_)\n    {\n        return this.provideChunk(p_73158_1_, p_73158_2_);\n    }\n\n    /**\n     * 返回chunk，你可以在里面生成基本地形\n     * \n     */\n    public Chunk provideChunk(int x, int z)\n    {\n        this.rand.setSeed((long)x * 341873128712L + (long)z * 132897987541L);\n        Block[] ablock = new Block[65536];\n        byte[] abyte = new byte[65536];\n        this.generation(x, z, ablock);\n        this.biomesForGeneration = this.worldObj.getWorldChunkManager().loadBlockGeneratorData(this.biomesForGeneration, x * 16, z * 16, 16, 16);\n        Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);\n        byte[] abyte1 = chunk.getBiomeArray();\n        for (int k = 0; k < abyte1.length; ++k)\n        {\n            abyte1[k] = (byte)this.biomesForGeneration[k].biomeID;\n        }\n        chunk.generateSkylightMap();\n        return chunk;\n    }\n    \n\n    public boolean chunkExists(int p_73149_1_, int p_73149_2_)\n    {\n        return true;\n    }\n\n    /**\n     * 这个是添加结构的时候要用到的回调函数\n     */\n    public void populate(IChunkProvider provider, int x, int z)\n    {\n      \n    }\n    public boolean saveChunks(boolean p_73151_1_, IProgressUpdate p_73151_2_)\n    {\n        return true;\n    }\n    public void saveExtraData() {}\n    public boolean unloadQueuedChunks()\n    {\n        return false;\n    }\n    public boolean canSave()\n    {\n        return true;\n    }\n    public String makeString()\n    {\n        return \"RandomLevelSource\";\n    }\n    /**\n     * 返回某个位置的实体列表\n     */\n    public List getPossibleCreatures(EnumCreatureType p_73155_1_, int p_73155_2_, int p_73155_3_, int p_73155_4_)\n    {\n        BiomeGenBase biomegenbase = this.worldObj.getBiomeGenForCoords(p_73155_2_, p_73155_4_);\n        return p_73155_1_ == EnumCreatureType.monster && this.scatteredFeatureGenerator.func_143030_a(p_73155_2_, p_73155_3_, p_73155_4_) ? this.scatteredFeatureGenerator.getScatteredFeatureSpawnList() : biomegenbase.getSpawnableList(p_73155_1_);\n    }\n    public ChunkPosition func_147416_a(World p_147416_1_, String p_147416_2_, int p_147416_3_, int p_147416_4_, int p_147416_5_)\n    {\n        return null;\n    }\n    public int getLoadedChunkCount()\n    {\n        return 0;\n    }\n    /**\n     * 多重结构生成回调\n     */\n        @Override\n        public void recreateStructures(int p_82695_1_, int p_82695_2_) {\n                \n        }复制代码\n\n\n说明：\n       这个类是重点部分，他将提供这个世界每个chunk中的方法，也就是基本地形生成都是在这里面进行的\n      provideChunk当玩家在这个世界移动到一个没到过的chunk时，会加载这个函数，返回chunk加载到世界上，而一个chunk的大小是多少呢，16*16*256，也就是65536需要注意的是数组储存的顺序是xzy,所以头一位储存的是x，第二位是z，第三和第四是z，故一个在chunk里面x坐标为5z坐标为11y坐标为156可以用16进制这样表达0x5b9c，至于那个abyte是该方块所处于的生物群系id\nnoiseGeneratorOctaves介绍：这个是实现自然地形主要的算法，柏林噪音，，大致就是生成一段起伏不定的波浪状频谱，然后利用这个模拟地形第一个参数是储存起伏不定的噪音坐标的数组，然后就是噪音xyz开始的位子，xyz生成的大小，xyz生成的幅度，越大上下起伏的落差就越大\n一个噪声函数基本上是一个种子随机发生器。它需要一个整数作为参数，然后根据这个参数返回一个随机数。如果你两次都传同一个参数进来，它就会产生两次相同的数。这条规律非常重要，否则柏林函数只是生成一堆垃圾。\n这里的一张图展现了噪声函数的一个例子。X轴上每个点被赋予一个0到1之间的随机数。\n\n\n\n\nperlin_02.gif (1.37 KB, 下载次数: 20)\n\n下载附件\n\n2015-12-5 01:13 上传\n\n\n\n\n\n通过在值之间平滑的插值，我们定义了一个带有一个非整参数的连续函数。我们将会在后面的内容中讨论多种插值方式\n\n\n\n\n\n下面就是最后的注册世界了\nDimensionManager.registerProviderType(21, WorldProviderPollute.class, true);\n                DimensionManager.registerDimension(21,21);复制代码在mod初始化的时候加上这样的代码就行了，注意这3个21是世界的id\n然后如何传送到这个世界呢\nif(entity instanceof EntityPlayerMP){\n                                        ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();\n                                        WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));\n                                        scm.transferPlayerToDimension((EntityPlayerMP) entity, 21, teleporter);\n                                }else {\n                                        ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();\n                                        WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));\n                                        scm.transferEntityToWorld(entity, 21,(WorldServer) world,MinecraftServer.getServer().worldServerForDimension(21),teleporter);\n                                }复制代码实体传送和玩家传送的方法\n需要注意的是传送前判断一下world instanceof WorldServer道理应该都懂吧，这样的操作只能在Server进行\n\n运行截图\n索引\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "xiweihai",
+            "timestamp": 1449245040,
+            "txt_content": " 本帖最后由 xiweihai 于 2015-12-5 01:44 编辑 \n\n已更新代码"
+        },
+        {
+            "author": "RothBlink",
+            "timestamp": 1449911100,
+            "txt_content": "请问这个具体应该写在哪里？\nDimensionManager.registerProviderType(21, WorldProviderPollute.class, true);\n                DimensionManager.registerDimension(21,21);"
+        },
+        {
+            "author": "RothBlink",
+            "timestamp": 1450064640,
+            "txt_content": "RothBlink 发表于 2015-12-12 17:05\n请问这个具体应该写在哪里？\nDimensionManager.registerProviderType(21, WorldProviderPollute.class, tru ...\n我找到了应该mod的load里面但是下面的代码怎么添加。求解释啊求解释啊。"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1450074000,
+            "txt_content": "RothBlink 发表于 2015-12-14 11:44\n我找到了应该mod的load里面但是下面的代码怎么添加。求解释啊求解释啊。 ...\n醉了，在mod初始化函数里面加上啊"
+        },
+        {
+            "author": "RothBlink",
+            "timestamp": 1450078740,
+            "txt_content": "大神回我了好开心！试了下可以了，但是\nif(entity instanceof EntityPlayerMP){\n                                        ServerConfigurationManager scm = MinecraftServer.getServer().getConfigurationManager();\n                                        WorldTeleporterPollute teleporter = new WorldTeleporterPollute(MinecraftServer.getServer().worldServerForDimension(21));\n                                        scm.transferPlayerToDimension((EntityPlayerMP) entity, 21, teleporter);\n这一段还没有添加成功在load里面总是会失败。现在继承地狱门这个类然后勉强可以进入到这个世界里面去。"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1450078800,
+            "txt_content": "RothBlink 发表于 2015-12-14 15:39\n大神回我了好开心！试了下可以了，但是\nif(entity instanceof EntityPlayerMP){\n                   ...\n这是传送玩家的方法，这个你加到初始化函数里面肯定报错，你传送玩家时在调用，另外那个实体传送有问题，我看mc源码传送实体是这样子的，\n要在这个世界删除掉实体，然后复制实体在另外一个世界生成来实现的，不过传送玩家这样是可以的"
+        },
+        {
+            "author": "RothBlink",
+            "timestamp": 1450089060,
+            "txt_content": "所以只能传送玩家么。。。"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1450090680,
+            "txt_content": "RothBlink 发表于 2015-12-14 18:31\n所以只能传送玩家么。。。\n\n\n\n\n655G)550J6W9S}_Q3]4YZ)V.png (34.37 KB, 下载次数: 6)\n\n下载附件\n\n2015-12-14 18:56 上传\n\n\n\n\n当然可以传送实体，其实实现原理就是把实体从这个世界删除，然后复制实体，再另外一个世界生成来实现实体传送。另外，不再回答此贴任何问题\n\n"
+        },
+        {
+            "author": "1606140786",
+            "timestamp": 1450282440,
+            "txt_content": "好高级哇，完全看不懂{:10_492:}"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452760080,
+            "txt_content": "我新建了一个世界把地狱里岩浆都改成了水。\n不过有点暗"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452760440,
+            "txt_content": "还有请问如何添加生物群系？\n地狱里全是僵尸和小白"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452761460,
+            "txt_content": "一个无聊的世界\n\n\n\n\n\n捕获.png\n(179.04 KB, 下载次数: 15)\n\n\n\n\n下载附件\n\n\n2016-1-14 16:50 上传\n\n\n\n\n\n\n\n\n一个用调试模式作为Chunk的世界\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1452764640,
+            "txt_content": "xxj2003 发表于 2016-1-14 16:51\n一个无聊的世界\n噗呲，这真的好简单，建议里深入了解下地形生成算法，以及结构生成算法"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1452764700,
+            "txt_content": "xxj2003 发表于 2016-1-14 16:34\n还有请问如何添加生物群系？\n地狱里全是僵尸和小白\nnew 世界供应者的时候加上一个自定义生物群系，然后可以在生物群系里定义刷怪"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452765060,
+            "txt_content": "xiweihai 发表于 2015-12-14 18:58\n当然可以传送实体，其实实现原理就是把实体从这个世界删除，然后复制实体，再另外一个世界生成来实现实体 ...\n我看这个函数竟然学会如何复制实体了\n也是醉了\n如果创建玩家实体时间过长游戏不会崩掉吗"
+        },
+        {
+            "author": "xiweihai",
+            "timestamp": 1452765120,
+            "txt_content": "xxj2003 发表于 2016-1-14 17:51\n我看这个函数竟然学会如何复制实体了\n也是醉了\n如果创建玩家实体时间过长游戏不会崩掉吗 ...\n你真的有认真看源码么，玩家是有个专门存放的地方，能直接操作，而实体不行，故实体需要用复制的方法实现传送，而玩家直接改变玩家的世界就行了复制玩家也是醉了"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452766680,
+            "txt_content": "xiweihai 发表于 2016-1-14 17:52\n你真的有认真看源码么，玩家是有个专门存放的地方，能直接操作，而实体不行，故实体需要用复制的方法实现 ...if (!this.worldObj.isRemote && !this.isDead)\n        {\n            this.worldObj.theProfiler.startSection(\"changeDimension\");\n            MinecraftServer minecraftserver = MinecraftServer.getServer();\n            int j = this.dimension;\n            WorldServer worldserver = minecraftserver.worldServerForDimension(j);\n            WorldServer worldserver1 = minecraftserver.worldServerForDimension(dimensionId);\n            this.dimension = dimensionId;\n\n            if (j == 1 && dimensionId == 1)\n            {\n                worldserver1 = minecraftserver.worldServerForDimension(0);\n                this.dimension = 0;\n            }\n\n            this.worldObj.removeEntity(this);\n            this.isDead = false;\n            this.worldObj.theProfiler.startSection(\"reposition\");\n            minecraftserver.getConfigurationManager().transferEntityToWorld(this, j, worldserver, worldserver1);\n            this.worldObj.theProfiler.endStartSection(\"reloading\");\n            Entity entity = EntityList.createEntityByName(EntityList.getEntityString(this), worldserver1);\n\n            if (entity != null)\n            {\n                entity.copyDataFromOld(this);\n\n                if (j == 1 && dimensionId == 1)\n                {\n                    BlockPos blockpos = this.worldObj.getTopSolidOrLiquidBlock(worldserver1.getSpawnPoint());\n                    entity.moveToBlockPosAndAngles(blockpos, entity.rotationYaw, entity.rotationPitch);\n                }\n\n                worldserver1.spawnEntityInWorld(entity);\n            }\n\n            this.isDead = true;\n            this.worldObj.theProfiler.endSection();\n            worldserver.resetUpdateEntityTick();\n            worldserver1.resetUpdateEntityTick();\n            this.worldObj.theProfiler.endSection();\n\n好像没有\nif(XXX instanceof EntityPlayer)"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452767040,
+            "txt_content": "Entity类的travelToDimension"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1452767460,
+            "txt_content": "能让指南针乱转吗"
+        },
+        {
+            "author": "AFP",
+            "timestamp": 1454239980,
+            "txt_content": " Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);   这行会报错啊，Chunk的括号里只能是(world,x,z)或者(world,primer,x,z)啊"
+        },
+        {
+            "author": "AFP",
+            "timestamp": 1454399640,
+            "txt_content": "xxj2003 发表于 2016-1-14 18:31\n能让指南针乱转吗\n求教一下你的是1.8版本吗，我的chunkprovider中 Chunk chunk = new Chunk(this.worldObj, ablock, abyte, x, z);   这行会报错啊，Chunk的括号里只能是(world,x,z)或者(world,primer,x,z)……我看了源码里面也只有这两种，求看看你的chunkprovider是什么样的，现在一直不能生成地形"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1454400180,
+            "txt_content": "AFP 发表于 2016-2-2 15:54\n求教一下你的是1.8版本吗，我的chunkprovider中 Chunk chunk = new Chunk(this.worldObj, ablock, abyte, ...\n你可以看看末地的代码，或者地狱。多翻翻源代码没什么坏处"
+        },
+        {
+            "author": "AFP",
+            "timestamp": 1454400360,
+            "txt_content": "xxj2003 发表于 2016-2-2 16:03\n你可以看看末地的代码，或者地狱。多翻翻源代码没什么坏处\n看过了，里面用的是Chunk(world, chunkprimer, x,z)"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1454400960,
+            "txt_content": "AFP 发表于 2016-2-2 16:06\n看过了，里面用的是Chunk(world, chunkprimer, x,z)\n那你用他的算法不就行了"
+        },
+        {
+            "author": "AFP",
+            "timestamp": 1454416560,
+            "txt_content": "xxj2003 发表于 2016-2-2 16:16\n那你用他的算法不就行了\n解决了，我用新建生物群系的方法解决了，顺便还解决了刷怪的问题，谢谢"
+        },
+        {
+            "author": "xxj2003",
+            "timestamp": 1454419080,
+            "txt_content": "AFP 发表于 2016-2-2 20:36\n解决了，我用新建生物群系的方法解决了，顺便还解决了刷怪的问题，谢谢\n ...\n对了，请问你做的什么世界？"
+        },
+        {
+            "author": "AFP",
+            "timestamp": 1454419320,
+            "txt_content": "xxj2003 发表于 2016-2-2 21:18\n对了，请问你做的什么世界？\n我做的是一个叫冰川时代的世界全是冰泥土和冰方块（我自己做的方块）然后加到我的mod里，既然问题解决了，接下来就要继续学做生物了"
+        },
+        {
+            "author": "1606140786",
+            "timestamp": 1454434380,
+            "txt_content": "不错的作品！\n收藏先~"
+        },
+        {
+            "author": "1664963825",
+            "timestamp": 1569997620,
+            "txt_content": "大神能留个联系方式吗，有问题想问一下，我扣扣2955050541"
+        },
+        {
+            "author": "青千审计",
+            "timestamp": 1572071580,
+            "txt_content": "markmarkmark"
+        },
+        {
+            "author": "806768",
+            "timestamp": 1577810220,
+            "txt_content": "我竟然看不懂？？？？！！！"
+        },
+        {
+            "author": "qwq执范",
+            "timestamp": 1589095380,
+            "txt_content": "来考古，lznb"
+        },
+        {
+            "author": "Frankkkk____",
+            "timestamp": 1592793420,
+            "txt_content": "宝藏帖子！果断收藏"
+        }
+    ]
+}

@@ -1,0 +1,504 @@
+{
+    "title": "用MCP制作属于自己的简单mod （已过期）",
+    "author": "719823597",
+    "replyCount": 99,
+    "timestamp": 1312954980,
+    "txt_content": " 本帖最后由 719823597 于 2014-1-16 15:04 编辑 \n\n\n                    转载请注明原帖地址\n\n\n\n                                                         一.设置MCP\n需要的东西：\nMCP:http://mcp.ocean-labs.de/index.php/MCP_Releases\n干净的MINECRAFT\n官方服务端\nJDK6\n\n\n先把MCP解压了（我解压到了C盘 C:\\MCP），复制BIN和RESOURCE和官方服务端到MCP目录里的jars文件夹（C:\\MCP\\JARS）然后点开decompile.bat，完成\n\n\n\n                                                                               二.制作新的合成公式\n打开mcp里的src文件夹（MCP\\src\\minecraft\\net\\minecraft\\src）找到CraftingManage.java，打开（记事本都行的），可以看到类似于这个的代码\n        addRecipe(new ItemStack(Block.trapdoor, 1), new Object[] {\n            \"###\", \"###\", Character.valueOf('#'), Block.planks\n        });\n复制代码这是陷阱门的合成公式，Block.trapdoor的Block是判断是方块还是物品，trapdoor是方块的名称（要区分大小写），详细可以参考Block.java和Item.java，\"XXX\"是合成的方法，Character.valueOf('#'), Block.planks是让#的位置在游戏合成中等于木块的放置位置\n\n\n假如我想做1个沙换1个TNT的公式，代码如下\n        addRecipe(new ItemStack(Block.TNT, 1), new Object[] {\n            \"#\", Character.valueOf('#'), Block.sand\n        });复制代码\n\n写好后就可以测试了，打开MCP目录下的recompile.bat，让它检查错误，检查完成后可以打开startclient.bat进入游戏测试，测试完成后打开mcp目录下的reobfuscate.bat，让它把刚刚修改的文件打包，打包完后的文件可以在reobf文件夹找到\n\n\n                                         三.制作一个新方块\n\n新建一个BlockExample.java（名字自己改），在里面写上\npackage net.minecraft.src;\n\nimport java.util.Random;\n\npublic class BlockExample extends Block\n{\npublic BlockExample(int i, int j)\n{\nsuper(i, j, Material.rock);\n}\n\npublic int idDropped(int i, Random random)\n{\nreturn 0;\n}\n}复制代码rock是方块的特性（cloth是羊毛 易燃）可以参考Material.java，”return 0“ 是掉落的物品（0可以改成各种物品的ID）\n\n\n新的方块就做好了，接下来是将其添加到游戏中，打开Block.java，大概720+行，找到\n public static final Block trapdoor;复制代码\n在这句代码下面添加上\n        public static final Block example; 复制代码\n然后继续往下翻，找到\ntrapdoor = (new BlockTrapDoor(96, Material.wood)).setHardness(3F).setStepSound(soundWoodFootstep).setBlockName(\"trapdoor\").disableStats().disableNeighborNotifyOnMetadataChange();复制代码\n在下面添加上\n\nexample = (new BlockExample(111, 49)).setHardness(1.5F).setResistance(5000000F).setStepSound(soundStoneFootstep); 复制代码\n111为方块的ID(97-255为空方块ID)，49为材质编号（可以参考别的方块），setHardness(1.5F)为挖时的速度（1.5F为手挖石头的速度），setResistance(5000000F)是方块的抗炸强度（也可以参考别的方块的数值），setStepSound(soundStoneFootstep)是踩在方块上的脚步声（这里是石头的）\n\n最后，打开recompile检查吧\n\n\n\n\n                                          四.添加一个新物品\n\n新建一个ItemTest.java（名字还是自己改），在里面写上\n\npackage net.minecraft.src; \n \npublic class ItemTest extends Item \n{ \n \n    public ItemExample(int i, int k) \n    { \n        super(i); \n        maxStackSize = 64; \n    } \n\n//这里可以自己添加代码\n\n}\n复制代码maxStackSize = 64是设定最大叠加数量,如果嫌物品太无趣了还可以自己添加代码\n\npublic ItemStack onItemRightClick(ItemStack itemstack, World world, EntityPlayer entityplayer)\n    {\n        itemstack.stackSize--;\n        world.playSoundAtEntity(entityplayer, \"random.bow\", 0.5F, 0.4F / (itemRand.nextFloat() * 0.4F + 0.8F));\n        if(!world.multiplayerWorld)\n        {\n            world.entityJoinedWorld(new EntityArrow(world, entityplayer));\n        }\n        return itemstack;\n    }复制代码\n这条代码使手持此物品时右键可以扔出箭\n\n好了 接下来就要把新物品添加进游戏了 打开Item.java 找到这条代码\npublic static Item recordCat = (new ItemRecord(2001, \"cat\")).setIconCoord(1, 15).setItemName(\"record\");复制代码\n在这条代码下面添加一句\npublic static Item test = (new ItemTest(120, 0)).setIconCoord(5, 5).setItemName(\"example\");复制代码\n注意！ 120不是物品的真正ID，物品的真正ID为120+256 , （5, 5）是物品的材质（可以参考前面的物品）\n\n现在可以打开recompile.bat检查代码了\n\n\n\n                                                                                    五.削弱enderman\n\n首先,我们打开EntityEnderman.java ，然后从第326行开始,你可以看到如下代码\n        field_35186_b = new boolean[256];\n        field_35186_b[Block.stone.blockID] = true;\n        field_35186_b[Block.grass.blockID] = true;\n        field_35186_b[Block.dirt.blockID] = true;\n        field_35186_b[Block.cobblestone.blockID] = true;\n        field_35186_b[Block.planks.blockID] = true;\n        field_35186_b[Block.sand.blockID] = true;\n        field_35186_b[Block.gravel.blockID] = true;\n        field_35186_b[Block.oreGold.blockID] = true;\n        field_35186_b[Block.oreIron.blockID] = true;\n        field_35186_b[Block.oreCoal.blockID] = true;\n        field_35186_b[Block.wood.blockID] = true;\n        field_35186_b[Block.leaves.blockID] = true;\n        field_35186_b[Block.sponge.blockID] = true;\n        field_35186_b[Block.glass.blockID] = true;\n        field_35186_b[Block.oreLapis.blockID] = true;\n        field_35186_b[Block.blockLapis.blockID] = true;\n        field_35186_b[Block.sandStone.blockID] = true;\n        field_35186_b[Block.cloth.blockID] = true;\n        field_35186_b[Block.plantYellow.blockID] = true;\n        field_35186_b[Block.plantRed.blockID] = true;\n        field_35186_b[Block.mushroomBrown.blockID] = true;\n        field_35186_b[Block.mushroomRed.blockID] = true;\n        field_35186_b[Block.blockGold.blockID] = true;\n        field_35186_b[Block.blockSteel.blockID] = true;\n        field_35186_b[Block.brick.blockID] = true;\n        field_35186_b[Block.tnt.blockID] = true;\n        field_35186_b[Block.bookShelf.blockID] = true;\n        field_35186_b[Block.cobblestoneMossy.blockID] = true;\n        field_35186_b[Block.oreDiamond.blockID] = true;\n        field_35186_b[Block.blockDiamond.blockID] = true;\n        field_35186_b[Block.workbench.blockID] = true;\n        field_35186_b[Block.oreRedstone.blockID] = true;\n        field_35186_b[Block.oreRedstoneGlowing.blockID] = true;\n        field_35186_b[Block.ice.blockID] = true;\n        field_35186_b[Block.cactus.blockID] = true;\n        field_35186_b[Block.blockClay.blockID] = true;\n        field_35186_b[Block.pumpkin.blockID] = true;\n        field_35186_b[Block.netherrack.blockID] = true;\n        field_35186_b[Block.slowSand.blockID] = true;\n        field_35186_b[Block.glowStone.blockID] = true;\n        field_35186_b[Block.pumpkinLantern.blockID] = true;\n        field_35186_b[Block.field_35285_bn.blockID] = true;\n        field_35186_b[Block.field_35286_bo.blockID] = true;\n        field_35186_b[Block.field_35287_bp.blockID] = true;\n        field_35186_b[Block.field_35281_bs.blockID] = true;复制代码\n这些就是enderman可以拿起的方块, 根据谷歌翻译，我们可以知道true的意思是行的而false的意思是不行的。所以 如果我想要让enderman拿不起什么的石头的话,可以这样改：\n\nfield_35186_b[Block.stone.blockID] = false;复制代码第一部分结束。\n\n\n\n\n我们还可以修改它的一些基础数值来玩\n        field_35187_a = false;\n        field_35184_d = 0;\n        field_35185_e = 0;\n        texture = \"/mob/enderman.png\";\n        moveSpeed = 0.2F;\n        attackStrength = 5;\n        setSize(0.6F, 2.9F);\n        stepHeight = 1.0F;复制代码\n前三个我暂时没看明白,texture是皮肤的路径，moveSpeed为移动速度，attackStrength为攻击威力（试试改成负数），setSize是改大小（皮肤不会改变 占地变了而已），stepHeight为它的身高（貌似0.5F等于1格）\n\n\n\n放个挺好玩的代码\n\n         public boolean interact(EntityPlayer entityplayer)\n    {\n        \n        \n        \n        this.motionY += 1;\n        return true;\n    }\n在entityenderman.java里加入这条即可，功能为右键enderman后他的y坐标+1  也就是飞起来\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "719823597",
+            "timestamp": 1312954980,
+            "txt_content": "占楼"
+        },
+        {
+            "author": "719823597",
+            "timestamp": 1312954980,
+            "txt_content": "占楼"
+        },
+        {
+            "author": "KOL梦幻",
+            "timestamp": 1312955160,
+            "txt_content": " 本帖最后由 KOL梦幻 于 2011-8-10 13:58 编辑 \n\n应该可以回帖了吧-w-   \n回复才行，真麻烦0.0\n--------------------------------------------------------------------------\n我不得不承认，太太太太“简单”了..."
+        },
+        {
+            "author": "斯巴达",
+            "timestamp": 1312955640,
+            "txt_content": "回复哇哇= ="
+        },
+        {
+            "author": "hhyx",
+            "timestamp": 1312955760,
+            "txt_content": "哇。。。。回复看看 好厉害啊"
+        },
+        {
+            "author": "HelloBeauty",
+            "timestamp": 1312956000,
+            "txt_content": "回复。。。。。。。。。。。。。。"
+        },
+        {
+            "author": "小兲",
+            "timestamp": 1312956060,
+            "txt_content": "回复看看！"
+        },
+        {
+            "author": "ynny",
+            "timestamp": 1312956300,
+            "txt_content": "这是？...."
+        },
+        {
+            "author": "624415583",
+            "timestamp": 1312956480,
+            "txt_content": "回复一下就可以制作mod 值啊"
+        },
+        {
+            "author": "1171034064",
+            "timestamp": 1312956540,
+            "txt_content": "快快学一学吧"
+        },
+        {
+            "author": "augustory",
+            "timestamp": 1312956720,
+            "txt_content": "是技术贴莫？\n顶个~"
+        },
+        {
+            "author": "我是天才嘎嘎",
+            "timestamp": 1312957020,
+            "txt_content": "什么情况......................."
+        },
+        {
+            "author": "dantebelmondo",
+            "timestamp": 1312957980,
+            "txt_content": "很有兴趣~感谢教程。"
+        },
+        {
+            "author": "devil4bob",
+            "timestamp": 1312958100,
+            "txt_content": "回复后，来看帖"
+        },
+        {
+            "author": "圣骑ye",
+            "timestamp": 1312958940,
+            "txt_content": "是什么好像好像很神秘哇"
+        },
+        {
+            "author": "a756810279",
+            "timestamp": 1312959060,
+            "txt_content": "我来看看~~~~~~~~"
+        },
+        {
+            "author": "lonely",
+            "timestamp": 1312959120,
+            "txt_content": "ding````````````\n"
+        },
+        {
+            "author": "a368389669",
+            "timestamp": 1312960020,
+            "txt_content": "我要看 设什么隐藏"
+        },
+        {
+            "author": "001585100",
+            "timestamp": 1312960080,
+            "txt_content": "早就想做MOD了~~"
+        },
+        {
+            "author": "虚伪的傻瓜",
+            "timestamp": 1312961040,
+            "txt_content": "哇，这个回复是怎么弄的"
+        },
+        {
+            "author": "wangchujinqwe",
+            "timestamp": 1312961160,
+            "txt_content": "还要回复               "
+        },
+        {
+            "author": "联合蟹",
+            "timestamp": 1312961220,
+            "txt_content": "回复……蛋疼"
+        },
+        {
+            "author": "qq595684258",
+            "timestamp": 1312961400,
+            "txt_content": "不知道是什么，看看。"
+        },
+        {
+            "author": "green丶bastard",
+            "timestamp": 1312961520,
+            "txt_content": "-.=度度霸气"
+        },
+        {
+            "author": "kelas",
+            "timestamp": 1312961580,
+            "txt_content": "因为要回复，所以我回了，至于你信不信，我反正信了（顶贴）"
+        },
+        {
+            "author": "l582110521",
+            "timestamp": 1312962000,
+            "txt_content": ".............................."
+        },
+        {
+            "author": "tedlc",
+            "timestamp": 1312962180,
+            "txt_content": "呃……                   15？"
+        },
+        {
+            "author": "772983513",
+            "timestamp": 1312962300,
+            "txt_content": "看看。。。。。。。。"
+        },
+        {
+            "author": "vs863129",
+            "timestamp": 1312962600,
+            "txt_content": "看看有啥東西"
+        },
+        {
+            "author": "windosac",
+            "timestamp": 1312962660,
+            "txt_content": "我要制作啊!"
+        },
+        {
+            "author": "steven3213",
+            "timestamp": 1312962720,
+            "txt_content": "see~~~~~~~~~~~~`"
+        },
+        {
+            "author": "abc52woool",
+            "timestamp": 1312963200,
+            "txt_content": "回复看看！ \n[gold_ingot]"
+        },
+        {
+            "author": "feng464458710",
+            "timestamp": 1312963920,
+            "txt_content": "应该可以看了吧-w-"
+        },
+        {
+            "author": "420952996",
+            "timestamp": 1312963980,
+            "txt_content": "啊啊                     "
+        },
+        {
+            "author": "1019927246",
+            "timestamp": 1312963980,
+            "txt_content": "................................."
+        },
+        {
+            "author": "zjs951123",
+            "timestamp": 1312964520,
+            "txt_content": "还要回复啊= = 支持"
+        },
+        {
+            "author": "11311131",
+            "timestamp": 1312964640,
+            "txt_content": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa只为看"
+        },
+        {
+            "author": "wusitade",
+            "timestamp": 1312965840,
+            "txt_content": "回复看看~~~"
+        },
+        {
+            "author": "夜神月",
+            "timestamp": 1312966800,
+            "txt_content": "学学吧~呵呵呵。做个自己的"
+        },
+        {
+            "author": "well",
+            "timestamp": 1312968120,
+            "txt_content": "唉, 回就回吧..."
+        },
+        {
+            "author": "Grox0101",
+            "timestamp": 1312968360,
+            "txt_content": "如此甚好……"
+        },
+        {
+            "author": "新世界爱好者",
+            "timestamp": 1312968660,
+            "txt_content": "居然全文隐藏，谁知道你这是要折腾的方法还是简单方法= =折腾法我早就找到了真的。。。。"
+        },
+        {
+            "author": "cyb123",
+            "timestamp": 1312968900,
+            "txt_content": "看看一下 ccc"
+        },
+        {
+            "author": "as799799",
+            "timestamp": 1312968960,
+            "txt_content": "那就回一下吧"
+        },
+        {
+            "author": "471998145",
+            "timestamp": 1312969020,
+            "txt_content": "好吧。。。。我承认我想要这个。。。。。。所以。。。。回复啦"
+        },
+        {
+            "author": "green丶bastard",
+            "timestamp": 1312970040,
+            "txt_content": "做个钻石苹果试试- -"
+        },
+        {
+            "author": "a954596907",
+            "timestamp": 1312970220,
+            "txt_content": "aAAAAAAAAAAAAAAAAAAAAA"
+        },
+        {
+            "author": "122206692",
+            "timestamp": 1312970700,
+            "txt_content": "我看看，应该不错。。。。。。。。。"
+        },
+        {
+            "author": "knightx",
+            "timestamp": 1312972020,
+            "txt_content": "话说我还是不知道怎么修改冲突的方块id。。。"
+        },
+        {
+            "author": "sigsigmama",
+            "timestamp": 1312972980,
+            "txt_content": "回复看看！\n參考看看！"
+        },
+        {
+            "author": "j77o88o",
+            "timestamp": 1312972980,
+            "txt_content": "看看......................................."
+        },
+        {
+            "author": "aa50734464",
+            "timestamp": 1312973460,
+            "txt_content": "hhhhhhhhhhhhhhhhhhhhhhhhh"
+        },
+        {
+            "author": "pathfinder",
+            "timestamp": 1312973640,
+            "txt_content": "LZ加油……"
+        },
+        {
+            "author": "a8574",
+            "timestamp": 1312975140,
+            "txt_content": "11111111111111111111111111111111"
+        },
+        {
+            "author": "etwxr9",
+            "timestamp": 1312975140,
+            "txt_content": "回帖！~有需要软件把。。很大咩？"
+        },
+        {
+            "author": "652220513",
+            "timestamp": 1312975440,
+            "txt_content": "好。。。。。。。。。。。。"
+        },
+        {
+            "author": "tmick1379",
+            "timestamp": 1312975680,
+            "txt_content": "需要回覆0.0\n\n看看～～"
+        },
+        {
+            "author": "551551551",
+            "timestamp": 1312975740,
+            "txt_content": "好的我回的了"
+        },
+        {
+            "author": "Mk.至尊小宇",
+            "timestamp": 1312976340,
+            "txt_content": "..............."
+        },
+        {
+            "author": "嗜血魔狼",
+            "timestamp": 1312976460,
+            "txt_content": "额 好神秘啊 好奇啊 好奇……"
+        },
+        {
+            "author": "hkw7979",
+            "timestamp": 1312976700,
+            "txt_content": "看看"
+        },
+        {
+            "author": "spy1995426",
+            "timestamp": 1312978380,
+            "txt_content": "厄。。。。。。"
+        },
+        {
+            "author": "嶽嶺",
+            "timestamp": 1312978380,
+            "txt_content": "好像是個不錯的東西來看看"
+        },
+        {
+            "author": "蜘蛛侠hw",
+            "timestamp": 1312978560,
+            "txt_content": "719823597 发表于 2011-8-10 13:43 \n占楼\n什么东西试试看"
+        },
+        {
+            "author": "mayuhang2",
+            "timestamp": 1312981260,
+            "txt_content": "教程吗~~做个萝莉mod"
+        },
+        {
+            "author": "mayuhang2",
+            "timestamp": 1312981380,
+            "txt_content": "好BT~~这都是什么？~~看不懂啊~~果然制作mod是火星人的玩意~~~WTF~"
+        },
+        {
+            "author": "heyidalao",
+            "timestamp": 1312981560,
+            "txt_content": "来回复啦，拿金币啦，学做MOD啦~又进步啦！"
+        },
+        {
+            "author": "YD之子",
+            "timestamp": 1312983360,
+            "txt_content": "回复                     "
+        },
+        {
+            "author": "iop889955",
+            "timestamp": 1312985220,
+            "txt_content": "OKOKOKOKOKOKOOOKOOOOO"
+        },
+        {
+            "author": "plqws",
+            "timestamp": 1312986180,
+            "txt_content": "围观，汉化用"
+        },
+        {
+            "author": "AIWar",
+            "timestamp": 1312986300,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "s0909093333",
+            "timestamp": 1312988100,
+            "txt_content": "我想製作一個MOD...來看看了~!!"
+        },
+        {
+            "author": "elvis",
+            "timestamp": 1312988640,
+            "txt_content": "回复看看.."
+        },
+        {
+            "author": "azusky",
+            "timestamp": 1312989180,
+            "txt_content": "回复一下就可以制作mod 值啊"
+        },
+        {
+            "author": "mjwwd2",
+            "timestamp": 1312992120,
+            "txt_content": "kb\\na\\\\\\kankan zen me qu nong"
+        },
+        {
+            "author": "ynny",
+            "timestamp": 1312993800,
+            "txt_content": " 本帖最后由 ynny 于 2011-8-11 00:31 编辑 \n\n我出现这个\n\n\n\n\n123.jpg (26.22 KB, 下载次数: 5)\n\n下载附件\n\n2011-8-11 00:29 上传\n\n\n\n\n\n然后src文件夹也没有那些文件厄 咋办\n\n"
+        },
+        {
+            "author": "717209554",
+            "timestamp": 1312998120,
+            "txt_content": "好东西！ .                      ."
+        },
+        {
+            "author": "knightx",
+            "timestamp": 1312999860,
+            "txt_content": "knightx 发表于 2011-8-10 18:27 \n话说我还是不知道怎么修改冲突的方块id。。。\n比如我最近在弄那个船舵的和工业的。。。不太懂帖子中在config中加文件的做法。而且也没成功。。。"
+        },
+        {
+            "author": "774994255",
+            "timestamp": 1313002380,
+            "txt_content": "回复看看。"
+        },
+        {
+            "author": "higifi",
+            "timestamp": 1313004960,
+            "txt_content": "回复才能查看真是一大坑爹%……但是内容值得回复~"
+        },
+        {
+            "author": "oss96e",
+            "timestamp": 1313009160,
+            "txt_content": "...........看看"
+        },
+        {
+            "author": "顺逆同流",
+            "timestamp": 1313009940,
+            "txt_content": "十分的好奇。"
+        },
+        {
+            "author": "wyr1998526",
+            "timestamp": 1313021100,
+            "txt_content": "好期待的说………………"
+        },
+        {
+            "author": "jjj201200",
+            "timestamp": 1313023380,
+            "txt_content": "啥东西咯~虽说现在还没到制作mod 的境界撒~"
+        },
+        {
+            "author": "寂寞的巴尼",
+            "timestamp": 1313023500,
+            "txt_content": "比较复杂。。。"
+        },
+        {
+            "author": "q807734497",
+            "timestamp": 1313028420,
+            "txt_content": "nanma"
+        },
+        {
+            "author": "sun2007",
+            "timestamp": 1313028540,
+            "txt_content": "我要！！！！"
+        },
+        {
+            "author": "akzycb2012",
+            "timestamp": 1313028660,
+            "txt_content": "回复。。               "
+        },
+        {
+            "author": "walle",
+            "timestamp": 1313029020,
+            "txt_content": "可恶..要回帖.."
+        },
+        {
+            "author": "zhaopeng1234",
+            "timestamp": 1313029980,
+            "txt_content": "新手路过。。。"
+        },
+        {
+            "author": "tt78llo",
+            "timestamp": 1313033100,
+            "txt_content": "回复看看{:1_1:}"
+        },
+        {
+            "author": "tteicom",
+            "timestamp": 1313034900,
+            "txt_content": "这个要学习一下，哈哈。。看看有多么简单了"
+        },
+        {
+            "author": "fscdb",
+            "timestamp": 1313039940,
+            "txt_content": "先顶才能看啊"
+        },
+        {
+            "author": "599056390",
+            "timestamp": 1313040120,
+            "txt_content": "回复………………………"
+        },
+        {
+            "author": "nickken",
+            "timestamp": 1313043420,
+            "txt_content": "\n\n回复 good"
+        },
+        {
+            "author": "hon12352003",
+            "timestamp": 1313043780,
+            "txt_content": "回复........"
+        },
+        {
+            "author": "wcNoOb",
+            "timestamp": 1313046960,
+            "txt_content": "真麻烦....回复看看！"
+        },
+        {
+            "author": "lopke",
+            "timestamp": 1313047680,
+            "txt_content": "\n哇。。。。回複看看 好厲害啊"
+        },
+        {
+            "author": "lap0608",
+            "timestamp": 1313047860,
+            "txt_content": "ccccccccccccccccccc"
+        }
+    ]
+}

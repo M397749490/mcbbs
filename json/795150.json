@@ -1,0 +1,84 @@
+{
+    "title": "地图种子的逆向研究(1)——基岩分布",
+    "author": "丢人素学姐",
+    "replyCount": 15,
+    "timestamp": 1526345340,
+    "txt_content": " 本帖最后由 Vinogradov 于 2018-5-15 09:36 编辑 \n\n        众所周知，如果我们知道了Minecraft地图的种子，该地图内一切矿物、群系、村庄、要塞、海底神庙等的位置就都清楚了。如果你有op权限，那么通过 /seed命令就可以知道种子。但往往在服务器中，我们是无法使用这样的命令的。因此，如何从地图内直接可见的信息，如基岩、村庄、刷怪笼等的分布来反向找出种子是一个有趣的问题。\n\nMotivation\n        前一阵子，某头像类似Chrome图标的大佬告诉我，他听说有插件专门用来打乱主世界的基岩分布，原因是国外有玩家成功从主世界的基岩分布反推出了地图种子。\n        本文通过对Minecraft代码的分析，对上述做法的可能性提供了negative evidence。\n\n约定\n本系列文章中的Minecraft指的都是Minecraft Java Edition, 1.12.2。本系列文章中引用的代码都来自 forge-1.12.2-14.23.2.2611-mdk。当我们说”区块(x,z)“时，我们指的是chunk coordinate为(x,z)的区块。将世界坐标为x,y,z的方块记为[x,y,z]。我们将64bit (resp. 32bit)范围内的数的集合记为int64 (resp. int32)。我们将以seed为种子的地图的区块(x,z)内的基岩分布记为BR(seed,x,z)。显然这是一个定义在int64×int32×int32上的函数。（chunk coordinate是在int32×int32范围内变化的，而种子在int64范围内取值）我们称BR(seed1,x1,z1)=BR(seed2,x2,z2)，如果这两个区块内的基岩分布完全一致。\n\n现象\n        首先我们举例说明主世界内的基岩分布与种子有关；即固定(x,z)时，BR(seed,x,z)并不（一定）是关于seed的常值函数。\n首先我们可以观察到BR(-6593745682071834521,-3,16)=BR(-1657327109710465339,-3,16)，但BR(-3608897881234420576,-3,16)与BR(-1657327109710465339,-3,16)非常不同。然而这两个区块中[-48 ,*,256]，[-47, *,256]，[-46, *,256]，[-45, *,256]，[-44, *,256]，[-43,*,256]，[-42, * ,256]处的基岩是完全一致的。\n        这说明了主世界内同一位置的基岩分布并非完全与种子无关，但在某型情况（事实上，下文中会说明，大多数情况）下是与种子无关的。\n\n分析\n        其实这个从游戏内没什么好分析的，直接看代码吧：\n        以下代码来源于 net\\minecraft\\world\\biome\\Biome.java<font color=\"#000000\">public void genTerrainBlocks(World worldIn, Random rand, ChunkPrimer chunkPrimerIn, int x, int z, double noiseVal)\n{\n    this.generateBiomeTerrain(worldIn, rand, chunkPrimerIn, x, z, noiseVal);\n}\n\npublic final void generateBiomeTerrain(World worldIn, Random rand, ChunkPrimer chunkPrimerIn, int x, int z, double noiseVal)//CRITICAL_LINE_0\n{\n    int i = worldIn.getSeaLevel();\n    IBlockState iblockstate = this.topBlock;\n    IBlockState iblockstate1 = this.fillerBlock;\n    int j = -1;\n    int k = (int)(noiseVal / 3.0D + 3.0D + rand.nextDouble() * 0.25D);//CRITICAL_LINE_0\n    int l = x & 15;\n    int i1 = z & 15;\n    BlockPos.MutableBlockPos blockpos$mutableblockpos = new BlockPos.MutableBlockPos();\n\n    for (int j1 = 255; j1 >= 0; --j1)\n    {\n        if (j1 <= rand.nextInt(5))//CRITICAL_LINE_1\n        {\n            chunkPrimerIn.setBlockState(i1, j1, l, BEDROCK);//CRITICAL_LINE_2\n        }\n        else\n        {\n            IBlockState iblockstate2 = chunkPrimerIn.getBlockState(i1, j1, l);\n\n            if (iblockstate2.getMaterial() == Material.AIR)\n            {\n                j = -1;\n            }\n            else if (iblockstate2.getBlock() == Blocks.STONE)\n            {\n                if (j == -1)\n                {\n                    if (k <= 0)\n                    {\n                        iblockstate = AIR;\n                        iblockstate1 = STONE;\n                    }\n                    else if (j1 >= i - 4 && j1 <= i + 1)\n                    {\n                        iblockstate = this.topBlock;\n                        iblockstate1 = this.fillerBlock;\n                    }\n\n                    if (j1 < i && (iblockstate == null || iblockstate.getMaterial() == Material.AIR))\n                    {\n                        if (this.getTemperature(blockpos$mutableblockpos.setPos(x, j1, z)) < 0.15F)\n                        {\n                            iblockstate = ICE;\n                        }\n                        else\n                        {\n                            iblockstate = WATER;\n                        }\n                    }\n\n                    j = k;\n\n                    if (j1 >= i - 1)\n                    {\n                        chunkPrimerIn.setBlockState(i1, j1, l, iblockstate);\n                    }\n                    else if (j1 < i - 7 - k)\n                    {\n                        iblockstate = AIR;\n                        iblockstate1 = STONE;\n                        chunkPrimerIn.setBlockState(i1, j1, l, GRAVEL);\n                    }\n                    else\n                    {\n                        chunkPrimerIn.setBlockState(i1, j1, l, iblockstate1);\n                    }\n                }\n                else if (j > 0)\n                {\n                    --j;\n                    chunkPrimerIn.setBlockState(i1, j1, l, iblockstate1);\n\n                    if (j == 0 && iblockstate1.getBlock() == Blocks.SAND && k > 1)//CRITICAL_LINE_3\n                    {\n                        j = rand.nextInt(4) + Math.max(0, j1 - 63);//CRITICAL_LINE_4\n                        iblockstate1 = iblockstate1.getValue(BlockSand.VARIANT) == BlockSand.EnumType.RED_SAND ? RED_SANDSTONE : SANDSTONE;\n                    }\n                }\n            }\n        }\n    }\n}</font>复制代码        从CRITICAL_LINE_2中可见每个（不是Mesa群系的）位置基岩的分布就由此控制（事实上这个函数控制了一个1*256*1范围内的方块，然后在一个16*16的循环中被调用，即下方代码中的CRITICAL_LINE_6）。而Mesa群系重写了相关代码，但从代码中可知这并没有影响我们所需的逻辑分析。所以在这里我们可以粗略地认为不管是何群系，基岩分布都最终由上述函数所控制。\n        首先显然基岩的分布取决于伪随机数生成器的输出，而输出是由随机种子与被调用的次数唯一决定的。那么我们现在来看这个随机数生成器rand是在哪里出现的，随机种子是什么，在generateBiomeTerrain被调用之前，rand被调用了几次。\n        以下代码摘自net\\minecraft\\world\\gen\\ChunkGeneratorOverWorld.java\n<font color=\"#000000\">IChunkGeneratorpublic class ChunkGeneratorOverworld implements IChunkGenerator\n{\n    protected static final IBlockState STONE = Blocks.STONE.getDefaultState();\n    private final Random rand;//CRITICAL_LINE_5\n//...\n    private final World world;\n    private final boolean mapFeaturesEnabled;\n    private final WorldType terrainType;\n    private final double[] heightMap;\n    private final float[] biomeWeights;\n    private ChunkGeneratorSettings settings;\n    private IBlockState oceanBlock = Blocks.WATER.getDefaultState();\n    private double[] depthBuffer = new double[256];\n//...\n    private Biome[] biomesForGeneration;\n    double[] mainNoiseRegion;\n    double[] minLimitRegion;\n    double[] maxLimitRegion;\n    double[] depthRegion;\n//...\n\n    public void replaceBiomeBlocks(int x, int z, ChunkPrimer primer, Biome[] biomesIn)\n    {\n        if (!net.minecraftforge.event.ForgeEventFactory.onReplaceBiomeBlocks(this, x, z, primer, this.world)) return;\n        double d0 = 0.03125D;\n        this.depthBuffer = this.surfaceNoise.getRegion(this.depthBuffer, (double)(x * 16), (double)(z * 16), 16, 16, 0.0625D, 0.0625D, 1.0D);\n\n        for (int i = 0; i < 16; ++i)\n        {\n            for (int j = 0; j < 16; ++j)\n            {\n                Biome biome = biomesIn[j + i * 16];\n                biome.genTerrainBlocks(this.world, this.rand, primer, x * 16 + i, z * 16 + j, this.depthBuffer[j + i * 16]);//CRITICAL_LINE_6\n            }\n        }\n    }\n\n    /**\n     * Generates the chunk at the specified position, from scratch\n     */\n    public Chunk generateChunk(int x, int z)\n    {\n        this.rand.setSeed((long)x * 341873128712L + (long)z * 132897987541L);//CRITICAL_LINE_7\n        ChunkPrimer chunkprimer = new ChunkPrimer();\n        this.setBlocksInChunk(x, z, chunkprimer);\n        this.biomesForGeneration = this.world.getBiomeProvider().getBiomes(this.biomesForGeneration, x * 16, z * 16, 16, 16);\n        this.replaceBiomeBlocks(x, z, chunkprimer, this.biomesForGeneration);//CRITICAL_LINE_8\n//...\n        return chunk;\n    }\n//...\n}</font>复制代码        从中可以看出，调用关系是generateChunk-->replaceBiomeBlocks-->genTerrainBlocks-->generateBiomeTerrain。\n        从CRITICAL_LINE_7可以看出这个随机数生成器，也就是CRITICAL_LINE_5处的rand在这里的种子仅与区块位置有关 。 \n        而在genTerrainBlocks被调用之前，rand还没有被使用过。\n        我们再回到genTerrainBlocks的代码中。由CRITICAL_LINE_0可以看出，在生成每个[x,*,z]位置的基岩之前，rand 都一定会被调用一次，所以这不会影响rand的输出对种子的无关性。\n        观察到CRITICAL_LINE_1，每次会生成一个0-5的随机数，如果当前高度（也就是目前要处理的高度）比这个位置低就生成基岩（这个代码丑爆了）。\n        如果仅看到这里，你一定会觉得基岩的生成和种子无关了对吧？因为不管是什么种子，rand都在这个循环的每个分支中被CRITICAL_LINE_1处使用了一次，所以rand的输出序列应该是固定不变的。那么问题出在哪里了呢？\n        在作者仔细阅读了代码之后，发现存在某些情况，使得rand在该循环中被额外地使用了（很可能不止一次地，下文中会说到在什么情况下会被额外使用），继而改变了之后的输出序列，继而完全影响了在其之后生成的位置（也就是那个16*16的循环里排在这个rand额外被调用所在分支后的循环分支中生成的位置）。\n        具体地说，如果CRITICAL_LINE_3处被判为true，那么在CRITICAL_LINE_4处就会使用一次rand.nextInt(4)，然后就全变了。那么现在最后的问题就归结到了CRITICAL_LINE_3何时为true。\n        由于作者水平有限再加上实在是懒，CRITICAL_LINE_3中j == 0和k > 1何时会成立实在是分析不动了，于是我们只看iblockstate1.getBlock() == Blocks.SAND（于是我们得到的最终结论只能是个充分条件，虽然基本上也够用了）。向上追溯一下代码知道如果this.fillerBlock不是Blocks.SAND的话，那么iblockstate1.getBlock()就不会等于Blocks.SAND。而如果这一整个区块中，每个位置的fillerBlock都不是Blocks.SAND ，那么这个区块中基岩的分布就与种子无关。\n        而通过代码（这里不列出来源了，有兴趣的在整个minecraft代码里搜一下fillerBlock就知道了）可知当且仅当当前位置的Biome为BiomeBeach或是BiomeDesert时，fillerBlock为Blocks.SAND。于是我们得出结论，如果一个区块内没有沙漠或者沙滩群系，那么该区块内的基岩分布与种子无关。更形式地，我们有如下结论：\n\n结论\n        存在一个定义在int32xint32上的函数STANDARD_BR(x,z)，使得对于任意的种子seed，如果该种子对应的地图内(x,y)区块内每个位置都不是沙漠或沙滩群系的话，就有BR(seed,x,y)=STANDARD_BR(x,z)。\n\n推论及后记\n在现象部分，我们提到BR(-3608897881234420576,-3,16)与BR(-1657327109710465339,-3,16)的一小个连续区域内的基岩分布完全一样，这是因为这个小区域对应了16*16的循环内开头的几个分支，且都不是沙漠或者沙滩群系；而从[-41, *,256]开始就是沙漠群系了，于是rand被额外地调用了，从而改变了这个16*16循环内排在之后的所有位置的基岩分布。正如上文中所提到的，由于只分析了CRITICAL_LINE_3处的部分条件，我们得到的是充分条件。作者的朋友与作者共同的观点是，产生基岩变化应该是代码的副作用，也就是共用了同一个随机数发生器所导致的，并不是Mojang故意为之（Mojang可能都未必注意到了，反正“啊这里有个rand，就用吧”23333333333）。我们开头说了，有流言说可以从基岩的分布推测出世界种子。作者认为不太可能。\n        正如我们的结论，如果仅通过基岩的分布和标准基岩分布（也就是上述STANDARD_BR）的比较，我们只能得出从每个区块内哪个位置开始随机数列被额外刷新了（只通过基岩来看整个区块里rand被刷新了几次更困难了），连沙漠或者沙滩群系的边缘都无法确定（其实一般得到群系比看基岩分布容易多了。。。就个F3的事情，我们这里是做理论上的讨论）；换言之，基岩分布所携带的信息量远远小于群系分布的信息量，获取难度却大于群系分布。而由于群系分布是由非常复杂的Perlin Noise算法得到的，目前还不存在可行的逆向方法。所以，从基岩分布反推种子大概是个错觉。。。。。。\n\n预告\n在下一篇文章中，我们会给出一种确实可行的从地图内信息逆向种子的算法，这需要一些编程。当然，作者会在把算法讲清楚的前提下尽可能减少披露技术细节，也不会给出代码，以防止滥用。\n\n感谢\n某头像类似Chrome图标的大佬（@ustc_zzzz 你猜我说的是谁），告诉我开头提到的流言，给了我写这一系列文章的Motivation，并在我翻代码时给了我一些帮助某红石群中的某个玩家（原谅我忘了是哪位了。。。），告诉了我Mesa群系的相关代码是单独写的事情（SBMJ）。Meow，玄素，rua叔。我忘了这几位帮了什么忙了，反正好像是帮了。。。。。。\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "wzz0116",
+            "timestamp": 1526346780,
+            "txt_content": "大佬，惹不起，表示完全看不懂"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1526347140,
+            "txt_content": "不明嚼栗，有空帮我看看睡莲"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1526347320,
+            "txt_content": "ruhuasiyu 发表于 2018-5-15 09:19\n不明嚼栗，有空帮我看看睡莲\n大哥client端的渲染我不懂啊，，，这个你真的要去问土球"
+        },
+        {
+            "author": "lan1875",
+            "timestamp": 1532963220,
+            "txt_content": "收藏了 这也太难了.."
+        },
+        {
+            "author": "冰星",
+            "timestamp": 1532965440,
+            "txt_content": "看这标题我就感觉很有用，一点进来我就懵逼了。这也太难了吧"
+        },
+        {
+            "author": "丢人素学姐",
+            "timestamp": 1532965860,
+            "txt_content": "冰星 发表于 2018-7-30 23:44\n看这标题我就感觉很有用，一点进来我就懵逼了。这也太难了吧\n还真没啥用，，，这文就是告诉你用基岩是布星的，，，\n其实也不难，只不过一点一点分析代码很烦罢了，没啥技术含量的。文章里有些地方为了叙述方便引入了一些记号和叫法，看上去挺fancy其实没什么新鲜的。"
+        },
+        {
+            "author": "冰星",
+            "timestamp": 1532966100,
+            "txt_content": "Vinogradov 发表于 2018-7-30 23:51\n还真没啥用，，，这文就是告诉你用基岩是布星的，，，\n其实也不难，只不过一点一点分析代码很烦罢了，没 ...\n因为如果分析出了种子我就可以用Admist搞很多东西了..顺便推广一波"
+        },
+        {
+            "author": "xiaowei233v",
+            "timestamp": 1535011920,
+            "txt_content": "于是某玩家改良了算法 将一个服务器的所有钻石挖的空空awa"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1535539320,
+            "txt_content": " 本帖最后由 乙烯_中国 于 2018-8-29 18:43 编辑 \n\n精华，由于两个贴讲的是一个主题的，所以按例只奖励一次。请在开头链接到下一篇。"
+        },
+        {
+            "author": "夕颜初夏",
+            "timestamp": 1535605860,
+            "txt_content": "这，这也太难了，我一定可以学会的.."
+        },
+        {
+            "author": "小徐大大QAQ",
+            "timestamp": 1576295400,
+            "txt_content": "厉害，大佬，膜拜。"
+        },
+        {
+            "author": "ZhaoZho",
+            "timestamp": 1576302480,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "ZhaoZho",
+            "timestamp": 1576302540,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "ZhaoZho",
+            "timestamp": 1576327920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "ImFengDian",
+            "timestamp": 1612352580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

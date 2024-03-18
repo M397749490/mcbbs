@@ -1,0 +1,34 @@
+{
+    "title": "[管理|网页] Lode.Api —— 通过 Http Api 扩展服务器管理 [1.12 - 1.14]]",
+    "author": "木头光波",
+    "replyCount": 5,
+    "timestamp": 1569164820,
+    "txt_content": " 本帖最后由 木头光波 于 2019-9-22 23:14 编辑 \n\nLode.Api\n\n写在前面\n\nLode.Api 是一款开源插件，代码均托管于 Github 。帖子内容仅简单介绍了插件的使用，更多详情可以至插件的 Github 页面查看。欢迎各位使用、体验插件并提出意见，也欢迎有能力的盆友一起进行开发~\n顺便：欢迎大家 Star 本项目~\n\n\n简介Lode.Api 是一个用于 Nukkit/Bukkit (like)[sup](1)[/sup] 服务器的插件。提供了访问服务器各种数据和功能的 HTTP-API 接口。你可以通过这些接口来制作网站、App，以及提供让玩家在线购买物品并且在游戏中自动接收相关物品的能力[sup] (2)[/sup]。[sup](1)[/sup]：Bukkit Like - 基于 Bukkit 或 Bukkit 相兼容的服务端，譬如 Spigot、Paper 等。[sup](2)[/sup]：Lode.Api 并不提供上述服务，您可以根据 Lode.Api 提供的 API 自行实现相关的功能。\n\n插件说明Lode.Api 提供了使用 HTTP-API 调用 Nukkit/Bukkit (like) 底层功能的能力，可以实现大部分包括服务器管理、插件管理、用户管理等方面的功能。您可以在 Nukkit/Bukkit (like) 服务器安装有 Lode.Api 的前提下，使用 HTTP-API 开发相关网站、App、商城系统等。也可以以 Lode.Api 提供的 API 为基础，开发类似 “云插件”（开发中）的功能（不限编程语言，无需安装至服务器）。\n\nAPI 相关信息HTTP API 文档请至 Lode.Api 的 Wiki 页面查阅相关说明和 API 文档。\n调用方式所有 API 均使用 POST 方式调用。\n调用参数所有 API 的的调用参数（JSON 格式）请放置于请求的 Body 中。\nAPI 鉴权为了 API 调用安全，请将鉴权信息放置于请求 Header 的 X-Lode-Authentication 中，鉴权信息的格式为：token={token}; ts={timestamp}\n其中，token 的生成方式为：sha256(userName + api_url.toLowerCase() + password)复制代码例如在配置文件（将在下文介绍）中设置的 UserName 为 exampleUser，Password 为 testpass，需要调用的 API 地址为 /api/Server/GetServerInfo ，则鉴权信息为：sha256( \"exampleuser/api/server/getserverInfotestpass\" )复制代码ts 为 UNIX 时间戳（毫秒），Lode.Api 将对此参数和服务器当前时间进行比较，若时间相差大于等于 2 分钟，则会拒绝这次请求并返回 403 Forbidden 信息。\n一个完整的例子：X-Lode-Authentication： token=1ddc6a51b3326a88a6ff301e3ac1b588050a5d5b2ba09540d54254ae2ed7147e; ts=1554805018000复制代码\nWebSocket 文档WebSocket 服务器的作用是可以实时获取服务器事件推送以及执行服务器命令并获取实时的输出。\n首先，通过 WebSocket 连接到 Lode.Api 后，发送鉴权指令：{\"action\": \"auth\", \"params\": {\"userName\": \"用户名\", \"password\": \"密码\"}}复制代码将收到服务器返回的信息：// 鉴权成功复制代码若鉴权成功，根据配置文件的内容，会选择性的发送事件信息或服务器实时输出到鉴权成功的客户端，比如一个 服务器指令事件 的信息：{\"code\":200,\"message\":\"\",\"returnObject\":{\"sender\":\"CONSOLE\",\"eventTime\":\"Sep 22, 2019 10:51:27 PM\",\"command\":\"op demoUser\"}}复制代码根据配置文件的内容，你也可以主动执行服务器指令，比如：想执行 “say 大家好，我是木頭” 这个指令，则应该发送如下信息到 WebSocket 服务端：{\"action\": \"executeCmd\", \"params\": {\"command\": \"say 大家好，我是木頭\"}}复制代码若执行成功，服务器会返回 success 信息：{\"code\":204,\"message\":\"execute success.\"}复制代码\n\n配置文件Lode.Api 的配置文件位于服务器的 plugins/Lode 文件夹下，初次启动插件会自动生成配置文件，您可以根据需要自行修改。配置文件的格式如下：Server:\n  IP: 0.0.0.0\n  Authentication:\n    Password: password\n    UserName: root\n  HttpPort: 19133\n  WsPort: 19134\n\nEventListener:\n  IsEnable: true\n  ServerConsole: true\n  OtherEvents: true\n  ExecuteByWs: true\n  EventList:\n    - ServerCommand\n    - PlayerChat\n\nDebugMode: true复制代码\n配置文件说明Server.Authentication 是 API 鉴权所需要的用户名和密码。Server.IP 是配置 WebSocket 服务器监听的 IP 地址。Server.HttpPort 是 API 服务器监听的端口，请不要与游戏服务端本身的端口冲突。Server.WsPort 是 W1ebSocket 服务器监听的端口，请不要与游戏服务端本身的端口冲突。EventListener.IsEnable 配置事件通知的 WebSocket 服务是否启用。EventListener.ServerConsole 配置是否通过 WebSocket 发送服务器实时输出。EventListener.OtherEvents 配置是否监听除了服务器实时输出外的其他 Lode.Api 事件。EventListener.ExecuteByWs 配置是否可以通过 WebSocket 执行命令。EventListener.EventList 如果 EventListener.OtherEvents 为 true ，则这个列表下的事件会被 Lode.Api 监听，并且通过 WebSocket 发送实时通知。DebugMode 配置是否启动 Debug 模式，若为 true 则会在控制台输出调试信息并且调用 API 时无需鉴权信息。\n\n\n下载\n你可以查阅 release 页面 并下载 Nukkit (X) 或 Bukkit 对应版本最新的构建。\n\n\nLicenseMIT License\nCopyright (c) 2019 Tuisku Wood\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n\n鸣谢Lode.Api 项目的 Http Server 和 WebSocket 部分引用或借鉴了以下项目的代码：NanoHttpdJava-WebSocket\n\n\n",
+    "replies": [
+        {
+            "author": "社会我福哥",
+            "timestamp": 1569165060,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "Rioad",
+            "timestamp": 1574315340,
+            "txt_content": "简直神器 这样就可以让不懂mc开发的me 开发软件了"
+        },
+        {
+            "author": "Minako_Sakurai",
+            "timestamp": 1585614360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "2656989851",
+            "timestamp": 1585622760,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "hsjwsh",
+            "timestamp": 1589465040,
+            "txt_content": "支持 但是很多插件会自带网页api吧"
+        }
+    ]
+}

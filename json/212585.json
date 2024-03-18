@@ -1,0 +1,64 @@
+{
+    "title": "[php/c++] 获取服务器状态 请自行取用",
+    "author": "Brick",
+    "replyCount": 11,
+    "timestamp": 1388568180,
+    "txt_content": "\nphp （function 版）\n\nfunction QueryMinecraft( $IP, $Port = 25595, $Timeout = 2 )\n{\n\n$Socket = Socket_Create( AF_INET, SOCK_STREAM, SOL_TCP );\n\nSocket_Set_Option( $Socket, SOL_SOCKET, SO_SNDTIMEO, array( 'sec' => (int)$Timeout, 'usec' => 0 ) );\nSocket_Set_Option( $Socket, SOL_SOCKET, SO_RCVTIMEO, array( 'sec' => (int)$Timeout, 'usec' => 0 ) );\n\nif( $Socket === FALSE || @Socket_Connect( $Socket, $IP, (int)$Port ) === FALSE )\n{\nreturn FALSE;\n}\n\nSocket_Send( $Socket, \"\\xFE\\x01\", 2, 0 );\n$Len = Socket_Recv( $Socket, $Data, 512, 0 );\nSocket_Close( $Socket );\n\nif( $Len < 4 || $Data[ 0 ] !== \"\\xFF\" )\n{\nreturn FALSE;\n}\n\n$Data = SubStr( $Data, 3 );\n$Data = iconv( 'UTF-16BE', 'UTF-8', $Data );\n\nif( $Data[ 1 ] === \"\\xA7\" && $Data[ 2 ] === \"\\x31\" )\n{\n$Data = Explode( \"\\x00\", $Data );\nreturn Array(\n'HostName'   => $Data[ 3 ],\n'Players'    => IntVal( $Data[ 4 ] ),\n'MaxPlayers' => IntVal( $Data[ 5 ] ),\n'Protocol'   => IntVal( $Data[ 1 ] ),\n'Version'    => $Data[ 2 ],\n);\n}\n\n$Data = Explode( \"\\xA7\", $Data );\nreturn Array(\n'HostName'   => SubStr( $Data[ 0 ], 0, -1 ),\n'Players'    => isset( $Data[ 1 ] ) ? IntVal( $Data[ 1 ] ) : 0,\n'MaxPlayers' => isset( $Data[ 2 ] ) ? IntVal( $Data[ 2 ] ) : 0,\n'Protocol'   => 0,\n'Version'    => '1.3',\n);\n}复制代码\n\n\n\n\nphp 另外一个版本 （class版）\n\n<?php\n/**\n* Minecraft server status class\n* Query minecraft server\n* @author Patrick K. - http://www.silexboard.org/ - https://github.com/NoxNebula\n* @license GNU Public Licence - Version 3\n* @copyright &#169; 2011-2013 Patrick K.\n*/\nclass MinecraftServerStatus {\n        // Get the server status\n        const STATUS = 0x00;\n        // Make the challenge (handshake)\n        const HANDSHAKE = 0x09;\n\n        // \"Magic bytes\"\n        const B1 = 0xFE;\n        const B2 = 0xFD;\n\n        private $Socket;\n\n        // Expected server info (Minecraft 1.3.2)\n        // more keys may added while running the code\n        private $Info = [\n                'hostname' => '',\n                'gametype' => '',\n                'game_id' => '',\n                'version' => '',\n                'plugins' => '',\n                'map' => '',\n                'numplayers' => '',\n                'maxplayers' => '',\n                'hostport' => '',\n                'hostip' => ''\n        ];\n\n        /**\n         * Query a minecraft server and parse the status\n         * @param string $Host\n         * @param int $Port optional\n         * @param int $Timeout optional\n         */\n        public function __construct($Host, $Port = 25565, $Timeout = 1) {\n        /* Connect to the host and creat a socket */\n                $this->Socket = @stream_socket_client('udp://'.$Host.':'.(int)$Port, $ErrNo, $ErrStr, $Timeout);\n                if($ErrNo || $this->Socket === false) {\n                        $this->Info['online'] = false; return;\n                        //throw new Exception('Failed to connect', 1);\n                }\n                stream_set_timeout($this->Socket, $Timeout);\n\n        /* Make handshake and request server status */\n                $Data = $this->Send(self::STATUS, pack('N', $this->Send(self::HANDSHAKE)).pack('c*', 0x00, 0x00, 0x00, 0x00));\n                //set_time_limit($met);\n\n                // Try fallback if query is not enabled on the server\n                if(!$Data){\n                        if(!class_exists('MinecraftServerStatusSimple') && file_exists('MinecraftServerStatusSimple.class.php'))\n                                require_once('MinecraftServerStatusSimple.class.php');\n                        if(class_exists('MinecraftServerStatusSimple')) {\n                                $Fallback = new MinecraftServerStatusSimple($Host, $Port, $Timeout);\n                                $this->Info = [\n                                        'hostname' => $Fallback->Get('motd'),\n                                        'numplayers' => $Fallback->Get('numplayers'),\n                                        'maxplayers' => $Fallback->Get('maxplayers'),\n                                        'hostport' => (int)$Port,\n                                        'hostip' => $Host,\n                                        'online' => $Fallback->Get('online')\n                                ]; fclose($this->Socket); return;\n                        }\n                }\n\n        /* Prepare the data for parsing */\n                // Split the data string on the player position\n                $Data = explode(\"\\00\\00\\01player_\\00\\00\", $Data);\n                // Save the players\n                $Players = '';\n                if($Data[1])\n                        $Players = substr($Data[1], 0, -2);\n                // Split the server infos (status)\n                $Data = explode(\"\\x00\", $Data[0]);\n\n        /* Parse server info */\n                for($i = 0; $i < sizeof($Data); $i += 2) {\n                        // Check if the server info is expected, if yes save the value\n                        if(array_key_exists($Data[$i], $this->Info) && array_key_exists($i+1, $Data))\n                                $this->Info[$Data[$i]] = $Data[$i+1];\n                }\n\n                // Parse plugins and try to determine the server software\n                if($this->Info['plugins']) {\n                        $Data = explode(\": \", $this->Info['plugins']);\n                        $this->Info['software'] = $Data[0];\n                        if(isset($Data[1]))\n                                $this->Info['plugins'] = explode('; ', $Data[1]);\n                        else\n                                unset($this->Info['plugins']);\n                } else {\n                        // It seems to be a vanilla server\n                        $this->Info['software'] = 'Vanilla';\n                        unset($this->Info['plugins']);\n                }\n\n                // Parse players\n                if($Players)\n                        $this->Info['players'] = explode(\"\\00\", $Players);\n\n                // Cast types\n                $this->Info['numplayers'] = (int)$this->Info['numplayers'];\n                $this->Info['maxplayers'] = (int)$this->Info['maxplayers'];\n                $this->Info['hostport'] = (int)$this->Info['hostport'];\n\n                $this->Info['online'] = true;\n        /* Close the connection */\n                fclose($this->Socket);\n        }\n\n        /**\n         * Return the value of an key or the whole server info\n         * @param string $Key optional\n         * @return mixed\n         */\n        public function Get($Key = '') {\n                return $Key ? (array_key_exists($Key, $this->Info) ? $this->Info[$Key] : false) : $this->Info;\n        }\n\n        /**\n         * Send a command to the server and get the answer\n         * @param byte $Command\n         * @param byte $Addition optional\n         * @return string\n         */\n        private function Send($Command, $Addition = '') {\n                // pack the command into a binary string\n                $Command = pack('c*', self::B1, self::B2, $Command, 0x01, 0x02, 0x03, 0x04).$Addition;\n                // send the binary string to the server\n                if(strlen($Command) !== @fwrite($this->Socket, $Command, strlen($Command)))\n                        throw new Exception('Failed to write on socket', 2);\n\n                // listen what the server has to say now\n                $Data = fread($this->Socket, 2048);\n                if($Data === false)\n                        throw new Exception('Failed to read from socket', 3);\n\n                // remove the first 5 unnecessary bytes (0x00, 0x01, 0x02, 0x03, 0x04) Status type and own ID token\n                return substr($Data, 5);\n        }\n}复制代码\n\nJava的大家一定都有了。。。。没有的直接反编译现成的吧\n易语言。。无视了\n\n\nc++正在写。。。\n",
+    "replies": [
+        {
+            "author": "1277832129",
+            "timestamp": 1388568840,
+            "txt_content": "楼主好厉害的样子 挺你"
+        },
+        {
+            "author": "好奇_先森",
+            "timestamp": 1388568840,
+            "txt_content": "虽然不知道楼主在干什么但好像很厉害的样子"
+        },
+        {
+            "author": "Brick",
+            "timestamp": 1388569320,
+            "txt_content": "好奇_先森 发表于 2014-1-1 17:34 \n虽然不知道楼主在干什么但好像很厉害的样子\n四个字：不明觉厉"
+        },
+        {
+            "author": "lfr86513137",
+            "timestamp": 1388569380,
+            "txt_content": "这是什么…………"
+        },
+        {
+            "author": "tc1236231",
+            "timestamp": 1388569560,
+            "txt_content": "Brick 发表于 2014-1-1 17:42 \n四个字：不明觉厉\n呵呵这不是之前逃跑的技术员么"
+        },
+        {
+            "author": "fourhorsemen91",
+            "timestamp": 1388569920,
+            "txt_content": "mark , 小白表示想问这个具体是干啥用的？"
+        },
+        {
+            "author": "Csgbshgf",
+            "timestamp": 1388574300,
+            "txt_content": " 本帖最后由 Csgbshgf 于 2015-8-23 21:15 编辑 \n\n这些是LZ原创么？"
+        },
+        {
+            "author": "ylmars",
+            "timestamp": 1405775820,
+            "txt_content": "socket？见过PHP的，github上有我给用到Python上了"
+        },
+        {
+            "author": "ylmars",
+            "timestamp": 1405776300,
+            "txt_content": "MOTD没有？\n虽然没搞明白MOTD用的编码是什么，中文没法看"
+        },
+        {
+            "author": "ab8568571",
+            "timestamp": 1405788480,
+            "txt_content": "反正都是贴代码,JAVA就顺手也贴出来"
+        },
+        {
+            "author": "hlrlqy",
+            "timestamp": 1406381220,
+            "txt_content": "原理么么哒"
+        }
+    ]
+}

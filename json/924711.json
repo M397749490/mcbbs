@@ -1,0 +1,69 @@
+{
+    "title": "[原创][其它][NPS]CacheSupport——客户端区块缓存支持 [开源][全版本]",
+    "author": "Actahedral",
+    "replyCount": 12,
+    "timestamp": 1573451460,
+    "txt_content": " 本帖最后由 wode490390 于 2020-2-2 00:12 编辑 \n\n介绍：\n本插件简单实现了对基岩版1.12.0新增的客户端区块缓存特性(基岩版独有)的服务端支持。此特性可以将服务端区块缓存在客户端，不仅可以让玩家更快地加载区块，还有效缓解了服务器的网络压力。有需求的开发者可以参考此项目的源码。\n\n\n\n\nClientBlobCache_v1.png (220.63 KB, 下载次数: 9)\n\n下载附件\n\n2019-11-20 20:38 上传\n\n\n\n\n\n\n使用：\n将本插件扔进服务端plugins文件夹里，重新启动服务器即可。没有命令、权限以及配置\n注意：目前本插件与AntiXray插件不兼容，请勿同时使用！\n温馨提示：推荐使用64位设备开服，xxHash64在64位设备上的性能最高。\n\n下载：\n1.0.2：\n\n\n\nwodeCacheSupport-1.0.2.jar\n(79.97 KB, 下载次数: 684)\n\n\n\n2020-2-2 00:12 上传\n点击文件名下载附件\n1.0.2\n\n\n\n\n\n源代码：GitHub\n\n文档：\n[A description of the new Client Cache for server developers](<a href=\"https://gist.github.com/Tomcc/4be79d3eafcd158c5059abd4ab2e8d35\" target=\"_blank\">https://gist.github.com/Tomcc/4be79d3eafcd158c5059abd4ab2e8d35</a>)\nWhat's the Client Blob Cache\nThe Client Blob Cache is a new Bedrock optimization - it allows blocks and biomes to be cached on Clients to avoid resending identical chunks over and over.\nChunks and biomes make up the vast majority of network traffic in a lot of common cases (eg. login, teleport or dimension switches) but at the same time, they rarely change. Allowing the Client to reuse chunks it has seen in the past can save a ton of traffic and latency!\nThe Client Cache is a Content Addressed Storage (a bit like git) that stores Blobs and retrieves them based on their full hashes (BlobIds). This means that the cache doesn't actually know about Chunks - in the future, we might start using it for more types of data, like skins or data driven entities.\nA nice thing we get from the CAS approach is that the cache is persistent: returning players will be able to reuse content that was sent them in previous sessions or even previous sessions in different servers as long as that content matches exactly what the server is attempting to send right now.\nThe Client enforces the correctness of all BlobIds by verifying that its independently computed hash matches with what the server is sending, so other 3rd party servers cannot corrupt your content.\nThe protocol involves a bit of back and forth: when the Server tells the client to reuse a known BlobId, it starts a Cache Transaction. This means that it must keep Blobs it referred to around and be ready to send them to the client if a Cache Miss Request is received.  \nBest practices to improve cache usage for Server Owners and Map Makers\nThe Client Cache always saves a little bit of bandwidth, but there's a few things you can do to make it save as much bandwidth as possible by making cache-friendly worlds.\nThe most important thing is to keep in mind that blocks are sent in grid-aligned 16x16x16 cubes (SubChunks), and that these cubes aren't sent if an identical cube was already seen by the client.\nThis means that the best case for the cache is for example, something like a world made by just stone up to y=64 and then just air.\nSo a few guidelines are:\n\nIf your underground isn't playable, use /fill or an editor to make every part of the underground uniformly stone. Ores, Gravel, Caves and dirt/*ite formations cause underground chunks to be unique and unshareable.\nIf your map has obvious borders that the player can't see through, use an editor to remove all blocks past that border. Chunks made of just air don't require any sending at all. Or use an infinite sea, infinite grass plane, etc. Anything works as long as it's uniform.\nIf you don't care about biomes, pick one biome and use it across the entire world; this way, biomes don't have to be sent.\nIf you run several servers/minigames, try reusing parts of your world between them and make sure they're aligned in all the worlds. This way, if someone plays Minigame A, they already have a lot of that level when they join Minigame B.\n\nSupporting the Cache Protocol\nThe protocol is actually kinda complicated when getting in the details, and must be implemented with a lot of caution around race conditions, invalidating blobs too early, too late, using too much memory, throttling sends, etc.\nOk, can I just disable it for now?\nYes, the protocol lets the Server shut the caching off entirely so there's no extra work to upgrade to R12 until you're ready to work on supporting the full protocol.\nJust set LevelChunkPacket's new cacheEnabled bool to false and the cache will be forced off from the server side, falling back to the old data format.\nImplementing the Cache Protocol\nClientCacheStatusPacket\nIt's not part of a transaction and is sent by the Client once, at login, to communicate if it supports the cache or not. The client can not turn off/on the cache during the session or send that packet more than once. If a client declares it doesn't support the cache, sending BlobIds to it is an error. Platforms like Switch don't support the cache, so this must be supported!\nFor now, the game only supports using cached content in LevelChunkPacket.\nEach LevelChunkPacket starts a Cache Transaction, each composed of 3 packets always sent/received in the order below.\nLevelChunkPacket\nIt was previously FullChunkDataPacket. It got renamed because it doesn't necessarily contain any data anymore :)\nIt's used to start a Chunk Transaction and contains a few new fields:\n\nbool cacheEnabled: this lets the server turn off the cache for this chunk even if the Client signaled it supports it. Set it to true to enable reusing the cache and the other new fields.\nvarint subChunkCount: how many SubChunks exist in this Chunk.\nvarint blobCount: must be the same as subChunkCount. Added for future changes.\nuint64 blobId 1..n: after blobCount, there are n 64-bit numbers that represent the BlobIds. ID 0 is for SubChunk 0, ID 1 is for SubChunk 1, and so on. You have to fill these in by hashing the content of the blobs with [XXHash64](<a href=\"https://github.com/Cyan4973/xxHash\" target=\"_blank\">https://github.com/Cyan4973/xxHash</a>) with seed 0. No other hashing is supported and the client will cross-check and refuse blobs if their content doesn't match the XXHash64 hash.\nNote: When serializing a SubChunk into a blob, it must be serialized in its persistent (disk) format, eg. its palette must be a list of valid Block NBTs, not RuntimeIds! This is very important because the cache is persistent and the Client caches directly the blobs that are sent by the server, so a blob can't contain RuntimeIds that change from session to session.\nThe last ID in this sequence is the biome blob.\nBorder Blocks, Block Entities and Biomes follow the ids in the old format.\n\nSo the python-ish pseudocode for building a LevelChunkPacket and storing the blobs could be:\nusedBlobs = dict()\n\nfor each subchunk in chunk:\n    blob = serialize(subchunk)\n    blobId = XXHash64(blob)\n\n    # add the blob to the current \"transaction\" set of required blobs\n    usedBlobs[blobId] = blob\n\n# do the same for biomes\nbiomes = serialize(chunk.biomes)\nbiomesId = XXHash64(biomes)\nusedBlobs[biomesId] = biomes\n\n# now write out the packet\nstream.writeChunkPos(chunk.pos) # position\nstream.writeUnsignedVarInt(len(chunk)) # number of subchunks\n\nstream.writeBool(True) # enable the cache\n\nstream.writeUnsignedVarInt(len(usedBlobs))\nfor id in usedBlobs:\n    stream.writeUint64(id)\n\n# add the old stuff too\nwriteBorderBlocks(stream, chunk)\nwriteBlockEntities(stream, chunk)\n\n# Keep the transaction object alive to keep track of how many transactions are active\n# and to be able to decide when to delete a blob because everyone is done with it\nserver.trackTransaction(clientId, usedBlobs)\nAfter this is sent, the client will respond with a ClientCacheBlobStatusPacket.\nClientCacheBlobStatusPacket\nClientCacheBlobStatusPacket is sent periodically by the client to update the server on which blobs it was able to retrieve from the cache (ACK) and which blobs it is lacking (MISS). Note that for performance reasons this packet is not sent for each LevelChunkPacket - instead, the client batches the ACKs and MISSes into two big sets and sends them once in a while, eg. each tick. \nWhen the Server receives one of these, it should go through each blob in the MISS list, fetch it from its storage, add it to a ClientCacheMissResponsePacket sent it over to the Client.\nYou probably also want to use the ACKs/MISSes in this packet to decrement the blob data refcounts to find out which blobs have been confirmed by everyone and don't need to be kept around anymore.\nEach ClientCacheBlobStatusPacket can only contain up to 4095 Ids, so packets bigger than that can be rejected.\nClientCacheMissResponsePacket\nThis packet is just a list of <blobId, blob> pairs. Any missing blob should just be thrown into one of these packet ASAP and sent.\nExtra: How to throttle cache transactions\nThrottling chunks is really important to keep latency under control for clients - if the server sends several MB's of blobs at once, those will hog the connection for several seconds until they all get through. High priority packets like movement or block updates will be queued after all that and it will cause heavy lagging on bad connections.\nYou should count the active transactions for each client, and only send new LevelChunkPackets if there aren't too many active transactions. In Vanilla, depending on the connection quality, we only allow between 1 and 8 concurrent transactions.\nDon't try to throttle ClientCacheMissResponsePacket, on the contrary, try to send it as soon as possible. Once a LevelChunkPacket is sent the client needs missing Blobs as soon as possible, so it's critical to keep the delay between LevelChunkPacket and the ClientCacheMissResponsePacket containining the requested blobs to a minimum.\n日志：\n1.0.2（2020.02.01）：\n性能优化\n1.0.1（2020.01.21）：\n1. 修复NASE问题\n2. 性能优化\n1.0.0（2019.11.05）：\n首版示例\n统计：\n\n\n",
+    "replies": [
+        {
+            "author": "101134482",
+            "timestamp": 1573819020,
+            "txt_content": "支持1.13吗"
+        },
+        {
+            "author": "PQguanfang",
+            "timestamp": 1573942080,
+            "txt_content": "插件无法使用，进去就是显示地图虚空，玩家用聊天框发送指令等无反应，后台无报错。"
+        },
+        {
+            "author": "Actahedral",
+            "timestamp": 1573961220,
+            "txt_content": "PQguanfang 发表于 2019-11-17 06:08\n插件无法使用，进去就是显示地图虚空，玩家用聊天框发送指令等无反应，后台无报错。 ...\n请使用Nukkit主线第508次或更新的构建"
+        },
+        {
+            "author": "Actahedral",
+            "timestamp": 1573961340,
+            "txt_content": "101134482 发表于 2019-11-15 19:57\n支持1.13吗\n支持，Nukkit1.13分支合并到主线后即可使用"
+        },
+        {
+            "author": "101134482",
+            "timestamp": 1574988780,
+            "txt_content": "wode490390 发表于 2019-11-17 11:29\n支持，Nukkit1.13分支合并到主线后即可使用\n感谢楼主分享"
+        },
+        {
+            "author": "我叫王小明",
+            "timestamp": 1580463420,
+            "txt_content": "这个东西好"
+        },
+        {
+            "author": "YH葬歌",
+            "timestamp": 1581479820,
+            "txt_content": "插件安装上去并提示启用是不是就代表没问题了\n\n"
+        },
+        {
+            "author": "微醉的阳光",
+            "timestamp": 1581807060,
+            "txt_content": "还是会出现刷新不出来地图的情况=-="
+        },
+        {
+            "author": "Actahedral",
+            "timestamp": 1583059500,
+            "txt_content": "阳光yeyuyang 发表于 2020-2-16 06:51\n还是会出现刷新不出来地图的情况=-=\n是所有区块都刷不出来呢还是一个区块刷不出来呢还是子区块刷不出来呢？"
+        },
+        {
+            "author": "一只鸽纸",
+            "timestamp": 1583313420,
+            "txt_content": "1.14能用吗"
+        },
+        {
+            "author": "kioging",
+            "timestamp": 1588504440,
+            "txt_content": "目前1.14.60不能用，进服循环报错（1.14.0可以用）"
+        },
+        {
+            "author": "101134482",
+            "timestamp": 1589107800,
+            "txt_content": "1.14.6报错，希望可以修复"
+        }
+    ]
+}

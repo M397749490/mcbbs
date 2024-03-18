@@ -1,0 +1,29 @@
+{
+    "title": "（数据包）用盔甲架绘制长方体",
+    "author": "(=°ω°)丿",
+    "replyCount": 4,
+    "timestamp": 1534137480,
+    "txt_content": " 本帖最后由 Teenager_Yang 于 2018-8-13 14:45 编辑 \n\n\n\n\n\n2018-08-10_13.16.34.png (24.17 KB, 下载次数: 1)\n\n下载附件\n\n2018-8-13 12:39 上传\n\n\n\n\n\n\n\n\n2018-08-10_13.10.55.png (42.18 KB, 下载次数: 1)\n\n下载附件\n\n2018-8-13 12:27 上传\n\n\n\n\n\n如图1，在世界内分别有任意两个盔甲架：\n盔甲架1：无重力，坐标：（x1,y1,z1），tag=armor_stand_1\n盔甲架2：无重力，坐标：（x2,y2,z2），tag=armor_stand_2\nx1,y1,z1,x2,y2,z2 之间无任何数量关系。\n要求：制作一个数据包，使得玩家运行数据包内的函数后，以这两个盔甲架为两个顶点用盔甲架（无重力，tag=armor_stand_3）绘制一个长方体（如图2，类似于用 /fill 指令根据两个坐标填充一个长方体），并简要说明原理。\n版本：1.13.1 的快照版本 18w32a\n\nemmm……其实我只是不想打字，然后看看有没有更好的方法。\n召唤术：\n@ruhuasiyu \n@SPGoding \n@pineapple_ \n@⊙v⊙ \n@pca006132 \n",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1534137480,
+            "txt_content": " 本帖最后由 SPGoding 于 2018-8-14 12:16 编辑 \n\n刚好还没人答，之前组里 dalao 提到过，“点动成线，线动成面，面动成体”（把这三步分别称为 step_1 step_2 step_3，点-point，线-line，面-square）。\n\n初始化scoreboard objectives add tmp dummy \"临时\"复制代码\n\n在玩家执行的函数里，获取两个盔甲架 X 坐标之差：$xdexecute store result score $x1 tmp run data get entity @e[limit=1,tag=armor_stand_1] Pos[0] 1\nexecute store result score $x2 tmp run data get entity @e[limit=1,tag=armor_stand_2] Pos[0] 1\nscoreboard players operation $xd tmp = $x1 tmp\nscoreboard players operation $xd tmp -= $x2 tmp复制代码\n\n然后在 tag=armor_stand_1 处生成“点”盔甲架execute at @e[tag=armor_stand_1] run summon minecraft:armor_stand ~ ~ ~ {Tags:[\"armor_stand_3\",\"point\",\"line\",\"square\"],NoGravity:1b}复制代码\n\n让 tag=point 执行 step_1execute as @e[tag=point] run scoreboard players operation @s tmp = $xd tmp\nexecute as @e[tag=point] at @s run function foobar:step_1复制代码\n\n大致内容就是根据上面得到的 $xd 来不断移动“点”，并在原先位置放置新的盔甲架，使得点动成线。# foobar:step_1\nexecute unless score @s tmp matches 0 run summon minecraft:armor_stand ~ ~ ~ {Tags:[\"armor_stand_3\",\"line\",\"square\"],NoGravity:1b}\nexecute if score @s tmp matches 1.. run teleport @s ~1 ~ ~\nexecute if score @s tmp matches 1.. run scoreboard players remove @s tmp 1\nexecute if score @s tmp matches ..-1 run teleport @s ~-1 ~ ~\nexecute if score @s tmp matches ..-1 run scoreboard players add @s tmp 1\nexecute unless score $xd tmp matches 0 run function foobar:step_1复制代码\n\n\n在玩家执行的函数里，接着获取两个盔甲架 Y 坐标之差：$ydexecute store result score @s tmp run data get entity @e[limit=1,tag=armor_stand_1] Pos[1] 1\nexecute store result score $yd tmp run data get entity @e[limit=1,tag=armor_stand_2] Pos[1] 1\nscoreboard players operation $yd tmp = $y1 tmp\nscoreboard players operation $yd tmp -= $y2 tmp复制代码\n\n让 tag=line 执行 step_2execute as @e[tag=line] run scoreboard players operation @s tmp = $yd tmp\nexecute as @e[tag=line] at @s run function foobar:step_2复制代码\n\n大致内容就是让刚刚生成出来的“线”根据 $yd 运动为“面”# foobar:step_2\nexecute unless score @s tmp matches 0 run summon minecraft:armor_stand ~ ~ ~ {Tags:[\"armor_stand_3\",\"square\"],NoGravity:1b}\nexecute if score @s tmp matches 1.. run teleport @s ~ ~1 ~\nexecute if score @s tmp matches 1.. run scoreboard players remove @s tmp 1\nexecute if score @s tmp matches ..-1 run teleport @s ~ ~-1 ~\nexecute if score @s tmp matches ..-1 run scoreboard players add @s tmp 1\nexecute unless score @s tmp matches 0 run function foobar:step_2复制代码\n\n\n在玩家执行的函数里，接着获取两个盔甲架 Z 坐标之差：$zdexecute store result score $z1 tmp run data get entity @e[limit=1,tag=armor_stand_1] Pos[2] 1\nexecute store result score $z2 tmp run data get entity @e[limit=1,tag=armor_stand_2] Pos[2] 1\nscoreboard players operation $zd tmp = $z1 tmp\nscoreboard players operation $zd tmp -= $z2 tmp复制代码\n\n让 tag=square 执行 step_3execute as @e[tag=square] run scoreboard players operation @s tmp = $zd tmp\nexecute as @e[tag=square] at @s run function foobar:step_3复制代码\n\n大致内容就是让刚刚生成出来的“面”根据 $zd 运动为“体”# foobar:step_3\nexecute unless score @s tmp matches 0 run summon minecraft:armor_stand ~ ~ ~ {Tags:[\"armor_stand_3\"],NoGravity:1b}\nexecute if score @s tmp matches 1.. run teleport @s ~ ~ ~1\nexecute if score @s tmp matches 1.. run scoreboard players remove @s tmp 1\nexecute if score @s tmp matches ..-1 run teleport @s ~ ~ ~-1\nexecute if score @s tmp matches ..-1 run scoreboard players add @s tmp 1\nexecute unless score @s tmp matches 0 run function foobar:step_3复制代码\n\n\n最后，移除中间步骤用到的 tagtag @e remove point\ntag @e remove line\ntag @e remove square复制代码\n\n\n至此，五百金粒到手。"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1534306980,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-2-1 15:16 编辑 \nSPGoding 发表于 2018-8-13 13:18\n刚好还没人答，之前组里 dalao 提到过，“点动成线，线动成面，面动成体”（把这三步分别称为 step_1 step_ ...\n我想问一下，有没有办法可以以armor_stand_1为圆心，armor_stand_2为圆上一点画圆，生成armor_stand_3。\n（你只需要回答有或没有）如果有的话，我去准备一下金粒，再发一个帖子。"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1534316040,
+            "txt_content": "Teenager_Yang 发表于 2018-8-15 12:23\n我想问一下，有没有办法可以以armor_stand_1为圆心，armor_stand_2为圆上一点画圆，生成armor_stand_3。\n ...\n有是有的，从 armor_stand_1 出发，递归到 armor_stand_2 一直生成 armor_stand_3 连出一条半径，然后旋转 armor_stand_1 一圈并一直 tp 那条半径画出一个圆\n\n我看起来像是缺金粒的人吗！"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1534443960,
+            "txt_content": "@我了我也回复一下吧…凑巧有事过来看看冒个泡\n\nhttp://www.mcbbs.net/thread-775369-1-1.html\n这个之前有个类似的问题，也是fill，还是类似replace的模式呢，只不过两个坐标之间的数量关系已知，这个只需要通过记分板获取坐标一减，就能得到数量关系了，你自己看看吧，不知道和这个spg说的有没有什么太大的差别\n\n主要就是点动成线，线动成面，面动成体\n上面那家伙抢我的话就算了，还说是dalao说的\n下次千万不要相信他说的鬼话"
+        }
+    ]
+}

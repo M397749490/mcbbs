@@ -1,0 +1,54 @@
+{
+    "title": "---===从零基础开始，到精通插件===---#11 NMS的另类食用方法",
+    "author": "erry64",
+    "replyCount": 9,
+    "timestamp": 1577616540,
+    "txt_content": " 本帖最后由 berry64 于 2019-12-29 19:17 编辑 \n\n回到目录第11章:NMS的另类食用方法\n什么是NMS?众所周知，现在各大服务端核心(spigot, craftbukkit, cauldron)都是基于Mojang官方开发的服务器内核(sponge除外)搭建的。\n虽然这些服务端核心给我们提供了很多便利的API，但在这之中难免会有一些功能没有完全地被api继承，所以有时候开发者们会需要通过直接调用Mojang的代码才能达到某些特殊效果（比如向玩家发送特定数据包）。\n\n而这些Mojang代码大部分都属于net.minecraft.server包，便有了NMS简称。\nしかし（但是）\nMojang的代码不光混淆过，还有一个很烦人的尿性：每个mc版本的包名都不一样\n比如1.7.10的包名就是net.minecraft.server.v1_7_R4, 而1.14.4的包名就是net.minecraft.server.v1_14_R4\n不过虽然里面的代码会根据版本改变，但很多时候要调用的方法都不会变\n\n然鹅这时候如果你的包名不一样的话，JVM就懵逼了：就算这个类存在也有这个方法，JVM却找不到该版本对应的类，然后你的插件就不能跨版本了。\n普通的解决办法面对这个棘手的问题，大家出了很多不同的解决办法:\n办法1：反射 因为反射可以用String的方式调用指定类的方法，这样就可以获取服务器的版本并把它计算进方法调用路径。使用这个办法的插件可以大部分版本的兼容性，但却有一个致命的问题：每次调用方法的时候都会有性能问题。用这个办法的插件很多，bbs上也有很多教程，在这里我就不多介绍了\n方法2：代理 这个方法致力于解决性能问题，让插件可以在本身运行速度的情况下跨版本（ProtocolLib好像就是这个办法）。在开发的时候开发者编译很多不同版本的class，并在要使用的时候调用合适的版本。不过这个对于开发者的要求较高，因为需要开发者为每一个版本编译一个class，并且在minecraft每个跟新的时候都更新插件\n方法3：Libs64 这个方法既兼容了多版本的支持，也保留了代码效率。通过编辑class的字节码来达到动态改变类名的效果，开发者只需一行代码，以及一个不需要考虑版本兼容性的class。现在只要998，走过路过千万不要错过!\nLibs64NMSPatcher食用方法Libs64使用了最前沿最高端的Java字节码修改技术(其实就是ASM)通过修改字节码达到兼容版本的效果。\n而且使用方法又简单，只需在插件启动的时候（onEnable）里加入一行代码:\nLibs64NMSPatcher.registerPatch(插件, 类名, 插件开发时的版本)复制代码\n这里的插件就用你插件的实例，比如如果是在主类里调用这个方法的话就是this\n类名就是需要打补丁的类，比如如果这个类是net.berry64.test.NMSClass那么这里就是\"net.berry64.test.NMSClass\"\n切记这里不能用NMSClass.class.getName()! 因为这样的话JVM会加载你本身的类\n而插件版本就是你开发时使用的API版本，比如你用的是1.7.10的话那么你的版本就是v1_7_R4，那么你这里就可以写new ServerVersion(1,7,4)\n\n\nNMS实用案例\n现在我们可以跨版本调用NMS了，那我们就可以愉快的使用NMS带来的便利了：\nNMS最常用的用法是用来向玩家发包，这里我直接放上代码：\npackage net.berry64.nms;\n\nimport net.minecraft.server.v1_12_R1.PacketPlayOutWorldParticles;\nimport net.minecraft.server.v1_12_R1.PlayerConnection;\nimport org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;\nimport org.bukkit.entity.Player;\n\npublic class NMSClass{\n        public static void sendPacket(Player player) { //Player是Bukkit的API\n                CraftPlayer cp = (CraftPlayer)player; //获取bukkit内部玩家实例\n                PlayerConnection pc = cp.getHandle().playerConnection; //获取NMS内部玩家接口\n                pc.sendPacket(new PacketPlayOutWorldParticles());//发送数据包\n        }\n}复制代码至此，你会发现这里很多都用了指定版本的API（这里用的是1.12.2）不过没关系，因为我们这里主类使用了Libs64黑科技(淘宝宣传词？）\n主类: public void onEnable(){\n        Libs64NMSPatcher.registerPatch(this, \"net.berry64.nms.NMSClass\", new ServerVersion(1,12,2));\n}\n\npublic boolean onCommand(CommandSender sender, Command cmd, String label, String[] args){\n        if(cmd.getName().equalsIgnoreCase(\"test\") && sender instanceof Player){\n                NMSClass.sendPacket((Player)sender);\n        }\n}复制代码现在这个插件就可以在非1.12.2的版本上运行了\n\n哇塞，这么方便，哪里下载?不要急不要急，人人都有份\n现在下载Libs64 -> 这里 获取属于你的快乐让开发变简单\n\n读到这里你可能发现了，嘿嘿，这是不是像个广告\n\n回到目录",
+    "replies": [
+        {
+            "author": "Aikini",
+            "timestamp": 1577616780,
+            "txt_content": " 本帖最后由 Aikini 于 2019-12-29 18:54 编辑 \n\n生きている间（有生之年）"
+        },
+        {
+            "author": "尘",
+            "timestamp": 1577618340,
+            "txt_content": "有生之年系列"
+        },
+        {
+            "author": "AzureHanChen",
+            "timestamp": 1577619660,
+            "txt_content": "终于更了！\n有生之年.jpg"
+        },
+        {
+            "author": "fgfgt",
+            "timestamp": 1577624040,
+            "txt_content": "刚看完前面，就更了？"
+        },
+        {
+            "author": "fgfgt",
+            "timestamp": 1577624160,
+            "txt_content": "一看时间，距离上一次更新两年了"
+        },
+        {
+            "author": "1361188364",
+            "timestamp": 1577630220,
+            "txt_content": "有生之年qwq"
+        },
+        {
+            "author": "Fachep",
+            "timestamp": 1580809980,
+            "txt_content": "鲸了（俺来得晚嘿嘿）"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1580811000,
+            "txt_content": "这有点像我之前玩动态类的，不过我是用字节码define一个包装类然后跑包装类里的方法"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1581161160,
+            "txt_content": " 本帖最后由 andylizi 于 2020-2-8 19:31 编辑 \n\nProtocolLib 用的是反射，并且在一些性能关键的地方使用了ASM动态生成的类（通过cglib）。\n\n另外“代理”是啥意思？我一开始以为你说的是 java.lang.reflect.Proxy，但这跟“在开发的时候开发者编译很多不同版本的class”的描述对不上啊。\n\n以及 Libs64 这种黑魔法操作支持 Java 8 以上的版本么。从 Java 9 开始，反射API以及 defineClass 这种操作的限制都严格了很多。虽然根据 bStats 的统计，现在97%的服务器都还在用 Java 8，但这一点的确值得考虑。\n\n最后我的眼睛快要瞎了！！\n\n\nedit: 顺便捉个虫。你的演示代码里用的明明是 v1_12_R1import net.minecraft.server.v1_12_R1.PlayerConnection;复制代码但是下面却new ServerVersion(1,12,2)复制代码"
+        }
+    ]
+}

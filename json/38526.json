@@ -1,0 +1,64 @@
+{
+    "title": "利用Forge API开发联机MOD【基础篇】【第六章】",
+    "author": "yuxuanchiadm",
+    "replyCount": 11,
+    "timestamp": 1343821920,
+    "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-7-26 09:22 编辑 \n\n利用Forge API开发联机MOD【基础篇】【第六章】\n给你的MOD添加一个方块\n作者：yuxuanchiadm\n\n索引贴地址：http://www.mcbbs.net/thread-38211-1-1.html\n\n请确定你已经阅读完成第五章的内容:\nhttp://www.mcbbs.net/thread-38387-1-1.html\n否则不要阅读此贴！\n\n序：\n在上一章里，我们学会了如何创建一个物品，并应用于游戏中。现在我们将创建一个高级刷怪笼方块的基本Block对象，使你可以设置刷怪笼所刷的怪物。\n\n添加一个新方块：\n首先，我们要想好这个方块所能实现的功能。\n1.可以被任何镐子直接挖掉。\n2.可以设置刷怪笼所刷的怪物。\n3.可以设置刷怪笼刷怪的时间间隔。\n下面，开始行动！\n首先，添加一个可以合成普通刷怪笼的合成表：ModLoader.addRecipe(new ItemStack(Block.mobSpawner,1), new Object[]\n{\n    \"###\",\"#*#\",\"###\",Character.valueOf('#'),Item.ingotIron,Character.valueOf('*'),Item.redstone\n});复制代码然后，在myFirstMod下新建一个包Block，再新建一个类，命名为BlockAdvancedMobSpawner，并更改内容为：package myFirstMod.Block;import java.util.Random;import net.minecraft.block.BlockContainer;\nimport net.minecraft.block.material.Material;\nimport net.minecraft.entity.player.EntityPlayer;\nimport net.minecraft.tileentity.TileEntity;\nimport net.minecraft.world.World;public class BlockAdvancedMobSpawner extends BlockContainer\n{\n    // 构造函数\n    public BlockAdvancedMobSpawner(int par1)\n    {\n        super(par1, Material.rock);\n        this.setHardness(5.0F);\n        this.setStepSound(soundMetalFootstep);\n        this.setBlockName(\"Advanced Mob Spawner\");\n    }\n    // TileEntity对象\n    public TileEntity createNewTileEntity(World var1)\n    {\n        return new TileEntityAdvancedMobSpawner();\n    }\n    // 掉落的物品ID\n    public int idDropped(int par1, Random par2Random, int par3)\n    {\n        return this.blockID;\n    }\n    // 不是不透明方块\n    public boolean isOpaqueCube()\n    {\n        return false;\n    }\n    // 玩家右击方块\n    public boolean onBlockActivated(World par1World, int par2, int par3, int par4, EntityPlayer par5EntityPlayer, int par6, float par7, float par8, float par9)\n    {\n        if (par5EntityPlayer.isSneaking())\n        {\n            if(par1World.isRemote)\n            {\n                //如果蹲下但是客户端，也跳出，但返回true使其挥舞手臂\n                return true;\n            }\n        }\n        else\n        {\n            //如果没有蹲下则跳出\n            return false;\n        }\n        // 以后会在这里添加代码\n        return true;\n    }\n}复制代码这里Eclipse会报错，因为没有定义TileEntityAdvancedMobSpawner类，我们将在稍后将其补全。\n\n/**知识点：在Minecraft里用什么表示一个方块？\nMinecraft里所有的方块都表示为继承自Block类的一个类，在Block类里，定义了许多有用的方法，这些方法会在玩家执行右击、破坏、左击......等动作时调用，以实现相应的处理，Minecraft的方块时一个接一个的储存在存档文件里的，在读取的时候顺序读取，存储在存档文件里面的一个方块只包含基础信息，不包含其方块的坐标，方块的坐标是在载入时根据先后顺序依次计算的。\n**/\n在mod_myFirstMod里添加字段：\n\n\npublic static int BlockAdvancedMobSpawnerID;\npublic static Block AdvancedMobSpawner;复制代码\n在preInit函数唯一一个try语句块中添加BlockAdvancedMobSpawnerID = myFirstModConfig.GetBlockID(\"BlockAdvancedMobSpawner\", 300);复制代码复制一个刷怪笼的纹理图片到myFirstMod\\sprites\\blocks.png，用PS打开，并乱涂一番。\n得到高级刷怪笼的纹理：)\n\n\n\n\nblocks.png (3.6 KB, 下载次数: 24)\n\n下载附件\n\n2013-2-13 03:43 上传\n\n\n\n\n\n在myFirstModProxyClient中注册（预载入）这个纹理：\n添加字段：public final static String BLOCKS_PNG_PATH = \"/myFirstMod/sprites/blocks.png\";复制代码在registerRenderers方法中添加：MinecraftForgeClient.preloadTexture(BLOCKS_PNG_PATH);复制代码在BlockAdvancedMobSpawner中绑定这个纹理：this.blockIndexInTexture = 0;\nthis.setTextureFile(myFirstModProxyClient.BLOCKS_PNG_PATH);复制代码然后在load函数添加：\nAdvancedMobSpawner = new BlockAdvancedMobSpawner(BlockAdvancedMobSpawnerID);\nModLoader.registerBlock(AdvancedMobSpawner);\nModLoader.addName(AdvancedMobSpawner, \"高级刷怪笼\");复制代码\n添加合成表：\nModLoader.addRecipe(new ItemStack(AdvancedMobSpawner,1), new Object[]\n{\n    \"###\",\"#*#\",\"###\",Character.valueOf('#'),Item.diamond,Character.valueOf('*'),Block.mobSpawner\n});复制代码\n现在，你可以把这个方块的createNewTileEntity()函数改成（记得改回来）：\npublic TileEntity createNewTileEntity(World var1)\n{\n    return null;\n}复制代码\n\n并测试游戏，你可以用8个钻石和1个刷怪笼得到一个类似刷怪笼的玩意（伪·钻石氪金刷怪笼），但是这玩意丝毫没有用处，在下一章里，我将教你如何让这玩意起作用。\n\n总结：\n在这一章里，我们学会了如何创建一个基本的方块，在下一章里，我们会让这个方块能够像刷怪笼一样刷各种生物。\n\n\n",
+    "replies": [
+        {
+            "author": "Condor",
+            "timestamp": 1343822040,
+            "txt_content": "目测这对一些人做MOD很有帮助，辛苦了。。。"
+        },
+        {
+            "author": "masson_ma",
+            "timestamp": 1367181180,
+            "txt_content": "1.5.1中MinecraftForgeClient.preloadTexture()方法过期了怎么破？好像改了写法了"
+        },
+        {
+            "author": "kuafuzhuguang",
+            "timestamp": 1375704780,
+            "txt_content": "完成。。。"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1383216960,
+            "txt_content": "问一下new ResourceLocation(\"MyMod:textures/block/blocks.png\")指的位置是哪里= ="
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1383227280,
+            "txt_content": "huanghongxun 发表于 2013-10-31 18:56 \n问一下new ResourceLocation(\"MyMod:textures/block/blocks.png\")指的位置是哪里= =\nNope如果你想给方块加材质的话，那么1.6.2不是这么写的。\n重载Block的registerIcons方法然后注册材质，例如：\npublic void registerIcons(IconRegister iconRegister)\n{\n    blockIcon = iconRegister.registerIcon(\"AssemblyProgramCraft:BaseTexture\");\n}\n然后把方块材质放到assets/assemblyprogramcraft/textures/blocks目录里并命名为BaseTexture.png，不需要加/textures/block/，物品也一样，并且其在代码里引用的资源包名可以有大写，但实际资源包名必须小写，另外1.6.4开始每个方块都有个单独的材质文件，不再是放一起了。"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1383227820,
+            "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-10-31 21:58 编辑 \nhuanghongxun 发表于 2013-10-31 18:56 \n问一下new ResourceLocation(\"MyMod:textures/block/blocks.png\")指的位置是哪里= =另外如果直接使用ResourceLocation，那么\nprivate static final ResourceLocation scrollTextures = new ResourceLocation(\"AssemblyProgramCraft:textures/gui/scroll.png\");\n对应：\nassets/assemblyprogramcraft/textures/gui/scroll.png\n绘制则用：\nFMLClientHandler.instance().getClient().renderEngine.bindTexture(scrollTextures);\n进行纹理绑定"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1383228060,
+            "txt_content": "yuxuanchiadm 发表于 2013-10-31 21:57 \n另外如果直接使用ResourceLocation，那么\nprivate static final ResourceLocation scrollTextures = new R ...\n恩可以了！\n做了一个高级水力发电机MOD。。"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1383370200,
+            "txt_content": "如何在TileEntity里面获取Player。。。。"
+        },
+        {
+            "author": "huanghongxun",
+            "timestamp": 1383390960,
+            "txt_content": "yuxuanchiadm 发表于 2013-10-31 21:48 \nNope如果你想给方块加材质的话，那么1.6.2不是这么写的。\n重载Block的registerIcons方法然后注册材质，例 ...\n这个assets/assemblyprogramcraft/textures/blocks目录\n打包后的确可以\n但是我想在调试的时候有材质应该放到哪里？\nmcp/jars/assets/...不能加载\nminecraft.jar里不能加载\nmods/assets/...不能加载"
+        },
+        {
+            "author": "phpair",
+            "timestamp": 1405554360,
+            "txt_content": "huanghongxun 发表于 2013-11-2 19:16\n这个assets/assemblyprogramcraft/textures/blocks目录\n打包后的确可以\n但是我想在调试的时候有材质应该 ...\neclipse编译在ec的bin里"
+        },
+        {
+            "author": "soil-sword",
+            "timestamp": 1575745680,
+            "txt_content": "看 看不懂。。。"
+        }
+    ]
+}

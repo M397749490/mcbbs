@@ -1,0 +1,34 @@
+{
+    "title": "【逼死插件】可以多人游戏的空岛",
+    "author": "Lucky_fish0w0",
+    "replyCount": 5,
+    "timestamp": 1467524460,
+    "txt_content": " 本帖最后由 cx62d 于 2016-7-5 18:54 编辑 \n\n从1.8.8忙到现在，我的空岛图也总算是完工啦\n我才不会告诉你们其实一直是在偷懒←_←\n先上一个总览图吧\n\n\n命令部分主要有：主城（基本酱油）、玩家处理、商店处理\n主城的处理大概是不让玩家一不小心就被推进下面的末地门（别问我末地门干什么用...你不打龙？你不造小黑塔？）之类的\n玩家处理主要为对空岛的创建、回到空岛之类的操作\n商店处理很简单，卖场和商店，用箱子gui作为基座，买卖各种东西\n空岛的创建又有大概这些步骤：寻找最后一个空岛并确定最后一个空岛的坐标->向东方再挪动64格（大概4个区块）->生成空岛介质->生成区块加载器作用的AreaEffectCloud->执行区块加载强制中心区块为active状态->放置结构方块并激活以生成空岛->把玩家tp过来->完成\n其确定坐标的指令为（空岛总数量为依赖）\n// 循环体\nif /execute @e[tag=FindLastIsland] ~ ~ ~ testfor @e[tag=Island] // 寻找是否有空岛，由cond构造If语句及之后的执行\n   execute @e[tag=FindLastIsland] ~ ~ ~ execute @e[tag=!FindingIsland] ~ ~ ~ scoreboard players tag @r[type=ArmorStand,tag=Island] add Checking // 随机选择空岛并加入比对队列\n    scoreboard players tag @e[tag=FindLastIsland] remove FindingIsland // 去除标签方便下一次循环比对\n    execute @e[tag=Checking] ~ ~ ~ scoreboard players tag @e[tag=FindLastIsland] add FindingIsland // 同时添加标签防止队列溢出\n    scoreboard players operation @e[tag=IslandMarker] Operation1 = @e[tag=IslandMarker] islandAmount // 对操作介质进行初始化\n    scoreboard players operation @e[tag=IslandMarker] Operation1 -= @e[tag=Checking] islandID  // 对操作介质进行减法运算以确定是否为最后的空岛  一般如果真·最后的空岛所在区块没有被加载的话会形成死循环\n    if testfor @e[tag=IslandMarker,score_Operation1=0,score_islandAmount_min=1] // 如果算出的结果<=0的话，这就是最后的空岛\n        scoreboard players tag @e[tag=Checking] add latestIsland // 认定她就是最后的空岛\n        scoreboard players tag @e[tag=FindLastIsland] remove FindLastIsland // 后续操作\n        scoreboard players tag @e[tag=Checking] remove Checking\n    else // 如果不是<=0，由testforblock ...... {SuccessCount:0}和后续cond构成\n        if testfor @e[tag=IslandMarker,score_IslandAmount_min=1]\n            scoreboard players tag @e[tag=Checking] remove Checking // 让第5行命令失效以下一次循环\nelse // 同理，由testforblock ...... {SuccessCount:0}和后续cond构成\n    execute @e[tag=FindLastIsland] ~ ~ ~ scoreboard players tag @e[r=0] add nonIsland // 如果没有空岛则报告没有空岛\n    /execute @e[tag=nonIsland] ~ ~ ~ scoreboard players tag @e[r=0,tag=FindLastIsland] remove FindLastIsland // 停止寻找，不找啦\n复制代码\n区块加载部分又有区块加载器初始化和启动加载器，命令比较简单，用计分板posX与posZ构成相对区块的坐标，让周围5x5的区块进入inactive状态，使其中心区块强制进入active状态，至于为什么不用末地折跃门，原因很简单：nbt不能导入动态变量，此处不多做赘述{:10_530:}\n\n如果我已经有空岛了，那我怎么回家呢？\n那么插件就会找到你的空岛，然后给你传送过去，你不会忘了空岛介质是干什么的吧=A=\n空岛介质保存的信息只有一个：她的ID，与主人所拥有的空岛ID相配对\n如果你更改了她的ID或主人的ID，那么她们将不能配对，那么主人就自然不能回到自家的空岛啦\n至于怎么配对ID，算法与上方折叠相似，都是随机查找空岛进行比对，也不多做描述啦\n\n空岛的商店插件的GUI是利用箱子的，箱子是由结构方块生成的，主线命令如下：\nif ! testfor @e[tag=CheckingBuy] // 叹号为testforblock ... {SuccessCount:0}，即逻辑非\n    scoreboard players tag @r[tag=ShopMarker,type=ArmorStand] add CheckingBuy\n    if execute @e[tag=CheckingBuy] ~ ~ ~ testforblock ~1 ~ ~ ~1 ~ ~ x y z // 然后就是箱子穷举\n        execute @e[tag=CheckingBuy] ~ ~ ~ scoreboard players tag @p[tag=Buying] add Buy***\n        scoreboard players tag @e[tag=CheckingBuy] remove CheckingBuy // 方便下一次循环\n    else if ......\n        .......... // 以此类推复制代码\n然后这些东西交给别的处理线程，一般为给东西、扣钱、重置箱子，然后进行下一次操作循环\n当然，如果没有启动的方法的话，你连商店都打不开！\n所以说，咱还专门提供了接口：trigger Island set 1复制代码\n然后插件会给你提示消息，问你是想买东西还是卖东西，大概的tellraw指令应该不用多说\n如果你选择了买卖东西的话，就会执行：if scoreboard players tag @a[score_Island_min=5,score_Island=5] add Buying // 增加标签来确定买东西的人\n    scoreboard players set @a[score_Island_min=5,score_Island=5] Island 0 // 销毁条件以方便后续操作（大概也能让上面的指令变成“脉冲”）\n    execute @a[tag=Buying] ~ ~ ~ setblock ~ ~ ~1 structure_block 0 replace {mode:\"LOAD\",posX:0,posY:0,posZ:0,name:\"Shop\",powered:1b} // 放置结构方块以放置箱子（里面全是彩色字我才懒得用牌子呢）\n   execute @a[tag=Buying] ~ ~ ~ summon ArmorStand ~ ~ ~ {Tags:[\"ShopMarker\"],Invisible:1b,Invulnerable:1b,NoGravity:1b,Marker:1b} // 生成商店介质，启用上面的处理线程复制代码\n/*******************************************************************************/\n// 现由 @钻石gem 进行排错，本人懒癌晚期=A=\n// 第一次在这发帖=A=如有什么错误，请指出\n// 计划：加入安全系统，让自己在别人的空岛上“身不由己”（大雾\n最后的最后，祝大家身体健康，万事如意=w=\n存档嘛...发现bug不要自己用，报告上来好不好...欢迎伸手党\n存档，密码: NULL    存档备份（如果链接挂掉），密码：7f87\n什么？你怕条件制约转行后没有效果了？\n很简单，转行时用一堆testforblock x y z ······ -1 {SuccessCount:1}即可",
+    "replies": [
+        {
+            "author": "xixia0",
+            "timestamp": 1467524580,
+            "txt_content": "膜拜 {:10_506:}"
+        },
+        {
+            "author": "钻石gem",
+            "timestamp": 1467532500,
+            "txt_content": "话说我也是没啥时间的……还有的就是你自己也可以看看有什么问题啊……"
+        },
+        {
+            "author": "74749470zss",
+            "timestamp": 1467538740,
+            "txt_content": "好难的思路，小白不懂\n图片是否挂了？"
+        },
+        {
+            "author": "天驱骑士",
+            "timestamp": 1467543840,
+            "txt_content": "为什么命令方块这么多颜色啊！看上去还不错的样子！"
+        },
+        {
+            "author": "关谷一郎",
+            "timestamp": 1467719940,
+            "txt_content": "几点几版本的啊？？？？"
+        }
+    ]
+}

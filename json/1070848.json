@@ -1,0 +1,24 @@
+{
+    "title": "插件执行指令的方法",
+    "author": "redfish",
+    "replyCount": 3,
+    "timestamp": 1593617820,
+    "txt_content": "今天用插件scripBlockPlus的时候呢，发现一个问题，就是插件没办法执行luckperms的部分指令\n\n最后没办法跑去翻sbp的源码，发现了一个有趣的东西，就是它在执行命令的时候，在版本1.13之后，会调用nms里面的方法，而不是用bukkit的dispatchCommand， 没有继续翻，猜测是调用的命令方块的 方法。\n\n那么，为什么作者不直接用bukkit的方法而使用nms里面的呢\n\n而且命令方块的执行的话应该很多限制吧。\n\n\n而且这个方法也被标明废弃了，虽然最新版还在用。。。\n        @SuppressWarnings(\"deprecation\")\n        public static boolean dispatchCommand(@NotNull CommandSender sender, @Nullable Location location, @NotNull String command) {\n                Validate.notNull(sender, \"Sender cannot be null\");\n                Validate.notNull(command, \"Command cannot be null\");\n                boolean isCommandSelector = isPlatform() && SBConfig.COMMAND_SELECTOR.getValue();\n                if (isCommandSelector && (isCBXXXorLater(\"1.13\") || CommandSelector.isCommandPattern(command))) {\n                        if (location == null) {\n                                if (sender instanceof Player) {\n                                        location = ((Player) sender).getLocation().clone();\n                                } else if (sender instanceof SBPlayer) {\n                                        location = ((SBPlayer) sender).getLocation().clone();\n                                } else if (sender instanceof BlockCommandSender) {\n                                        location = ((BlockCommandSender) sender).getBlock().getLocation().clone();\n                                } else if (sender instanceof CommandMinecart) {\n                                        location = ((CommandMinecart) sender).getLocation().clone();\n                                }\n                        }\n                        if (location != null) {\n                                return CommandSelector.getListener().executeCommand(sender, location, command);\n                        }\n                }\n                return Bukkit.dispatchCommand(sender, command.startsWith(\"/\") ? command.substring(1) : command);\n        }复制代码",
+    "replies": [
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1593620700,
+            "txt_content": " 本帖最后由 蕾米洛伊 于 2020-7-2 00:26 编辑 \n\n因为它要对 @p 这些选择器做支持\n猜测"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593624780,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-7-2 01:35 编辑 \n\n这实际牵扯到了spigot 1.13 API升级中争议非常大的一项改动\n\n实际原因如下\n\nhttps://github.com/yuttyann/Scri ... keCommandBlock.java\n\nprivate static final Pattern COMMAND_PATTERN = Pattern.compile(\"^@([parf])(?:\\\\[([\\\\w=,!-]*)\\\\])?$\");\n也就是作者希望匹配指令选择器（如楼上说的@p @a）之类\n在1.12.2及以下版本，直接Bukkit.dispatchCommand即可\n\n在1.13之后，Spigot做出了如下改动\nhttps://hub.spigotmc.org/jira/browse/SPIGOT-4327\n\nSpigot项目负责人md_5给出的评论如下：\n\nYes, Bukkit should have never allowed mixing of Vanilla and Bukkit things - it completely breaks any map etc written for Vanilla as soon as plugins are added.\n\nThis is essentially a wontfix for me, I think it is working as designed.\n\nIf you (or someone else) want to add this as an optional \"feature\" then feel free, but it almost certainly involves rewriting the entire command system.\n也就是指令选择器是vanilla的东西，bukkit本就不应该支持\n为了使用指令选择器，只好调用nms方法\n\n至于部分指令无法使用，原因可能与vanilla/bukkit的不同namespace有关，尝试用luckperms:lp的形式调用\n\n实际作者最早用的COMMAND_PATTERN判断有无选择器是最好的方法，可惜在后续commit中，作者改成了根据版本号一刀切"
+        },
+        {
+            "author": "redfish",
+            "timestamp": 1593675300,
+            "txt_content": "疾风暗影 发表于 2020-7-2 01:33\n这实际牵扯到了spigot 1.13 API升级中争议非常大的一项改动\n\n实际原因如下\nluckperms:lp这个方法无效\n\n不过sbp那段判断实际已经包含了对命令是否选择做了筛选\nCommandSelector.isCommandPattern(command)复制代码\n\n只是有个地方SBConfig.COMMAND_SELECTOR.getValue()复制代码\n强制使用了命令选择器的模式\n所以，只要把config里面的对应选项设置为false就可以用了\n\n尴尬\n\n"
+        }
+    ]
+}

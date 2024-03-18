@@ -1,0 +1,79 @@
+{
+    "title": "[CBL|K_bai] 用命令写一个碰撞物理引擎 [18w03b]",
+    "author": "kongbaiyo",
+    "replyCount": 14,
+    "timestamp": 1516970640,
+    "txt_content": " 本帖最后由 kongbaiyo 于 2018-1-26 20:47 编辑 \n\n用命令写一个碰撞物理引擎\n1.13的预览版可以通过记分板的数据修改实体的NBT\n\n我立刻想到了可以由此制作一个任意实体的碰撞物理引擎~\n此处的都要用 NoGravity:1 屏蔽原版的重力 (甚至让Motion时刻为零 不过没有必要)效果图：\n\n附件的datapack就是这个效果！\n先执行function bounce:_init\n再用命令方块超频执行function bounce:main\n右键萝卜钓竿就可以发射弹弹苹果了！\n\n一、运动分析\n1. 首先我们来分析一下一个实体的运动过程\n\n我们知道，速度是位置的变化率，加速度是速度的变化率\n即\nv=dx/dt\na=dv/dt复制代码\n此时的dt在mc里就是1tick\n所以，位置的变化量x等于速度乘以1tick，速度的变化量等于加速度乘以1tick\n此时速度的单位是block/tick，加速度单位为block/tick^2\n\n2. 接下来分析一下实体与方块发生碰撞的情况\n先来看平面中的情况\n一个小球碰撞平面可以这样来看：\n入射  出射\n   \\      /\n    \\    /\n     \\  /\n      \\/\n------------- 碰撞平面对入射时速度进行分解：\n  -----> Vx\n |\n |\n\\|/  Vy对出射时速度进行分解：\n/|\\ -Vy\n |\n |\n  -----> Vx\n可见发生反弹时垂直于反弹面的速度发生了反向。\n将这个结论推广到三维空间中时也是成立的。\n\n3. 再看两个实体碰撞的情况：\n假设两个实体都是球体（简化模型）\n\n\n\n\n\n微信截图_20180126193323.png (5.02 KB, 下载次数: 12)\n\n下载附件\n\n2018-1-26 19:34 上传\n\n\n\n\n\n把速度分解到碰撞方向上\n在碰撞方向上，满足动量定理。即\nm1*V1x+m2*V2x=m1*V1x'+m2*V2x'复制代码\n且两小球碰撞满足能量守恒，即\n1/2 m1*V1^2+1/2 m2*V2^2=1/2 m1*V1'^2+1/2 m2*V2'^2复制代码\n联立即可解得V1x'、V2x'\n\n二、下面就把上面的分析放到MC里来实现吧！\n\n1. 准备工作\n建立以下九个记分板\nscoreboard objectives add px dummy x坐标\nscoreboard objectives add py dummy y坐标\nscoreboard objectives add pz dummy z坐标\nscoreboard objectives add vx dummy x速度\nscoreboard objectives add vy dummy y速度\nscoreboard objectives add vz dummy z速度\nscoreboard objectives add ax dummy x加速度\nscoreboard objectives add ay dummy y加速度\nscoreboard objectives add az dummy z加速度复制代码\n用记分板记录实体的位置、速度和加速度\n\n建立两个常数记分板和临时记分板来备用\nscoreboard objectives add temp dummy 临时1\nscoreboard objectives add temp2 dummy 临时2\nscoreboard objectives add const1 dummy 常数1\nscoreboard objectives add const2 dummy 常数2复制代码\n\n2. 对实体的初始化\n首先生成一个实体\nsummon minecraft:pig 8 10 8 {Tags:[\"new_ball\"],NoGravity:1,NoAI:1,Health:1}复制代码\n再给它赋予一个速度\nscoreboard players set @e[tag=new_ball] vx 5000\nscoreboard players set @e[tag=new_ball] vy 5000\nscoreboard players set @e[tag=new_ball] vz 5000复制代码\n设置加速度。这里只有y方向有加速度，也就是重力加速度\n最后如果想改变重力，只要修改这几个记分板就可以了！\nscoreboard players set @e[tag=new_ball] ax 0\nscoreboard players set @e[tag=new_ball] ay -200\nscoreboard players set @e[tag=new_ball] az 0复制代码\n设置一些常数，后面会用到\nscoreboard players set @e[tag=new_ball] const1 -1复制代码\n3. 开始运动!\n建立一个函数名叫fly，其执行者就是要移动的实体\n以下是fly.mcfunction的内容：\n首先获取实体位置\nexecute as @s store result score @s px run data get entity @s Pos[0] 100000\nexecute as @s store result score @s py run data get entity @s Pos[1] 100000\nexecute as @s store result score @s pz run data get entity @s Pos[2] 100000复制代码\n接着使速度变化量也就是加速度加到速度上\nscoreboard players operation @s vx += @s ax\nscoreboard players operation @s vy += @s ay\nscoreboard players operation @s vz += @s az复制代码\n接着，如果目前的位置加**置变化量也就是下一tick的位置有一个方块，那么我们就将速度反向，达到碰撞反弹的效果\n把检测分为xyz三个方向来检测，这里用到了很多1.13的特性\n首先生成一个实体来帮助检测\nsummon minecraft:area_effect_cloud ~ ~ ~ {Tags:[\"temp_mark\"]}复制代码\n接着移动实体的位置到下一tick的位置\n#判断有无方块-temp=px\nexecute as @s store result score @s temp run scoreboard players get @s px\n#判断有无方块-temp加上vx\nscoreboard players operation @s temp += @s vx\n#判断有无方块-x移动临时实体\nexecute as @s store result entity @e[tag=temp_mark,limit=1] Pos[0] double 0.00001 run scoreboard players get @s temp复制代码\n如果临时实体的位置处有方块，那么就反向vx\nexecute at @e[tag=temp_mark,limit=1] unless block ~ ~ ~ air run scoreboard players operation @s vx *= @s const1复制代码此处const1的值为-1\n再将临时实体的位置还原\nexecute as @s store result entity @e[tag=temp_mark,limit=1] Pos[0] double 0.00001 run scoreboard players get @s px复制代码\n同理，对y,z方向都做同样处理。\n\n本来我们是要检测碰撞另外一个实体的，但是由于速度在碰撞方向上的分解需要进行向量的旋转等运算，需要计算正弦正切值，太麻烦我懒得搞233反正思路有了肯定是可以做出来的！正弦的计算用泰勒展开就好！\n\n接下来把位置加上速度，再把记分板的值更新到实体上，一个tick的循环就完成了！\n#移动\n#p加上v\nscoreboard players operation @s px += @s vx\nscoreboard players operation @s py += @s vy\nscoreboard players operation @s pz += @s vz\n#p存入nbt\nexecute as @s store result entity @s Pos[0] double 0.00001 run scoreboard players get @s px\nexecute as @s store result entity @s Pos[1] double 0.00001 run scoreboard players get @s py\nexecute as @s store result entity @s Pos[2] double 0.00001 run scoreboard players get @s pz\n#删除临时实体\nkill @e[tag=temp_mark]复制代码\n三、继续优化\n\n1. 能量损失\n以上的碰撞都是完全弹性碰撞，如果想要变成有能量损失的碰撞，只需要这样：\n首先新建两个记分板用来保存竖直方向和水平方向能量损失的系数\nscoreboard objectives add energy_lost_n dummy 碰撞法向能量损失\nscoreboard objectives add energy_lost_t dummy 碰撞切向能量损失复制代码\n\n实体初始化时新增修改一些常数：\n#设置常数\nscoreboard players set @e[tag=new_ball] energy_lost_n -95\nscoreboard players set @e[tag=new_ball] energy_lost_t 95\nscoreboard players set @e[tag=new_ball] const1 100\nscoreboard players set @e[tag=new_ball] const2 100000复制代码\n\n然后将碰撞后修改速度的命令\nexecute at @e[tag=temp_mark,limit=1] unless block ~ ~ ~ air run scoreboard players operation @s vx *= @s const1复制代码\n改成执行一个函数\nexecute at @e[tag=temp_mark,limit=1] unless block ~ ~ ~ air run function bounce:energy_lost/x复制代码\n\nenergy_lost/x.mcfunction的内容如下：\nscoreboard players operation @s vx *= @s energy_lost_n\nscoreboard players operation @s vx /= @s const1\nscoreboard players operation @s vy *= @s energy_lost_t\nscoreboard players operation @s vy /= @s const1\nscoreboard players operation @s vz *= @s energy_lost_t\nscoreboard players operation @s vz /= @s const1复制代码\n修改三个方向的速度即可\n注意到垂直于碰撞方向的常数是负数，意为速度反向\n\n2. 停止运动\n经过以上修改，实体一定会停在地面。\n但是实际上，实体会在地面不断小幅度弹跳，一旦进入这个阶段，其实就是停在地面了。\n这时候要判断出这种情况并让它不再弹跳\n\n在energy_lost/y.mcfunction中加入以下代码：\n表示如果竖直速度已经非常小了，就执行energy_lost/on_ground这个函数\nexecute if score @s vy matches -999..999 run function bounce:energy_lost/on_ground复制代码\n\nenergy_lost/on_ground.mcfunction的内容如下：\n首先让实体的位置贴在地面上，再让竖直的速度和加速度为零。\n#修改py向下取整\nscoreboard players operation @s py /= @s const2\nscoreboard players operation @s py *= @s const2\nscoreboard players add @s py 1\n#设置速度为0\nscoreboard players set @s vy 0\nscoreboard players set @s ay 0复制代码\n\n经过以上的操作，基本的实体碰撞方块的物理引擎就写好啦~\n我才不会说和pineapple撞车很尴尬呢233！\n\n\n\n\nbounce.zip\n(5.92 KB, 下载次数: 38)\n\n\n\n2018-1-26 20:45 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "leavessoft",
+            "timestamp": 1516971480,
+            "txt_content": "这个很厉害的样子，估计可以扩展成其他小游戏什么的……1.13更新似乎很厉害啊"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1516975380,
+            "txt_content": " 本帖最后由 pineapple_ 于 2018-1-26 22:09 编辑 \n\n←懒癌晚期玩家表示懒得做实体碰撞2333\n不过你这个看起来，撞到草，水等可穿过方块也会弹回来诶\n还有把分数负过来不需要*const1吧，精度直接取-0.00001就行了\n\"加速 位置\"中的\"速 位\"是屏蔽词诶\n"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1517046240,
+            "txt_content": "pineapple_ 发表于 2018-1-26 22:03\n←懒癌晚期玩家表示懒得做实体碰撞2333\n不过你这个看起来，撞到草，水等可穿过方块也会弹回来诶\n还有把分数 ...\n确实会弹回来！不过只要在unless air那里把air换成可穿过的方块tag就好！\n\n其实*const1是为了后面*energy_lost做伏笔的233 不过精度居然还能取负！我之前还不知道有这种操作！\n\n迷之屏蔽词get233!"
+        },
+        {
+            "author": "我是MCCN",
+            "timestamp": 1517049720,
+            "txt_content": "OMG！小白几乎完全看不懂（公式）"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1517062560,
+            "txt_content": "kongbaiyo 发表于 2018-1-27 17:44\n确实会弹回来！不过只要在unless air那里把air换成可穿过的方块tag就好！\n\n其实*const1是为了后面*energy ...\n嗯 精度取负确实是基本操作XD\n\n我在想 为啥实体间碰撞需要把速度分解到碰撞方向上呢？不分解为啥不行？\n反正mc里实体也不能正常的旋转（船放在悬崖边缘 即使只有一点点和悬崖接触 也不会翻下去）\n感觉直接把他们当质点 不分解速度不行吗？"
+        },
+        {
+            "author": "040128a",
+            "timestamp": 1517066760,
+            "txt_content": "这个物理概念可以 挺好玩的 或许以后会被某个服务器用上？"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1517193840,
+            "txt_content": "chyx 发表于 2018-1-27 22:16\n嗯 精度取负确实是基本操作XD\n\n我在想 为啥实体间碰撞需要把速度分解到碰撞方向上呢？不分解为啥不行？\nemmmm我这里假设实体是球体了\n\n如果假设实体是正方体或者长方体的话就不用分解到速度方向上\n如果假设是质点，那么两个物体理论上是永远不可能碰撞的"
+        },
+        {
+            "author": "MEMCA",
+            "timestamp": 1517209020,
+            "txt_content": "现在物理不好连游戏的玩不了了吗(?_?)"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1517242560,
+            "txt_content": "空白白为在mc里撞车做足了准备√【雾"
+        },
+        {
+            "author": "静秋",
+            "timestamp": 1586271780,
+            "txt_content": " 本帖最后由 静秋 于 2020-4-8 08:20 编辑 \n\n基岩版玩家流泪"
+        },
+        {
+            "author": "tistion15718",
+            "timestamp": 1593087540,
+            "txt_content": "虽然没看懂但是仍觉得很nb"
+        },
+        {
+            "author": "34杨小二",
+            "timestamp": 1613652780,
+            "txt_content": "哇mc变科学啦"
+        },
+        {
+            "author": "llpdjpjbbh371",
+            "timestamp": 1613670540,
+            "txt_content": "好家伙我傻了，物理引擎都出来了=，="
+        },
+        {
+            "author": "330377782",
+            "timestamp": 1613747100,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

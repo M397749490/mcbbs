@@ -1,0 +1,309 @@
+{
+    "title": "怎么看崩溃报告和Timings？",
+    "author": "森林蝙蝠",
+    "replyCount": 60,
+    "timestamp": 1556125200,
+    "txt_content": " 本帖最后由 森林蝙蝠 于 2019-6-12 22:22 编辑 \n\n在找崩溃报告之前，先看看你是不是有这样泥土芳香的背景：\n\n\"要使用xxx mod，你必须安装正常的依赖项，要求xxx mod xxx版本或更高版本（缺失）“，这时候请百度/curseforge搜索那个缺失的mod（如图中bdlib），不要四处乱问我这个怎么开不起来，你前置mod都没有啊。\n\nMinecraft是个很玄学的游戏，就算你什么模组也不加，玩个原版都有可能崩溃，无非是比有模组时少罢了。正如酒石酸所说：发生崩溃时如果找不到崩溃报告，就说“我崩溃了怎么办”，还不如上街找个算命先生算算为什么崩溃好些，那么在哪里找它们呢？\n打开你的MC安装目录（一般为.minecraft文件夹，部分整合包的根目录与整合包同名，比如all the mods，但无论名字有什么不同，它都是mods和saves的所在），找到crash-report文件夹，将内部日期最新（即为你最近的一个崩溃报告）的文件，用记事本或者notepad++打开，就可以看到崩溃信息了。这个文章主要讲的是forge的崩溃报告——其实原版也是一样的道理，只不过它的形式应该是aac.abb.b这样的形式，根本读不出来，forge的崩溃报告相当于把它变成了人类可读形式。\n\n（一个崩溃报告文件夹的长相）\n\n现在我们随便找一个崩溃报告来看看它的结构。\nhttp://paste.ubuntu.com/25672422/(看这里看这里！）\n第28行以前“coremods are present”都是废话——首先要解释下什么是coremod。\n有一些不怎么安分的作者，会用asm/mixin和forge自带的access transformer等工具修改原版代码，这些影响到MC底层的mod（更准确来说是打mod行为），就是所谓的coremod了。\n现实中coremod导致崩溃的概率并不高，但是它的存在可能会误导玩家的判断，因此1.1x之后，forge崩溃报告都会把游戏中出现的coremod罗列出来，有一种“死马当活马医我给你写出来了别怪我没说”的意思，大多数情况下，这些coremod都可以忽略。\n\n重要信息在31行之后，我们挨个读：\ndescription：rendering item翻译过来是“故障描述：渲染物品”，但是，渲染的是哪个物品？\njava.lang.ClassCastException: net.minecraft.item.ItemAir cannot be cast to net.minecraft.item.ItemBlock at twilightforest.block.ColorHandler.lambda$init$13(ColorHandler.java:266) \n\n接下来两行的内容：\njava.lang.ClassCastException——这是java.lang包的ClassCastException（转型异常），有必要说明的是，并不是所有的异常（Exception）都会导致崩溃，错误（Error）才会，关键在于Java虚拟机（JVM）能不能处理这玩意。\n（你可能不知道Java虚拟机是什么，想起第一次开启动器时教程里让你指定的javaw吗？是的那就是Java虚拟机 ）\n\nnet.minecraft.item.ItemAir——net作为最上级的目录，含义并不重要；minecraft就是MC本体了，item代指物品，ItemAir代表空气——MC的空格并不是什么都没有，而是一个叫空气的物品取代了那里，同样，在MC的天空中也不是什么都没有，而是“空气方块”。\ncannot cast to xxx：不能变成……什么呢？\nnet.minecraft.item.ItemBlock：结构和上面那个ItemAir一样，不过是“不能变成一个ItemBlock”——什么是ItemBlock？\n如果你从创造栏里拿出一个方块，你会发现它和一般的物品区别只在于，可以放到世界中变成真正的方块——没错，这就是ItemBlock，一个方块的物品存在形式，如果你把手中的物品丢到世界中（无论它是一般的Item还是ItemBlock），那么掉落物属于EntityItem，也就是说，这时物品以实体的形式存在，因此掉落物可以被kill @e 指令消除。\n如果你足够细心，会发现net，minecraft，item这三级目录都是小写的，而ItemBlock是每个单词首字母大写（所谓大写驼峰式），这是因为前三级目录都是package（包），只有ItemBlock是class（类），负责具体的实现。\n\n\n连起来读就是：“一个空气物品（在玩家物品栏中）转变为某个方块时，java.lang包抛出异常。”\njava.lang是Java之下最基础的包之一，难道这玩意还坏了？当然不是，让我们看下一行。\nat twilightforest.block.xxx——看到这里其实应该松一口气，因为twilight forest就是暮色森林啦，在这儿基本就可以确定是暮色崩溃了。\n\n（分割线警告）\n\n那么下面的一大堆at at at又是什么呢？这要知道什么是栈帧（stacktrace）。\nCPU寄存器的空间是极其有限的，因此方法的调用需要在栈上开辟空间，每调用一个方法就会生成一个栈帧，因此崩溃报告里的一堆at at at所代表的一系列栈帧，某种意义上是一条调用链，最后被调用的方法（也就是爆出异常的方法）会被崩溃报告放在最上面，如下：\nat twilightforest.block.ColorHandler.lambda$init$13(ColorHandler.java:266) //最顶的栈帧，最后发生异常就在这里，异常会被沿着调用链逐级抛出直到最上层无法被处理）\n        at net.minecraft.client.renderer.color.ItemColors.func_186728_a(ItemColors.java:139)\n        at mod.chiselsandbits.render.helpers.ModelUtil.getItemStackColor(ModelUtil.java:466) //chiselandbits指雕刻工艺mod，当时的情况与其无关\n        at mod.chiselsandbits.client.ItemColorPatterns.func_186726_a(ItemColorPatterns.java:28)\n        at net.minecraft.client.renderer.color.ItemColors.func_186728_a(ItemColors.java:139)\n        at net.minecraft.client.renderer.RenderItem.func_175032_a(RenderItem.java:315) //MC原版渲染物品方法\n        at net.minecraft.client.renderer.RenderItem.func_175045_a(RenderItem.java:168)\n        at net.minecraft.client.renderer.RenderItem.func_175036_a(RenderItem.java:140)\n        at net.minecraft.client.renderer.RenderItem.func_180454_a(RenderItem.java:203)\n        at net.minecraft.client.renderer.RenderItem.func_184390_a(RenderItem.java:475)\n        at net.minecraft.client.renderer.RenderItem.func_184391_a(RenderItem.java:517)\n        at codechicken.lib.render.item.CCRenderItem.func_184391_a(CCRenderItem.java:223) //codechickenlib，一个渲染相关的类库，用其做前置可以避免写大量材质与模型相关的json，但是也引发了不少崩溃，属于“重要而麻烦”的东西\n        at codechicken.lib.render.item.CCRenderItem.func_180450_b(CCRenderItem.java:208)\n        at net.minecraft.client.gui.inventory.GuiContainerCreative.func_147051_a(GuiContainerCreative.java:880)\n        at net.minecraft.client.gui.inventory.GuiContainerCreative.func_146976_a(GuiContainerCreative.java:716)\n        at net.minecraft.client.gui.inventory.GuiContainer.func_73863_a(GuiContainer.java:76)\n        at net.minecraft.client.renderer.InventoryEffectRenderer.func_73863_a(InventoryEffectRenderer.java:51)\n        at net.minecraft.client.gui.inventory.GuiContainerCreative.func_73863_a(GuiContainerCreative.java:604)\n        at net.minecraftforge.client.ForgeHooksClient.drawScreen(ForgeHooksClient.java:382) //forge给原版绘制屏幕的画面打的钩子\n        at sun.reflect.GeneratedMethodAccessor34.invoke(Unknown Source)\n        at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n        at java.lang.reflect.Method.invoke(Unknown Source) //Java反射调用方法\n        at Reflector.callVoid(Reflector.java:547)\n        at net.minecraft.client.renderer.EntityRenderer.func_181560_a(EntityRenderer.java:1433)\n        at net.minecraft.client.Minecraft.func_71411_J(Minecraft.java:1077)\n        at net.minecraft.client.Minecraft.func_99999_d(Minecraft.java:372)\n        at net.minecraft.client.main.Main.main(SourceFile:124) //MC客户端的main方法，MC在这里启动\n        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n        at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\n        at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\n        at java.lang.reflect.Method.invoke(Unknown Source)\n        at net.minecraft.launchwrapper.Launch.launch(Launch.java:135)\n        at net.minecraft.launchwrapper.Launch.main(Launch.java:28) //launchwrapper的main方法，在这里控制MC的运行\n复制代码总之，看到一大堆at不要怕，看最上面那个at代表什么，一般也就够了。\n\n\n（分割线结束）\n\n\n当然我们也不能把暮色一删了事，看看能不能抢救呢？\ntwilightforest.block.ColorHandler.lambda$init$13(ColorHandler.java:266) \n\n我们可以结合暮色的GitHub代码来看这一条：https://github.com/TeamTwilight/ ... k/ColorHandler.java（这是1.11的暮色，curseforge上是下载不到的）\n\n看到了吗？崩溃报告的原句是twilightforest.block.ColorHandler，代表崩溃发生在twilightforest下面的block包中的ColorHandler类，与上面的GitHub代码地址形成对应。\n\njava：266代表着这个类文件的第266行，那我们可以看看这个266行发生了什么：\n\nitemColors.registerItemColorHandler((stack, tintIndex) -> blockColors.colorMultiplier(((ItemBlock)stack.getItem()).getBlock().getStateFromMeta(stack.getMetadata()), null, null, tintIndex), TFBlocks.auroraBlock, TFBlocks.auroraPillar, TFBlocks.auroraSlab, TFBlocks.auroraDoubleSlab, TFBlocks.darkleaves, TFBlocks.giantLeaves, TFBlocks.fireJet, TFBlocks.magicLeaves, TFBlocks.leaves, TFBlocks.leaves3, TFBlocks.plant, TFBlocks.castleMagic, TFBlocks.castleDoor, TFBlocks.castleDoorVanished);\n\nlambda$init$13里的lambda代表lambda表达式，也就是上面的那个->符号，结合ItemBlock，我们可以看到问题的原因在于——如果玩家的物品栏什么都没有，那么stack（ItemStack）应该是空的，根本不能从stack获取到Item，还转什么ItemBlock？\n\n当然，看是一回事，自己动手做又是一回事，绝大多数人连看都看不到这里，如果你不会开发，还是老老实实的向作者发issue报告问题吧：\nhttp://www.mcbbs.net/thread-787619-1-1.html（大多数作者都会把mod源码放在github上，少部分会放在bitbucket，gitlab之类源码托管网站，操作大同小异）\nat mod.chiselsandbits.render.helpers.ModelUtil.getItemStackColor(ModelUtil.java:466) \n//还记得刚才说到的雕刻工艺吗？\nat mod.chiselsandbits.client.ItemColorPatterns.func_186726_a(ItemColorPatterns.java:28)\n复制代码虽然我作为当事人可以明确的说暮色的崩溃与此无关，但是很多涉及到这种装饰类模组的崩溃，都是当事人在雕刻/打开箱子/打开某个机器的GUI时出现的渲染错误——这种bug最好确定了，直接找引发崩溃的那个东西就行。\n\n\n73行以后里面的信息与先前的基本一样，没啥可看。 \n\n121行：affected level（影响范围） \n\n主要是第129行所代表的内容level spawn location：代表着崩溃发生的具体位置和区块，无法修复时可以用worldedit（创世神插件），MCEdit，NBTExplorer之类编辑器删除掉这一方块/区块。 \n\nWorld: (-28,64,256), （玩家所在点-28，64，256） \n\nChunk: (at 4,4,0 in -2,16; contains blocks -32,0,256 to -17,255,271), （区块-2,16，区块内部坐标4,4,0，包括了-32,0,256到-17,255,271坐标的方块）Region: (-1,0; contains chunks -32,0 to -1,31, blocks -512,0,0 to -1,255,511)（区域：包括了-32,0到-1,31这一大片区块，没啥用处） \n\n\n151行system details之后是你的系统详情，包括你的系统，Java版本，内存，安装了哪些模组等等。\nMinecraft Version: 1.11.2 （MC版本1.11.2） \n\nOperating System: Windows 10 (amd64) version 10.0（操作系统Windows 10 64位，一般与MC的崩溃没有关系，以后问崩溃的时候不用说你是哪个系统，除非是winxp这种山村老尸） \n\nJava Version: 1.8.0_144, Oracle Corporation（Java版本：1.8.0_144，较新的版本，如果是Java 1.8.0_60,25甚至是Java 7这样的旧版本请更新） \n\nJava VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode),Oracle Corporation Memory: 594339048 bytes (566 MB) / 2823290880 bytes (2692 MB) up to 5324144640 bytes (5077 MB) （当前内存占用，最大可以有5077MB） \n\nJVM Flags: 5 total; -XX:+UseParallelGC -XX:-UseGCOverheadLimit -XX:-OmitStackTraceInFastThrow -Xmn128m -Xmx5120m（Java虚拟机参数，一般都是默认参数启动的，不需要担心）\n\nUCHIJAAAA：代表forge mod的不同加载阶段。\n\nStates: 'U' = Unloaded //mod未加载，越往下时间越靠后，E则可能对应任何一个阶段\n 'L' = Loaded //mod已加载（少见于崩溃报告中，可以忽略），这两个阶段往往在MC窗口出现前后\n'C' = Constructed //mod已经构建，对应forge加载1/7阶段\n'H' = Pre-initialized //mod预初始化，对应forge加载2/7阶段\n'I' = Initialized //mod初始化，对应forge加载2/7阶段后半截\n'J' = Post-initialized //mod后初始化，对应forge加载4/7阶段\n'A' = Available //mod可用状态，对应forge加载5,6/7阶段，如果有不止一个A，说明游戏已经启动\n'D' = Disabled //mod被禁用，一般被禁用的mod并不会触发崩溃\n'E' = Errored  //mod出错\n复制代码如果因为mod加载的原因出现崩溃，那么你就会看到UE（U之后出现的E，代表mod构建阶段崩溃），UCE（已完成构建，E在C后说明预初始化阶段崩溃），UCHE等，这时一般都给某个mod判了死刑，你需要更新或者删除它。\n\n347行之后：\n        Loaded coremods (and transformers): \nDefault Options (DefaultOptions_1.11.2-8.2.2.jar)\n  net.blay09.mods.defaultoptions.coremod.DefaultOptionsClassTransformer\nForgelinPlugin (Forgelin-1.5.1.jar)\n  \nDo not report to Forge! Remove FoamFixAPI (or replace with FoamFixAPI-Lawful) and try again. (foamfix-0.6.3-anarchy.jar)复制代码与28行之前雷同，告诉你有哪些coremod，不过详细了一些，包括了这些coremod有哪些Transformer和LoadingPlugin，算是coremod的“主类”了。\n（如果想进一步了解coremod，可以查看xfl03的教程、liach的教程和我的教程。）\n394行以下到最后可以视作废话。\n\n这一篇我们来看一看一些常见的异常。\nhttp://paste.ubuntu.com/25678716/ （看这里看这里！） \n\n28行以前的coremod are present依旧是废话。\n35行异常：java.lang.RuntimeException: java.lang.NullPointerException，即为空指针异常，空指针异常就是该对象没有被正确初始化（为空）时的引用异常——我们都是单身狗对吧，哪里找对象给你引用去？没有对象，自然很崩溃啦。\n55-57行：\ncaused by：java.lang.NullPointerExceptionat mapwriter.BlockColourGen.genBlockColours(BlockColourGen.java:176) \n\nat mapwriter.Mw.reloadBlockColours(Mw.java:289) \n\n结合上面的原理，我们可以确定是mapwriter（一个小地图mod）之下的BlockColourGen类异常，由字面意思很容易读出，这是地图在生成方块颜色（genBlockColours）时出现的错误。\n以上没对象什么的，只是个形象比喻，普通玩家不需要知道原理，因为这种崩溃一般发生在某一特定事件被触发，比如挖掉某根管道啦，从箱子/储物桶中拿取物品啦，要骑上某匹被诅咒的马啦…… \n\n说解决也简单，避开引发崩溃的事件（例如玩家交互，破坏方块，实体死亡之类），例如用管道或者线缆，或者假玩家（比如Extra Utilities 2的mechanical user以及各种挖矿机，都是虚拟出来的假玩家）代替玩家进行资源获取与物流；例如把出故障的实体打掉（如果是打掉时出了问题就先留着）；例如不进入进而删除故障区块——总之，别啥崩溃你非得干啥，这不是欠的吗？同时到作者的GitHub源码库下提出issue，等待修复。 \n\n以下均可以根据上文所讲述原理，对应上崩溃原因。\n\n\n好，让我们看看下一个，应该说是一类崩溃：发生在游戏启动前（窗口没出现）的崩溃，这种崩溃是不会生成crash-report的，但是所有的信息都会在fml-cilent-latest.log下显示（HMCL等启动器的日志即对应这个文件），处在MC目录（.minecraft）下的logs文件夹中，一般都是八云紫的裹脚布——又臭又长，仅适合开发者使用（除非游戏没开启就崩溃，否则请不要把这堆玩意给复制出来！），但它确实是最完整的信息，即使是crash report，也只是从这个日志中提取了崩溃时发生的错误，但是也足够了。 \n\n由于没开启就崩溃，日志不会很长，一般导致崩溃的是如下几个原因： \n\nlibraries（库文件）下载不完全：一般是网络问题导致的，日志中会显示“scala”“log4j”这样的字符，这种情况可以更换启动器的下载源（例如HMCL启动器，启动器设置-下载源中将官方换成bangbang93），开启VPN（科学上网），或者直接跟别人要个现成的libraries文件夹并在启动器里开启“不使用公共路径”。 \n\n有的时候会报出ClassNotFoundException，可以先重启，如果是第一次开整合包，建议重下forge。\n\nJava，显卡驱动，高清修复等问题：前两者都是MC运行的基本盘，Java版本过旧容易引发问题，1.12更是强制使用Java 8；显卡驱动也有影响，曾经的NVIDIA的378.49驱动直接无差别引发了MC的崩溃；高清修复虽然不是，但是它相当程度修改了原版代码，加上它bug多还不开源，一直受人诟病。还有一些古董级电脑，其显卡连OpenGL都无法支持的，还是趁早砸电脑吧。 \n\n一些coremod引发的崩溃：这种崩溃其实非常少见，没有水平足够的技术，不要随便怀疑。\n\n下一个崩溃类型：没有有价值信息的玄学崩溃\nhttp://paste.ubuntu.com/25679329/（看这里看这里！）\njava.lang.IndexOutOfBoundsException: Index: 416, Size: 416，意为“数组越界”，这就很头疼了，我玩的好好的哪来的越界？ 当然这多半是傻缺作者分不清数组长度与数组索引之间的区别（数组地址是从0开始的），或者因为粗心弄到了非法的索引（例如负数索引，又或者是一个空List里面想要获取某个位置上的数据），不过这和普通玩家又有什么关系？\n\n下面几行，如at java.util.ArrayList.rangeCheck(Unknown Source)at java.util.ArrayList.remove(Unknown Source)，单从报告本身是看不出具体哪个mod（大概率是原版自己）引发的越界崩溃。\n\n不过这种崩溃，来得突然去得也快，发生之后，首先重启，重启好了自然可以继续玩下去；如果重启也失败，试着找回原来备份的存档并替换原来的存档（推荐使用FTB Utilities或者Aroma Backup自动备份），如果找不到任何有价值的备份，只能删区块删存档了。\n\n下一个崩溃类型：模组冲突引发的崩溃\n现在的主流模组，尤其是欧美系的EU啊，RF啊等模组，稳定性都没啥说，但日系模组（如slashblade，就是拔刀剑）bug很多，不够稳定，崩溃报告里如果出现这样的模组，想想是不是该删模组了，尤其是reika kalseki的mod（其前置为dragon api），更是大多数1.7mod包崩溃的元凶。\n\n当然欧美系内部也有出事的，比如下面的崩溃：http://paste.ubuntu.com/25679409/（看这里看这里！） \n\nat com.creativemd.creativecore.common.world.WorldChunkedTileEntityList.get(WorldChunkedTileEntityList.java:162) \n\nat com.creativemd.creativecore.common.world.WorldChunkedTileEntityList.get(WorldChunkedTileEntityList.java:21) \n\n@Override\n        public TileEntity get(int paramInt) {\n                // Ouch this should not happen, bad performance can be expected!!!\n                \n                \n                /*int currentIndex = 0;\n                for (Iterator<ArrayList<TileEntity>> iterator = content.getValues().iterator(); iterator.hasNext();) {\n                        ArrayList<TileEntity> type = iterator.next();\n                        if(currentIndex + type.size() < paramInt)\n                                currentIndex += type.size();\n                        else\n                                return type.get(paramInt-currentIndex);\n                }\n                \n                return null;*/\n                \nthrow new RuntimeException(\"Please use the iterator instead\");复制代码可以看出，作者一开始用了自己实现的一个数据结构（HashMapList）来进行一些操作，如图中所示获取TileEntity（泛指箱子和机器），后来他发现这么做性能极差，就把这个方法的实现全都注释掉，只留下了一个抛出异常（throw new RuntimeException(\"Please use the iterator instead\")，对应崩溃报告中的“Please use the iterator instead”字样），但是代码还没来得及重写完，有些地方调用到了这个已经失效的方法，就爆炸啦。\n（这个类和报告中的embers mod相应方法已经不复存在，只能怀古一下了）\n如果发现NoSuchMethodError，请检查是不是自己的forge和mod版本太旧了或者不匹配（已知forge 1.12.2-2768以上一些版本，因为PotionHelper类的变动，引发了一系列mod崩溃）\n\n\n玩家在选择模组的时候，要尽可能选择欧美系作者（他们的模组一般搭载在curseforge上）的著名模组，比如Ender IO（末影接口）的玄钢斧，Draconic Evolution（龙之进化）的神龙斧，Tinker's Construct（匠魂）的伐木斧，Gregtech（格雷科技）的斧头，Botania（植物魔法）的泰拉斧，Mekanism（通用机械）的原子分解机，个个都有连锁范围砍树功能，干嘛多装一个砍树模组？\n模组挑选可以参考此贴：https://tieba.baidu.com/p/5297039388\n\n小结：面对崩溃时，你或许要准备好这些： \n\n重启游戏（可以解决一半以上的问题）； \n\n更新Java，显卡驱动，optifine（如果你有的话）；\nVanillaFix mod：这个mod可以阻止你彻底崩掉游戏（仅仅是退出当前世界），并会自动将你的崩溃报告上传，生成链接在一个同样泥土芳香的界面中，只需要复制链接给懂的人看就行了。\n\n搞清楚你包里的模组特性，更新/卸载报告里提到的异常模组。（并不推荐卸载，如果不卸载服务器就开不下去另说） \n\n一个WE（创世神）插件或者其他的手段以变更出错的区块或方块；\n已经备份的近期存档； \n\n一颗冷静的心。\n\n我们可以随便找一个spigot的timings（时间监测报告）来看看：https://timings.aikar.co/?id=9e95d6b64bb9462083458e978c4aee65\n\n将其展开，不难看出Minecraft的tickEntity方法调用耗时最大（都变红了），从字面意思来看，是实体（entity）在计时（tick）的时候卡顿。\n其中占用最高的还是EntityVillager（村民），总延迟296.318s，占用95%的tick时长。\n其他类似的timings都可以结合上述原理，找到耗时最高的方法，确定卡顿的罪魁祸首——无论是spigot还是sponge，反混淆出的名字都是可读的，猜字面意思即可。\n\n\n\n",
+    "replies": [
+        {
+            "author": "dddfly",
+            "timestamp": 1556126700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "纯牛奶`37c",
+            "timestamp": 1556135400,
+            "txt_content": "很多地方有点看不懂呢，不过很厉害的说，加油！"
+        },
+        {
+            "author": "不上小学",
+            "timestamp": 1556178240,
+            "txt_content": "图片是挂了吗，看不到呀，手机端"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1556255820,
+            "txt_content": "很实用，关于技术部分的讲的很清楚。之前我就只能解决一些崩溃还不知道原因，现在明白多了"
+        },
+        {
+            "author": "水煮清娃",
+            "timestamp": 1556333220,
+            "txt_content": "能写那么多文字，也是很辛苦了"
+        },
+        {
+            "author": "Dark_forest",
+            "timestamp": 1556847900,
+            "txt_content": "果壳观光团前来观光"
+        },
+        {
+            "author": "么么萌萌",
+            "timestamp": 1556850300,
+            "txt_content": "辛苦了"
+        },
+        {
+            "author": "旧岛听风",
+            "timestamp": 1556963340,
+            "txt_content": "图片看不到嗷，写的超级好的"
+        },
+        {
+            "author": "xiaodoubiqwq",
+            "timestamp": 1558545360,
+            "txt_content": "必须得顶一下，对了感谢老哥给我解达的龙研报错的问题!（像我这种咸鱼是学不会的）"
+        },
+        {
+            "author": "zbroken",
+            "timestamp": 1560526260,
+            "txt_content": "大大大大大大佬!!!"
+        },
+        {
+            "author": "84043368",
+            "timestamp": 1562467920,
+            "txt_content": "非常感谢作者 有了这个之后遇到问报错的小白直接甩过去 真是爽到"
+        },
+        {
+            "author": "猿汐",
+            "timestamp": 1562673660,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "丁磊",
+            "timestamp": 1563524400,
+            "txt_content": "看教程：嗯已经会了\n实际崩服看报错：联机板块见~"
+        },
+        {
+            "author": "lfptmac",
+            "timestamp": 1572330960,
+            "txt_content": "---- Minecraft Crash Report ----\n\nWARNING: coremods are present:\nContact their authors BEFORE contacting forge\n\n// Daisy, daisy...\n\nTime: 10/29/19 2:27 PM\nDescription: Exception in server tick loop\n\njava.lang.IllegalArgumentException: ChunkNibbleArrays should be 2048 bytes not: 0\n        at net.minecraft.world.chunk.NibbleArray.<init>(SourceFile:16)\n        at net.minecraft.world.chunk.storage.AnvilChunkLoader.func_75823_a(AnvilChunkLoader.java:450)\n        at net.minecraft.world.chunk.storage.AnvilChunkLoader.checkedReadChunkFromNBT__Async(AnvilChunkLoader.java:129)\n        at net.minecraft.world.chunk.storage.AnvilChunkLoader.loadChunk__Async(AnvilChunkLoader.java:93)\n        at net.minecraftforge.common.chunkio.ChunkIOProvider.run(ChunkIOProvider.java:70)\n        at net.minecraftforge.common.chunkio.ChunkIOExecutor.syncChunkLoad(ChunkIOExecutor.java:92)\n        at net.minecraft.world.gen.ChunkProviderServer.loadChunk(ChunkProviderServer.java:118)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186028_c(ChunkProviderServer.java:89)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186025_d(ChunkProviderServer.java:135)\n        at net.minecraft.server.MinecraftServer.func_71222_d(MinecraftServer.java:344)\n        at net.minecraft.server.integrated.IntegratedServer.func_71247_a(IntegratedServer.java:186)\n        at net.minecraft.server.integrated.IntegratedServer.func_71197_b(IntegratedServer.java:209)\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:486)\n        at java.lang.Thread.run(Unknown Source)\n\n\nA detailed walkthrough of the error, its code path and all known details is as follows:\n---------------------------------------------------------------------------------------\n\n-- System Details --\nDetails:\n        Minecraft Version: 1.12.2\n        Operating System: Windows 10 (x86) version 10.0\n        Java Version: 1.8.0_231, Oracle Corporation\n        Java VM Version: Java HotSpot(TM) Client VM (mixed mode), Oracle Corporation\n        Memory: 291211064 bytes (277 MB) / 636485632 bytes (607 MB) up to 1073741824 bytes (1024 MB)\n        JVM Flags: 6 total; -XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump -XX:+UseG1GC -XX:-UseAdaptiveSizePolicy -XX:-OmitStackTraceInFastThrow -Xmn128m -Xmx1024m\n        IntCache: cache: 1, tcache: 1, allocated: 12, tallocated: 94\n        FML: MCP 9.42 Powered by Forge 14.23.5.2845 Optifine OptiFine_1.12.2_HD_U_E3 8 mods loaded, 8 mods active\n        States: 'U' = Unloaded 'L' = Loaded 'C' = Constructed 'H' = Pre-initialized 'I' = Initialized 'J' = Post-initialized 'A' = Available 'D' = Disabled 'E' = Errored\n\n        | State  | ID         | Version       | Source                                       | Signature                                |\n        |:------ |:---------- |:------------- |:-------------------------------------------- |:---------------------------------------- |\n        | LCHIJA | minecraft  | 1.12.2        | minecraft.jar                                | None                                     |\n        | LCHIJA | mcp        | 9.42          | minecraft.jar                                | None                                     |\n        | LCHIJA | FML        | 8.0.99.99     | forge-1.12.2-14.23.5.2845.jar                | None                                     |\n        | LCHIJA | forge      | 14.23.5.2845  | forge-1.12.2-14.23.5.2845.jar                | None                                     |\n        | LCHIJA | ic2        | 2.8.187-ex112 | [IC2]工业时代industrialcraft-2-2.8.187-ex112.jar | de041f9f6187debbc77034a344134053277aa3b0 |\n        | LCHIJA | waila      | 1.8.26        | 方块显示Hwyla-1.8.26-B41_1.12.2.jar              | None                                     |\n        | LCHIJA | journeymap | 1.12.2-5.5.4  | 旅行地图journeymap-1.12.2-5.5.4.jar              | None                                     |\n        | LCHIJA | jei        | 4.15.0.273    | 物品管理器jei_1.12.2-4.15.0.273.jar               | None                                     |\n\n        Loaded coremods (and transformers): \n        GL info: ~~ERROR~~ RuntimeException: No OpenGL context found in the current thread.\n        Profiler Position: N/A (disabled)\n        Player Count: 0 / 8; []\n        Type: Integrated Server (map_client.txt)\n        Is Modded: Definitely; Client brand changed to 'fml,forge'复制代码"
+        },
+        {
+            "author": "lfptmac",
+            "timestamp": 1572331080,
+            "txt_content": "能帮我看看我这是什么错误么。"
+        },
+        {
+            "author": "hly785232247",
+            "timestamp": 1581936960,
+            "txt_content": "受益匪浅，多谢大佬！"
+        },
+        {
+            "author": "3448737105",
+            "timestamp": 1582013760,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "yan_xia",
+            "timestamp": 1582161960,
+            "txt_content": "这种东西应该给进服的mx看看，成天因为内存原因打不开然后bbdd"
+        },
+        {
+            "author": "yan_xia",
+            "timestamp": 1582161960,
+            "txt_content": "这种东西肯定收藏"
+        },
+        {
+            "author": "贴吧1wwww88",
+            "timestamp": 1582778460,
+            "txt_content": "hxd图片糊了"
+        },
+        {
+            "author": "2729477791",
+            "timestamp": 1582780680,
+            "txt_content": "我的世界不倒，陪你到老"
+        },
+        {
+            "author": "Steve43461",
+            "timestamp": 1583113860,
+            "txt_content": "收藏起来，崩溃时可以用"
+        },
+        {
+            "author": "我是老铁12",
+            "timestamp": 1583144580,
+            "txt_content": "666，真的是大佬（虽然有些地方看不懂）"
+        },
+        {
+            "author": "kuqingshu",
+            "timestamp": 1583148900,
+            "txt_content": "这个还是得看个人"
+        },
+        {
+            "author": "玲珑月华",
+            "timestamp": 1584478320,
+            "txt_content": "收藏了，感谢大佬~"
+        },
+        {
+            "author": "2396392765",
+            "timestamp": 1584525660,
+            "txt_content": "我用timings看到GCEntityPlayerMP调用的耗时是10586448896 我不知道这个是啥，有人能解答下吗qwq"
+        },
+        {
+            "author": "635419450",
+            "timestamp": 1585966800,
+            "txt_content": "满满的干货，收藏了"
+        },
+        {
+            "author": "Xu_Yang",
+            "timestamp": 1588144140,
+            "txt_content": "蝙蝠的干货这么多的吗？i了i了"
+        },
+        {
+            "author": "jfjjhdhxbdbx",
+            "timestamp": 1589726160,
+            "txt_content": "今天游戏崩溃了，在论坛搜索答案的时候，偶然看到了这个帖子，我昨天就更新了一下Java，然后现在就不能用了，我的是hMCl，就在游戏启动，就是那个白白的界面。突然就崩溃了，然后log 还有你说的各种文件都没有形成 我不知道作者还看不看得到，看到的话回复一下好吗?"
+        },
+        {
+            "author": "jrx233",
+            "timestamp": 1589792760,
+            "txt_content": "这个图片为啥模糊了，还是不错的，赞"
+        },
+        {
+            "author": "鲜橙x多",
+            "timestamp": 1589848680,
+            "txt_content": "我给看蒙了"
+        },
+        {
+            "author": "7548854987",
+            "timestamp": 1589849040,
+            "txt_content": "不知道\naaaaaaa"
+        },
+        {
+            "author": "1619787807",
+            "timestamp": 1590579120,
+            "txt_content": "细节到了极致我利用这个解决了我的问题了哈哈"
+        },
+        {
+            "author": "xqx145236",
+            "timestamp": 1590583320,
+            "txt_content": "很实用，关于技术部分的讲的很清楚。\n\n"
+        },
+        {
+            "author": "xqx145236",
+            "timestamp": 1590583440,
+            "txt_content": "感谢楼主科普"
+        },
+        {
+            "author": "3305083699",
+            "timestamp": 1591842660,
+            "txt_content": "非常好的教程，感谢楼主的勤劳付出，对我受益良多。"
+        },
+        {
+            "author": "sycgogo",
+            "timestamp": 1591969740,
+            "txt_content": "感谢，解决了，谢谢大佬"
+        },
+        {
+            "author": "310749832",
+            "timestamp": 1592546520,
+            "txt_content": "感谢lz分享"
+        },
+        {
+            "author": "我的国",
+            "timestamp": 1592879700,
+            "txt_content": "图片看不清啊，但帖子真的好"
+        },
+        {
+            "author": "PLTAT",
+            "timestamp": 1593332760,
+            "txt_content": " 本帖最后由 PLTAT 于 2020-6-28 16:32 编辑 \n\n[qq]2868398105[/qq]"
+        },
+        {
+            "author": "gsen1",
+            "timestamp": 1593678000,
+            "txt_content": "我看不懂能帮我看看吗？\nhttps://paste.ubuntu.com/p/5JQRNYv9Ks/"
+        },
+        {
+            "author": "Command_Edit",
+            "timestamp": 1593701640,
+            "txt_content": "诶，分析很到位，感谢分享"
+        },
+        {
+            "author": "feng_wo",
+            "timestamp": 1596073200,
+            "txt_content": "AL lib: (EE) alc_cleanup: 1 device not closed\n\nJava HotSpot(TM) 64-Bit Server VM warning: INFO: os::commit_memory(0x000000078d000000, 184549376, 0) failed; error='页面文件太小，无法完成操作。' (DOS error/errno=1455)\n大佬这个是什么意思？"
+        },
+        {
+            "author": "青凌阁",
+            "timestamp": 1596085560,
+            "txt_content": "万分感谢万分感谢万分感谢万分感谢万分感谢万分感谢"
+        },
+        {
+            "author": "gjy1234",
+            "timestamp": 1597808040,
+            "txt_content": "可我tm的ccl崩了"
+        },
+        {
+            "author": "gjy1234",
+            "timestamp": 1597808160,
+            "txt_content": "可能是mod多了\n"
+        },
+        {
+            "author": "lowhh",
+            "timestamp": 1598003100,
+            "txt_content": "谢谢大佬的讲解"
+        },
+        {
+            "author": "银花映凉",
+            "timestamp": 1598163240,
+            "txt_content": "过于硬核（真实）"
+        },
+        {
+            "author": "谢缙",
+            "timestamp": 1599699000,
+            "txt_content": "ohohohoh,大大好厉害啊，授人以渔的教程实在是太棒了，即使一下子没法完全靠自己看懂，请教别的大佬时也有更清晰的思路了呢"
+        },
+        {
+            "author": "spg233",
+            "timestamp": 1599709980,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "谢缙",
+            "timestamp": 1600943760,
+            "txt_content": "酒石酸名言：发生崩溃时如果找不到崩溃报告，就说“游戏崩溃了怎么办”，还不如上街找个算命先生算算为什么崩溃好些。我记住啦233，各位大佬如果知道的话可以告诉我出处嘛（dog）"
+        },
+        {
+            "author": "SKG233666",
+            "timestamp": 1602591180,
+            "txt_content": "楼主辛苦了"
+        },
+        {
+            "author": "fffilm",
+            "timestamp": 1602768240,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1044154415",
+            "timestamp": 1611240960,
+            "txt_content": "我最近客户端老崩溃，搞得我头皮发麻"
+        },
+        {
+            "author": "1044154415",
+            "timestamp": 1611241080,
+            "txt_content": "一多人就崩溃"
+        },
+        {
+            "author": "ksqeib",
+            "timestamp": 1611716820,
+            "txt_content": "哇哦 你的图片全糊了 完全看不清"
+        },
+        {
+            "author": "喵子的草莓奶茶",
+            "timestamp": 1611750360,
+            "txt_content": "虽然很厉害，但是抱歉！恕在下脑袋有限！我看不懂啊！！！！！！"
+        },
+        {
+            "author": "喵子的草莓奶茶",
+            "timestamp": 1611750480,
+            "txt_content": "---- Minecraft Crash Report ----\n\nWARNING: coremods are present:\n  MekanismCoremod (【通用机械】MEK.jar)\n  SurgeLoadingPlugin (【启动优化】Surge-1.12.2-2.0.77.jar)\n  JechCore (【jei附属】JustEnoughCharacters-1.12.0-3.4.7.jar)\n  HCASM (【能量转化前置】HammerLib-1.12.2-2.0.6.26.jar)\n  Inventory Tweaks Coremod (【R键整理】InventoryTweaks-1.64+dev.146.jar)\nContact their authors BEFORE contacting forge\n\n// Why did you do that?\n\nTime: 21-1-26 下午6:20\nDescription: Watching Server\n\njava.lang.Error: ServerHangWatchdog detected that a single server tick took 61.02 seconds (should be max 0.05)\n        at it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap.get(Long2ObjectOpenHashMap.java:454)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186026_b(ChunkProviderServer.java:76)\n        at net.minecraft.world.gen.ChunkProviderServer.loadChunk(ChunkProviderServer.java:95)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186028_c(ChunkProviderServer.java:89)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186025_d(ChunkProviderServer.java:135)\n        at net.minecraft.world.World.func_72964_e(World.java:310)\n        at net.minecraft.world.World.func_175726_f(World.java:305)\n        at net.minecraft.world.World.func_175721_c(World.java:722)\n        at net.minecraft.world.World.func_175721_c(World.java:686)\n        at net.minecraft.world.World.func_175671_l(World.java:674)\n        at net.minecraft.world.World.func_175724_o(World.java:900)\n        at net.minecraft.entity.Entity.func_70013_c(Entity.java:1362)\n        at net.minecraft.entity.monster.EntityMob.func_70636_d(EntityMob.java:38)\n        at net.minecraft.entity.monster.EntityZombie.func_70636_d(EntityZombie.java:223)\n        at net.minecraft.entity.EntityLivingBase.func_70071_h_(EntityLivingBase.java:2179)\n        at net.minecraft.entity.EntityLiving.func_70071_h_(EntityLiving.java:295)\n        at net.minecraft.entity.monster.EntityMob.func_70071_h_(EntityMob.java:50)\n        at net.minecraft.world.World.func_72866_a(World.java:1996)\n        at net.minecraft.world.WorldServer.func_72866_a(WorldServer.java:832)\n        at net.minecraft.world.World.func_72870_g(World.java:1958)\n        at net.minecraft.world.World.func_72939_s(World.java:1762)\n        at net.minecraft.world.WorldServer.func_72939_s(WorldServer.java:613)\n        at net.minecraft.server.MinecraftServer.func_71190_q(MinecraftServer.java:767)\n        at net.minecraft.server.dedicated.DedicatedServer.func_71190_q(DedicatedServer.java:397)\n        at net.minecraft.server.MinecraftServer.func_71217_p(MinecraftServer.java:668)\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:526)\n        at java.lang.Thread.run(Unknown Source)\n\n\nA detailed walkthrough of the error, its code path and all known details is as follows:\n---------------------------------------------------------------------------------------\n\n-- Head --\nThread: Server Watchdog\nStacktrace:\n        at it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap.get(Long2ObjectOpenHashMap.java:454)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186026_b(ChunkProviderServer.java:76)\n        at net.minecraft.world.gen.ChunkProviderServer.loadChunk(ChunkProviderServer.java:95)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186028_c(ChunkProviderServer.java:89)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186025_d(ChunkProviderServer.java:135)\n        at net.minecraft.world.World.func_72964_e(World.java:310)\n        at net.minecraft.world.World.func_175726_f(World.java:305)\n        at net.minecraft.world.World.func_175721_c(World.java:722)\n        at net.minecraft.world.World.func_175721_c(World.java:686)\n        at net.minecraft.world.World.func_175671_l(World.java:674)\n        at net.minecraft.world.World.func_175724_o(World.java:900)\n        at net.minecraft.entity.Entity.func_70013_c(Entity.java:1362)\n        at net.minecraft.entity.monster.EntityMob.func_70636_d(EntityMob.java:38)\n        at net.minecraft.entity.monster.EntityZombie.func_70636_d(EntityZombie.java:223)\n        at net.minecraft.entity.EntityLivingBase.func_70071_h_(EntityLivingBase.java:2179)\n        at net.minecraft.entity.EntityLiving.func_70071_h_(EntityLiving.java:295)\n        at net.minecraft.entity.monster.EntityMob.func_70071_h_(EntityMob.java:50)\n        at net.minecraft.world.World.func_72866_a(World.java:1996)\n        at net.minecraft.world.WorldServer.func_72866_a(WorldServer.java:832)\n        at net.minecraft.world.World.func_72870_g(World.java:1958)\n        at net.minecraft.world.World.func_72939_s(World.java:1762)\n        at net.minecraft.world.WorldServer.func_72939_s(WorldServer.java:613)\n        at net.minecraft.server.MinecraftServer.func_71190_q(MinecraftServer.java:767)\n        at net.minecraft.server.dedicated.DedicatedServer.func_71190_q(DedicatedServer.java:397)\n        at net.minecraft.server.MinecraftServer.func_71217_p(MinecraftServer.java:668)\n\n-- Thread Dump --\nDetails:\n        Threads: \"Chunk I/O Executor Thread-1\" Id=48 WAITING on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@553aaa56\n        at sun.misc.Unsafe.park(Native Method)\n        -  waiting on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@553aaa56\n        at java.util.concurrent.locks.LockSupport.park(Unknown Source)\n        at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(Unknown Source)\n        at java.util.concurrent.LinkedBlockingQueue.take(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor.getTask(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"threadDeathWatcher-2-1\" Id=47 TIMED_WAITING\n        at java.lang.Thread.sleep(Native Method)\n        at io.netty.util.ThreadDeathWatcher$Watcher.run(ThreadDeathWatcher.java:152)\n        at io.netty.util.concurrent.DefaultThreadFactory$DefaultRunnableDecorator.run(DefaultThreadFactory.java:144)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"Netty Server IO #1\" Id=46 RUNNABLE (in native)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.poll0(Native Method)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.poll(Unknown Source)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.access$400(Unknown Source)\n        at sun.nio.ch.WindowsSelectorImpl.doSelect(Unknown Source)\n        at sun.nio.ch.SelectorImpl.lockAndDoSelect(Unknown Source)\n        -  locked io.netty.channel.nio.SelectedSelectionKeySet@5bfd4e81\n        -  locked java.util.Collections$UnmodifiableSet@5fc2c126\n        -  locked sun.nio.ch.WindowsSelectorImpl@1ac044ba\n        at sun.nio.ch.SelectorImpl.select(Unknown Source)\n        at io.netty.channel.nio.SelectedSelectionKeySetSelector.select(SelectedSelectionKeySetSelector.java:62)\n        at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:732)\n        ...\n\n\n\"ic2-poolthread-2\" Id=45 WAITING on ic2.core.util.PriorityExecutor$FixedPriorityQueue@1aa835ae\n        at java.lang.Object.wait(Native Method)\n        -  waiting on ic2.core.util.PriorityExecutor$FixedPriorityQueue@1aa835ae\n        at java.lang.Object.wait(Unknown Source)\n        at ic2.core.util.PriorityExecutor$FixedPriorityQueue.take(PriorityExecutor.java:143)\n        at java.util.concurrent.ThreadPoolExecutor.getTask(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"File IO Thread\" Id=42 TIMED_WAITING\n        at java.lang.Thread.sleep(Native Method)\n        at net.minecraft.world.storage.ThreadedFileIOBase.func_75736_b(SourceFile:51)\n        at net.minecraft.world.storage.ThreadedFileIOBase.run(SourceFile:30)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"Server Watchdog\" Id=39 RUNNABLE\n        at sun.management.ThreadImpl.dumpThreads0(Native Method)\n        at sun.management.ThreadImpl.dumpAllThreads(Unknown Source)\n        at net.minecraft.server.dedicated.ServerHangWatchdog.run(ServerHangWatchdog.java:45)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"ic2-poolthread-1\" Id=33 WAITING on ic2.core.util.PriorityExecutor$FixedPriorityQueue@1aa835ae\n        at java.lang.Object.wait(Native Method)\n        -  waiting on ic2.core.util.PriorityExecutor$FixedPriorityQueue@1aa835ae\n        at java.lang.Object.wait(Unknown Source)\n        at ic2.core.util.PriorityExecutor$FixedPriorityQueue.take(PriorityExecutor.java:143)\n        at java.util.concurrent.ThreadPoolExecutor.getTask(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)\n        at java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"Netty Server IO #0\" Id=32 RUNNABLE (in native)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.poll0(Native Method)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.poll(Unknown Source)\n        at sun.nio.ch.WindowsSelectorImpl$SubSelector.access$400(Unknown Source)\n        at sun.nio.ch.WindowsSelectorImpl.doSelect(Unknown Source)\n        at sun.nio.ch.SelectorImpl.lockAndDoSelect(Unknown Source)\n        -  locked io.netty.channel.nio.SelectedSelectionKeySet@2b90f93c\n        -  locked java.util.Collections$UnmodifiableSet@6212d699\n        -  locked sun.nio.ch.WindowsSelectorImpl@7aefbbf5\n        at sun.nio.ch.SelectorImpl.select(Unknown Source)\n        at io.netty.channel.nio.SelectedSelectionKeySetSelector.select(SelectedSelectionKeySetSelector.java:62)\n        at io.netty.channel.nio.NioEventLoop.select(NioEventLoop.java:732)\n        ...\n\n\n\"Server console handler\" Id=29 RUNNABLE (in native)\n        at java.io.FileInputStream.readBytes(Native Method)\n        at java.io.FileInputStream.read(Unknown Source)\n        at java.io.BufferedInputStream.read1(Unknown Source)\n        at java.io.BufferedInputStream.read(Unknown Source)\n        -  locked java.io.BufferedInputStream@21b1e443\n        at sun.nio.cs.StreamDecoder.readBytes(Unknown Source)\n        at sun.nio.cs.StreamDecoder.implRead(Unknown Source)\n        at sun.nio.cs.StreamDecoder.read(Unknown Source)\n        -  locked java.io.InputStreamReader@dc4b050\n        at java.io.InputStreamReader.read(Unknown Source)\n        ...\n\n\n\"DestroyJavaVM\" Id=28 RUNNABLE\n\n\n\"Server thread\" Id=26 RUNNABLE\n        at it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap.get(Long2ObjectOpenHashMap.java:454)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186026_b(ChunkProviderServer.java:76)\n        at net.minecraft.world.gen.ChunkProviderServer.loadChunk(ChunkProviderServer.java:95)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186028_c(ChunkProviderServer.java:89)\n        at net.minecraft.world.gen.ChunkProviderServer.func_186025_d(ChunkProviderServer.java:135)\n        at net.minecraft.world.World.func_72964_e(World.java:310)\n        at net.minecraft.world.World.func_175726_f(World.java:305)\n        at net.minecraft.world.World.func_175721_c(World.java:722)\n        ...\n\n\n\"TimerQueue\" Id=24 TIMED_WAITING on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7ea125ab\n        at sun.misc.Unsafe.park(Native Method)\n        -  waiting on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@7ea125ab\n        at java.util.concurrent.locks.LockSupport.parkNanos(Unknown Source)\n        at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(Unknown Source)\n        at java.util.concurrent.DelayQueue.take(Unknown Source)\n        at javax.swing.TimerQueue.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n        Number of locked synchronizers = 1\n        - java.util.concurrent.locks.ReentrantLock$NonfairSync@7916196f\n\n\n\"Thread-5\" Id=23 WAITING on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@501c45c0\n        at sun.misc.Unsafe.park(Native Method)\n        -  waiting on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@501c45c0\n        at java.util.concurrent.locks.LockSupport.park(Unknown Source)\n        at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(Unknown Source)\n        at java.util.concurrent.LinkedBlockingQueue.take(Unknown Source)\n        at com.mojang.util.QueueLogAppender.getNextLogEvent(QueueLogAppender.java:77)\n        at net.minecraft.server.gui.MinecraftServerGui$4.run(MinecraftServerGui.java:154)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"AWT-EventQueue-0\" Id=22 WAITING on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@78f239a3\n        at sun.misc.Unsafe.park(Native Method)\n        -  waiting on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@78f239a3\n        at java.util.concurrent.locks.LockSupport.park(Unknown Source)\n        at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(Unknown Source)\n        at java.awt.EventQueue.getNextEvent(Unknown Source)\n        at java.awt.EventDispatchThread.pumpOneEventForFilters(Unknown Source)\n        at java.awt.EventDispatchThread.pumpEventsForFilter(Unknown Source)\n        at java.awt.EventDispatchThread.pumpEventsForHierarchy(Unknown Source)\n        at java.awt.EventDispatchThread.pumpEvents(Unknown Source)\n        ...\n\n\n\"AWT-Windows\" Id=20 RUNNABLE\n        at sun.awt.windows.WToolkit.eventLoop(Native Method)\n        at sun.awt.windows.WToolkit.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"AWT-Shutdown\" Id=19 WAITING on java.lang.Object@31669ab3\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.lang.Object@31669ab3\n        at java.lang.Object.wait(Unknown Source)\n        at sun.awt.AWTAutoShutdown.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"Java2D Disposer\" Id=18 WAITING on java.lang.ref.ReferenceQueue$Lock@469d7d49\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.lang.ref.ReferenceQueue$Lock@469d7d49\n        at java.lang.ref.ReferenceQueue.remove(Unknown Source)\n        at java.lang.ref.ReferenceQueue.remove(Unknown Source)\n        at sun.java2d.Disposer.run(Unknown Source)\n        at java.lang.Thread.run(Unknown Source)\n\n\n\"Server Infinisleeper\" Id=17 TIMED_WAITING\n        at java.lang.Thread.sleep(Native Method)\n        at net.minecraft.server.dedicated.DedicatedServer$1.run(DedicatedServer.java:82)\n\n\n\"Snooper Timer\" Id=16 TIMED_WAITING on java.util.TaskQueue@741d121f\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.util.TaskQueue@741d121f\n        at java.util.TimerThread.mainLoop(Unknown Source)\n        at java.util.TimerThread.run(Unknown Source)\n\n\n\"Thread-2\" Id=15 WAITING on java.util.LinkedList@1d4b021e\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.util.LinkedList@1d4b021e\n        at java.lang.Object.wait(Unknown Source)\n        at com.zeitheron.hammercore.lib.zlib.utils.TaskedThread.run(TaskedThread.java:39)\n\n\n\"Attach Listener\" Id=5 RUNNABLE\n\n\n\"Signal Dispatcher\" Id=4 RUNNABLE\n\n\n\"Finalizer\" Id=3 WAITING on java.lang.ref.ReferenceQueue$Lock@187db006\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.lang.ref.ReferenceQueue$Lock@187db006\n        at java.lang.ref.ReferenceQueue.remove(Unknown Source)\n        at java.lang.ref.ReferenceQueue.remove(Unknown Source)\n        at java.lang.ref.Finalizer$FinalizerThread.run(Unknown Source)\n\n\n\"Reference Handler\" Id=2 WAITING on java.lang.ref.Reference$Lock@3527e175\n        at java.lang.Object.wait(Native Method)\n        -  waiting on java.lang.ref.Reference$Lock@3527e175\n        at java.lang.Object.wait(Unknown Source)\n        at java.lang.ref.Reference.tryHandlePending(Unknown Source)\n        at java.lang.ref.Reference$ReferenceHandler.run(Unknown Source)\n\n\n\nStacktrace:\n        at net.minecraft.server.dedicated.ServerHangWatchdog.run(ServerHangWatchdog.java:62)\n        at java.lang.Thread.run(Unknown Source)\n\n-- System Details --\nDetails:\n        Minecraft Version: 1.12.2\n        Operating System: Windows Server 2019 (amd64) version 10.0\n        Java Version: 1.8.0_271, Oracle Corporation\n        Java VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation\n        Memory: 3453370072 bytes (3293 MB) / 4284481536 bytes (4086 MB) up to 4284481536 bytes (4086 MB)\n        JVM Flags: 2 total; -Xms4G -Xmx4G\n        IntCache: cache: 0, tcache: 0, allocated: 12, tallocated: 94\n        FML: MCP 9.42 Powered by Forge 14.23.5.2855 39 mods loaded, 39 mods active\n        States: 'U' = Unloaded 'L' = Loaded 'C' = Constructed 'H' = Pre-initialized 'I' = Initialized 'J' = Post-initialized 'A' = Available 'D' = Disabled 'E' = Errored\n\n        | State  | ID                    | Version              | Source                                                 | Signature                                |\n        |:------ |:--------------------- |:-------------------- |:------------------------------------------------------ |:---------------------------------------- |\n        | LCHIJA | minecraft             | 1.12.2               | minecraft.jar                                          | None                                     |\n        | LCHIJA | mcp                   | 9.42                 | minecraft.jar                                          | None                                     |\n        | LCHIJA | FML                   | 8.0.99.99            | forge-1.12.2-14.23.5.2855.jar                          | e3c3d50c7c986df74c645c0ac54639741c90a557 |\n        | LCHIJA | forge                 | 14.23.5.2855         | forge-1.12.2-14.23.5.2855.jar                          | e3c3d50c7c986df74c645c0ac54639741c90a557 |\n        | LCHIJA | jecharacters          | 1.12.0-3.4.7         | 【jei附属】JustEnoughCharacters-1.12.0-3.4.7.jar           | None                                     |\n        | LCHIJA | codechickenlib        | 3.2.3.358            | 【CF前置CCL】CodeChickenLib-1.12.2-3.2.3.358-universal.jar | f1850c39b2516232a2108a7bd84d1cb5df93b261 |\n        | LCHIJA | redstoneflux          | 2.1.1                | 【RF前置】RedstoneFlux-1.12-2.1.1.1-universal.jar          | None                                     |\n        | LCHIJA | ic2                   | 2.8.170-ex112        | 【工业时代2】IC2.jar                                         | de041f9f6187debbc77034a344134053277aa3b0 |\n        | LCHIJA | cofhcore              | 4.6.6                | 【热力核心】CoFHCore-1.12.2-4.6.6.1-universal.jar            | None                                     |\n        | LCHIJA | jei                   | 4.16.1.301           | 【物品管理器】jei_1.12.2-4.16.1.301.jar                       | None                                     |\n        | LCHIJA | mekanism              | 1.12.2-9.8.3.390     | 【通用机械】MEK.jar                                          | None                                     |\n        | LCHIJA | mekanismgenerators    | 1.12.2-9.8.3.390     | 【MEKG】MekanismGenerators-1.12.2-9.8.3.390.jar          | None                                     |\n        | LCHIJA | mcjtylib_ng           | 3.5.4                | 【RF工具前置】mcjtylib-1.12-3.5.4.jar                        | None                                     |\n        | LCHIJA | rftools               | 7.73                 | 【RF工具箱】rftools-1.12-7.73.jar                           | None                                     |\n        | LCHIJA | inventorytweaks       | 1.64+dev.146.2180b27 | 【R键整理】InventoryTweaks-1.64+dev.146.jar                 | 55d2cd4f5f0961410bf7b91ef6c6bf00a766dcbe |\n        | LCHIJA | cofhworld             | 1.4.0                | 【TE前置】CoFHWorld-1.12.2-1.4.0.1-universal.jar           | None                                     |\n        | LCHIJA | chameleon             | 1.12-4.1.3           | 【变色龙模组前置】Chameleon-1.12-4.1.3.jar                      | None                                     |\n        | LCHIJA | storagedrawers        | 1.12.2-5.4.0         | 【储物抽屉】StorageDrawers-1.12.2-5.4.0.jar                  | None                                     |\n        | LCHIJA | surge                 | 2.0.77               | 【启动优化】Surge-1.12.2-2.0.77.jar                          | d476d1b22b218a10d845928d1665d45fce301b27 |\n        | LCHIJA | mm_lib                | 2.2.0                | 【妖怪之山前置】MMLib-2.2.0.jar                                | None                                     |\n        | LCHIJA | appliedenergistics2   | rv6-stable-7         | 【应用能源2】AE2.jar                                         | dfa4d3ac143316c6f32aa1a1beda1e34d42132e5 |\n        | LCHIJA | flammpfeil.slashblade | mc1.12-r32           | 【拔刀剑】SlashBlade-mc1.12-r32.jar                         | None                                     |\n        | LCHIJA | sakura                | 1.0.5-1.12.2         | 【樱】Sakura-1.0.5-1.12.2.jar                             | None                                     |\n        | LCHIJA | slashblade_addon      | 1.6.0                | 【拔刀剑附属】SJAP-1.6.0.jar                                  | None                                     |\n        | LCHIJA | avaritia              | 3.3.0                | 【无尽贪婪】Avaritia-1.12.2-3.3.0.37-universal.jar           | None                                     |\n        | LCHIJA | moreavaritia          | 3.4                  | 【无尽贪婪+】moreavaritia-mc1.12.2-v4.jar                    | None                                     |\n        | LCHIJA | thermalfoundation     | 2.6.7                | 热力基本.jar                                               | None                                     |\n        | LCHIJA | thermalexpansion      | 5.5.7                | 【热力膨胀5】TE5.jar                                         | None                                     |\n        | LCHIJA | thermaldynamics       | 2.5.6                | 【热动力学】ThermalDynamics-1.12.2-2.5.6.1-universal.jar     | None                                     |\n        | LCHIJA | oreplus               | 1.0                  | 【矿物增强】OrePlus-1.0-1.12.2.jar                           | None                                     |\n        | LCHIJA | baubles               | 1.5.2                | 【魔法类前置饰品栏】Baubles-1.12-1.5.2.jar                       | None                                     |\n        | LCHIJA | projecte              | 1.12.2-PE1.4.1       | 【等价交换】ProjectE-1.12.2-PE1.4.1.jar                      | None                                     |\n        | LCHIJA | projectex             | 1.2.0.40             | 【等价交换升级】ProjectEX-1.2.0.40.jar                         | None                                     |\n        | LCHIJA | hammercore            | 2.0.6.26             | 【能量转化前置】HammerLib-1.12.2-2.0.6.26.jar                  | 9f5e2a811a8332a842b34f6967b7db0ac4f24856 |\n        | LCHIJA | expequiv              | 12.3.17              | 【等价拓展】ExpandedEquivalence-1.12.2-12.3.17.jar           | 9f5e2a811a8332a842b34f6967b7db0ac4f24856 |\n        | LCHIJA | lovely_robot          | 1.1.0                | 【萌化机器人】lovely_robot-1.12.2-1.1.0.jar                   | None                                     |\n        | LCHIJA | fluxnetworks          | 4.0.14               | 【通量网络】fluxnetworks-1.12.2-4.0.15-32.jar                | None                                     |\n        | LCHIJA | botania               | r1.10-361            | 植物魔法.jar                                               | None                                     |\n        | LCHIJA | extrabotany           | 58                   | 【额外植物学】ExtraBotany-r1.1-58r.jar                        | None                                     |\n\n        Loaded coremods (and transformers): \nMekanismCoremod (【通用机械】MEK.jar)\n  mekanism.coremod.KeybindingMigrationHelper\nSurgeLoadingPlugin (【启动优化】Surge-1.12.2-2.0.77.jar)\n  \nJechCore (【jei附属】JustEnoughCharacters-1.12.0-3.4.7.jar)\n  me.towdium.jecharacters.core.JechClassTransformer\nHCASM (【能量转化前置】HammerLib-1.12.2-2.0.6.26.jar)\n  com.zeitheron.hammercore.asm.HammerCoreTransformer\nInventory Tweaks Coremod (【R键整理】InventoryTweaks-1.64+dev.146.jar)\n  invtweaks.forge.asm.ContainerTransformer\n        AE2 Version: stable rv6-stable-7 for Forge 14.23.5.2768\n        HammerCore Debug Information: \n                Dependent Mods:\n                        -Expanded Equivalence (expequiv) @ 12.3.17\n\n        AE2 Integration: IC2:ON, RC:OFF, MFR:OFF, Waila:OFF, Mekanism:ON, OpenComputers:OFF, THE_ONE_PROBE:OFF, TESLA:OFF, CRAFTTWEAKER:OFF\n        Profiler Position: N/A (disabled)\n        Player Count: 1 / 10; [EntityPlayerMP['Kiwibeule'/144328, l='world', x=-82.14, y=68.00, z=153.52]]\n        Is Modded: Definitely; Server brand changed to 'fml,forge'\n        Type: Dedicated Server (map_server.txt)复制代码"
+        },
+        {
+            "author": "HanYe628",
+            "timestamp": 1613707200,
+            "txt_content": " 很多地方看不懂呢，不过很厉害，加油！"
+        },
+        {
+            "author": "aiyiming",
+            "timestamp": 1613747400,
+            "txt_content": "非常感谢大佬的教程"
+        }
+    ]
+}

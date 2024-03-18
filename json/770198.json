@@ -1,0 +1,49 @@
+{
+    "title": "【CBL|SYL】【1.13】新版本execute嵌套的改变",
+    "author": "sylqiuyifeng",
+    "replyCount": 8,
+    "timestamp": 1511702880,
+    "txt_content": " 本帖最后由 sylqiuyifeng 于 2017-11-28 18:58 编辑 \n\n大家好我是帅得死掉然后现在又帅活过来的猪骑\n现在来冒泡证明我还活着\n谢谢围观，我们下次再见\n\n好了不玩了，现在来说正事\n我们先来看看一个例子再解释发生了什么\n比如说现在有两个盔甲架，下面简称AMS（为什么不是AS？因为1.13有个execute as的子命令，避免混淆）\n\n这是F3 debug界面，高亮部分显示的是 渲染实体数（不含玩家）/  含玩家总实体数\n然后我们执行这个exe嵌套命令\n/execute @e[type=armor_stand] ~ ~ ~ execute @e[type=armor_stand] ~ ~ ~ summon armor_stand复制代码执行结果如下\n\n\n一共8个AMS\n\n然而在1.13版本（其实是快照啦）下，相同的两个AMS，运行\n/execute as @e[type=armor_stand] run execute as @e[type=armor_stand] run summon minecraft:armor_stand 复制代码（我知道理论上要完全等价于1.12命令的话还要加上at @s，不过在这个例子里面影响不大就算了）\n结果会是\n\n一共6个AMS\n\n为什么是这样呢在1.12的情况下\n嵌套狂魔pca的教程已经解释过了，嵌套exe时，最外层的exe一开始已经决定了执行次数，是不变的\n\n但是后面的exe会根据实体的实时数量，增加其执行次数，流程图如下：\n\n首先，最外面的exe选中了两个AMS，让它们轮流执行后面的exe然后第一个被选择的AMS，选中了一共两个AMS（自己和对方）执行summon命令，于是总数变为2+2=4个第二个被选择的AMS，选中了2个原本的AMS+2个新summon的AMS，于是总数变为4+4=8个\n\n更多层数嵌套的exe也是一样道理的，不过其逻辑复杂无比，我的脑内逻辑回路连同我的电脑内存一起过载烧掉了，所以就不举例了（警告，3层exe就足够召唤2048个AMS出来，切勿轻易尝试）\n\n然而在1.13的版本里面，嵌套exe的逻辑有所改变，其流程如下：\n\n首先，最外面的exe选中了两个AMS，让它们轮流执行后面的exe然后被选中的两个AMS再检测符合条件的实体，每人选中两个AMS（自己和对方）最后执行summon命令，每人召唤2个AMS，加上原本两个AMS，一共6个\n\n由此可见，1.13嵌套exe和之前版本最大的区别在于，exe选中的实体数量不会随着后面执行的部分即时更新\n而变成了在执行命令前一次过检测，确定所有符合要求的对象后，再执行命令\n追加一个例子进一步说明这个情况\n还是两个AMS，现在它们都有一个叫test的分数，初始为0\n\n然后我们执行\n/execute @e[score_test=0] ~ ~ ~ execute @e[score_test=0] ~ ~ ~ scoreboard players add @e[type=armor_stand] test 1复制代码\n结果会是\n\n为什么会是2呢？\n因为被最外层exe选中的第一个AMS，会exe自己和另一个AMS，共两个AMS执行了score add的命令，这时候两个AMS的分数从0增加到2\n第二个AMS判定的时候，由于两个AMS的分数都不为0，所以不会再执行加分\n\n那么在1.13的情况呢？\n\n执行命令\n/execute as @e[scores={test=0}] run execute as @e[scores={test=0}] run scoreboard players add @e[type=armor_stand] test 1复制代码\n\n结果是4\n其道理和summon的例子类似\n这个命令会先根据目标选择器确定所有需要执行命令的实体\n两个AMS分别选中对方，整个命令总共选中了4个实体（每个AMS分别选中2次）\n然后最后根据这个实体列表执行最后的score add命令，所以总共会加4分\n中间AMS的分数即使已经改变，但由于被选中的实体已经是确定的，所以不会影响这个过程\n\n题外话，在1.13中，一条execute命令中有两个as/at，效果等同于as run as\n例如\n/execute as @e[scores={test=0}] as @e[scores={test=0}] run scoreboard players add @e[type=armor_stand] test 1复制代码\n和\n/execute as @e[scores={test=0}] run execute as @e[scores={test=0}] run scoreboard players add @e[type=armor_stand] test 1复制代码\n是一样效果的\n\n那么如果想在1.13中达成以前的嵌套效果那是不是就不成了呢？\n不是，有一个麻烦一点的方法可以做到，那就是使用func\n比方说现在我们有个func\n名为test:summon，命令为\nexecute as @e[type=armor_stand] run summon minecraft:armor_stand复制代码\n然后我们执行\nexecute as @e[type=armor_stand] run function test:summon复制代码\n即不直接嵌套两个execute，通过放到function中嵌套\n效果会等于1.12前的execute嵌套，为什么呢？其逻辑为\nexecute在执行run内的命令前确定好目标实体，分别为两个AMS两个AMS轮流执行function执行function的时候里面的execute检查执行对象第一个func选中了两个AMS（本身和对方），召唤了2个AMS第二个func选中了共4个AMS，再召唤4个AMS，共8个AMS\n\n\n我想说的废话到此为止了，泡也冒完了，组长跑路了现在出来卖教程赚工资卖完了，可以回去摸鱼了好像是\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "pca006132",
+            "timestamp": 1511703720,
+            "txt_content": "好了，先解释一下为啥叫xecute而不是execute，这不是打错，而是因为：\n\n\n然后简单总(zhuang)结(bi)一下1.8 - 1.12和1.13快照的execute的最大分别：\n1.8-1.12的execute就是把每条execute及其之后的命令视作独立命令，执行时找出其执行坐标及选择器选择到的实体。简单来说就是Depth first，令解析树上其他分支会被之前执行的东西干扰。\n1.13快照的execute就是把统一把连起来的execute视作一条命令，找出其执行坐标及选择器选择到的实体。故此在之后run运行的命令运行之前已经决(qin)定(dian)了选择到的实体那些，自然不会被run之后的命令干扰。而这也解释了为什么function就可破此局：因为这令execute不再连起来，游戏就没法统一对它们进行处理，不同时候执行的function属于不同个体自然得分别处理了。\n\n最后我想说的是，Make execute great again!\nExecute神教千秋万代！"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1511704560,
+            "txt_content": "This will Make [e]xecute great again! Mega!"
+        },
+        {
+            "author": "cyqsimon",
+            "timestamp": 1511748840,
+            "txt_content": "\n哇 syl您居然还活着啊"
+        },
+        {
+            "author": "sylqiuyifeng",
+            "timestamp": 1511789220,
+            "txt_content": "cyqsimon 发表于 2017-11-27 10:14\n哇 syl您居然还活着啊\n所以说再不冒泡大家就真以为我死了\n深潜摸鱼摸久了而已"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1513344480,
+            "txt_content": "1.13随便在一个正常地图/execute as @e as kakagou run tp ~ ~3 ~\n结果就是被tp到同一个位置很多次\n看来不单只是实体，坐标也是预先指定的"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1513350480,
+            "txt_content": "@玄素 1.12 execute @e ~ ~ ~ execute kakagou ~ ~ ~ tp ~ ~3 ~可以飞上1000+的高空\n1.13 execute as @e as kakagou run tp ~ ~3 ~ tp到3格往上，tp很多次"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1513411800,
+            "txt_content": "Big news!\n坐标也是如此，看来execute嵌套神教被mj坑死了"
+        },
+        {
+            "author": "sylqiuyifeng",
+            "timestamp": 1513441500,
+            "txt_content": " 本帖最后由 sylqiuyifeng 于 2017-12-17 00:28 编辑 \nkakagou12 发表于 2017-12-15 23:08\n@玄素 1.12 execute @e ~ ~ ~ execute kakagou ~ ~ ~ tp ~ ~3 ~可以飞上1000+的高空\n1.13 execute as @e as ...\n1. 1.13的TP被魔改成了teleport，所以传送起始点以执行者坐标算\n2. 在1.13的xecute逻辑下这命令相等于让每个实体对让你执行一次teleport ~ ~3 ~，然后现在xecute不受即时更新影响，所以只会传送该命令到执行者上方3格的位子（BTW 说不定MJ修好坏掉的xecute之后我这贴就废了呢233）\n"
+        }
+    ]
+}

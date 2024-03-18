@@ -1,0 +1,69 @@
+{
+    "title": "进阶篇，第一章：矿物的生成",
+    "author": "正逍遥0716",
+    "replyCount": 12,
+    "timestamp": 1446205620,
+    "txt_content": " 本帖最后由 正逍遥0716 于 2015-10-31 00:17 编辑 \n\n<基于1.8 Forge的Minecraft mod制作经验分享>一、矿物的生成器生成器实例的创建MC里面提供了一个简单的可开采矿石生成器：WorldGenMinable。要使用WorldGenMinable，你得先拥有一个它的实例对象。那么我们就来分析它的构造器好了：\npublic WorldGenMinable(IBlockState p_i45630_1_, int p_i45630_2_);\npublic WorldGenMinable(IBlockState p_i45631_1_, int p_i45631_2_, Predicate p_i45631_3_);复制代码闭着眼睛也猜得到，第一个构造器肯定内部调用了第二个构造器来实现。它帮我们填上了一个Predicate参数。那么这个参数是什么呢？它是一个接口，源码中描述它是用来“判定”的。有一个BlockHelper类实现了它，用来比较MC中的方块。第一个构造器默认传入的就是一个BlockHelper实例，作用是判定方块是否是石头。基于以上分析，你应该基本认识到了两点：1、要在自然环境下生成矿物，你只需要调用第一个构造器来建立生成器的实例就够了。2、如果需要的话，你可以用第二个构造器来指定替换掉什么矿物。我们就拿第一个构造器来实例化矿石生成器吧，另一个你自己同理。首先，IBlockState是方块的一个简单的描述接口，每个方块都有各自的IBlockState实例，可以通过Block的getDefaultState();方法取得。IBlockState也有一格getBlock();方法，可以反向取得相应的方块的对象。用这个作为参数，比起直接传入Block更轻型，而且接口做参数会有更好的可扩展、可维护性。其次，第二个参数int p_i45630_2_是每次生成器工作时最多可能生成的矿石数量。它的实际工作原理是，生成器循环p_i45630_2_次生成矿石的过程，但每次是否成功生成取决于随机概率，以及那个将要生成矿石的地点是否已被不可替代的矿石占据（调用第一个构造器的话，就是非stone的方块），所以p_i45630_2_就成了最大生产数量了。那么现在，我们就可以创建一个生成器了，就拿我的斗罗大陆mod的铁母矿举例吧：WorldGenMinable ironEssenceOreGenerator = new WorldGenMinable(DouroMod.ironEssenceOre.getDefaultState(), 12);复制代码使用生成器生成矿物当我们成功创建了一个生成器后，我们就要用它来生成矿石了。WorldGenMinable类的生成方法原形：public boolean generate(World worldIn, Random p_180709_2_, BlockPos p_180709_3_);复制代码第一个参数是世界的实例，众所周知MC里面有主世界、下界以及末地三个世界，甚至还有各mod自己创建的世界。那么你要生成矿石，就得告诉它你要在哪个世界生成对吧。对于第一个参数World，你当然不可能立即新建一个，一般是由上层方法传入，后面会说。但你也可以主动获取，Minecraft.getMinecraft().theWorld;复制代码取得当前的世界。第二个参数，随机数发生器，Java的一个标准库，里面封装好了非常科学的随机数取得的方法，一般我们都会从这里而不是Math来取得随机数，因为Math取得随机数有很多坑，很容易弄错。这个Random参数你倒是可以自己创建，但请注意两个问题：1、玩MC的应该知道，生成世界时会有一个随机种子，通过这个种子我们总是能重构出同样的地貌，玩Java的你应该立刻意识到，这个种子即Random的种子，每次都能重构世界正是因为这个种子的唯一性。如果你自己创建了一个新的Random，那么你就会打破这一点，玩家会发现你的mod的特有矿物会随着每次重构而变化，甚至引起MC本身地形地貌的变化，我猜这不是你想要的吧？2、新建Random开销不算大，但你要知道，一般生成矿物这种事情是会短时间内发生非常多次的，尤其在世界第一次创建时，这样累计下来的开销还是很可观的。不过在某些情况下你可能真的需要自己创建一个Random，比如你只是一次性生成一片矿石，这可能是由于玩家的某个技能引起，它与世界本身的随机种子无关，与重构无关。再比如你是在游戏开始前的UI界面，搞了些随机事件，比如随机显示一些东西，这时世界还没有创建呢，何谈的随机种子与随机对象。第三个参数BlockPos，要生成矿石的位置。这个参数本身没问题，问题出在它容易与另一个概念：Chunk搞混。Chunk是区块，代表了x、z轴平面上16x16个单位的一个区域，Chunk也有坐标值，但这个值是每个区块在所有区块单位上的坐标，大多数情况下你可以这么换算它：chunkX * 16 =blockPosX;复制代码chunkZ同理，但我不确定是不是存在某些mod修改了这一规则。如果你不幸的把Chunk与BlockPos弄混了，你会遭遇这两种尴尬：1、满世界找都找不到你生成的矿石，无论你把概率调多大。2、某个地方满满的都是矿石，无论你把概率调多小。原因你应该能想到了吧？分析完了这些，接下来的事情就简单了，在之前创建的实例，ironEssenceOreGenerator 上调用generate方法，ironEssenceOreGenerator.generate(world, random, genPos);复制代码就这么简单。\n二、矿物的生成算法不要看到算法就吓到，很简单。预备知识：矿脉的稀有度在前文的WorldGenMinable里，我们似乎并没有看到与矿石稀有度相关的设定，其构造器的第二个参数int p_i45631_2_只是控制了每次最大生成矿石数量，这会影响矿脉的大小，不会影响矿脉的出现频率，而矿脉的稀有度实际上是反映在一定范围内，矿脉出现的频率。而这个频率其实不是WorldGenMinable，矿石生成器能决定的，而是由调用生成器的generate方法的次数决定的。在MC中，我们以区块为单位，那么对于每个区块，调用生成器的次数越多，自然生成的矿脉越多，矿脉的稀有度就越低。零散常见的矿物的生成。比如煤、铁这样的public void generateMainWorld(Random random, int posX, int posZ, World world)\n{\n    for(int i = 0; i < 30; i++)          //循环生成30次矿脉\n    {\n        //随机一个地点，作为生成矿脉的中心\n        BlockPos genPos = new BlockPos(\n                        event.pos.getX() + event.rand.nextInt(16),\n            event.rand.nextInt(64),\n            event.pos.getZ() + event.rand.nextInt(16));\n        generator.generate(event.world, event.rannd, genPos);\n    }\n}复制代码其中，循环生成30次，意味着以传入的坐标为起点的x、y轴平面上16x16单位围成的立体区域，即一个区块中有30条矿脉。而generator实例的创建，new WorldGenMinable();中，传入的第二个参数则会设定的较小，比如4。那么，你就可以在一个区块内找到很多零散的但每次都只有几块的矿藏。那么每个区块平均可能找到的矿石数量是(4 / 2) * 30 = 60个。稀有但巨大的矿脉的生成。大概类似与村庄这样，虽然它不是矿物public void generateMainWorld(Random random, int posX, int posZ, World world)\n{\n    if (random.nextInt() % 30 == 0)    //1/30的概率生成矿脉\n    {\n        //随机一个地点，作为生成矿脉的中心\n        BlockPos genPos = new BlockPos(\n            event.pos.getX() + event.rand.nextInt(16),\n            event.rand.nextInt(64),\n            event.pos.getZ() + event.rand.nextInt(16));\n        generator.generate(event.world, event.rannd, genPos);\n    }\n}复制代码其中random.nextInt() % 30 == 0意味着平均每30个区块，也就是480 * 480的区域才能找到1条矿脉。相应的，你需要把generator创建的参数中的最大生成数量调大，比如3600。平均下来，每个区块可能找到的矿石数量(3600 / 2) /30 = 60，还是60个！矿脉非常稀有，但由于储量很大，矿石稀有度不变。弄明白了这些，接下来你就可以简单的设计你的矿石生成规则了。是的，简单的设计，因为你只是在调节稀有度、矿石稀有度。一个建议：不要 在生成方法内部创建WorldGenMinable实例需要注意，我之所以不把generator的实例创建方法写上去，就是为了防止你在generateMainWorld();方法内部创建实例！！！试想，MC里创建一个世界要生成多的区块，每个区块生成30次矿脉，你如果用这种写法：new WorldGenMinable(...).generate(...);，会造成多少不必要的开销！所以记住，为你要生成的矿物创建一个生成器实例，然后hold it！还有，循环次数不要设置的太高，尤其在最大生成矿物数量也不低的情况下。至于BlockPos，那是实在没办法的，虽然它真正意义上需要的只是三个坐标，但却是不可变的。如果上层传入的是坐标，你基本上也只能新建一个BlockPos。如果上层传入的是一个BlockPos，比如public void generateMainWorld(Random random, BlockPos pos, World world);复制代码\n那么你可以选择这么用：pos.add(int x, int y, int z);复制代码但实际上意义不大，BlockPos里全是final域，add();方法也并未对此做出任何优化。你看看add方法内的源码就懂了：\npublic BlockPos add(int x, int y, int z) { return new BlockPos(this.getX() + x, this.getY() + y, this.getZ() + z); }复制代码\n三、矿物的生成时机\n\n生成世界的辨识前文说过，你需要一个World实例作为参数，来确定矿石产生在哪个世界。这个参数可以主动从MC实例中获取（Minecraft.getMinecraft().theWorld），也可以由上层方法传入。那么怎么识别这个World实例是哪个世界呢？你需要用到这个类：WorldProvider，世界提供器。你可以从中获取到详细的WorldType实例，但更简单的用法是，直接调用它的getDimensionId();方法获取世界的dimensionId，维度值。这是个int值，一般情况下-1代表下界，0代表主世界，1代表末地。生成算法的插入我们之前已经写好了生成算法，但它还一直处于No usages状态。要是它能起作用，我们必须将它插入到MC里面去。我们可以触发式的调用这个方法，比如玩家释放了某个技能，但更一般的，我们希望在世界生成时能执行到这个方法，来自然生成我们的矿石。也就是说，我们需要对我们的算法进行注册，使它插入到生成世界、创建区块的流程里。这种情况下，Forge为我们准备了两套方案：\na、注册到GameRegistry里面去：通过GameRegistry.registerWorldGenerator(IWorldGenerator generator, int modGenerationWeight);复制代码方法，我们可以向MC的世界生成过程里注册一个实现了IWorldGenerator接口的对象。这个接口只有一个public void generate(Random random, int chunkX, int chunkZ, World world, IChunkProvider chunkGenerator, IChunkProvider chunkProvider);复制代码方法，一般情况下，你需要做的就是先switch (world.provider.getDimensionId())复制代码以区分当前世界，上文已经讲的很清楚了。然后根据不同的case调用你的生成算法。之后在MC需要创建新的区块时，就会在你注册的实例上调用IWorldGenerator的generate方法，执行你的算法，生成你的矿石。记得注意，传进来的参数是chunkX，chunkZ，要转换成BlockPos才能用！\nb、注册到ORE_GEN_BUS里面去：ORE_GEN_BUS是Forge提供的事件总线之一，专门负责矿物的生成。关于Forge的事件总线，后面会具体讲解。通过MinecraftForge.ORE_GEN_BUS.register(Object target);复制代码方法，你可以把一个类注册到ORE_GEN_BUS里面。但这个类需要一个带有@SubscribeEvent注解的方法，作为事件的监听器。@SubscribeEvent也是通过参数识别的，它的参数可以是任意Forge中的事件，后面会具体的讲。现在，我们可以翻看源码，找到OreGenEvent.GenerateMinable这个事件，顾名思义，当生成可开采的矿藏时会触发这个事件，准确的说是发出这个事件的广播。那么，ORE_GEN_BUS中已注册的全部带有@SubscribeEvent注解，且含有唯一参数OreGenEvent.GenerateMinable event的方法都会收到这个事件广播，于是机会来了，你可以开始做羞羞事了，把你的生成方法加入到这个方法里，然后视情况设置event的返回值，event.setResult()，来决定原来要生成的矿物还是否继续生成了，具体Ctrl + clickL自己看。但要注意，这个方法是每次区块要生成一种矿石时调用，MC里原本自带的几种可开采矿物生成时都会触发这个方法。生成前的挑剔现在，我们有了两种把自定义生成算法插入到MC里的方案，当然，不算触发式的生成。我先简单分析一下两种方法的优劣：前者简单易用，但可扩展性较差，在某些情况下性能也存在一定问题，毕竟要多生成一种矿物。后一种稍微复杂些，但提供了更大的可“挑剔”的空间，一些情况下会有一定性能优势。为什么这一小节叫做“挑剔”呢？因为这里主要讲的是如何通过一些条件来决定生成矿物的算法。这样，我们就可以真正定义出比较复杂的生成算法了。那么先从一般的开始，一些基本的“挑剔”方法：a、world.getBlockState(BlockPos pos).getBlock();复制代码这个方法可以获取到某个位置当前的方块实例，有了这个方块实例，对它做instanceof，你就可以据此来做出些有意思的事情。但instanceof不总是有效，记得吧，有些方块是直接用Block实例化的，如果获取到的方块是个用继承自Block的类实例化的对象，那么instanceof这种方块，得到的总是true！所以，你就需要用到本文开始时提到的那个实现了Predicate接口的BlockHelper了。b、world.setBlockState(BlockPos pos, IBlockState newState, int flags);\nworld.setBlockState(BlockPos pos, IBlockState newState);复制代码后面那个内部调用前面的，flags置为了3，这个值实际上是（0|=1）|=2的结果，2会在改变BlockPos位置上的方块,1会把周围的方块逐一刷新重一遍，如果有新的面露出才能及时渲染上。所以在世界生成的时候，请一定记得用前面的那个方法，传入flags的值为2，这样只改变而不刷新，世界生成时所有方块都还没渲染在屏幕上呢。然后是对于注册到ORE_GEN_BUS里的情况的特殊高级用法：a、高级用法：注册到ORE_GEN_BUS的生成方法需要一个注解和一个OreGenEvent.GenerateMinable event参数，还记得吧，我们要善用这个event。它的父类OreGenEvent有3个公开的域：public final World world;\npublic final Random rand;\npublic final BlockPos pos;复制代码顾名思义，这几个域刚好对应了生成器的generate方法的几个参数，不用我再介绍了吧。这个event本身却还有3个公开域：public static enum EventType { COAL, DIAMOND, DIRT, GOLD, GRAVEL, IRON, LAPIS, REDSTONE, QUARTZ, DIORITE, GRANITE, ANDESITE, CUSTOM }\npublic final EventType type;\npublic final WorldGenerator generator;复制代码第一个是要生成的矿物的类型的枚举，可以看到诸如煤、钻石、泥土等等都囊括在内，甚至还有一个CUSTOM的。第二个就是一个枚举的实例，通过它，你就可以很容易的知道这次要生成什么了。第三个是一个比WorldGenMinable复杂且高端的生成器，它有一个抽象的generate方法，但很显然这个方法现在已经被具象好了，随时恭候你的差遣。如何？看到这么多好东西心里有想法没？纳尼？没有？回去再学两年Java去。你先switch (event.type)，如果发现要生成的是你想要修改的东东，把event的result设定为DENY，即否决掉该事件，这样原来的生成方法就不会自动运行。然后呢，先对event.BlockPos做个随机变化，它现在只是区块的开始位置，因为真正的生成方法还没有执行呢。接着，把变换后的pos，与event.world、event.rand一起，传入早已等候多时的event.generate();方法，手动生成原来的矿石，在以这个pos为中心，生成一些你自己的东西，就可以做到让你的矿物伴随其它矿物生成了。如果你野心更大，就干脆别用event.generate();了，自己写一个新的方法，这样你可以调整更多的东西。b、注意事项：又来了，而且这次居然单独提了出来，可见以下注意事项的重要！首先要强调的就是BlockPos！这里的BlockPos是区块的起点，因为这是某个区块要生成矿物的时候播出的事件，这时候生成矿物的方法还未执行呢！所以要对其坐标做区块内随机变化，比如pos.getX() + rand.nextInt(16)或是pos.add(rand.nextInt(16), ...);！然后注意事件发出的原因是某个区块要生成某个可开采的矿物！也就是说当前区块正常情况下还没有该矿物，且该区块也只发出这一次事件广播！如果你理解成没生成一条矿脉就广播一次就错了！如果你理解成每生成一个矿石都发出一次广播就可以去面壁了，试想那得广播多少次？游戏不炸了才怪！最后也是最重要的，不要在event上直接调用setCanceled();，可能会有倒霉孩子，在event后面打了个点，意外看到了这个倒霉的setCanceled();方法，激动的用event.setCanceled(true);复制代码代替了setResult(Event.Result.DENY);复制代码然后你就会杯具的发现运行崩溃了，因为OreGenEvent.GenerateMinable事件和它的父类都不允许取消！Ctrl + clickL可以看到，源码中的它带有一个@HasResult注解，表明它有返回值，可以setResult()，同样的，带有@Cancelable注解的Event才允许取消！坑爹的Forge~\nOK，本章终于结束，https://github.com/zhengxiaoyao0716/DouroMod，快来吧，如果你认真看到了这里，你已经完全有资格加入了！最后吐槽一下，lofter最大的缺点就是这个恶心的难用的排版，太不利于写技术博客了。唉~当初选这个的时候真心考虑少了。",
+    "replies": [
+        {
+            "author": "zero28",
+            "timestamp": 1446301740,
+            "txt_content": "不明觉厉，辛苦了"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1457771760,
+            "txt_content": "楼主求留下QQ号"
+        },
+        {
+            "author": "正逍遥0716",
+            "timestamp": 1457866560,
+            "txt_content": "DEML_Meng 发表于 2016-3-12 16:36\n楼主求留下QQ号\n不了，几乎弃坑，没脸留。。。"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1458043260,
+            "txt_content": "正逍遥0716 发表于 2016-3-13 18:56\n不了，几乎弃坑，没脸留。。。\n没事，不在乎，望我们重振唐门啊！（虽然我知道这条路比西天取经还难，但是我有思路QAQ）"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1458043440,
+            "txt_content": "正逍遥0716 发表于 2016-3-13 18:56\n不了，几乎弃坑，没脸留。。。\n况且铁母也不是矿。。。"
+        },
+        {
+            "author": "正逍遥0716",
+            "timestamp": 1458228360,
+            "txt_content": "DEML_Meng 发表于 2016-3-15 20:04\n况且铁母也不是矿。。。\n重振唐门。。。就问那么多生物怎么办，还得都有不同的魂骨魂技，这也就算了，本来准备找着pixelmon模式做。但问题这么多魂技还不是固定的，得搭配不同武魂动态生成。。。暗器、魂导器这一块也很庞大，完全可以单独算作一个模组。。。感觉当初想法太天真了"
+        },
+        {
+            "author": "正逍遥0716",
+            "timestamp": 1458228600,
+            "txt_content": "DEML_Meng 发表于 2016-3-15 20:04\n况且铁母也不是矿。。。\n铁之精华嘛，我的设定是在铁矿脉中一定概率生成天然铁母。当然，应该也是可以用“乱披风锤法”锻造普通铁得到的，但没想到好的表现方法~"
+        },
+        {
+            "author": "正逍遥0716",
+            "timestamp": 1458229020,
+            "txt_content": "DEML_Meng 发表于 2016-3-15 20:04\n况且铁母也不是矿。。。\n哦，我知道你是谁了，贴吧里那个\"艾斯菲亚SEER\"是吧？很遗憾我也步入你的后尘弃坑了。。。个人感觉，要做出完美还原斗罗大陆的模组，已经涉及到进化算法了，要根据不同魂兽特点、不同魂环年限、不同的武魂属性，动态组合出新的魂技，这实在有点难"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1458301920,
+            "txt_content": "正逍遥0716 发表于 2016-3-17 23:37\n哦，我知道你是谁了，贴吧里那个\"艾斯菲亚SEER\"是吧？很遗憾我也步入你的后尘弃坑了。。。个人感觉，要做 ...\n我告诉你吧，我好多东西都已经想好了，但是这个计划需要很多人的加入，所以我唐门正在招贤纳士23333"
+        },
+        {
+            "author": "正逍遥0716",
+            "timestamp": 1458304740,
+            "txt_content": " 本帖最后由 正逍遥0716 于 2016-3-18 20:40 编辑 \nDEML_Meng 发表于 2016-3-18 19:52\n我告诉你吧，我好多东西都已经想好了，但是这个计划需要很多人的加入，所以我唐门正在招贤纳士23333 ...\n也就是说你要填坑咯？招贤纳士？算我一个如何 看看够不够格"
+        },
+        {
+            "author": "DEML_Meng",
+            "timestamp": 1458353880,
+            "txt_content": "正逍遥0716 发表于 2016-3-18 20:39\n也就是说你要填坑咯？招贤纳士？算我一个如何 看看够不够格\n留企鹅                              "
+        },
+        {
+            "author": "penghu_",
+            "timestamp": 1522689480,
+            "txt_content": "厉害。谢谢分享"
+        }
+    ]
+}

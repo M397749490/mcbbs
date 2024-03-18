@@ -1,0 +1,24 @@
+{
+    "title": "Minecraft 原版工具系统和 Forge 的调整",
+    "author": "土球球",
+    "replyCount": 3,
+    "timestamp": 1587224040,
+    "txt_content": " 本帖最后由 土球球 于 2020-4-18 23:40 编辑 \n\n何为工具？在 Minecraft 中，工具主要代指有以下两种用途的特殊物品：\n\n使某些方块挖掘产生掉落。加快某些方块的挖掘速度。\n\n在 Minecraft 中，满足以上定义的工具共有剑、斧、镐、铲、剪刀五种。以下是几种常见的误区：\n\n认为铲不属于工具。铲看似对任何原版方块都无法产生特殊类型的掉落，但如果我们考虑到名为积雪（minecraft:snow）的方块，其他所有原版物品（即使使用精准采集）均无法产生掉落，因此铲属于工具。认为剪刀不属于工具。剪刀看似对任何原版方块都无法产生特殊类型的掉落，但实际上剪刀能够处理蜘蛛网（minecraft:cobweb）而其他原版物品无法处理，因此剪刀属于工具。认为锄属于工具。锄在游戏系统中看似属于工具，但实际上它无法使任何方块产生特殊的掉落，也无法加快任何方块的挖掘速度。当然在下界更新（1.16）快照中，锄产生了特殊的作用，但鉴于 Forge 还没有为下界更新提供相应版本，因此相关特性本文不作讨论。\n\n工具系统本质上同时涉及到方块和物品，因此具体实现较为复杂。Minecraft 原版和 Forge 在工具系统上建立的心智模型有所不同，因此本文将同时对 Minecraft 原版和 Forge 加以讨论。\n\n本文使用的版本是 Minecraft 1.14.4，Forge 28.2.4，和 MCP 快照 20190719-1.14.3。\n\n原版工具系统\n\n\n\n\n\n\nminecraft-tool-system-1.png (8.17 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-18 23:32 上传\n\n\n\n\n\n\n原版在判定工具和方块的关系时，使用的是直接判定的方式：\n\n第一步\n方块：minecraft:gold_ore物品：minecraft:diamond_pickaxe\n第二步\ndiamond_pickaxe 可以挖掘的方块包括了 gold_ore，因此判定成立\n\n检查方块\n\n虽然很多方块不使用特定工具无法正常破坏，但部分方块破坏后是否正常掉落物品，和破坏方块的物品是什么并无关联。\n\n这取决于名为 net.minecraft.block.material.Material 的类：该类提供一个名为 isToolNotRequired 的方法，该方法返回 false 代表非特定工具挖掘时无法掉落，返回 true 则意味着对于一般的物品均能掉落。\n\nisToolNotRequired 方法可通过调用 Material.Builder 的 requiresTool 方法设置为 false，默认则为 true。\n\n检查物品\n\n如果方块需要特定工具才能正常掉落物品，那么便进入到了物品检查的环节。在 Minecraft 原版代码中，这通常会通过调用 net.minecraft.item.Item 的 canHarvestBlock 方法检查：该方法需要传入一个方块状态作为参数，如返回 false 则无法掉落，而返回 true 则可以正常掉落。\n\n原版物品除斧（AxeItem）外，其他所有工具均覆盖了这一方法。以下是铲（ShovelItem）的实现：\n\npublic boolean canHarvestBlock(BlockState state)\n{\n    Block block = state.getBlock();\n    return block == Blocks.SNOW || block == Blocks.SNOW_BLOCK;\n}复制代码\n我们可以注意到，原版 Minecraft 是通过枚举方块这一方式检查工具是否适用的。铲的实现相应简单，对于镐而言，由于需要枚举的方块较多，因此实现更为复（bào）杂（lì），这里就不贴代码了，感兴趣的可以自行查阅代码。\n\n挖掘速度\n\n有些方块虽然使用任何物品破坏均可正常掉落，但仍可以使用特殊工具加快挖掘速度，因此挖掘速度需要额外实现。该实现基于 Item 的 getDestroySpeed 方法，但原版 Minecraft 是如何做的呢？\n\n我们以 ShovelItem 为例。\n\nprivate static final Set<Block> EFFECTIVE_ON = Sets.newHashSet(Blocks.CLAY, Blocks.DIRT, Blocks.COARSE_DIRT, Blocks.PODZOL, Blocks.FARMLAND, Blocks.GRASS_BLOCK, Blocks.GRAVEL, Blocks.MYCELIUM, Blocks.SAND, Blocks.RED_SAND, Blocks.SNOW_BLOCK, Blocks.SNOW, Blocks.SOUL_SAND, Blocks.GRASS_PATH, Blocks.WHITE_CONCRETE_POWDER, Blocks.ORANGE_CONCRETE_POWDER, Blocks.MAGENTA_CONCRETE_POWDER, Blocks.LIGHT_BLUE_CONCRETE_POWDER, Blocks.YELLOW_CONCRETE_POWDER, Blocks.LIME_CONCRETE_POWDER, Blocks.PINK_CONCRETE_POWDER, Blocks.GRAY_CONCRETE_POWDER, Blocks.LIGHT_GRAY_CONCRETE_POWDER, Blocks.CYAN_CONCRETE_POWDER, Blocks.PURPLE_CONCRETE_POWDER, Blocks.BLUE_CONCRETE_POWDER, Blocks.BROWN_CONCRETE_POWDER, Blocks.GREEN_CONCRETE_POWDER, Blocks.RED_CONCRETE_POWDER, Blocks.BLACK_CONCRETE_POWDER);复制代码\n原版 Minecraft 在 ShovelItem 中定义了上面这一字段。该字段存储的是一系列可以加快挖掘速度的方块，然后在 getDestroySpeed 方法中引用了它：\n\npublic float getDestroySpeed(ItemStack stack, BlockState state)\n{\n    return EFFECTIVE_ON.contains(state.getBlock()) ? efficiency : 1.0F;\n}复制代码\nForge 的调整\n\n\n\n\n\n\nminecraft-tool-system-2.png (29.15 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-18 23:32 上传\n\n\n\n\n\n\n由于镐、斧、铲所涉及到的方块实在是太多，而且 Forge 也要允许 Mod 为特定工具添加方块，或为特定方块添加工具，因此 Forge 采用的是基于工具类型和挖掘等级的间接判定方式：\n\n第一步\n方块：minecraft:gold_ore物品：minecraft:diamond_pickaxe\n第二步\n方块采用 pickaxe 工具类型挖掘，挖掘等级为 2物品采用 pickaxe 工具类型挖掘，挖掘等级为 3\n第三步\n工具类型均为 pickaxe，同时挖掘等级 3 >= 2，因此判定成立\n\n我们可以注意到，Forge 引入了工具类型（对应 net.minecraftforge.common.ToolType 类）和挖掘等级（对应自然数）两个新概念，从而相校原版提供了更为直观的心智模型，而这两个概念原版 Minecraft 是没有的（或者说是模糊的）。\n\n注意：1.12 中不存在 ToolType 类，Forge 直接使用了祼字符串。\nForge 为方块的调整\n\nForge 为 Block.Properties 额外新增了 harvestTool 和 harvestLevel 两个方法用于为一个方块指定工具类型和挖掘等级。并额外添加了一个方法（位于 net.minecraftforge.common.ForgeHooks 的 initTools 方法）用于指定原版方块的相应工具类型和挖掘等级，感兴趣的读者可以自行验证。\n\n一个方块只能指定一个工具类型一个挖掘等级，事实上一些辅助用 Mod（如 The One Probe）通常能够为你显示鼠标指针所处方块的相应数据。\n\nForge 为物品的调整\n\nForge 为 Item.Properties 额外新增了 addToolType 方法用于为物品添加某种特定的工具类型和对应的挖掘等级，并在原版工具物品类（如 ShovelItem）的构造方法中调用该方法，感兴趣的读者可以自行验证。\n\n和方块不同，一个物品可以添加多个工具类型（比如既可以是镐也可以是铲）。此外，你也可以自定义新的工具类型：比如说匠魂 Mod（Tinkers' Construct）就添加了鹤嘴锄（mattock）等新类型。\n\n总结\n\n和原版 Minecraft 动不动几十个方块堆在一起相比，Forge 将方块映射到特定工具类型和自然数挖掘等级的心智模型更符合大多数开发者的直觉，而且也极大避免了 Mod 在添加新的物品和方块时可能遇到的麻烦。\n\n由于 Forge 需要尽可能避免修改过多的原版代码，因此在 Forge 修改过的代码中我们能够找到一些和原版 Minecraft 心智模型相关的东西，这些地方在编写 Mod 的时候要尤为注意。\n",
+    "replies": [
+        {
+            "author": "史蒂夫老哥",
+            "timestamp": 1587338040,
+            "txt_content": "良心攻略帖，支持"
+        },
+        {
+            "author": "王小脚233",
+            "timestamp": 1587459360,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "dorks",
+            "timestamp": 1587519360,
+            "txt_content": "良心，支持，ilil"
+        }
+    ]
+}

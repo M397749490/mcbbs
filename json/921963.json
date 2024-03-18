@@ -1,0 +1,29 @@
+{
+    "title": "1.13+如何不穷举检测一个实体是否在水里",
+    "author": "黑茶RGO",
+    "replyCount": 4,
+    "timestamp": 1571898540,
+    "txt_content": "1.13之前检测实体是否在水里很简单，只需要检测脚的位置或者头的位置是不是water就可以了，但1.13之后多了各种水下植物、含水方块以及气泡柱，这使得检测实体是否在水里变得很麻烦。\n那么，除了穷举出所有水、水下植物、含水方块以外，还有什么更简单的办法可以检测实体是否在水里，包括只是脚在水里和头部没入水下（会显示气泡且会有水下音效）两种情况的检测。\n检测Air值的办法已排除，因为实体有水下呼吸附魔/效果时会有影响，也无法检测气泡柱，对鱼类和亡灵生物也无效，再加上1.13+出水并不会马上回满氧气值导致实体出水后仍然会被检测到",
+    "replies": [
+        {
+            "author": "⊙u⊙",
+            "timestamp": 1571898540,
+            "txt_content": " 本帖最后由 ⊙u⊙ 于 2019-10-24 00:25 编辑 \n\n怎么感觉你好像问过...\n\n在检测水方块的基础上，添加方块标签\nhttps://raw.githubusercontent.co ... locks/tech/_all.txt\nhttps://raw.githubusercontent.co ... locks/tech/_all.txt\n一个用于1.13，另一个用于1.14。用里面的内容创建一个方块标签并放入你的数据包内\n游戏内使用如\n/execute as @a at @s if block ~ ~ ~ #namespace:all[waterlogged=true] run tellraw @s \"feet in waterlogged block\"\n\n\n如果不会弄的话，https://github.com/ououn/UIN/releases这里有一个什么也不做的垃圾数据包可供下载，下载后丢入你的存档内\n#uin:tech/all[waterlogged=true]\n\n\n\n穷举，弄个方块标签吧，才那几个方块而已\n[waterlogged=true]\nbubble_column\nkelp\nkelp_plant\nseagrass\ntall_seagrass\nwater\n\nmao，差点被你骗到了...判断Air就是了\n不直接检测目标的Air，而是判断生成的marker的Air\n外加判断气泡柱就是了"
+        },
+        {
+            "author": "黑茶RGO",
+            "timestamp": 1571905260,
+            "txt_content": "⊙u⊙ 发表于 2019-10-24 14:47\n怎么感觉你好像问过...\n\n在检测水方块的基础上，添加方块标签\n这个只对含水方块有用啊"
+        },
+        {
+            "author": "Delamer",
+            "timestamp": 1571908740,
+            "txt_content": " 本帖最后由 Delamer 于 2019-10-24 17:32 编辑 \n\n十个块块,用air数据对比来实现了头部入水的检测.\n不用air也不用穷举是真不知道咋检测了.触及知识盲区.\n\n\n\n\n\nQQ截图20191024171114.png (85.31 KB, 下载次数: 0)\n\n下载附件\n\n2019-10-24 17:12 上传\n\n\n\n\n//scoreboard\nscoreboard objectives add air dummy\nscoreboard objectives add check dummy复制代码//out\nexecute as @p at @s store result score @s air run data get entity @s Air\n\nexecute as @p[tag=!in] at @s run tag @s add out\n\n//in\nexecute as @p[tag=out] at @s unless score @s air matches 300 run tag @s add in\n\nexecute as @p[tag=in] at @s run tag @s remove out\n\n//check1\nexecute as @p[tag=in,tag=!check] at @s store result score @s check run data get entity @s Air\n\nexecute as @p[tag=in,tag=!check] at @s run tag @s add check\n\n//check2\nexecute as @p[tag=check] at @s if score @s air < @s check run tag @s remove check\n\nexecute as @p[tag=check] at @s if score @s air > @s check run tag @s remove in\n\n//check3\nexecute as @p[tag=out] at @s run tag @s remove check\n\nexecute as @p[tag=in] at @s if score @s air matches 300 run tag @s remove in复制代码\n\n\n\n有呼吸判定的生物应该也许可能都适用?这个没测试过不太清楚不能下断言.反正检测不了鱼.\n脚部入水检测我放弃了...不知道该怎么折腾...\n加个注解和分行吧.\n\n//out\nexecute as @p at @s \nstore result score @s air \nrun data get entity @s Air\n即时存储玩家air值\n\nexecute as @p[tag=!in] at @s \nrun tag @s add out\n当不处于in状态时,添加out标签\n\n//in\nexecute as @p[tag=out] at @s \nunless score @s air matches 300 \nrun tag @s add in\n当air值不等于300时,添加in标签\n\nexecute as @p[tag=in] at @s \nrun tag @s remove out\n当处于in状态时,移除out标签\n\n//check1\nexecute as @p[tag=in,tag=!check] at @s \nstore result score @s check \nrun data get entity @s Air\n添加check值(即当前air值),为后续提供对比数\n\nexecute as @p[tag=in,tag=!check] at @s \nrun tag @s add check\n添加check标签\n\n//check2\nexecute as @p[tag=check] at @s \nif score @s air < @s check \nrun tag @s remove check\n当前air值小于check值时,移除check标签\n被执行后会跳回check1为check重新赋值\n\nexecute as @p[tag=check] at @s \nif score @s air > @s check \nrun tag @s remove in\n当前air值大于check值时,移除in标签\n被执行后会跳回最初位置重新赋予out标签\n\n//check3\nexecute as @p[tag=out] at @s \nrun tag @s remove check\n当状态为out时,移除check标签\n\nexecute as @p[tag=in] at @s \nif score @s air matches 300 \nrun tag @s remove in\n当状态为in但air值为满时,移除in标签\n\n\n\n为什么我发代码格式老爆炸\n"
+        },
+        {
+            "author": "mc能吃吗",
+            "timestamp": 1571917800,
+            "txt_content": "噫。。都是大佬。。。\n进度？\n完美的水贴"
+        }
+    ]
+}

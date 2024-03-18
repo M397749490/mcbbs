@@ -1,0 +1,49 @@
+{
+    "title": "1.13+ 中 Forge 与 Bukkit 的通信",
+    "author": "海螺螺",
+    "replyCount": 8,
+    "timestamp": 1560504540,
+    "txt_content": " 本帖最后由 海螺螺 于 2020-1-27 12:58 编辑 \n\n1.13+ 中 Forge 与 Bukkit 的通信\n1.12 及以下\n1.13 的 Forge 已经更新几个月，变化较大，包括 Plugin Message Channel 的变化。废话在另一篇已经说得比较多了，因此直接上内容。\n\nForge 接收消息代码如下，Forge 1.13 自身的一些新用法就不做介绍了。\n\n@Mod(\"msgtutor\")\npublic class MsgTutorMod {\n    private static final int IDX = 233;\n    private SimpleChannel channel;\n    public MsgTutorMod() {\n        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::clientSetup);\n    }\n\n    private void clientSetup(FMLClientSetupEvent event) {\n        channel = NetworkRegistry.ChannelBuilder\n                .named(new ResourceLocation(\"msgtutor\", \"test\"))\n                .networkProtocolVersion(() -> \"zzzz\")\n                .serverAcceptedVersions(NetworkRegistry.ACCEPTVANILLA::equals)\n                .clientAcceptedVersions(NetworkRegistry.ACCEPTVANILLA::equals)\n                .simpleChannel();\n       channel.registerMessage(IDX, String.class, this::enc, this::dec, this::proc);\n    }\n\n    private void enc(String str, PacketBuffer buffer) {\n        buffer.writeBytes(str.getBytes(StandardCharsets.UTF_8));\n    }\n\n    private String dec(PacketBuffer buffer) {\n        return buffer.toString(StandardCharsets.UTF_8);\n    }\n\n    private void proc(String str, Supplier<NetworkEvent.Context> supplier) {\n        System.out.println(str);\n        NetworkEvent.Context context = supplier.get();\n        context.setPacketHandled(true);\n        channel.reply(\"client hello\", context);\n    }\n}\n\n1.13 中引入了一个新的 ChannelBuilder，显然比较强。其中\nnamed 这个，在另一篇帖子里也说过，1.13 中消息通道也使用了类似的 namespace:path 的格式networkProtocolVersion 为网络协议版本，现在看来乱写一个是可以的，如果不能的话请通知我（server/clientAcceptedVersions 望文生义，如果需要原版可以加入服务器就这么写，如果仅限 Forge 客户端的话，Predicates.not() 就可以了simpleChannel 创建一个 SimpleChannel，还有一个方法创建一个事件驱动的 channel，但是限于作者水平用不来\n\n因为种种原因我们选择了 SimpleChannel，在创建完 channel 之后，我们就可以着手处理消息了，比如注册一个消息。\n\n使用 registerMessage 注册一种消息，其中\n第一个参数 index，用于区分不同的消息种类，看上去像是一个 int，但是实际上内部存储是 short，但是实际上还 index & 0xff，所以是个 unsigned byte，所以我们这个教程选择了 233 这个有趣的数字第二个是数据类型，为了方便用 String，但是这个东西的初衷应该是想让你写一个有编码解码处理方法的数据类来第三四五个参数自然就是编码解码处理的方法了，主要是操作一个 PacketBuffer，而 PacketBuffer 对 ByteBuf 包装了一下，而 ByteBuf 怎么用在另一篇帖子和这篇帖子都讲了一点\n\n然后我们就注册了一条消息，只要服务器发过来了消息，我们就能接收到。\n\n再看到 proc 方法，这是我们处理接收到消息的方法，输出就不说了，但是context.setPacketHandled(true) 这个方法在处理完消息后需要调用一次，否则控制台会打印一条无关痛痒的警告可以看到最后我们用了 reply 来回复这条消息，你也可以用 channel.sendToServer 来向服务器发送消息\n\nBukkit 发送接收部分代码如下public final class Test extends JavaPlugin implements Listener {\n    private static final int IDX = 233;\n    private final String channel = \"msgtutor:test\";\n\n    @Override\n    public void onEnable() {\n        getServer().getMessenger().registerIncomingPluginChannel(this, channel,\n            (channel, player, message) ->\n                        System.out.println(\"awsl \" + read(message)));\n        getServer().getMessenger().registerOutgoingPluginChannel(this, channel);\n        getServer().getPluginManager().registerEvents(this, this);\n    }\n\n    @EventHandler\n    public void onJoin(PlayerJoinEvent event) {\n        Player player = event.getPlayer();\n        try {\n            Class<? extends CommandSender> senderClass = player.getClass();\n            Method addChannel = senderClass.getDeclaredMethod(\"addChannel\", String.class);\n            addChannel.setAccessible(true);\n            addChannel.invoke(player, channel);\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n        Bukkit.getScheduler().runTaskLater(this,\n                () -> send(player, \"server hello\"), 100);\n    }\n\n    private void send(Player player, String msg) {\n        byte[] bytes = msg.getBytes(StandardCharsets.UTF_8);\n        ByteBuf buf = Unpooled.buffer(bytes.length + 1);\n        buf.writeByte(IDX);\n        buf.writeBytes(bytes);\n        player.sendPluginMessage(this, channel, buf.array());\n    }\n\n    private String read(byte[] array) {\n        ByteBuf buf = Unpooled.wrappedBuffer(array);\n       if (buf.readUnsignedByte() == IDX) {\n            return buf.toString(StandardCharsets.UTF_8);\n       } else throw new RuntimeException();\n    }\n\n}\n\n在 onEnable 中我们按正常流程注册，包括一个简易的打印接收到的客户端消息的东西因为 Forge 现在要帮我们分消息种类了，所以我们要在编码消息的时候在开头读一个 byte，这也就是 read 方法里第一个 readUnsignedByte 的用处。至于为什么是 unsigned，因为 byte 的范围是 -128 - 127，而我们写的是 233channel 的名称和客户端对应，且必须是 namespace:path 的格式\n\n为演示，我们监听玩家加入游戏的事件\n那个看起来莫名其妙的反射一会儿再说延迟 100 tick，也就是 5 秒发送\n\n发送的逻辑在 send 方法里如上文所述，Forge 帮我们分了数据类型，所以我们要先写一个我们的 233 进去Unpooled.buffer 相关的是 netty buffer 的操作，如果不知道咋用，应该看看帖子开头的那个帖子至于为什么要 + 1，因为 byte 的长度是 1\n\n现在来到了最后一个问题，那个莫名其妙的反射是啥？\n在 Forge 1.13 以前，Forge 客户端在加入服务器之前，会向服务器发送 register 包来注册插件消息通道，而 1.13 和之后的版本却不这么做了，而服务器在没有收到 register 包之前，调用的 sendPluginMessage 方法都不会真正发送出去。详情在这个 issue 里，cpw 表示关我 Forge 什么事，找 Spigot 去。\n我们没有办法，毕竟我们不是 cpw 或者 Lex，所以我们只能自己动手丰衣足食，也就是假装我们收到了 register 包，也就是那个反射。\n至于反射很丑，而由于作者懒的原因，没有研究用客户端发 register 包的方法。不过也好，这样子的话，想发包就不用像老版本那样等那几秒钟之后再发了。这也是为什么老版本需要等几秒才能发包的原因。\n\n\n\n\n\nfile_1560506922000.jpg (447.91 KB, 下载次数: 3)\n\n下载附件\n\n2019-6-14 18:08 上传\n\n\n\n\n\n\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "skyliye",
+            "timestamp": 1560507300,
+            "txt_content": "我在想，会不会出来1.14的Bukkit+mod的服务端，其实蛮期待的\n如果能同时兼容Forgemod+Fabricmod+bukkit+sponge插件岂不美哉（有生之年系列）"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1560511380,
+            "txt_content": "skyliye 发表于 2019-6-14 18:15\n我在想，会不会出来1.14的Bukkit+mod的服务端，其实蛮期待的\n如果能同时兼容Forgemod+Fabricmod+bukkit+spo ...\nfabric+bukkit目前开发者在做。"
+        },
+        {
+            "author": "MC_Huo_Shen",
+            "timestamp": 1560578160,
+            "txt_content": "看不懂554654455454"
+        },
+        {
+            "author": "老油人",
+            "timestamp": 1560697140,
+            "txt_content": "23333333333"
+        },
+        {
+            "author": "简爱爱",
+            "timestamp": 1560700080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "slyz",
+            "timestamp": 1560740400,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "404565377",
+            "timestamp": 1560847200,
+            "txt_content": "简爱爱 发表于 2019-6-16 23:48\n互通又有什么用呢？大佬的想法我不懂。\n和客户端通信，就不用在服务端装mod了"
+        },
+        {
+            "author": "Deeplypie",
+            "timestamp": 1560960000,
+            "txt_content": "感谢服主的分享！"
+        }
+    ]
+}

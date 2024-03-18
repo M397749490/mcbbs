@@ -1,0 +1,74 @@
+{
+    "title": "1.13 纯原版不用插件，制作一个简单的死亡惩罚功能",
+    "author": "uuu2011",
+    "replyCount": 13,
+    "timestamp": 1533097140,
+    "txt_content": " 本帖最后由 uuu2011 于 2018-8-1 12:23 编辑 \n\n这不是一个教程！ \n只是对这个问题提出一些我的看法\n\n\n这几天忽然有一点关于死亡掉落的想法，服里的玩家对死亡掉落意见挺大，数次要求改成死亡不掉落\n但是死亡不掉落的话，大家出去挖矿背包满了就直接死回家，出去跑图找宝藏，也直接死回家，难度太低了，久而久之容易腻\n受站里某玩家的提示（不好意思忘了是谁了，我帖子被删了），做了一个简单的死亡惩罚功能。不需要插件，不需要mod。\n\n我们先想想要惩罚的内容，\n例如，想让玩家在死亡重生了以后，经验变成0级，获得缓慢 buff 10秒\n经验变成0级：\nexperience set @s 0 levels复制代码获得缓慢 buff 10秒：\neffect give @s minecraft:slowness 10 4 true复制代码上面 @s 是「命令执行者」的意思，minecraft:slowness 是缓慢 buff ，10 是 10秒， 4 是 缓慢等级，每级减少 15% 移动速度，缓慢4 减少 60% 移速。最后一个 true 是隐藏右上角的 buff 提示和例子效果，如果不想隐藏，就改成 false。\n\n\n以上，当玩家执行这些指令的时候，就会经验变成0级，然后获得缓慢4 buff 10秒。\n\n接下来，我们让他作用在死亡重生的玩家身上。\n\n怎么判断玩家重生了呢？\n通过记分板，记分板里有一个判据，可以记录玩家的自上次死亡后的生存时间，名字是 minecraft.custom:minecraft.time_since_death\n如果玩家自上次死亡后的生存时间是0，那么就可以判断他刚刚死亡重生了。\n首先，添加一个记分板项目，让系统开始记录玩家自上次死亡后的生存时间：\nscoreboard objectives add XXX minecraft.custom:minecraft.time_since_death复制代码上面的 XXX 是你自己起的名字，必须是英文，尽量不要有下划线，我用的是 livetime，那我的命令就长下面这样：\nscoreboard objectives add ivetime minecraft.custom:minecraft.time_since_death复制代码从这时候起，系统就开始记录所有玩家自上次死亡后的生存时间，这个时间的单位是 tick （应该是），1 秒就是 20tick。\n\n接下来，我们让每一个 livetime 为 1 的玩家执行上面死亡惩罚命令。为啥不是 0 ？我也不知道，我觉得 0 可能会有问题吧...\n通过 execute 来实现，execute 命令可以让符合某些条件的玩家以自己的身份执行某些命令。\n命令是这样：\nexecute as @a[scores={livetime=1}] run experience set @s 0 levels复制代码上面这条命令，可以让每一个 livetime 为 1 的玩家，执行 experience set @s 0 levels 命令，这个命令上面提过，就是将经验值变为 0 级。\n还需要增加缓慢buff，所以下面再加一行差不多的命令，最后完整的命令就长这样：\nexecute as @a[scores={livetime=1}] run experience set @s 0 levels\nexecute as @a[scores={livetime=1}] run effect give @s minecraft:slowness 10 4 true复制代码以上，当这两条命令被执行的时候，所有刚刚重生，生存时间在 1 tick的玩家，经验值将被设置成 0 级，并获得一个 缓慢4 持续 10 秒的 buff。\n\n重点来了，我们要让这个命令在每一个游戏 tick 里都执行一次，就是 高频执行。\n需要通过 函数functions 和 标签tags 来实现，这两个东西，需要在服务端对应的位置里创建文件来实现。\n首先是 functions，在以下位置创建一个文件夹\n.minecraft/[世界名称]/datapacks/[AAA]/data/[BBB]/functions/[CCC]\n\n上面的 AAA，BBB，CCC 都可以自定义（去掉方括号）\n然后在 CCC 里面创建一个文件，名字叫 DDD.mcfunction，DDD可以自定义，这是一个函数文件，文件编码格式为 UTF8-无BOM格式。\n接着在文件里面粘贴刚才写的那两行命令，前面不要加斜杠：\nexecute as @a[scores={livetime=1}] run experience set @s 0 levels\nexecute as @a[scores={livetime=1}] run effect give @s minecraft:slowness 10 4 true复制代码保存退出。\n以后只要调用这个函数，就会执行一次里面的所有内容。\n\n然后我们让他高频起来，每个游戏tick都调用一次。\n要用到 tags ，在以下位置创建文件夹：\n\n.minecraft/[世界名称]/datapacks/[AAA]/data/minecraft/tags/functions\n\n（这个AAA还是上面那个AAA，保持不变）\n然后在这个文件夹里创建一个文件，名字叫 tick.json，这是一个标签文件，文件编码格式为 UTF8-无BOM格式。\n接着在文件里面粘贴以下内容：\n{\n    \"values\": [\n        \"BBB:CCC/DDD\"\n    ]\n}复制代码BBB，CCC，DDD 就是上面你自己定义的名字。\n保存退出。\n\n这时候所有的准备工作都做完了，我们需要让服务器重新加载一次我们刚刚创建的这一堆东西\n在控制台输入指令  reload，稍等一会，就会提示服务器加载配置完成。\n现在开始，我们的死亡惩罚函数已经在高频的执行了。去测试一下吧~\n\n一点问题\n这一套东西下来，其实有个不大不小的问题，就是在你高频执行这个函数以后，首次登陆服务器的玩家，也会获得这个死亡惩罚的效果，因为他们的生存时间也是从0开始计时的。\n解决办法是，在判断玩家是否是死亡重生的环节，再加一个条件：玩家的死亡数是否为 1，如是 1，且生存时间为 0，就执行死亡惩罚，然后把死亡数重置为 0。这样对新加入服务器的玩家，就不会给予死亡惩罚了。\n\n那么，为什么不直接用死亡数来作为判断死亡惩罚的条件，而要用生存时间呢？ 留给你们思考啦\n\n欢迎大神一起讨论斧正。\n\n吐槽\n顺便吐槽，我发帖讨论死亡不掉落的问题，对，在版主和各位大佬眼里，可能是个老生常谈的问题，但这个问题对我这样的小白来说真的是困扰很久，对我是个新问题。帖子存在的不长一段时间里，站里的各位回帖给了我很大的帮助，让我打开思路，我很感谢他们。以后还想要寻求类似的帮助，我该怎么做？以后再也不能讨论这个问题了吗？\n希望能从新人的角度，给新人多一点关爱。\n\n\n\n",
+    "replies": [
+        {
+            "author": "BlackCB.",
+            "timestamp": 1533099660,
+            "txt_content": " 本帖最后由 天狼星black 于 2018-8-1 13:03 编辑 \n\n是我（我真不要脸）\n@一窍不开   \n可以和上面那位交流一下服务器大多不会用CB"
+        },
+        {
+            "author": "Missez",
+            "timestamp": 1533101220,
+            "txt_content": "要是有这种插件会方便很多。。"
+        },
+        {
+            "author": "ColorPencil",
+            "timestamp": 1533101340,
+            "txt_content": "是我！不过你现在添加进去了吗"
+        },
+        {
+            "author": "ColorPencil",
+            "timestamp": 1533101400,
+            "txt_content": " 本帖最后由 ColorPencil 于 2018-8-1 14:18 编辑 \n\n咳咳 内啥 论坛为什么不让删帖"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1533110580,
+            "txt_content": "ColorPencil 发表于 2018-8-1 13:29\n是我！不过你现在添加进去了吗\n你是指加进服务器？ 已经加了"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1533110580,
+            "txt_content": "Missez 发表于 2018-8-1 13:27\n要是有这种插件会方便很多。。\n其实已经相当于插件了，如果可以的话吧数据包放出来，服主下载后放进服务端里 reload 就能生效，不用其他设置"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1533110700,
+            "txt_content": "天狼星black 发表于 2018-8-1 13:01\n是我（我真不要脸）\n@一窍不开   \n可以和上面那位交流一下服务器大多不会用CB\nCB是命令方块吗？"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1533110760,
+            "txt_content": "ColorPencil 发表于 2018-8-1 13:30\n咳咳 内啥 论坛为什么不让删帖\n你俩好眼熟，好像经常见你们"
+        },
+        {
+            "author": "ColorPencil",
+            "timestamp": 1533110880,
+            "txt_content": "uuu2011 发表于 2018-8-1 16:06\n你俩好眼熟，好像经常见你们\n经常在茶馆水是吧 哈哈"
+        },
+        {
+            "author": "ksgfk",
+            "timestamp": 1533117180,
+            "txt_content": "给会CB的大佬递猹...咸鱼还是等插件作者更新"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1533118140,
+            "txt_content": "众所周知死亡玩家特性多.jpg\n在以前的版本好像是还可以利用不选死玩家的@p来处理直接用deathCount/stat.deaths导致的从死的瞬间而不是从复活的瞬间开始算时间的问题，但1.13行不行得通我还真没试过。\n大不了带着Health一起判别嘛，反正方法总还是有的。"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1533139800,
+            "txt_content": "玄素 发表于 2018-8-1 18:09\n众所周知死亡玩家特性多.jpg\n在以前的版本好像是还可以利用不选死玩家的@p来处理直接用deathCount/stat.dea ...\n哇，deathCount + Health ，思路不错哦！学到了学到了"
+        },
+        {
+            "author": "xuan_heng",
+            "timestamp": 1533148620,
+            "txt_content": "大佬们的交流，看不懂，"
+        }
+    ]
+}

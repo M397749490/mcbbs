@@ -1,0 +1,109 @@
+{
+    "title": "利用Forge API开发联机MOD【基础篇】【第三章】",
+    "author": "yuxuanchiadm",
+    "replyCount": 20,
+    "timestamp": 1343742780,
+    "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-2-13 04:54 编辑 \n\n利用Forge API开发联机MOD【基础篇】【第三章】\n建立你的配置文件类\n作者：yuxuanchiadm\n\n索引贴地址：http://www.mcbbs.net/thread-38211-1-1.html\n\n请确定你已经阅读完成第二章的内容:\nhttp://www.mcbbs.net/thread-38283-1-1.html\n否则不要阅读此贴！\n\n序：\n在上一章里，我们已经学会了制作一个简单的MOD，并且制作出了一个。然而，很多MOD都有一个完整的配置文件，而我们的MOD没有：(，不要沮丧，现在我将要教你制作一个配置文件管理类，虽然现在没有什么用，但是以后用得到！\n\n为你的MOD制作一个配置文件管理类：\n/**知识点：什么是类和对象\n类是OOP编程（面向对象的编程）中的重要元素，什么，你不知道神马是类？好吧，你居然有耐心看到这里，请容我一拜（楼主扯蛋中），如果把类比作蓝图，对象比作汽车，那么类和对象的关系就如同蓝图和汽车一样。一个蓝图可以制作出很多汽车，蓝图的样子决定了汽车的样子，然而汽车也可以换挡，添加装饰品，所以对象不一定要一样，但是一定要有蓝图的样子，否则这就是一个失败品。\n**/\n首先在myFirstMod包下建立一个新类：myFirstModConfig。这个配置文件管理类我们要实现单实例的功能，也就是只能存在一个myFirstModConfig类的实例，否则多个实例对一个文件进行操作，就可能出现问题。\n/**知识点：什么是单实例模式\n单实例模式时面向对象编程中一个重要的元素，一般用于需要对一个文件或其他内容操作的场景。顾名思义，单实例模式下的类只能有一个实例，这样就提高了应用程序的安全性。日后在扩展这个程序时，也不容易在此处发生错误。单实例模式的实现，一般是在类的内部创建一个指向这个类本身的某个实例的静态变量，并且让构造函数在外部不可见（Private），然后创建一个静态初始化函数，在运行中第一次使用这个类时对其内部的那个静态变量和其他内容进行初始化。\n**/\n注意：导入类啥的自行导入就行了，以后就不提醒了。\n首先，创建一个私有静态变量，类型为myFirstModConfig，也就是储存这个类的唯一实例的变量。\n\nprivate static myFirstModConfig instance;复制代码\n然后创建一个私有成员变量，类型为Configuration（Forge提供的基本配置文件管理类）\nprivate Configuration config;复制代码\n然后，添加这个类的私有构造函数，参数列表需要一个File类型的参数，此参数期望传入一个以此MOD配置文件为路径的File对象。\n\nprivate myFirstModConfig(File configFile)\n{\n    if(!configFile.exists())\n    {\n        try\n        {\n            configFile.createNewFile();\n        }\n        catch(IOException e)\n        {\n            System.out.println(e);\n            return;\n        }\n    }\n    config = new Configuration(configFile);\n    config.load();\n}复制代码\n/**知识点：什么是构造函数\n构造函数是OOP编程（面向对象的编程）中的重要元素，假设你要把汽车蓝图变成一个实际汽车，那么你需要建造它，构造函数的作用就是建造类的对象，构造函数在类初始化时调用，构造函数调用完成时，你将得到一个完整的类的对象。\n**/\n然后，创建一个初始化函数，用于在需要使用这个类时初始化它。\n\n\npublic static void InitliazeConfig(File ConfigFile)\n{\n    if(myFirstModConfig.instance != null)\n    {\n        return;\n    }\n    myFirstModConfig.instance = new myFirstModConfig(ConfigFile);\n}\n复制代码\n然后，创建三个获取方块ID、物品ID、和其他配置信息的函数：\npublic static String GetGeneralProperties(String PropertyName, String DefaultValue) throws Exception\n{\n    if(myFirstModConfig.instance == null)\n    {\n        throw new Exception(\"没有初始化配置文件！\");\n    }\n    return myFirstModConfig.instance.config.get(\"general\", PropertyName, DefaultValue).value;\n}\npublic static int GetItemID(String ItemName, int DefaultValue) throws Exception\n{\n    if(myFirstModConfig.instance == null)\n    {\n        throw new Exception(\"没有初始化配置文件！\");\n    }\n    return myFirstModConfig.instance.config.getItem(\"item\", \"ID.\" + ItemName, DefaultValue).getInt() - 256;\n    //为什么要减256呢，这还得从上古时期开始说起。从前有个叫Notch的男人，开发了Minecraft。在制作物品和方块系统时，错误的将物品和方块归为同一类。但方块能使用的ID却在原版只有256，而物品则有很多。后来，Minecraft发现了这个问题，于是将物品在初始化时传入的ID统一加上了256。但治标不治本，方块ID任然只有256个。1万年后，出现了一个可以将方块范围限制提到4096的MOD，万恶（弥天大雾）的Forge迅速将其吸入Forge本身。于是方块和物品的ID又开始冲突了。但物品在初始化时还是只加上256，因为很多物品都使用了4096以下的ID，所以必须将其移到其他范围。但由于目前很多的神作地图等精美的艺术作品都使用的是现在的ID，一旦更改，这些存档（全银河系的Minecraft存档）将报废。最后，就出现了现在的坑爹局面。所以，最好还是在此地减去256，抵消这个副作用，干脆就使用可能会导致冲突的ID范围，也总比卡在半中拦腰强。\n}\npublic static int GetBlockID(String BlockName, int DefaultID) throws Exception\n{\n    if(myFirstModConfig.instance == null)\n    {\n        throw new Exception(\"没有初始化配置文件！\");\n    }\n    return myFirstModConfig.instance.config.getBlock(\"ID.\" + BlockName, DefaultID).getInt();\n}复制代码最后，创建一个储存配置文件的函数：\n\npublic static void SaveConfig()\n{\n    myFirstModConfig.instance.config.save();\n}复制代码\n这时，你的代码应该是这样：\n\npackage myFirstMod;import net.minecraftforge.common.Configuration;\nimport java.io.File;\nimport java.io.IOException;public class myFirstModConfig\n{\n    private static myFirstModConfig instance;\n    private Configuration config;\n    public static void InitliazeConfig(File ConfigFile)\n    {\n        if(myFirstModConfig.instance != null)\n        {\n            return;\n        }\n        myFirstModConfig.instance = new myFirstModConfig(ConfigFile);\n    }\n    private myFirstModConfig(File configFile)\n    {\n        if(!configFile.exists())\n        {\n            try\n            {\n                configFile.createNewFile();\n            }\n            catch(IOException e)\n            {\n                System.out.println(e);\n                return;\n            }\n        }\n        config = new Configuration(configFile);\n        config.load();\n    }\n    public static void SaveConfig()\n    {\n        myFirstModConfig.instance.config.save();\n    }\n    public static String GetGeneralProperties(String PropertyName, String DefaultValue) throws Exception\n    {\n        if(myFirstModConfig.instance == null)\n        {\n            throw new Exception(\"没有初始化配置文件！\");\n        }\n        return myFirstModConfig.instance.config.get(\"general\", PropertyName, DefaultValue).value;\n    }\n    public static int GetItemID(String ItemName, int DefaultValue) throws Exception\n    {\n        if(myFirstModConfig.instance == null)\n        {\n            throw new Exception(\"没有初始化配置文件！\");\n        }\n        return myFirstModConfig.instance.config.getItem(\"item\", \"ID.\" + ItemName, DefaultValue).getInt();\n    }\n    public static int GetBlockID(String BlockName, int DefaultID) throws Exception\n    {\n        if(myFirstModConfig.instance == null)\n        {\n            throw new Exception(\"没有初始化配置文件！\");\n        }\n        return myFirstModConfig.instance.config.getBlock(\"ID.\" + BlockName, DefaultID).getInt();\n    }\n}\n复制代码\n总结：\n你已经制作出了一个配置文件管理类，为自己干上一杯吧：)，虽然现在没什么用，但是你已经迈出了制作更高级MOD的第一步！如果你有较好的JAVA基础，你可以在mod_myFirstMod类里自己玩玩你的配置文件管理类。",
+    "replies": [
+        {
+            "author": "outsidero",
+            "timestamp": 1343743020,
+            "txt_content": "前排支持！！"
+        },
+        {
+            "author": "1212012",
+            "timestamp": 1343744460,
+            "txt_content": "不错但是我压根看不懂"
+        },
+        {
+            "author": "a919298641",
+            "timestamp": 1343749680,
+            "txt_content": "整合包呢。。。。"
+        },
+        {
+            "author": "a919298641",
+            "timestamp": 1343750400,
+            "txt_content": "好吧。。。。我想要的是整合包。。。"
+        },
+        {
+            "author": "strawmaine",
+            "timestamp": 1344912300,
+            "txt_content": "知识点萌动了~"
+        },
+        {
+            "author": "zheung14",
+            "timestamp": 1363346880,
+            "txt_content": "return myFirstModConfig.instance.config.get(\"general\", PropertyName, DefaultValue).value;\n\n\n最后的.value报错,找不到该函数成员\n\n~很可能是我用了新版Forge(1.5的7.7)造成的...\n\n于是我对比查了一下javadoc,好像是把value从公有变成私有了...改用getString()来获得value的值\n\n但是我不肯定,这样做对不对...不知道大大是否有时间帮我确认一下呢?"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1363362780,
+            "txt_content": " 本帖最后由 yuxuanchiadm 于 2013-3-15 23:55 编辑 \nzheung14 发表于 2013-3-15 19:28 \nreturn myFirstModConfig.instance.config.get(\"general\", PropertyName, DefaultValue).value;\n确实改成私有的了，Forge提供了getString方法来直接获取value的值，使用\nreturn myFirstModConfig.instance.config.get(\"general\", PropertyName, DefaultValue).getString();\n替换。\n\n追加：\n完全可以放心这样做"
+        },
+        {
+            "author": "zheung14",
+            "timestamp": 1363363500,
+            "txt_content": "yuxuanchiadm 发表于 2013-3-15 23:53 \n确实改成私有的了，Forge提供了getString方法来直接获取value的值，使用\nreturn myFirstModConfig.insta ...\n感谢万分~~"
+        },
+        {
+            "author": "qq1693129601",
+            "timestamp": 1363933440,
+            "txt_content": "42行value是私有的啊"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1363937340,
+            "txt_content": "qq1693129601 发表于 2013-3-22 14:24 \n42行value是私有的啊\n谁叫你用新版本的？\n新版本Forge用getString()"
+        },
+        {
+            "author": "kuafuzhuguang",
+            "timestamp": 1375611960,
+            "txt_content": "签名，先顶后看"
+        },
+        {
+            "author": "mkonhy",
+            "timestamp": 1376147220,
+            "txt_content": "这一章看上去觉得不明不白的……头都晕了……"
+        },
+        {
+            "author": "TheTd",
+            "timestamp": 1376159460,
+            "txt_content": "java的习惯好像是'{'在定义方法的时候就加在哪一行后面，不是换一行再写'{' ，所以楼主一定不是专攻java的:)"
+        },
+        {
+            "author": "yuxuanchiadm",
+            "timestamp": 1376169600,
+            "txt_content": "TheTd 发表于 2013-8-11 02:31 \njava的习惯好像是'{'在定义方法的时候就加在哪一行后面，不是换一行再写'{' ，所以楼主一定不是专攻java的: ...\n你在酒吧（贴吧、网吧、K吧）当着一大堆程序猿说这事，回答肯定不止一个，估计喷人的答案居多。\njava的习惯好像是不用换行，不用空格，不用缩进，所以14楼一定不是专攻java的:)"
+        },
+        {
+            "author": "Precursors",
+            "timestamp": 1406969400,
+            "txt_content": "为什么我的eclipse显示没有为类型 Configuration 定义方法 getBlock（String, int）和没有为类型 Configuration 定义方法 getItem（String, int）"
+        },
+        {
+            "author": "SilverMing",
+            "timestamp": 1408277700,
+            "txt_content": "Precursors 发表于 2014-8-2 16:50\n为什么我的eclipse显示没有为类型 Configuration 定义方法 getBlock（String, int）和没有为类型 Configura ...\n因为Configuration.class里沒有这兩个方法\n似乎是1.7.2的问题"
+        },
+        {
+            "author": "T7-xin",
+            "timestamp": 1481938740,
+            "txt_content": "lin212 发表于 2014-8-17 20:15\n因为Configuration.class里沒有这兩个方法\n似乎是1.7.2的问题\n那应该改成什么呢？现在卡在这里了..."
+        },
+        {
+            "author": "yujm4623",
+            "timestamp": 1556943600,
+            "txt_content": "虽然感觉很不错但是看不懂耶"
+        },
+        {
+            "author": "Treason666",
+            "timestamp": 1562928360,
+            "txt_content": "支持一下"
+        },
+        {
+            "author": "我是叶辉",
+            "timestamp": 1562998740,
+            "txt_content": "感谢楼主的分享"
+        }
+    ]
+}

@@ -1,0 +1,59 @@
+{
+    "title": "[已解决] 如何拦截服务端的所有日志",
+    "author": "yumc",
+    "replyCount": 10,
+    "timestamp": 1589341800,
+    "txt_content": " 本帖最后由 yumc 于 2020-5-13 17:32 编辑 \n\n最近需要拦截服务端日志 做转发\n然后折腾了半天没折腾出来\n有大佬嘛\n\n目前是对插件的Logger加了一个Filter\n但是只能拦截到插件自身的日志直接加到Bukkit的Logger上好像又没啥用\n\nenable() {\n        try {\n            global['logger'].setFilter((record) => {\n                this.loggerEvent.emit('log', record.getMessage())\n                return true;\n            });\n        } catch (error) {\n            console.error(error);\n        }\n    }\n\n    disable() {\n        try {\n            global['logger'].setFilter(null);\n            this.loggerEvent.removeAllListeners();\n        } catch (error) {\n            console.error(error);\n        }\n    }\n\n\n谁有能够全局截获日志的方法\n另一个就是 怎么获取 发送给ConsoleSender的消息\n看了看具体实现 好像直接怼到 System.out 上面了 \npublic class CraftConsoleCommandSender extends ServerCommandSender implements ConsoleCommandSender {\n\n    protected final ConversationTracker conversationTracker = new ConversationTracker();\n\n    protected CraftConsoleCommandSender() {\n        super();\n    }\n\n    public void sendMessage(String message) {\n        sendRawMessage(message);\n    }\n\n    public void sendRawMessage(String message) {\n        System.out.println(ChatColor.stripColor(message));\n    }\n}\n\n问题解决了\n通过Arthas 导出了Heapdump 分析了一下引用链\n最终在 net.minecraft.server.v1_12_R1.MinecraftServer 下面 找到了一个静态字段 LOGGER\n最后获取 parent 就好了\nnashorn伪代码 在MiaoScript可以运行\n\nenable() {\n        try {\n            let AbstractAppender = Java.type('org.apache.logging.log4j.core.appender.AbstractAppender');\n            let ProxyAppender = Java.extend(AbstractAppender, {\n                append: (logEvent) => global.eventCenter.emit('log', logEvent.getMessage().getFormattedMessage())\n            })\n            Packages.net.minecraft.server.MinecraftServer.field_147145_h\n            let logger = Packages.net.minecraft.server.v1_12_R1.MinecraftServer.LOGGER.parent;\n            this.tempAppender = new ProxyAppender(\"ProxyLogger\", null, null)\n            this.tempAppender.start();\n            logger.addAppender(this.tempAppender);\n            logger.setAdditive(true);\n        } catch (error) {\n            console.error(error);\n        }\n    }\n\n    disable() {\n        try {\n            let logger = Packages.net.minecraft.server.v1_12_R1.MinecraftServer.LOGGER.parent;\n            this.tempAppender.stop();\n            logger.removeAppender(this.tempAppender);\n        } catch (error) {\n            console.error(error);\n        }\n    }\n[groupid=1465]银河系气功协会[/groupid]",
+    "replies": [
+        {
+            "author": "Karlatemp",
+            "timestamp": 1589347500,
+            "txt_content": "mc使用log4j，可以直接拦截log4j的日志(就是从log4j入手)"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589349000,
+            "txt_content": "Karlatemp 发表于 2020-5-13 13:25\nmc使用log4j，可以直接拦截log4j的日志(就是从log4j入手)\n嗯 那个我写AuthMe的时候用过\n但是好像只能拦截插件自己的\n我试过设置到Bukkit上 但是好像拦不到"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1589349240,
+            "txt_content": "你可以尝试操作一下RootLogger，没记错的话最终都会走Root Logger"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589349300,
+            "txt_content": "Karlatemp 发表于 2020-5-13 13:54\n你可以尝试操作一下RootLogger，没记错的话最终都会走Root Logger\n比较迷幻的是 我获取 Bukkit.getLogger返回的并不是 log4j 的实例\n>mpm run org.bukkit.Bukkit.getLogger()\n[14:00:16 INFO]: [MS][PM] 运行脚本: org.bukkit.Bukkit.getLogger()\n[14:00:16 INFO]: [MS][PM] 返回结果: java.util.logging.Logger@739cb3a2"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1589349360,
+            "txt_content": "\nimport org.apache.logging.log4j.LogManager;\nimport org.apache.logging.log4j.core.Logger;\n\npublic class JavaTest {\n\n\n    public static void test() {\n        Logger logger = ((Logger) LogManager.getRootLogger());\n        logger.addAppender(...);\n    }\n}\n\n可以试下"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1589349540,
+            "txt_content": "yumc 发表于 2020-5-13 13:55\n比较迷幻的是 我获取 Bukkit.getLogger返回的并不是 log4j 的实例\nBukkit.getLogger()获取的是jdk原生日志，属于log4j的一个wrapper通道. 获取Log4j的root logger得用log4j的方法"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589349900,
+            "txt_content": "Karlatemp 发表于 2020-5-13 13:56\nimport org.apache.logging.log4j.LogManager;\nimport org.apache.logging.log4j.core.Logger;\nAppender 推荐用啥呐\n自己实现 还是说 继承某个抽象类"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589353320,
+            "txt_content": "Karlatemp 发表于 2020-5-13 13:59\nBukkit.getLogger()获取的是jdk原生日志，属于log4j的一个wrapper通道. 获取Log4j的root logger得用log4j ...\n好像有点问题\n我在不同的地方获取 getRootLogger 返回的实例并不是同一个\n[15:05:04 INFO]: [MiaoScript] [MiaoConsole] :INFO in 3d7a7912\n[15:05:04 INFO]: [MS][PM] 插件 MiaoConsole 重载完成!\n[15:05:05 INFO]: [MiaoScript] [MiaoConsole] Netty Channel Pipeline Inject MiaoDetectHandler Successful!\n[15:05:10 INFO]: [MS][MiaoConsole] 客户端 /MiaoConsole#87ab59ae 新建连接...\n>mpm run Packages.org.apache.logging.log4j.LogManager.getRootLogger()\n[15:06:04 INFO]: [MS][PM] 运行脚本: Packages.org.apache.logging.log4j.LogManager.getRootLogger()\n[15:06:04 INFO]: [MS][PM] 返回结果: :INFO in 21123a77"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1589366760,
+            "txt_content": "您好\n获取控制台所有输出的问题论坛讨论过，我给出过一个详细的答案，可以直接操作\nhttps://www.mcbbs.net/thread-918684-1-1.html"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589383080,
+            "txt_content": "轻光233 发表于 2020-5-13 18:46\n您好\n获取控制台所有输出的问题论坛讨论过，我给出过一个详细的答案，可以直接操作\nhttps://www.mcbbs.net/ ...\n嗯 已经分析源码解决了\n现在在折腾Sponge的日志拦截\n有点小问题"
+        }
+    ]
+}

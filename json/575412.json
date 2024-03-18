@@ -1,0 +1,104 @@
+{
+    "title": "坐标移动问题  怎么计算移动一定距离后的位置",
+    "author": "494308843",
+    "replyCount": 19,
+    "timestamp": 1460637180,
+    "txt_content": "\n\n不是在XYZ轴加减移动\n\n根据YAW PITCH角度移动一定距离\n怎么弄\n\n\n没学过啊",
+    "replies": [
+        {
+            "author": "494308843",
+            "timestamp": 1460803860,
+            "txt_content": "splt 发表于 2016-4-16 18:54\n拿到移动后的Location,然后Location.distance(原Location)\n这个是计算2点之间的距离》。。"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1460804040,
+            "txt_content": "拿到移动后的Location,然后Location.distance(原Location)"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1460804280,
+            "txt_content": "494308843 发表于 2016-4-16 18:51\n这个是计算2点之间的距离》。。\nLocation.toVector().add(距离Vector).toLocation()大概是这样，但是不保证有这些方法，但是肯定有转换方法，不过我忘了名字……你在Location和Vector里面都找找吧"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463582100,
+            "txt_content": "splt 发表于 2016-4-16 18:58\nLocation.toVector().add(距离Vector).toLocation()大概是这样，但是不保证有这些方法，但是肯定有转换方 ...\n\n这个问题还是没解决\n好像需要用到三角函数\n然而我不懂\n问过好多人也没解决\n\n悲伤的故事"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463634360,
+            "txt_content": "向量。\npublic static Vector getVector(float yaw, float pitch, float deviation) {\n        float y0 = (float) ((yaw + 90) * FastMath.D);\n        float p0 = (float) (-pitch * FastMath.D);\n\n        float xz = (float) FastMath.cos(p0);\n        float vecX = (float) (FastMath.cos(y0) * xz);\n        float vecY = (float) FastMath.sin(p0);\n        float vecZ = (float) (FastMath.sin(y0) * xz);\n        return new Vector(FastMath.abs(vecX) < deviation ? 0 : vecX + (vecX < 0 ? deviation : -deviation),\n                FastMath.abs(vecY) < deviation ? 0 : vecY + (vecY < 0 ? deviation : -deviation),\n                FastMath.abs(vecZ) < deviation ? 0 : vecZ + (vecZ < 0 ? deviation : -deviation));\n    }复制代码FastMath是commons-math中的类，进行快速数学运算，用Math替代也行。\ndeviation是误差。\n得到的Vector就是朝yaw pitch应该前进多少。\n例如：\nVector vec = getVector(yaw, pitch, 0.2f);\nloc.add(vec.getX() * 10, vec.getY() * 10, vec.getZ() * 10);复制代码\n啊对了我差点忘了，bukkit自己提供了这个方法，不过效率嘛。。\nloc.getDirection()复制代码返回的也是Vector，同。\n\n这是源码public Vector getDirection()\n  {\n    Vector vector = new Vector();\n\n    double rotX = getYaw();\n    double rotY = getPitch();\n\n    vector.setY(-Math.sin(Math.toRadians(rotY)));\n\n    double xz = Math.cos(Math.toRadians(rotY));\n\n    vector.setX(-xz * Math.sin(Math.toRadians(rotX)));\n    vector.setZ(xz * Math.cos(Math.toRadians(rotX)));\n\n    return vector;\n  }复制代码\n\nGoodLuck"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463651280,
+            "txt_content": " 本帖最后由 494308843 于 2016-5-19 17:51 编辑 \nandylizi 发表于 2016-5-19 13:06\n向量。\nFastMath是commons-math中的类，进行快速数学运算，用Math替代也行。\ndeviation是误差。\n一脸懵逼................................................\n那个误差是距离吗\n我下载了commons-math\n文档里没有找到那个FastMath.D==============\n还有loc是location吗  为什么  坐标值要乘以10..\n\n"
+        },
+        {
+            "author": "CustomStuff",
+            "timestamp": 1463652780,
+            "txt_content": " 本帖最后由 CustomStuff 于 2016-5-19 18:23 编辑 \n\n你想听暴力的还是不暴力的。\n\n暴力的做法如下：\n1. NMS或者反射获得Player的handle属性，为net.minecraft.erver.***.Entity类型\n2. 属性里面必然有yaw和pitch字段，不管NMS还是反射，把它改掉。\n3. 改掉还不够，向玩家发送一个PacketPlayOutEntityHeadRotation包。\n\n我估计楼上的梨子是受了我的毒害才弄出一堆数学的，我回去教育教育他（\n\n代码随手撸的，有错自己回去改掉，至于我为啥随手撸，因为我心情不好：\npublic void rotateHead(org.bukkit.entity.Player player, float yaw, float pitch) {\n    try {\n      Object playerEntity = player.getClass().getDeclaredMethod(\"getHandle\").invoke(player);\n      playerEntity.getClass().getDeclaredField(\"yaw\").set(playerEntity, yaw);\n      playerEntity.getClass().getDeclaredField(\"pitch\").set(playerEntity, pitch);\n\n     // 发包代码自己想，喔嚯嚯嚯嚯嚯嚯嚯嚯嚯嚯嚯嚯嚯\n    }\n   catch(Exception e) {\n\n   }\n}"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463653320,
+            "txt_content": "CustomStuff 发表于 2016-5-19 18:13\n你想听暴力的还是不暴力的。\n\n暴力的做法如下：\n\n懵逼中\n\n我只是想计算  已知坐标和角度  移动一定距离后的 位置  不是真的移动\n\n做技能之类的用  比如粒子飞弹23333"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463653500,
+            "txt_content": "494308843 发表于 2016-5-19 17:48\n一脸懵逼................................................\n那个误差是距离吗\n我下载了commons-ma ...\n*10是移动的距离啊=-=不然呢\n不需要用FastMath，普通的Math也成"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463653980,
+            "txt_content": "andylizi 发表于 2016-5-19 18:25\n*10是移动的距离啊=-=不然呢\n不需要用FastMath，普通的Math也成\nFastMath.D是什么  找不到"
+        },
+        {
+            "author": "CustomStuff",
+            "timestamp": 1463654160,
+            "txt_content": "494308843 发表于 2016-5-19 18:22\n懵逼中\n\n我只是想计算  已知坐标和角度  移动一定距离后的 位置  不是真的移动\n呸，被某鸭梨教育语文不好了，气。\n做法很简单，就是\nLocation location = player.getLocation();\nlocation.add(location.getDirection().multiply(距离));\n\n是不是很简单，嚯嚯嚯"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463654280,
+            "txt_content": " 本帖最后由 andylizi 于 2016-5-19 18:42 编辑 \n494308843 发表于 2016-5-19 18:33\nFastMath.D是什么  找不到\nD是Math.PI / 180.0d复制代码也就是一弧度\n\n\n\nFastMath精简版.zip\n(8.12 KB, 下载次数: 5)\n\n\n\n2016-5-19 18:33 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n如果不知道*10是啥也可以用楼上语文不好的那位同学的方法vec.multiply(距离)复制代码\n\n\n\nThe 'D' is a radian:\nMath.PI / 180.0d复制代码\n\n\n\nFastMath-Lite.zip\n(8.12 KB, 下载次数: 4)\n\n\n\n2016-5-19 18:36 上传\n点击文件名下载附件\n\n\n\n\n\n\n\nif you don't understand what is *10, you can also use the way from upstairs 'HE-WHO-NOT-GOOD-AT-CHINESE'."
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463654460,
+            "txt_content": "CustomStuff 发表于 2016-5-19 18:36\n呸，被某鸭梨教育语文不好了，气。\n做法很简单，就是\nLocation location = player.getLocation();\n\n计算后好像坐标不对\n\n\n\n不知道这个图对不对   在游戏里试的\n计算后好像对不上\n\n我以前试过这个  我以为是乘...懵逼"
+        },
+        {
+            "author": "CustomStuff",
+            "timestamp": 1463654880,
+            "txt_content": " 本帖最后由 CustomStuff 于 2016-5-19 18:50 编辑 \n494308843 发表于 2016-5-19 18:41\n计算后好像坐标不对\nI'm angry that somebody teased me about my Chinese, so I use English, no more fucking Chinese.\n\n1. The coordinate and orientation provided by Bukkit API are definitely right.\n2. How did you verify that calculated coordinate is 'right'?\n\n3. BukkitAPI提供的坐标和方向没错。\n4. 你如何验证你算出来的坐标是“对的”。"
+        },
+        {
+            "author": "CustomStuff",
+            "timestamp": 1463655060,
+            "txt_content": "andylizi 发表于 2016-5-19 18:53\n不对？不会啊，，你在游戏里实地测试了？\n那图我看不懂\n\n上面那张是pitch，下面是yaw。\n画工比我在mpp里面画还感人。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463655180,
+            "txt_content": "494308843 发表于 2016-5-19 18:41\n计算后好像坐标不对\n\n不对？不会啊，，你在游戏里实地测试了？\n那图我看不懂\n\nincorrect? that's not possible.... Did you do a test in the game?\ni don't understand that picture"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463655420,
+            "txt_content": "andylizi 发表于 2016-5-19 18:53\n不对？不会啊，，你在游戏里实地测试了？\n那图我看不懂\n\n-90-0-90-0  那个是仰角\n另一个图是  平面旋转角度\n在游戏里我旋转用ESS指令看的角度然后画的\n好像应该没问题。。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1463655540,
+            "txt_content": " 本帖最后由 andylizi 于 2016-5-19 19:07 编辑 \n494308843 发表于 2016-5-19 18:57\n-90-0-90-0  那个是仰角\n另一个图是  平面旋转角度\n在游戏里我旋转用ESS指令看的角度然后画的\n\nwhat command did you use ?\nand if my memory serves me correctly, ess will convert the angles\n\n\n\n\n\nQQ截图20160519190203.png (59.87 KB, 下载次数: 0)\n\n下载附件\n\n2016-5-19 18:58 上传\n\n\n\n\n\n你用的啥指令。。\n另外如果我没记错的话，ess会把角度换算"
+        },
+        {
+            "author": "494308843",
+            "timestamp": 1463655900,
+            "txt_content": "andylizi 发表于 2016-5-19 18:53\n不对？不会啊，，你在游戏里实地测试了？\n那图我看不懂\n\n额  好像搞错了\n\nyaw\n那个\n\n不是0到360....\n是180到0到-180...\n额  客户端F3键 显示的是这样的\n我记得ESS插件显示的好像不是\n纠结"
+        }
+    ]
+}

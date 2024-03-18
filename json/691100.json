@@ -1,0 +1,444 @@
+{
+    "title": "【CBL|秋一】(1.13)函数命令系统：当命令脱离命令方块",
+    "author": "秋一",
+    "replyCount": 87,
+    "timestamp": 1494184920,
+    "txt_content": " 本帖最后由 acordome 于 2018-4-16 06:32 编辑 \n\n　这个帖子目前对应版本为1.12 正式版，后续版本随时可能更改。请知悉。　\n\n\n  §1 - 写在前面的话\n\n　　1.9的更新为我们带来了三色命令方块，让命令方块脱离了红石成为独立的体系，我们因此可以更好实现一些想法；时隔3个版本，MOJANG再次为我们带来惊人的变革。\n　　1.12中，函数与进度系统的出现，让命令脱离命令方块——这句曾经说过的玩笑般的预言，正式成为可能。\n\n\n　　在这之前，你有想过完全不使用命令方块，去完成一张地图吗？\n　　这当然是可以做到的，而且我们已经做到了。\n\n　广告传送门：【RCG出品】喋血冰封Ⅱ：原创大型PVP！全新战斗体验！　\n\n\n　　废话就不多讲了，在这里我们来聊聊函数系统、进度系统以及命令方块系统的联系和对比，看看他们各自的一些优缺点吧！\n\n　　（点击目录中的对应章节可以查看相应内容）\n\n\n\n　本页目前对应版本为1.13 (18w15a)，后续版本随时可能更改。请知悉。\n\n  §2 - 函数系统的构成\n\n- 函数系统的由来 -\n　　函数（function）系统，是 MC 1.12 Pre-1 版本中新增的一个功能，它将原来进度系统中返回指令的部分单独提取出来，做成了现在的函数系统。\n\n\n- 函数系统的形式 -\n　　函数系统由命名空间和函数文件组成，这些文件保存在存档目录/data/functions/下。functions 目录下的文件夹，称为命名空间，各个命名空间下存放不同的函数文件。实际上，命名空间就是方便我们编写者分类并管理各种函数文件。\n　　函数文件是以.mcfunction为后缀名的文本文件，建议采用 utf-8无BOM 编码以防显示错乱。简单来讲，一个函数等价于一个多行命令方块，函数文件里面每一行写一条指令，当执行这个函数时，里面的指令会按行依次执行。如果在一个函数中调用其它函数，那么在同一游戏刻，被调用的函数中所有指令先执行完，再继续当前函数中后续的指令，就像插队一样，我们在后面对比命令方块时还会说到这个。\n\n　　请注意：在 1.12 Pre-3 版本中存在一个严重漏洞，即命令执行体不能正确地通过execute传递到被调用的函数中去，这个漏洞有望在后续版本以及正式版修复。\n\n　　以下是本帖用到的一个函数系统的目录，带有\"+\"的表示为目录\n\n　　　+ functions　　　\n　　　　+ say　　　\n　　　　　hi.mcfunction　　　\n　　　　　bye.mcfunction　　　\n　　　　　Text1.mcfunction　　　\n　　　　　text2.mcfunction　　　\n　　　　+ system　　　\n　　　　　+ process　　　\n　　　　　　_process.mcfunction　　　\n　　　　　_main.mcfunction　　　\n　　　　　player_tick.mcfunction　　\n\n\n　　**** 注意：从 1.13 开始，函数目录发生了变化 ****\n\n　　　+ datapacks　　　\n　　　　+ <数据包名>\n　　　　+ test\n　　　　　+ data\n　　　　　　+ <命名空间>\n　　　　　　+ say\n　　　　　　　+ functions\n　　　　　　　　hi.mcfunction　　　\n　　　　　　　　bye.mcfunction　　　\n　　　　　　　　Text1.mcfunction　　　\n　　　　　　　　text2.mcfunction　　　\n　　　　　　+ system\n　　　　　　　+ functions　　\n　　　　　　　　+ process　　　\n　　　　　　　　　_process.mcfunction　　　\n　　　　　　　　_main.mcfunction　　　\n　　　　　　　　player_tick.mcfunction\n　　　　　pack.mcmeta\n\n\n\n\n- 如何调用函数 -\n　　在 1.12 中，MOJANG新增了function指令和一条名为gameLoopFunction的游戏规则来辅助我们使用函数系统。\n　　function指令的格式如下：function <命名空间:函数名>\nfunction <命名空间:函数名> <if|unless> <选择器>复制代码　　这两条都是可行的。其中， if|unless 是在 1.12 pre-4 加入的功能，后面我会解释到这个。我们先来说说第一种形式。\n　　例如上面的目录中，要调用 system 这个命名空间下的_main文件，就是输入这样的指令：function system:_main复制代码　　现在，我们来看一个例子例如 say 命名空间下的Text1.mcfunction和text2.mcfunction，里面分别写上这些内容\n\n　　Text1.mcfunction#这是一个范例，在function文件中可以用#来注释行。请注意，不能够使用//来注释！\nsay 1\nfunction say:text2\nsay 2复制代码\ntext2.mcfunctionsay 3\nsay 4复制代码\n　　当我在系统后台输入function say:text1时，聊天框会出现这些内容：[server] 1\n[server] 3\n[server] 4\n[server] 2复制代码\n　　也就是说，执行 function 指令的人，会把函数里面的指令依次执行——我在系统后台输入 function 指令，就是系统在执行，我自己输入 function 指令，就是我本人在执行。\n　　大家可能注意到了，函数中支持使用#进行注释（旧版本支持//注释，当前版本已经不再支持），也就是说被注释行不会作为指令而执行，这一点有多方便相比不比我再说了。\n　　同时需要大家注意：函数中所有指令不能够以/开头。例如，你可以这样写：say @s复制代码\n　　但是不能这样写：/say @s复制代码\n　　最后有一点需要注意的是，在function指令中调用函数时，不区分大小写。例如前面 say 命名空间下的 Text1.mcfunction，我在调用的时候写的是 say:text1\n\n　　然后是第二种形式，也就是带有 if|unless 的。我简单举两个例子，大家就知道是什么意思了。\n\nsay:tellraw.mcfunctionscoreboard objectives add timer dummy 计时器\nscoreboard players add @s timer 1\nfunction random:title if @s[score_timer_min=1200]\nscoreboard players reset @s[score_timer_min=1200] timer复制代码\nrandom:title.mcfunctionsummon area_effect_cloud ~ ~ ~ {Tags:[\"rnd_title\",\"rnd_title1\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"rnd_title\",\"rnd_title2\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"rnd_title\",\"rnd_title3\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"rnd_title\",\"rnd_title4\"]}\nsummon area_effect_cloud ~ ~ ~ {Tags:[\"rnd_title\",\"rnd_title5\"]}\nentitydata @r[r=0,type=area_effect_cloud,tag=rnd_title] {CustomName:\"rnd_title\"}\nexecute @e[name=rnd_title,tag=rnd_title1] ~ ~ ~ tellraw @a[r=0,c=1] [\"1\"]\nexecute @e[name=rnd_title,tag=rnd_title2] ~ ~ ~ tellraw @a[r=0,c=1] [\"2\"]\nexecute @e[name=rnd_title,tag=rnd_title3] ~ ~ ~ tellraw @a[r=0,c=1] [\"3\"]\nexecute @e[name=rnd_title,tag=rnd_title4] ~ ~ ~ tellraw @a[r=0,c=1] [\"4\"]\nexecute @e[name=rnd_title,tag=rnd_title5] ~ ~ ~ tellraw @a[r=0,c=1] [\"5\"]复制代码\n　　将say:tellraw放到主进程中execute @a ~ ~ ~ function say:tellraw复制代码\n　　则每位玩家每分钟将会看到1~5中随机一个数字出现在聊天框。\n　　也就是说，只有计时器分数满1200的人会执行后面的随机部分。\n　　那么很显然，带有 if 的意思就是，如果能找到后面的选择器，就执行这个函数，否则不执行。相当于 testfor。\n\n　　那么 unless 的意思也就很明显了：在找不到后面的选择器的时候，执行这个函数，相当于 testfor+非门。\n\n\n- gameLoopFunction -\n　　讲完调用，就该讲讲高频了。玩命令方块的人都知道高频是实现许多功能的前提。在函数系统中，MOJANG 为我们提供了一条名为 gameLoopFunction 的游戏规则来实现高频。它的格式是gamerule gameLoopFunction <命名空间:函数>复制代码\n　　也就是说，你可以指定一个函数来高频执行，这个高频是 20 Hz 的，也就是每一个游戏刻都会执行一遍。\n　　新建的存档如果没有执行过这条指令，而是用gamerule gameLoopFunction来查询的话，得到的返回值是-\n\n　　为了方便，我们将这个规则简称为glf。\n　　在旧版本中，glf指定的函数，由系统（server）作为执行体；而在新的版本中，MOJANG 引入了虚拟执行体，例如将 say:text2 指定为glf时，每一个游戏刻得到的结果是这样的[say:text2] 3\n[say:text2] 4复制代码\n　　也就是说，系统不再作为执行体，而是由虚拟的执行体代为执行。\n\n　　关于 glf 多说两句。使用 glf 去高频执行一个函数，和使用 RCB（循环型命令方块，紫色那种）去执行，是不一样的。区别主要在于其更新顺序先后。一般而言不会造成严重影响，但是在某些情况会不一样。比如，使用 CB 能检测到生物的{HurtTime:10s}这个 NBT，而使用 glf 执行函数只能检测到的是{HurtTime:9s}，检测不到10，这是因为关于函数的更新，都放在了生物更新之后，而 CB 的更新则是在生物更新之前。\n　　详情可以看这里。按照 Searge 的说法，函数并不是命令方块的完全替代。这个说法，大家就见仁见智了。对我个人而言这个影响不大。\n\n\n　　以上是函数系统的相关构成，以及如何调用函数。接下来我们来了解一下函数系统的模块分类。\n\n\n\n　这个帖子目前对应版本为1.12 正式版，后续版本随时可能更改。请知悉。　\n\n\n  §3 - 函数系统的模块调用\n\n　　对于一个完整的命令系统而言，模块一般可以分为三类：对执行顺序先后有要求的高频模块、对执行顺序先后无要求的高频模块、非高频模块。\n　　在函数系统中，我们同样可以将模块分成这三类。为了方便后续讲解。我们作这样的设定：\n\n将 system:_main设为 glf ，并称之为主进程或者主时钟\n　　对于上面讲到的三类模块，我们通过三种不同的方式去调用。\n\n　　对执行顺序先后有要求的高频模块，在主进程中按照需要的顺序排列好来调用。\n　　对执行顺序先后没有要求的高频模块，在主进程中可以比较随意放置位置，但是一般不会考虑优先执行。特别地，如果这个模块是针对每一个玩家独立执行的，可以使用进度系统中的\"tick\"触发器来调用，而不需要放在主进程中。\n　　仅在特定情况下触发的非高频模块，在主进程中调用，但是辅以 execute、scoreboard 和选择器参数去控制其在合适的时候被调用，这里的选择器，包括了在 1.12 pre-4 中新增的 if/unless 的部分。\n\n　　非高频模块在特定条件下激活，也在很大程度上减少了模块中大量重复出现execute的现象，并完全杜绝了超长的Conditional链，因为function中并不直接支持Conditional。不直接支持，说明可以间接支持，对吧。\n　　我们来看一个例子。\n\n假设有红蓝两队，在开始前考虑到互殴问题不进行分队，而是采用挂tag的方式。\n红队以tag=redTeam为标记，蓝队则以tag=blueTeam为标记，准备观战的玩家以tag=specTeam为标记\n当玩家站在相应区域（红蓝两队的所有玩家还需要选择了职业）添加Ready的标记，视为准备就绪。\n如果玩家不在相应区域时就移除Ready的标记。\n选择了职业的玩家，其记分板项selectClass数值大于等于1\n全部玩家准备就绪后，游戏进入倒计时，倒计时结束时游戏开始\n倒计时未结束，有玩家脱离准备就绪的状态，则倒计时中断\n　　条件比较多，我们先来看看怎么写这个模块，再进行分析\n　　在这里，我们准备了一个名为gameStat的aec实体作为标记，所有游戏进程会以tag或者score的形式挂载到该实体上。请看指令部分execute @p[tag=redTeam,score_selectClass_min=1] ~ ~ ~ execute @p[tag=blueTeam,score_selectClass_min=1] ~ ~ ~ scoreboard players tag @e[type=area_effect_cloud,name=gameStat,tag=notGaming] add allReady\nexecute @p[tag=!Ready,m=2] ~ ~ ~ scoreboard players tag @e[name=gameStat,type=area_effect_cloud,tag=notGaming] remove allReady\nexecute @p[tag=!Ready,m=2] ~ ~ ~ execute @e[name=gameStat,type=area_effect_cloud,tag=notGaming] ~ ~ ~ execute @s[tag=!allReady,score_waitTime_min=1] ~ ~ ~ title @a clear\nexecute @p[tag=!Ready,m=2] ~ ~ ~ execute @e[name=gameStat,type=area_effect_cloud,tag=notGaming] ~ ~ ~ execute @s[tag=!allReady,score_waitTime_min=1] ~ ~ ~ title @a reset\nexecute @p[tag=!Ready,m=2] ~ ~ ~ execute @e[name=gameStat,type=area_effect_cloud,tag=notGaming] ~ ~ ~ scoreboard players reset @s[tag=!allReady] waitTime\n\nscoreboard players add @e[name=gameStat,tag=allReady] waitTime 1\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a times 10 140 10\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"请玩家站在准备区域不要离开\"}]\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a title [{\"color\":\"yellow\",\"text\":\"游戏即将开始\"}]\nexecute @e[name=gameStat,score_waitTime=40,score_waitTime_min=40] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"3\"}]\nexecute @e[name=gameStat,score_waitTime=40,score_waitTime_min=40] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime=60,score_waitTime_min=60] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"2\"}]\nexecute @e[name=gameStat,score_waitTime=60,score_waitTime_min=60] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime=80,score_waitTime_min=80] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"1\"}]\nexecute @e[name=gameStat,score_waitTime=80,score_waitTime_min=80] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime_min=100] ~ ~ ~ title @a times 10 30 10\nexecute @e[name=gameStat,score_waitTime_min=100] ~ ~ ~ title @a title [{\"color\":\"gold\",\"text\":\"游戏开始\"}]\nscoreboard players set @e[name=gameStat,type=area_effect_cloud,score_waitTime_min=100] gameStat 1\nscoreboard players reset @e[name=gameStat,score_gameStat_min=1,score_gameStat=1] waitTime\nscoreboard players tag @e[name=gameStat,score_gameStat_min=1,score_gameStat=1] remove allReady\n\nexecute @e[type=area_effect_cloud,name=gameStat,score_gameStat_min=1,score_gameStat=1] ~ ~ ~ function system:StartGame复制代码　　接下来我们来慢慢分析。\n　　首先是开始的条件。有红蓝两队，那么这两队都肯定需要有人，才能够开始，考虑到同一选择器中不能重复使用tag的参数，我们保留了区分队伍的参数，而不是区分是否准备就绪的参数。因此，第一条指令的意思是，当存在选了职业并选红队的玩家以及选了职业并选蓝队的玩家，我们给中心实体加上allReady这个标记，以表明可能满足开始条件。\n　　至于满足条件吗？如果有未准备就绪的玩家，就说明不满足，那我们就让一个没有准备就绪的玩家来去掉allReady这个标记好了。\n　　对于3~5行，我们放后面点讲。先看后面。满足开始条件以后，我们会给中心实体加分（使用waitTime这个记分板项），在第一刻加分后出现提示文字提示准备开始，然后进入循环计时，最后计时满了，调用system:startgame这个函数来开始游戏（这里不是例子的部分，不作说明）。\n　　那么回过头来看3~5行，这里明显是打断的部分。打断，就是要清掉提示文字、重置计时器。如果此时都还没有进行过加分，那么我们就不必进行那三条指令，因此可以看到中间有个选择器里有score_waitTime_min=1的参数加以限制。\n　　重点来了，我们看到这3条指令前面相当长一串execute是重复的。因为在以前用cb写的时候，这里我使用了Conditional，而现在函数不直接支持Conditional，所以我用了一大堆execute，但是这里我们可以稍作修改，对不对？请看下面execute @p[tag=redTeam,score_selectClass_min=1] ~ ~ ~ execute @p[tag=blueTeam,score_selectClass_min=1] ~ ~ ~ scoreboard players tag @e[type=area_effect_cloud,name=gameStat,tag=notGaming] add allReady\nexecute @p[tag=!Ready,m=2] ~ ~ ~ scoreboard players tag @e[name=gameStat,type=area_effect_cloud,tag=notGaming] remove allReady\nexecute @p[tag=!Ready,m=2] ~ ~ ~ execute @e[name=gameStat,type=area_effect_cloud,tag=notGaming] ~ ~ ~ execute @s[tag=!allReady,score_waitTime_min=1] ~ ~ ~ function system:cond_breakstartcount\n\nscoreboard players add @e[name=gameStat,tag=allReady] waitTime 1\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a times 10 140 10\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"请玩家站在准备区域不要离开\"}]\nexecute @e[name=gameStat,score_waitTime=1,score_waitTime_min=1] ~ ~ ~ title @a title [{\"color\":\"yellow\",\"text\":\"游戏即将开始\"}]\nexecute @e[name=gameStat,score_waitTime=40,score_waitTime_min=40] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"3\"}]\nexecute @e[name=gameStat,score_waitTime=40,score_waitTime_min=40] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime=60,score_waitTime_min=60] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"2\"}]\nexecute @e[name=gameStat,score_waitTime=60,score_waitTime_min=60] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime=80,score_waitTime_min=80] ~ ~ ~ title @a subtitle [{\"color\":\"aqua\",\"text\":\"1\"}]\nexecute @e[name=gameStat,score_waitTime=80,score_waitTime_min=80] ~ ~ ~ execute @a ~ ~ ~ playsound block.note.pling voice @p ~ ~ ~ 1 0\nexecute @e[name=gameStat,score_waitTime_min=100] ~ ~ ~ title @a times 10 30 10\nexecute @e[name=gameStat,score_waitTime_min=100] ~ ~ ~ title @a title [{\"color\":\"gold\",\"text\":\"游戏开始\"}]\nscoreboard players set @e[name=gameStat,type=area_effect_cloud,score_waitTime_min=100] gameStat 1\nscoreboard players reset @e[name=gameStat,score_gameStat_min=1,score_gameStat=1] waitTime\nscoreboard players tag @e[name=gameStat,score_gameStat_min=1,score_gameStat=1] remove allReady\n\nexecute @e[type=area_effect_cloud,name=gameStat,score_gameStat_min=1,score_gameStat=1] ~ ~ ~ function system:StartGame复制代码\nsystem:cond_breakstartcount.mcfunctiontitle @a clear\ntitle @a reset\nscoreboard players reset @s waitTime复制代码　　虽然这个独立出来的子模块只有3条指令，但是如果分离出来的是30条而不是3条呢？能够节省多少功夫想必不需要我解释了吧？\n\n　　以上是关于函数系统模块调用的部分，当中有提到使用进度系统来调用部分独立模块，我们接下来来讲这一部分。\n\n\n\n　这个帖子目前对应版本为1.12 正式版，后续版本随时可能更改。请知悉。　\n\n\n  §4 - 函数系统与进度系统的联动\n\n　　advancement，亦简称adv，目前wiki翻译叫进度。这里就不多作介绍了。在17w17b中MOJANG允许进度返回指令作为达成进度的奖励（详见此帖，但是请注意，旧版本的内容现在不再适用），让不少玩家发现了新大陆。随后在17w18b中，MOJANG进一步完善进度系统，使其可以完全独立于命令方块而建立起一个命令系统；在1.12 pre1中，MOJANG又作出了修改，将进度系统中的命令部分拿出来做成了如今的函数系统。\n　　但是这并不意味着进度系统就不可以参与到命令系统中来，因为如今的进度系统可以返回函数作为达成进度的奖励。\n\n　　相信很多人已经知道进度系统的结构了，但仍有相当一部分朋友还没有了解，在这里我们不妨来温习一下。\n　　自定义的进度，所有文件都保存在存档目录/data/advancements/下，在这里新建的文件夹同样都称为命名空间，命名空间下存放各种进度文件。进度文件使用 json 格式。这里展示一个用于进度命令系统的例子\n　　所涉及的两个文件分别是data/advancements/system/HelloTitle.json和data/functions/system/HelloTitle.mcfunction，这里进度和函数都用同样的命名空间和文件名方便记忆和管理，可以看到函数文件是 .mcfunction，而进度文件是 .json\n\nsystem:HelloTitle.json{\n    \"criteria\":{\n        \"custom_name\":{\n            \"trigger\":\"minecraft:tick\"\n        }\n    },\n    \"rewards\":{\n        \"function\":\"system:hellotitle\"\n    }\n}复制代码\nsystem:HelloTitle.mcfunction#revoke adv，用于下次再激活\nadvancement revoke @s only system:hellotitle\n#命令部分\nscoreboard objectives add helloTitle stat.leaveGame\nscoreboard players tag @s[tag=HelloTitle,score_helloTitle_min=1] remove HelloTitle\ntellraw @s[tag=!HelloTitle] [\"\",{\"text\":\"Hello \",\"color\":\"yellow\"},{\"selector\":\"@s\"},{\"text\":\"! Welcome to Minecraft!\",\"color\":\"yellow\"}]\nscoreboard players tag @s[tag=!HelloTitle] add HelloTitle\nscoreboard players reset @s[score_helloTitle_min=1] helloTitle复制代码　　这个进度会在下一个游戏刻达成，对象是全体在线玩家，达成进度后会执行HelloTitle.mcfunction中的指令。其实现的效果是，当玩家进入这个世界时，会在聊天框看见问候语（其他人看不到）。\n　　可以看到，相比于以前命令方块高频，这里采用了进度系统的 tick 触发器和@s选择器。如果单纯用命令方块高频或者函数系统，那么只需要这样scoreboard objectives add helloTitle stat.leaveGame\nscoreboard players tag @a[tag=HelloTitle,score_helloTitle_min=1] remove HelloTitle\nexecute @a[tag=!HelloTitle] ~ ~ ~ tellraw @s [\"\",{\"text\":\"Hello \",\"color\":\"yellow\"},{\"selector\":\"@s\"},{\"text\":\"! Welcome to Minecraft!\",\"color\":\"yellow\"}]\nscoreboard players tag @a[tag=!HelloTitle] add HelloTitle\nscoreboard players reset @a[score_helloTitle_min=1] helloTitle复制代码　　区别就是选择器上的不一样。如果大家觉得进度系统很麻烦，可以不去使用，但是接下来我们会看到一个使用进度系统的其他触发器来调用函数的例子。例如，要让所有冒险模式玩家入水即死。\n\nrules:DieInWater.json{\n    \"criteria\":{\n        \"1\":{\n            \"trigger\":\"enter_block\",\n            \"condition\":{\n                \"block\":\"water\"\n            }\n        }\n     },\n     \"rewards\":{\n         \"function\":\"rules:dieinwater\"\n     }\n}复制代码\nrules:DieInWater.mcfunction#revoke\nadvancement revoke @s only rules:dieinwater\n#commands\nscoreboard players tag @p[m=2,r=0] add waterKill\nexecute @s[tag=waterKill] ~ ~ ~ tellraw @a [{\"selector\":\"@s\"},{\"color\":\"white\",\"text\":\" 被水淹没了\"}]\nexecute @s[tag=waterKill] ~ ~ ~ gamerule showDeathMessages false\nkill @s[tag=waterKill]\nexecute @s[tag=waterKill] ~ ~ ~ gamerule showDeathMessages true\nscoreboard players tag @s[tag=waterKill] remove waterKill复制代码\n　　当玩家踏入水中时，我们要给玩家加上一个tag，然后杀掉他。至于为什么用@p而不用@s呢？因为@p不能选中死人，而@s可以，如果不想看到聊天框刷屏，就不要选择用@s。\n\n　　以上是利用进度系统的 enter_block(玩家进入方块) 这一触发器来实现落水即死功能的，如果单纯依靠函数，不依靠进度系统去实现的话，可以这样写\n\nrules:DieInWater_FUNCONLY.mcfunctionexecute @a[m=2] ~ ~ ~ detect ~ ~ ~ water -1 scoreboard players tag @p[r=0] add waterKill\nexecute @a[tag=waterKill] ~ ~ ~ tellraw @a [{\"selector\":\"@s\"},{\"color\":\"white\",\"text\":\" 被水淹没了\"}]\nexecute @a[tag=waterKill] ~ ~ ~ gamerule showDeathMessages false\nkill @a[tag=waterKill]\nexecute @a[tag=waterKill] ~ ~ ~ gamerule showDeathMessages true\nscoreboard players tag @a[tag=waterKill] remove waterKill复制代码\n　　然后将这个函数扔进主进程中高频执行即可。\n\n\n　　我们讲完了函数系统与进度系统的联动部分。道理而言已经讲完了函数系统的基础使用，那么在最后，我们来聊聊函数系统与命令方块系统的对比吧，看看它们各自的优缺点。\n\n\n\n　这个帖子目前对应版本为1.12 正式版，后续版本随时可能更改。请知悉。　\n\n\n  §5 - 函数系统与命令方块的对比\n\n　　如果你看上面的看得有点迷糊，那我们来简单讲讲函数系统和命令方块 (CB) 系统的对比吧，进度作为函数的联动触发形式，就不作过多讲解了。\n\n　　前面第三章讲到的三种模块中，对执行顺序无要求的高频模块无论是用函数还是 CB 都没有什么问题，而那些需要严格保证执行顺序的模块，以前我会将他们全部连在一起，只用一个 RCB（循环型命令方块，即高频CB源）作为“信号源”。\n　　为什么不划出做成子模块（通常以 ICB - 脉冲型命令方块起头，后面跟一串 CCB - 连接型命令方块）调用呢？因为你在当前游戏刻调用了 ICB 子模块以后，它会等到下一个游戏刻才执行。可不要小看这一个游戏刻的延迟，它往往可能让你的系统出现意外，进而产生各种蜜汁bug。\n　　而函数系统中，调用的子模块会立即插队执行，从而能够严格保证执行顺序，出错的可能性大大降低了。\n\n　　函数系统不能够直接支持 Conditional 模式，也就是条件激活，而 CB 是支持的。关于这一点，以我个人的经验，影响是不大的，过去1.8没有\n Conditional 不也是这么过来了吗？\n\n　　函数系统的主进程使用 gamerule gameLoopFunction <命名空间:函数> 来挂载，而 CB 系统的\"主进程\"使用 RCB 作为高频信号源。\n　　在过去的版本，通过 glf 挂载的主进程，其执行者是系统，也就是 server 。这个设定会产生各种各样的安全隐患，于是在后来的版本中，MOJANG 将其执行者改成了 glf 所挂载的函数（前面也讲到了）。就目前而言，仅仅通过函数系统，就能够实现过去 CB 能够实现的功能，甚至还有一些是 CB 难以实现的功能。在这里就不过多讲了，希望对大家有所启发，可以研发各种各样的黑科技出来~\n\n\n　　这里插入讲一点，我想对于地图制作者来讲是绝对的福音。\n\n　　mcf系统直接支持样式代码§。\n　　CB 系统的颜色黑科技什么的在这个面前根本不值一提。\n\n　　资源占用方面，简单说一下我个人的经验。\n　　我们花了不到一天的时间把《喋血冰封II》升级到新的命令系统。新系统在资源占用方面明显比之前庞大的 CB 系统少了很多，流畅度不降反升，这也得益于函数系统更加接近游戏底层。CB 系统在方块更新这一方面就输掉了一大截。更何况它需要占地。\n\n　　试想一下，如果你的系统足够庞大，出生地可以加载的区域放多 CB，你能够记得住吗？你在调试系统的时候，需要花多少时间去找到你要修改的指令呢？\n　　此外，对于一些不放在出生点的模块，我们还需要考虑到区块加载的问题，相信这也是让许多人头疼的问题吧？\n　　函数系统显然不需要担心这个，因为它所有的内容都保存在文件里，不具体地出现在游戏世界中，在资源占用方面相比与 CB 系统而言，是要占优的。\n\n　　我们知道，写一个功能可能只要一两天，debug 可能要一周。过去 CB 系统，不依靠编辑器的话，你得手动检查，如果要在中间插入什么指令的话，还得整体移动 CB，实际工作效率是十分感人的；借助于编辑器，我们可以通过 ooc 导入的方式来实现快速修改\n　　而函数系统呢？你需要改点什么，直接去翻文件改，改完了保存一下，再在游戏里通过/reload指令直接刷新，完事儿了。游戏都不用退出重进。\n\n　　但凡地图制作者，知道了这些，都应该会心动的吧。\n　　讲了这么多，相信大家对新系统也有一定的了解了，说不定已经激动得说不出话来了吧，那么更多内容就请大家自行去体验一下吧。在接下来的更新里，没准还会多出什么意想不到的东西呢！\n\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "langyo_v3",
+            "timestamp": 1494186360,
+            "txt_content": "凌晨3点,你起来就为了发这破玩意?= =\n\n点我跳转,把这个附在帖子里,就足以让所有CB爱好者全体转移目标了\n\n开头那两个新trigger很棒棒哦"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1494191520,
+            "txt_content": "langyo_v3 发表于 2017-5-8 03:46\n凌晨3点,你起来就为了发这破玩意?= =\n\n点我跳转,把这个附在帖子里,就足以让所有CB爱好者全体转移目标了\n凌晨3点。。刚好吃夜宵回来随手发"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1494198360,
+            "txt_content": "pcc除了tick以外的功能都做到了，看来得加个tick了2333\n然而纯cb也不是没好处，起码一些应该要没人的情况下也能运行的就得cb了"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1494209100,
+            "txt_content": "推荐，如果进一步详尽叙述设计思路，满足“仔细阅读后就能会”的条件后可提升评级。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494212280,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2017-5-8 12:10 编辑 \n\n辛苦\n\n但是注意一点，当前快照版本中，arbitrary_player_tick有一个很大的问题，例如\ncpp:craft/test.json\n\n{\n    \"display\": {\n        \"icon\": {\n            \"item\": \"minecraft:egg\"\n        },\n        \"title\": \"233\",\n        \"description\": \"\"\n    },\n    \"parent\": \"cpp:craft/root\",\n    \"criteria\": {\n        \"233\": {\n            \"trigger\": \"minecraft:arbitrary_player_tick\"\n        }\n    },\n    \"rewards\": {\n                \"commands\": [\n                        \"say 1\",\n                        \"advancement revoke @a only cpp:craft/test\"\n        ]\n    }\n}复制代码\n\n在玩家从末地返回主世界时，不能正确地剥夺该进度。\n这似乎应该是一个bug，但是tick可以正确运行。\n因为理论上来说rewards的命令应该在获得进度的时候立即执行才对。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494212340,
+            "txt_content": "pca006132 发表于 2017-5-8 07:06\npcc除了tick以外的功能都做到了，看来得加个tick了2333\n然而纯cb也不是没好处，起码一些应该要没人的情况下 ...\n嗯，不过不像以前需要那么多了就是，至少大部分指令都可以用adv来解决了"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1494212460,
+            "txt_content": "pca006132 发表于 2017-5-8 07:06\npcc除了tick以外的功能都做到了，看来得加个tick了2333\n然而纯cb也不是没好处，起码一些应该要没人的情况下 ...\n把这帖收进你的新人手册吧\n\n这回版本又新了一点,17w18b……"
+        },
+        {
+            "author": "。—。",
+            "timestamp": 1494219840,
+            "txt_content": "居然看到了HelloWorld，看来minecraft 1.12将会是个面向JSON编程的时代……\n进化系统不像command block依赖方块坐标，个体间通信全靠标签，这点爽歪歪了"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1494228960,
+            "txt_content": " 本帖最后由 chyx 于 2017-5-8 15:56 编辑 \n\n　　“试想一下，如果你的系统足够庞大，出生地可以加载的区域放不下那么多cb，怎么办？”\n\n^_^\n\n\n\n出生地常加载区块至少有16*16个区块 每个区块是16*16*256个方块\n让我试想一下这个啊\n\n我想我早就先死了\n\n而且 过去的版本里每游戏刻的cb执行个数是有限的。远没有这么大"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1494236400,
+            "txt_content": "chyx 发表于 2017-5-8 15:36\n　　“试想一下，如果你的系统足够庞大，出生地可以加载的区域放不下那么多cb，怎么办？”\n\n^_^\n我觉得你可以看看2b的索引帖，里面有说到CB方块更新数量对多人服务器的影响，就是我们俗称的63大法。出生点区域看起来空间很大，实际做东西的时候能利用的空间真的是少的可怜，你还要和其他人预先商量好什么模块放在哪里，才能尽可能利用空间。adv就没有这方面的担心，完全没有"
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1494240660,
+            "txt_content": "如果命令以JSON形式输入的话，那么CB只需要在事件层面（硬件层）提供I/O就可以了。这个确实显著提高系统可读性和执行效率。既往的CB阵列可读性确实……\n如果说以前CB系统是做硬件编程的单片机，那这个的出现就是升级为嵌入式系统。\n\n标准MC游戏指令引擎(字库/DirectDraw/etc.)或许可以实现？譬如Include stdio.json?\n\n由@e变成@s，感觉是在玩家私有属性上可以简化大量的选择器设定。提高了一定的独立性，不知支不支持虚拟玩家（作变量）。顺便Mojang果然是膜酱，+@s"
+        },
+        {
+            "author": "fsxitutu",
+            "timestamp": 1494244560,
+            "txt_content": "langyo_v3 发表于 2017-5-8 03:46\n凌晨3点,你起来就为了发这破玩意?= =\n\n点我跳转,把这个附在帖子里,就足以让所有CB爱好者全体转移目标了\n那个链接404了"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494245100,
+            "txt_content": "langyo_v3 发表于 2017-5-8 03:46\n凌晨3点,你起来就为了发这破玩意?= =\n\n点我跳转,把这个附在帖子里,就足以让所有CB爱好者全体转移目标了\ntoo naive\n链接都放错了……"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1494245520,
+            "txt_content": "fsxitutu 发表于 2017-5-8 19:56\n那个链接404了\ncommandtutorials.neocities.org/tutorials/advancement/advancement.html?_e_pi_=7%2CPAGE_ID10%2C6888464040\n@ruhuasiyu"
+        },
+        {
+            "author": "秋一",
+            "timestamp": 1494245820,
+            "txt_content": "jianghr 发表于 2017-5-8 18:51\n如果命令以JSON形式输入的话，那么CB只需要在事件层面（硬件层）提供I/O就可以了。这个确实显著提高系统可 ...\nadv系统触发必然需要在线玩家，虚假玩家都不行~ @s倒是仅仅针对命令执行者，跟是玩家还是其他实体没什么关系。至于conditional……现在的adv就没法了，所以诸如scoreboard players test PLAYER SCORE SCORE然后接cond输出这种套路是没法用了。这个套路一般用在主时钟里面，到了adv还要想方设法挂个实体去搞这个。\n\n没人在线的时候adv系统不会运行，所以对服务器压力应该是降低了不少的"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494248280,
+            "txt_content": "langyo_v3 发表于 2017-5-8 20:12\ncommandtutorials.neocities.org/tutorials/advancement/advancement.html?_e_pi_=7%2CPAGE_ID10%2C68884 ...\nhttps://commandtutorials.neociti ... nt/advancement.html"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494248400,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2017-5-8 21:20 编辑 \nacordome 发表于 2017-5-8 20:17\nadv系统触发必然需要在线玩家，虚假玩家都不行~ @s倒是仅仅针对命令执行者，跟是玩家还是其他实体没什么 ...\n单纯的testfor player或者 scoreboard test player还可以通过execute来实现\n\n"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1494248520,
+            "txt_content": "chyx 发表于 2017-5-8 21:17\n不行么 可以给玩家挂stats吧？\n我2了……用cb查询惯了之后已经忘记玩家也可以执行命令了"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1494249060,
+            "txt_content": "acordome 发表于 2017-5-8 17:40\n我觉得你可以看看2b的索引帖，里面有说到CB方块更新数量对多人服务器的影响，就是我们俗称的63大法。出生 ...\n我的意思是过去版本由于mc的命令方块的每游戏刻执行个数的上限远低于出生地区块的方块数\n你要说cb在这一点上的不足 更应该说这个上限而不是出生地能不能塞得下"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1494249420,
+            "txt_content": "ruhuasiyu 发表于 2017-5-8 21:00\n单纯的testfor player或者 scoreboard test player还可以通过execute来实现\n\n另外除了cond,还有query也不 ...\n不行么 可以给玩家挂stats吧？"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1494662640,
+            "txt_content": "minecraft 式编程语言"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1495120800,
+            "txt_content": "偷偷更新不提升帖子…\n\n好吧我顶下帖子\n\n帖子排版看着挺舒服的"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1495334640,
+            "txt_content": "很好,更新到pre5了"
+        },
+        {
+            "author": "Yaossg",
+            "timestamp": 1495378680,
+            "txt_content": "langyo_v3 发表于 2017-5-21 10:44\n很好,更新到pre5了\npre5...新闻版pre5的帖子我可是楼主(大雾"
+        },
+        {
+            "author": "苟活与世",
+            "timestamp": 1496143380,
+            "txt_content": "收藏 虽然没看懂"
+        },
+        {
+            "author": "David_Zhu",
+            "timestamp": 1496229180,
+            "txt_content": "§2的random貌似打错了"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1496474640,
+            "txt_content": "现在已经pre7了…"
+        },
+        {
+            "author": "langyo_v3",
+            "timestamp": 1496933400,
+            "txt_content": "嗯,很及时啊\n\n考完再来玩"
+        },
+        {
+            "author": "Dying_zero",
+            "timestamp": 1499955480,
+            "txt_content": "太赞了这帖，帮助很大"
+        },
+        {
+            "author": "南歌_未央_",
+            "timestamp": 1499958420,
+            "txt_content": "学到东西了辛苦LZ"
+        },
+        {
+            "author": "回调然后他",
+            "timestamp": 1500806040,
+            "txt_content": "我不得不说一下，为什么我这里看的，都出去了，好多都出去了，要不是ctrl+c+v复制出去，我都看不到了。（别问什么都出去了）"
+        },
+        {
+            "author": "咲千_zhvsjia",
+            "timestamp": 1501752300,
+            "txt_content": "作为地图制作者，我的确很心动\n然而\n根本看不懂。。。\n表示输命令没有问题，但是那些编程之类的该文件之类的我完全没有概念。。。"
+        },
+        {
+            "author": "咲千_zhvsjia",
+            "timestamp": 1501752300,
+            "txt_content": "作为地图制作者，我的确很心动\n然而\n根本看不懂。。。\n表示输命令没有问题，但是那些编程之类的该文件之类的我完全没有概念。。。"
+        },
+        {
+            "author": "1332082102",
+            "timestamp": 1502099280,
+            "txt_content": "在服务器里面搞这些会不会很卡"
+        },
+        {
+            "author": "小戴子",
+            "timestamp": 1504148520,
+            "txt_content": "厉害了，太太太厉害了，牛逼."
+        },
+        {
+            "author": "大炮哥哥",
+            "timestamp": 1504843080,
+            "txt_content": "数学我不懂"
+        },
+        {
+            "author": "大炮哥哥",
+            "timestamp": 1504843140,
+            "txt_content": "表示大神的世界不懂"
+        },
+        {
+            "author": "903402421",
+            "timestamp": 1505040600,
+            "txt_content": "签到签到签到签到签到签到签到签到签到签到签到"
+        },
+        {
+            "author": "Mega_bed",
+            "timestamp": 1506701340,
+            "txt_content": "给大佬递茶。。。阿不。。卡布奇诺qwq"
+        },
+        {
+            "author": "1469636740",
+            "timestamp": 1506943860,
+            "txt_content": "牛逼啊，不服不行"
+        },
+        {
+            "author": "whg1975123",
+            "timestamp": 1506949560,
+            "txt_content": "还有这种操作"
+        },
+        {
+            "author": "zcd23555",
+            "timestamp": 1507427160,
+            "txt_content": "dalao又来发帖了"
+        },
+        {
+            "author": "sweet与糖",
+            "timestamp": 1508554560,
+            "txt_content": "函数有个很坑的点:\n你写错了一个指令(即指令格式不正确),在mc中就成了未知函数,还不直接告诉你这函数有错，让我以为这是bug...\n这个点使我差点崩溃，失去30金粒去问问题\n"
+        },
+        {
+            "author": "水花四溅飞",
+            "timestamp": 1510311120,
+            "txt_content": "Perfeat!完美"
+        },
+        {
+            "author": "水花四溅飞",
+            "timestamp": 1510311240,
+            "txt_content": "简直了，毫不犹豫的为你写上一个，”优秀“"
+        },
+        {
+            "author": "水花四溅飞",
+            "timestamp": 1510311660,
+            "txt_content": "langyo_v3 发表于 2017-5-8 20:12\ncommandtutorials.neocities.org/tutorials/advancement/advancement.html?_e_pi_=7%2CPAGE_ID10%2C68884 ...\n只能说四个字：太，敬，业，了"
+        },
+        {
+            "author": "123456789548548",
+            "timestamp": 1510470060,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "123456789548548",
+            "timestamp": 1510757520,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "z15399658078",
+            "timestamp": 1511954760,
+            "txt_content": "谢谢楼主.........."
+        },
+        {
+            "author": "3304225512",
+            "timestamp": 1514600400,
+            "txt_content": "鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅鹅饿额鹅鹅鹅鹅鹅鹅饿鹅鹅鹅饿鹅鹅鹅饿"
+        },
+        {
+            "author": "dreamjet",
+            "timestamp": 1515506940,
+            "txt_content": "emmm看不懂。。。。。。。"
+        },
+        {
+            "author": "碍事币",
+            "timestamp": 1516453320,
+            "txt_content": "2333333333333333"
+        },
+        {
+            "author": "任祝明",
+            "timestamp": 1517666580,
+            "txt_content": "666666666666666"
+        },
+        {
+            "author": "jch1234",
+            "timestamp": 1518582240,
+            "txt_content": "看起来很深奥"
+        },
+        {
+            "author": "as7314051",
+            "timestamp": 1518659820,
+            "txt_content": "虽然看不懂，但是感觉楼主很厉害，点个赞"
+        },
+        {
+            "author": "Mcen314",
+            "timestamp": 1519091100,
+            "txt_content": "函数系统也许要迫使玩家通过点牌子来执行一连串命令（如开始游戏）。因为牌子有个clickEvent，里面可以直接跟函数。按钮还需要借助一个CB。这会不利于那些不知道点牌子的新手。"
+        },
+        {
+            "author": "爱笑的小白",
+            "timestamp": 1519226880,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Ender_hz",
+            "timestamp": 1519291680,
+            "txt_content": "可以可以，很厉害≥ ≤"
+        },
+        {
+            "author": "yian6664",
+            "timestamp": 1519365840,
+            "txt_content": "但是如果脱离命令方块的话不会出bug吗"
+        },
+        {
+            "author": "Sostrange",
+            "timestamp": 1519549560,
+            "txt_content": "emmmmmmmmm"
+        },
+        {
+            "author": "wzt040615",
+            "timestamp": 1520034600,
+            "txt_content": "好想试试"
+        },
+        {
+            "author": "wzt040615",
+            "timestamp": 1520034960,
+            "txt_content": "大佬啊，学到东西了"
+        },
+        {
+            "author": "hechengbiao",
+            "timestamp": 1523957880,
+            "txt_content": "申请转载,可以吗"
+        },
+        {
+            "author": "银星sama",
+            "timestamp": 1529498880,
+            "txt_content": "我的目标是成为18级大神。假如你每天签到拿4经验，18级300000/4=75000天， 如果从1岁开始签到，那100年=36500天，你差不多要 活200年保持每天签到（谁知道200年后还有没有签到 这玩意），如果你每天再水4经验，时间减半，但考虑 现实，你不可能再活100年，取50年吧，你就要每天水 16经验，可能你是个勤快的人，每天水32经验，那就 需要25年！！！再如果你是个大水怪，每天水64经验 ，那就只要12.5年！！！还如果你个心急的人，每天水 128经验，你只要6.25年！！！！假如你已经急不可耐 了，每天水256经验，那你碉堡了，只要3.125年！！！ 当然，你会觉得3年还是太远了，每天你闲的蛋疼，忙 忙碌碌的水512经验，碉堡了，你只需要1.5625年，只 比1年半多一点！！！什么！！你还不满意，那你觉得 你可能一天水1024经验吗，可能吗！！可能吗！！！据 说回复100字或者一百字以上可以得到11~30经验，那么，按照队形，点击复制吧！！！ ... ... ... ... .. ... ... ... ... ... ...（我表示只是试试） ..."
+        },
+        {
+            "author": "SMFX阜星",
+            "timestamp": 1529551620,
+            "txt_content": "1.13的数据包就能劝退我了"
+        },
+        {
+            "author": "CRAZY_BOY_l",
+            "timestamp": 1529657640,
+            "txt_content": "不明觉厉"
+        },
+        {
+            "author": "dyx666",
+            "timestamp": 1530434760,
+            "txt_content": "666厉害666"
+        },
+        {
+            "author": "天空氏老方",
+            "timestamp": 1530751920,
+            "txt_content": "看不懂........."
+        },
+        {
+            "author": "天空氏老方",
+            "timestamp": 1530752880,
+            "txt_content": "这............."
+        },
+        {
+            "author": "xz1236987450",
+            "timestamp": 1530921420,
+            "txt_content": "我的目标是成为18级大神。假如你每天签到拿4经验，18级300000/4=75000天， 如果从1岁开始签到，那100年=36500天，你差不多要 活200年保持每天签到（谁知道200年后还有没有签到 这玩意），如果你每天再水4经验，时间减半，但考虑 现实，你不可能再活100年，取50年吧，你就要每天水 16经验，可能你是个勤快的人，每天水32经验，那就 需要25年！！！再如果你是个大水怪，每天水64经验 ，那就只要12.5年！！！还如果你个心急的人，每天水 128经验，你只要6.25年！！！！假如你已经急不可耐 了，每天水256经验，那你碉堡了，只要3.125年！！！ 当然，你会觉得3年还是太远了，每天你闲的蛋疼，忙 忙碌碌的水512经验，碉堡了，你只需要1.5625年，只 比1年半多一点！！！什么！！你还不满意，那你觉得 你可能一天水1024经验吗，可能吗！！可能吗！！！据 说回复100字或者一百字以上可以得到11~30经验，那么，按照队形，点击复制吧！！！ ... ... ... ... ... . ... ... .. ... ...(我表示只是试试) ..."
+        },
+        {
+            "author": "13665374636",
+            "timestamp": 1531934640,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "1204942617",
+            "timestamp": 1533654660,
+            "txt_content": "突然感觉好像很复杂的样子........我还是乖乖用命令方块吧......"
+        },
+        {
+            "author": "aqqwws133",
+            "timestamp": 1550941740,
+            "txt_content": "00000000000000000000000"
+        },
+        {
+            "author": "aqqwws133",
+            "timestamp": 1550941800,
+            "txt_content": "财富，名声，力量，曾拥有百渡世界一切的男人——百渡.老总.李Y宏，在临死前的一句话让全世界人们趋之若鹜的奔向贴吧。“想要我的经验吗？想要的话可以全部给你，去找吧！我把所有的经验都放在那里！”于是所有的用户涌向贴吧！让世界迎接大水帖时代，伟大的水贴之路开启了！ 水贴王，我当定了！"
+        },
+        {
+            "author": "kfong",
+            "timestamp": 1551070980,
+            "txt_content": "膜拜大佬"
+        },
+        {
+            "author": "Setrod_S",
+            "timestamp": 1558227060,
+            "txt_content": "gamerule gameLoopFunction 被移除了，想问一下现在该怎么调用高频function"
+        },
+        {
+            "author": "超人152",
+            "timestamp": 1558269480,
+            "txt_content": "可以可以，学习一下"
+        },
+        {
+            "author": "雨纪v",
+            "timestamp": 1558358820,
+            "txt_content": "命令方块@s怎么用?"
+        },
+        {
+            "author": "延旬",
+            "timestamp": 1581147780,
+            "txt_content": "那探测nbt标签怎么搞，貌似if、unless并不能实现完整的testfor功能，那探测的输出要怎么用呢，execute似乎也不起作用"
+        },
+        {
+            "author": "5352",
+            "timestamp": 1581179640,
+            "txt_content": "为什么有些字体偏向右侧"
+        },
+        {
+            "author": "5352",
+            "timestamp": 1581515340,
+            "txt_content": "那1.13的呢？"
+        },
+        {
+            "author": "晓夜Port",
+            "timestamp": 1581582960,
+            "txt_content": "3 4 章排版炸了"
+        },
+        {
+            "author": "CreasedSir",
+            "timestamp": 1581587460,
+            "txt_content": "完成任务"
+        },
+        {
+            "author": "CreasedSir",
+            "timestamp": 1581587460,
+            "txt_content": "完成任务"
+        },
+        {
+            "author": "5352",
+            "timestamp": 1581695820,
+            "txt_content": "目录怎么弄你讲的不详细，只知道是function+名称，但是我名称怎么写？经常出现没有该函数"
+        },
+        {
+            "author": "金子89",
+            "timestamp": 1595342640,
+            "txt_content": "求助，gameloopfunction的存在似乎会使logs文件变得体积巨大，因为每个function每t它都要记一下，怎么破？"
+        },
+        {
+            "author": "kunkun520",
+            "timestamp": 1596004680,
+            "txt_content": "mcbbs有你更精彩！！！"
+        }
+    ]
+}

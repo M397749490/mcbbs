@@ -1,0 +1,79 @@
+{
+    "title": "[TML-乾坤]分数智能排序算法",
+    "author": "乾.坤",
+    "replyCount": 14,
+    "timestamp": 1461852840,
+    "txt_content": " 本帖最后由 乾.坤 于 2016-4-28 22:14 编辑 \n\n大家好，我是乾坤。今天带来的是一个偏向算法性的作品——分数智能排序算法。也就是解决一堆分数从高到低排序的问题（这里要说一下，计分板上的排序是给玩家能直观看到的，而能被系统读取的顺序则需要输出到另一个计分板，看图\n\n\n比如现在有9个玩家玩游戏，分数分别如上所示，虽然系统已经帮我们排好了先后顺序，但这个顺序计分板并不能读取，那就需要排序到另一个计分板：\n\n\n就像这样，分数从高到低从第一名排到第九名（可见，也是可以处理重分的），这样的话我需要对比赛分数并列第4名的玩家执行命令只需要\n/execute @e[score_Order_min=4,score_Order=4] ...\n即可）\n其实排序算法也是很常用的，小游戏制作选出最高分的问题也一直会被问到，而把排序拓展到n位之后，应用的范围就更广泛了。\n下页使用方法\n\n\n\n\n\n进游戏会看到两排按钮，下面6个，上面3个（最左和最右的按钮在侧面），先用按钮选好分（分数自己随意）之后是这样：\n\n\n由于没有排过名，所以只有选中的分数，排序（左边第一个按钮）之后就会多出一排分数：\n\n\n这个分数就是你刚刚设定的那个分数的历史排名，因为第一次排序所以当然是1（历史最高）\n\n\n这时如果你再选个分，就会有两个分数了。\n\n\n这是上面的三个命令方块。中间是重置整个系统，左边是查看你曾经选定过的分数，右边是所有分数的总排名\n\n\n下页原理讲解\n\n\n总共30多个命令方块，一起来看看。\n算法计分板：\n1.Count （其中的假名Count用于处理同分）\n2.Score （储存需要排序的分数）\n3.Order （将重新排序后的分数计入这个计分板）\n\n核心命令：\n/scoreboard players operation @e[name=Holder,type=ArmorStand] Score > @e[tag=Compare2,c=1] Score复制代码有必要强调一下这个命令的用法：\nscoreboard players operation <targetName> <targetObjective> <operation> <selector> <objective>\n\">\" 取较大值: 如果selector的分数比 targetName的分数大，则把targetName的分数设为 selector的分数。\n------Minecraft Wiki\n简而言之 A>B的意思就是:若B>A，则令B=A  我们可以利用这个做出排出一系列分数的第一名，方法就是刷出一个Marker来和所有分数使用一遍“>”运算，这样，全部比对完以后Marker的分数就是探测范围内的最大分数了，然后将Marker的值与所有分数相减，分数为0的那个（些）就是第一名了。你可以这样理解：一次“>”运算是一个点的运动（一组分数的比对），那么将所有点纵向运动起来（将每组分数比对过去）就构成了一条“线”（一次第一名的探测），也就是所谓的“点动成线”\n\n那么，如何“线动成面”呢？\n我们可以这样做：将第一次选出的第一名剔除在外，然后在剩余的分数中利用之前的方法选出现在的第一名。那第二次选出的第一名就是第二名了，依次类推，直到每个分数都当过一次第一名之后就意味着每个分数都有自己的“位置”（或者说顺序）了。\n当然，“点动成线，线动成面”意味着我们需要有一个两层的控制系统，告诉电脑接下来该怎么排序。\n主要的思路就是上面这些，我们看看在游戏中的对应关系。\n最开始只执行一次的部分：\nicb：/blockdata ~ ~ ~ {auto:0b}\n/scoreboard players tag @e[type=ArmorStand,name=Test] add Compare1\n/blockdata ~-1 ~ ~ {auto:1b}复制代码然后就是一层控制（探测是否所有的分数都进行过排序，tag=Compare1就是还没有排序后分数的分数）\n/blockdata ~ ~ ~ {auto:0b}\n/blockdata ~-4 ~ ~ {auto:1b}\n/testfor @e[type=ArmorStand,tag=Compare1]\ncond：/blockdata ~-2 ~ ~ {auto:0b}\ncond：/blockdata ~-2 ~ ~ {auto:1b}\n/blockdata ~-24 ~ ~ {auto:1b}\n复制代码如果没有全部都经过排序，就执行下一层，即“第一名”的选择\n这些是在二层中只执行一次的：\n/blockdata ~ ~ ~ {auto:0b}\n/summon ArmorStand ~ ~ ~ {Marker:1b,CustomName:Holder,NoGravity:1b,Invisible:1b}\n/scoreboard players tag @e[type=ArmorStand,name=Test,tag=Compare1] add Compare2\n/blockdata ~-1 ~ ~ {auto:1b}复制代码下面是二层控制（探测此轮“第一名”是否已经探测完成，即Marker是否对每个待选分数进行过“>”运算，tag=Compare2指的是未运算过的分数）：\n/blockdata ~-4 ~ ~ {auto:1b}\n/testfor @e[type=ArmorStand,tag=Compare2]\ncond：/blockdata ~-2 ~ ~ {auto:0b}\ncond：/blockdata ~-11 ~ ~ {auto:1b}\n复制代码如果2级运算也没有完成，系统会执行以下命令：/blockdata ~ ~ ~ {auto:0b}\n/scoreboard players operation @e[name=Holder,type=ArmorStand] Score > @e[tag=Compare2,c=1] Score\n/scoreboard players tag @e[tag=Compare2,c=1] remove Compare2\n/blockdata ~18 ~ ~ {auto:1b}\n复制代码如果完成了，就执行这些（顺序对号入座，当然，理所当然的，加了重分的处理）：\n/blockdata ~ ~ ~ {auto:0b}\n/scoreboard players operation @e[type=ArmorStand,name=Test] Score -= @e[type=ArmorStand,name=Holder] Score\n/scoreboard players add Count Count 1\n/scoreboard players operation @e[type=ArmorStand,name=Test,score_Score_min=0,score_Score=0] Order = Count Count\n/scoreboard players tag @e[type=ArmorStand,name=Test,score_Score_min=0,score_Score=0] remove Compare1\n/execute @e[type=ArmorStand,name=Test,score_Score_min=0,score_Score=0] ~ ~ ~ /scoreboard players add Count Count 1\n/scoreboard players remove Count Count 1\n/scoreboard players operation @e[type=ArmorStand,name=Test] Score += @e[type=ArmorStand,name=Holder] Score\n/kill @e[type=ArmorStand,name=Holder]\n/blockdata ~24 ~ ~ {auto:1b}复制代码现在，让我们回到一级控制处，如果第一层探测不到未排序的分数，那么就算大工告成，每个分数都有自己对应的顺序了，收尾即可：\n/blockdata ~ ~ ~ {auto:0b}\n/scoreboard players reset Count Count\nsay ok复制代码\n至此，分数排序全部完成。\n\n下页闲聊+存档\n\n\n看到BBS是没有特别系统的排序算法（可能是用得少吧），就特地写了一个稍微集成点的，希望能帮助到想要提高水平的命令新人2333，排序其实在做系统的时候也是会用到的，当然，方法仅供参考，仅是抛砖引玉罢了，大触们见笑了。\n特别感谢 @玄素 给我提供了脑洞\n\n存档下载（本人制作采用的是1.9.3pre2）\n[TML-乾坤]分数智能排序算法\n\n\n\n\n来自群组：The Minecraft Lover \n\n\n\n",
+    "replies": [
+        {
+            "author": "喵双籽",
+            "timestamp": 1461854280,
+            "txt_content": "看不明白O-O"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1461857820,
+            "txt_content": "看到核心原理，我又看了一遍，还看了一遍，明白了\n好东西，之前pca也说过当时没仔细想，还是觉得要探测分数，很麻烦XD\n这个方法才算看懂。总而言之就是好像一堆球，我在其中选取，取出最大的一个，然后把这个拿出来，重复这个过程直到都排完。而且全自动。\n不错"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1461879000,
+            "txt_content": "命令方块真的不适合用来搞这种东西。mc 应该像 space engineers 一样，可以直接嵌入代码。这样大家都方便，效率也高"
+        },
+        {
+            "author": "gunman",
+            "timestamp": 1461892860,
+            "txt_content": "hhttll 发表于 2016-4-29 05:30\n命令方块真的不适合用来搞这种东西。mc 应该像 space engineers 一样，可以直接嵌入代码。这样大家都方便， ...\nMC本来就是java语言的，要是可以直接调用class文件，比如排序类就省事了"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1461895260,
+            "txt_content": "gunman 发表于 2016-4-29 09:21\nMC本来就是java语言的，要是可以直接调用class文件，比如排序类就省事了\n你说的这个是 mod\n\n我觉得 mod 有几个很重要的缺陷：\n1. 他是跟客户端走的而不是跟地图走的。你不会为了一个一般般的地图去装一个 mod，太麻烦了。\n2. 不安全。mod 其实可以写病毒的，目前没有一个杀毒软件能杀 jar 的病毒（来源：andylizi）\n3. 太过繁琐。写一个 mod 真是麻烦的要死。新人完全不知从何做起。java 刚开始特别困难。\n\n出于以上几点，我觉得最好的解决方案是：\n使用内嵌 js 或 lua 的方法（比如直接把 js 脚本或者 lua 脚本写到命令方块里）。脚本跟地图走且脚本的每一行代码都在 mc 的虚拟环境里执行，保证不会有病毒。mod 依然可以存在，mod 主要用于添加物品或者大幅度修改游戏机制，所以可以说 mod 和 内嵌脚本完全没有重合之处。你看着好了，用不了多久，肯定会有人做出一个让 mc 支持内嵌 js 的 mod 的。"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1461921180,
+            "txt_content": " 本帖最后由 林扬骐 于 2016-4-29 17:31 编辑 \n\n思路应该还是易懂的，但是后面一堆看吐了啊啊啊，用作排名的话肯定是要用json的吧233\n\n另外解压文件坏了快修"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1461922320,
+            "txt_content": "hhttll 发表于 2016-4-29 05:30\n命令方块真的不适合用来搞这种东西。mc 应该像 space engineers 一样，可以直接嵌入代码。这样大家都方便， ...\n为何命令方块不适合呢？麻烦吗？然而CB就是一种游戏模式，开心就好了"
+        },
+        {
+            "author": "kj415j45",
+            "timestamp": 1461930660,
+            "txt_content": "你的想法与选择排序已经很接近了：遍历数组选出最小/最大放在数组头，然后继续选择最小/最大放在下一位\n但是这个算法的时间复杂度为O(n^2)，属于平方级算法，当n值大时排序速度慢\n\n你可以在搜索第一名的同时搜索最后一名，这样可以稍微加快排序速度\n\n而且既然你额外使用了计分版，那你就可以在这个计分版里只存1个分数数据，用它来交换分数就行了，像你这样排序结果单独存又转存到原计分版是明显浪费时间的，而且实际上也浪费了空间\n\n\n然而由于CB还不能用递归，所以也没有更好的算法可用了(比如快排，时间复杂度为O(n*log以2为底n)"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1461933360,
+            "txt_content": "计分板不到家啊 现在才知道有大于小于这些用法 \n\n又有新的技能解锁了 \n\n新技能 排序 Get √"
+        },
+        {
+            "author": "hhttll",
+            "timestamp": 1461983940,
+            "txt_content": "pca006132 发表于 2016-4-29 17:32\n为何命令方块不适合呢？麻烦吗？然而CB就是一种游戏模式，开心就好了\n不适合啊.. 弄个排序这么复杂。"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1462154820,
+            "txt_content": "kj415j45 发表于 2016-4-29 19:51\n你的想法与选择排序已经很接近了：遍历数组选出最小/最大放在数组头，然后继续选择最小/最大放在下一位{:69 ...\nemm其实显示计分板只是为了演示用，其实本来的系统是没有转存的hh，不过我倒是能优化一下cb，有了一个比较好的方法XD"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1462154820,
+            "txt_content": "kj415j45 发表于 2016-4-29 19:51\n你的想法与选择排序已经很接近了：遍历数组选出最小/最大放在数组头，然后继续选择最小/最大放在下一位{:69 ...\n嗯，后续我会再改进的，谢谢建议XD"
+        },
+        {
+            "author": "走失的小怕",
+            "timestamp": 1462340100,
+            "txt_content": "似懂非懂"
+        },
+        {
+            "author": "xiaopeng666",
+            "timestamp": 1462512420,
+            "txt_content": "这些编码躲什么鬼看不懂{:10_492:}"
+        }
+    ]
+}

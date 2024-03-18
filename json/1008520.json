@@ -1,0 +1,79 @@
+{
+    "title": "【思路】所指即所射！超精准的视线追踪新思路！[1.15-1.16]",
+    "author": "末地探险者",
+    "replyCount": 14,
+    "timestamp": 1586085840,
+    "txt_content": " 本帖最后由 末地探险者 于 2020-4-6 21:12 编辑 \n前言：\n已经打算退坛，结果假期又延长了。\n有一些疑惑越来越多\n[CBL|K_bai]解决你的一切射线追踪烦恼！超精准的射线追踪碰撞检测器[1.14.4+]\n\n其实也没有直接解决我的烦恼qaq，因为我看不懂。。。\n\n\n\n\n\nimage.png (82.15 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 18:15 上传\n\n\n\n\n\n【CBL|00ll00】[1.14+，附数据包] 更精准的方块视线追踪方法\n的评分里有一个发射雪球定位。\n我觉得可以，于是乎就来实现看看\n\n\n\n在求助帖中基本把思路想清楚了：https://www.mcbbs.net/thread-1007529-1-1.html\n\n\n到底有多准？\n先看慢动作（药水云标记路径）实际效果看最下面的gif，几乎看不到arrow\n\n\n\n\ndirectno.gif (622.74 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 20:37 上传\n\n\n\n\n\n\n核心代码\nsummon armor_stand 0.0 0.0 0.0 {Tags:[\"track_work\"],Rotation:[0.0f,0.0f],NoGravity:true,Invisible:true,Marker:true}\nexecute at @s anchored eyes run summon arrow ^ ^ ^ {Motion:[0.0,0.0,0.0],NoGravity:true,pickup:false,Silent:true,damage:-1.0,Tags:[\"track_sel\"]}\nexecute as @e[tag=track_work] at @s rotated as @p anchored feet run tp ^ ^ ^10\nexecute as @e[tag=track_sel] run data modify entity @s Motion set from entity @e[tag=track_work,limit=1] Pos\nkill @e[tag=track_work]复制代码\n\n当然你射什么实体都可以（只要有Motion的）\n\n\n\n原理：\n所指的参数即是Rotation的两个量。\n所射的参数即是Motion的x，y，z的速度向量。\n两者的联系就相当于极坐标系的ρcosθ\n而ρ甚至可以随便取。经测试，速度向量最大值为10.0\n接下来我要寻求cosθ的计算。一开始我想到了小豆数学库\n但是我又想到：直接在（0,0,0）这个特殊的位置以玩家的方向位移ρ\n\n\n\n\n\n\n\n所得到的（x,y,z）不就应和Motion[dx,dy,dz]吗。\n结果查看小豆数学库，不谋而合。\ntp 直接使用^ ^ ^10\n一开始我用execute store 替换数据，结果精度相差非常大\n经过@(=°ω°)丿\n的指导，改用data modify直接复制坐标\n\n\n实体的选择\n这也是最关键的一步。\n需要的实体要求：\n 要求 要求 所指实体 不会对该实体造成伤害/击退效果 所指方块 方便简单，还能选到非固体方块/不会透过去：就是黑框 所指固体方块 可以透过非固体方块\n这样的话弹射物是比较合适的了。\n经过重重测试和NBT的学习\nhttps://www.mcbbs.net/thread-1006413-1-1.html\n还有@SPGoding\n的指导\n我选择了以下实体\n 所指实体 产生了“漂浮效果”，用断言消去 潜影贝导弹 所指方块 不会透过去，只要寻找雪球死前的位置就可以了 雪球 所指固体方块 可以透过非固体方块，还为大家准备了inBlockState的NBT，非常贴心（再次感谢SPG） 箭\n\n\n使用效果和方法\n 命名空间 track 储存地址(标签) 所指实体 direct1 被标记为track_select,并且有track_sele的标记坐标的药水云 所指方块 direct3 上方生成一个track_select3的实体 所指固体方块 direct2 固体方块id记录在track_select的ArmorItems[0].id里，位置记录在Pos里\n\n\n\n\n\ndirect3.gif (858.27 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 19:11 上传\n\n\n\n\n\n\n\n\ndirect2.gif (840.26 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 19:08 上传\n\n\n\n\n\n\n\n\ndirect1.gif (732.82 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 19:08 上传\n\n\n\n\n\n\n如何在1tick内完成寻找目标：（实验对象为箭，先不讨论其他）\n我们设置1tick的速度为10，则要在1tick内找到目标，则可以在一定范围内像[0,5][5,10][10,15][15,20]做判定区间。\n同时发射4支箭，讨论响应的情况：\n前面响应则忽略后面\n后面先响应则讨论前面响应的情况，当前面的超过该区间范围，则忽略，直接统计后面的情况\n（本部分还没做，暂时是个可行的思路吧）\n\n\n\n\n\n结果自然是好的现有的不足便是：会有颗粒无法消去\n\n因为这只是思路，所以数据包并没有完善。\n断言也是很粗糙（根本就是太泛了）\n进一步可以消除颗粒等等的\n 版本 数据包v 0.0.1\n\n\n\nDirectly Trackv0.zip\n(5.83 KB, 下载次数: 5)\n\n\n\n2020-4-5 18:19 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n感谢\nSPG的帮助和DHP和Json文件生成器\nTeen的帮助和data教程\n小豆数学库\nhans的JText\n@kongbaiyo\n@00ll00\n\n\n\n\n\n\n\n\n\n\n\n\nfile_1586082454000.jpg\n(109.9 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2020-4-5 18:27 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nfile_1586082988000.jpg\n(123.34 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2020-4-5 18:36 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1586097300,
+            "txt_content": "你这个的问题是无法单tick找到目标位置。而这一点往往非常重要。用投射物的想法还是很正常的。然后你可以让速度足够快使得1t内到达。最后我记得箭的pos好像和目标方块的pos有点差异吧，尤其是在方块边缘，难道现在改了？最后就是箭的rot也是很奇怪的，和实际方向差一个符号"
+        },
+        {
+            "author": "末地探险者",
+            "timestamp": 1586099940,
+            "txt_content": " 本帖最后由 末地探险者 于 2020-4-6 21:53 编辑 \nruhuasiyu 发表于 2020-4-5 22:35\n你这个的问题是无法单tick找到目标位置。而这一点往往非常重要。用投射物的想法还是很正常的。然后你可以让 ...\n箭的rot非常奇怪：我尝试使用了多种data的方法同步到玩家一开始的朝向，都失败了。（不只是差一个符号，我觉得应该是最开始tp ^ ^ ^10进虚空的缘故）（不过已经有前面的盔甲架标记rot了）\n\n单tick确实很难做到，不过在ρ=10的情况下已经是全速了（测试时速>10.0的时候会崩，这个我还不知道要怎么做），几乎是单tick（一定距离内，本命令发出后，路径上只有两个标记tick的药水云），我再想想办法\n\n箭的pos\n我是用本身弹射物NBT x y zTile作为标记的\nhttps://www.mcbbs.net/forum.php? ... 006413&pid=17341482\n\n\n单tick的我想到了\n用续传（找到1tick射击的最远距离(就是ρ)，然后同时射）"
+        },
+        {
+            "author": "2362028557",
+            "timestamp": 1586102700,
+            "txt_content": "真的是学好数理化，走遍天下都不怕，就是有点难理解，其他都挺好"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1586178420,
+            "txt_content": "不觉得1tick闪过的arrow很别扭么"
+        },
+        {
+            "author": "末地探险者",
+            "timestamp": 1586178600,
+            "txt_content": " 本帖最后由 末地探险者 于 2020-4-6 21:13 编辑 \n晴路卡 发表于 2020-4-6 21:07\n不觉得1tick闪过的arrow很别扭么\n吃不了隐形药水。。\n但是没开F3+B是几乎看不到的（gif第二张就看不到了）\n你可以实际测试看看\n最上面的gif是慢动作（放慢10倍，才看得很清楚的）\n\n我感觉这个的问题应该是：https://www.mcbbs.net/thread-926441-1-1.html\n"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1586179440,
+            "txt_content": "末地探险者 发表于 2020-4-5 23:19\n箭的rot非常奇怪：我尝试使用了多种data的方法同步到玩家一开始的朝向，都失败了。（不只是差一个符号，我 ...\n你开碰撞箱就能看出，roty是差一个180°-roty,rotx没问题"
+        },
+        {
+            "author": "末地探险者",
+            "timestamp": 1586180460,
+            "txt_content": " 本帖最后由 末地探险者 于 2020-4-6 21:58 编辑 \n\n\n\n\n\nimage.png (200.61 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-6 21:35 上传\n\n\n\n\n\n\n\n\nfile_1586180095000.jpg (126.17 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-6 21:34 上传\n\n\n\n\n\n\n\n\nfile_1586180073000.jpg (162.23 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-6 21:34 上传\n\n\n\n\n\n\n\nemm好像就是差了roty\n\n(找不到头绪，为什么这样)\n"
+        },
+        {
+            "author": "Ruainbow_",
+            "timestamp": 1586282220,
+            "txt_content": "同上发射四支。。。好复杂。\n为什么不试试aec骑乘箭，然后箭消失后根据aec找实体或者坐标呢？\n还是说只是我没看懂"
+        },
+        {
+            "author": "VCS-Official",
+            "timestamp": 1586283120,
+            "txt_content": "第一眼看到:诶，数学库终于能帮到别人忙了！好感动！\n仔细一看:然并卵……\n视追以前有个想法，就是直接用计算的方法得到线面交点坐标，mc里的方块只有6个面，应该会很方便\n但是懒豆子一直没有研究……原版模组啥的直接就用刷怪蛋了"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1586416620,
+            "txt_content": "VCS-Official 发表于 2020-4-8 02:12\n第一眼看到:诶，数学库终于能帮到别人忙了！好感动！\n仔细一看:然并卵……\n视追以前有个想法，就是直接用计 ...\n的确很方便！看这里\n最大的麻烦就是需要定义所有方块的碰撞箱"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1586416740,
+            "txt_content": "如果是近距离判定的话确实比较方便了！\n不过没办法判断是否碰到了实体背后的方块 有没有什么实体既会飞行 又会穿过生物的？"
+        },
+        {
+            "author": "Ruainbow_",
+            "timestamp": 1586444820,
+            "txt_content": "kongbaiyo 发表于 2020-4-9 15:19\n如果是近距离判定的话确实比较方便了！\n不过没办法判断是否碰到了实体背后的方块 有没有什么实体既会飞行  ...\n恼鬼\n有贯穿NBT的箭"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1586445300,
+            "txt_content": " 本帖最后由 (=°ω°)丿 于 2020-4-9 23:18 编辑 \nRuainbow_ 发表于 2020-4-9 23:07\n恼鬼\n有贯穿NBT的箭\n穿透附魔的弩射出的箭（\n（布尔）PierceLevel：箭能射穿实体的时间长度。"
+        },
+        {
+            "author": "141483581",
+            "timestamp": 1586958300,
+            "txt_content": "这构图2333"
+        }
+    ]
+}

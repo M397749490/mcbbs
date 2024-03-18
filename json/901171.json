@@ -1,0 +1,74 @@
+{
+    "title": "【TCP|skeleton小白】在MC中实现（伪）数组操作",
+    "author": "skeleton小白",
+    "replyCount": 13,
+    "timestamp": 1565587800,
+    "txt_content": " 本帖最后由 skeleton小白 于 2019-8-12 16:24 编辑 \n\nemmmmm...虽然立了隐退flag，但还是开棺诈尸一次\n\n警告：观看此贴前你可能需要一些编程基础，对基本数据结构有所掌握\n\n众所周知，MC指令作为一款功能强大的编程语言已经可以实现许多的计算操作，但是想要编程，必然少不了数组的使用。那么，在MC中是否也可以实现数组操作呢？答案是肯定的。\n为方便讲解，以下指令全都基于在~ ~ ~处有一个箱子，其中第一格放了一个物品，物品在tag标签下有一个variables专门用于记录各种变量。\n（数组与list并不是一个东西，但因为在这里用途相似，所以下文不做区分）\n\n在nbt中有一个很类似于数组的东西，那就是list。我们可以用data指令很方便地修改或获取其中的数值，例如/data get block ~ ~ ~ Items[0].tag.variables.array[x] 就可以获得array这个list的第x位的内容。但是，这个x必须在指令中给出，无法使用变量代替（例如计分板分数）。也就是说，我们无法直接使用变量作为下标获得数组的元素，但我们可以通过array[0]获得数组的头元素。你想到了什么？没错，这不就是栈么！所以，在访问数组的第x位元素的时候，我们只需要将前x-1个元素从数组头（栈顶）弹出，然后此时的array[0]就是我们要的内容了。\n\n\n\n\narray.zip\n(11.69 KB, 下载次数: 5)\n\n\n\n2019-8-12 12:18 上传\n点击文件名下载附件\n\n\n\n\n\n\n以下函数均在这个数据包中。加载数据包后先调用函数array:initialize，之后的所有函数或指令都站在生成出的箱子上执行，或者在指令最前面加上/execute at @e[name=database]  （因为我懒得写exe）\n\n\n数组基本操作\n\n读取操作\n使用方式：设置index的variables分数为你要获取的数组元素的下标，然后调用array:get函数，此时result的variables分数即为获取的元素。\n\narray:get\ndata modify block ~ ~ ~ Items[0].tag.variables.temp set from block ~ ~ ~ Items[0].tag.variables.array\nscoreboard players operation i variables = index variables\nexecute if score i variables > 0 variables run function array:get_loop\nexecute store result score result variables run data get block ~ ~ ~ Items[0].tag.variables.array[0]\ndata modify block ~ ~ ~ Items[0].tag.variables.array set from block ~ ~ ~ Items[0].tag.variables.temp\ndata modify block ~ ~ ~ Items[0].tag.variables.temp set value []复制代码\narray:get_loop\nscoreboard players remove i variables 1\ndata remove block ~ ~ ~ Items[0].tag.variables.array[0]\nexecute if score i variables > 0 variables run function array:get_loop复制代码\n原理：先把原数组丢进temp中备份，然后把array[0]删除index次，此时array[0]就是所求的元素。然后再把temp中的备份丢回去\n\n\n写入操作\n使用方式：设置index的variables分数为你要写入的数组元素的下标，将想要写入的值放在store的variables分数中，然后调用array:store函数。\n\narray:store\nscoreboard players operation i variables = index variables\nexecute if score i variables > 0 variables run function array:store_loop\nexecute store result block ~ ~ ~ Items[0].tag.variables.array[0] int 1 run scoreboard players get store variables\nscoreboard players operation i variables = index variables\nexecute if score i variables > 0 variables run function array:store_return复制代码\narray:store_loop\nscoreboard players remove i variables 1\ndata modify block ~ ~ ~ Items[0].tag.variables.temp prepend from block ~ ~ ~ Items[0].tag.variables.array[0]\ndata remove block ~ ~ ~ Items[0].tag.variables.array[0]\nexecute if score i variables > 0 variables run function array:store_loop复制代码\narray:store_return\nscoreboard players remove i variables 1\ndata modify block ~ ~ ~ Items[0].tag.variables.array prepend from block ~ ~ ~ Items[0].tag.variables.temp[0]\ndata remove block ~ ~ ~ Items[0].tag.variables.temp[0]\nexecute if score i variables > 0 variables run function array:store_return复制代码\n原理：因为直接备份整个数组再还原的话会把写入的值给一起覆盖掉，所以在写入时我们需要换个思路，每一次栈顶弹出的时候我们把这个值丢进另一个栈temp，赋值结束之后再把这个操作反过来，将temp的栈顶弹出并丢回array，重复直到temp为空。\n\n随机化\n使用方法：调用函数array:randomize\n\narray:randomize\nscoreboard players operation i variables = size variables\ndata modify block ~ ~ ~ Items[0].tag.variables.array set value []\nexecute if score i variables > 0 variables run function array:randomize_add复制代码\narray:randomize_add\nscoreboard players remove i variables 1\ndata modify block ~ ~ ~ Items[0].tag.variables.array prepend value 0\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nsummon area_effect_cloud ~ ~ ~ {CustomName:\"\"random\"\"}\nexecute store result block ~ ~ ~ Items[0].tag.variables.array[0] int 1 run data get entity @e[limit=1,sort=random,name=random,type=area_effect_cloud] UUIDMost 0.00000000000000001\nexecute if score i variables > 0 variables run function array:randomize_add复制代码原理：清空array并往里面丢size个随机数。这里用了一个非常暴力的伪随机，生成一堆aec并随机取其中一个的UUIDMost的最后两位。（还不是因为我懒得写随机）\n\n\n学完了数组存取，那么下面当然是排序了。数据包中还写了两个排序，分别是冒泡排序和快速排序。\n我们先来看一下简单一点的冒泡排序\n\nC++代码：\nfor (int i=0;i<size;i++) for (int j=0;j<size-i-1;j++) if (a[j]>a[j+1]) swap(a[j],a[j+1]);复制代码\n没错只有一行。但是因为MC运算的复杂性，这里用了四个函数实现了冒泡排序。\n使用方法：调用bubble_sort:sort函数\n\nbubble_sort:sort\nscoreboard players set sort_i variables 0\nfunction bubble_sort:loop1复制代码\nbubble_sort:loop1\nscoreboard players set sort_j variables 0\nscoreboard players operation stop variables = size variables\nscoreboard players remove stop variables 1\nscoreboard players operation stop variables -= sort_i variables\nexecute if score sort_j variables < stop variables run function bubble_sort:loop2\nscoreboard players add sort_i variables 1\nexecute if score sort_i variables < size variables run function bubble_sort:loop1复制代码\nbubble_sort:loop2\nscoreboard players operation index variables = sort_j variables\nfunction array:get\nscoreboard players operation x variables = result variables\nscoreboard players add index variables 1\nfunction array:get\nscoreboard players operation y variables = result variables\nexecute if score x variables > y variables run function bubble_sort:swap\nscoreboard players add sort_j variables 1\nexecute if score sort_j variables < stop variables run function bubble_sort:loop2复制代码\nbubble_sort:swap\nscoreboard players operation index variables = sort_j variables\nscoreboard players operation store variables = y variables\nfunction array:store\nscoreboard players add index variables 1\nscoreboard players operation store variables = x variables\nfunction array:store复制代码\n对照C++代码就很好理解这个函数。其中，loop1和loop2分别对应代码中的内外两层循环。为避免与存取函数的变量冲突，这里用sort_i和sort_j来表示排序函数中的循环变量。\n\n\n你已经掌握了基本的数组操作和排序算法，那么现在请尝试实现更高级的排序算法（指快速排序）\n\n快速排序是一种基于分治思想的不稳定排序算法，在这里不详细描述其排序过程，不了解的请百度。\n\nC++代码：\nvoid sort(int l,int r)\n{\n            int i=l,j=r,mid=a[(l+r)>>1];\n            while (i<=j)\n            {\n        while (a[i]<mid) i++;\n        while (a[j]>mid) j--;\n                    if (i<=j)\n                    {\n                                swap(a[i],a[j]);\n                                i++,j--;\n                    }\n            }\n            if (l<j) sort(l,j);\n            if (i<r) sort(i,r);\n}复制代码\n使用方法：调用quick_sort:sort函数\n\n快速排序的指令实现较为复杂，在这里就不一一列出函数内容，具体详见数据包。循环的实现方式与冒泡排序相同。因为快速排序涉及到递归传值，所以函数中将variables.stack作为一个人工栈使用以模拟实际程序中的系统栈操作，其中的l和r分别表示每一次递归的l和r值。\n\n\n你已经学会了一维数组，那为什么不尝试增加一个维度呢？\n\narray_2d命名空间下包含了二维数组的存取操作。使用前请先调用array_2d:initialize函数。与之前不同的是，这个二维数组的每个元素是个二元组，初始时分别表示该元素的行号和列号。因此读写时不能以计分板作为中间变量。\n读取操作：设置indexx和indexy的variables分数分别为想要获取的元素的行号和列号，然后调用array_2d:get函数，此时Items[0].tag.variables.result即为获得的元素。\n写入操作：设置indexx和indexy的variables分数分别为想要写入的元素的行号和列号，设置Items[0].tag.variables.store的值为需要写入的值，然后调用array_2d:store函数。\n\n\n具体指令详见数据包\n\n原理：与一维数组的存取类似。获取第x行第y列的元素，只需要先将前x-1行弹出，再将第一行的前y-1列弹出就行了。唯一不同的是，在store操作时，因为同一个list中只能存同一种数据类型的数据（不能同时存int和list），所以要开两个栈分别存储弹出的前x-1行（list）和y-1列（int）。\n\n\n\n效率分析\n\n首先先来看一下对于长为100的数组的排序结果\n\n\n\n警告：请勿轻易尝试类似的大规模排序操作\n\n\n前者（冒泡排序）排了将近5分钟，后者（快速排序）排了大概半分钟。（电脑年代久远，可能时间会偏长）\n在实际编程中，冒泡排序是个时间复杂度为O(n[sup]2[/sup])的算法，而快速排序作为不稳定排序，其时间复杂度介于O(nlogn)和O(n[sup]2[/sup])之间。但因为MC的数组存取操作是个O(n)的操作（最坏时需要进行n次出栈操作），所以在MC中实现的冒泡排序和快速排序时间复杂度分别为O(n[sup]3[/sup])和O(n[sup]2[/sup]logn)~O(n[sup]3[/sup])。从时间复杂度来看效率实在不高。其次还要强调的一点是MC中的一条指令并不等同于电脑的一次运算，所以这两个排序的时间复杂度甚至会更高。因此，如果想用MC来编程的话...也就想想吧。你总不希望电脑编程只需要1秒钟就能跑出来的程序你用MC跑整整一天吧...\n\n\n嘛...诈尸结束，回棺躺好，下次见面应该真的是高考之后了QAQ\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "contionability",
+            "timestamp": 1565590080,
+            "txt_content": "亲测我的电脑100个数据二分排序[快速排序]花了12秒\n:Muuuu~\n让我试试200个数据。。\nTo be continued...你懂的"
+        },
+        {
+            "author": "yixuan1314",
+            "timestamp": 1565597700,
+            "txt_content": "可以\n，看不懂"
+        },
+        {
+            "author": "1755201743",
+            "timestamp": 1565670360,
+            "txt_content": "666666666666666666666666"
+        },
+        {
+            "author": "底层咸鱼",
+            "timestamp": 1565705520,
+            "txt_content": "所以我想知道这玩意儿有什么实际的应用 "
+        },
+        {
+            "author": "超级大三彩",
+            "timestamp": 1565785200,
+            "txt_content": "没错是的可以这样的，而且确实可行"
+        },
+        {
+            "author": "QAQexe",
+            "timestamp": 1565856300,
+            "txt_content": "顶一下，支持"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1565942760,
+            "txt_content": "为啥要弄箱子，弄个盔甲架在虚空不好吗？"
+        },
+        {
+            "author": "EwTE_H",
+            "timestamp": 1568479200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "🥶❄️☠️",
+            "timestamp": 1581754440,
+            "txt_content": "建议讲一下插入排序"
+        },
+        {
+            "author": "wanmc1314",
+            "timestamp": 1595668440,
+            "txt_content": "吊袜带哇多哇多哇多哇大多哇多"
+        },
+        {
+            "author": "永爱不忘",
+            "timestamp": 1597770300,
+            "txt_content": "有点听不懂但还是不明觉厉"
+        },
+        {
+            "author": "爱吃萝卜和青菜",
+            "timestamp": 1598408460,
+            "txt_content": "我无视警告    结果C语言看的我一愣一愣的  "
+        },
+        {
+            "author": "Dcccc",
+            "timestamp": 1598408640,
+            "txt_content": "6666666666666666"
+        }
+    ]
+}

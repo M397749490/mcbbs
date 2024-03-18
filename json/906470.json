@@ -1,0 +1,24 @@
+{
+    "title": "python无法对地址重定向",
+    "author": "Chen_Hao_rui",
+    "replyCount": 3,
+    "timestamp": 1566457680,
+    "txt_content": " 本帖最后由 Chen_Hao_rui 于 2019-8-22 15:23 编辑 \n\n最近想弄一个curseforge包的下载器，但是论坛改版了，原先的下载方式都不能用了\n\n找到了一个下载的url 在进行重定向获取最终连接时就失败了（尝试了一下get可以 但head依然不行）\n相同的重定向原理python 不行 但java可以(代码来自于https://github.com/Vazkii/CMPDL/ ... ii/cmpdl/CMPDL.java 稍作改动)， 烦请哪位大佬能看下原因\n下载url : https://www.curseforge.com/minecraft/mc-mods/base/download/2722575/file\n\n报错内容\n 该 url 已重定向至 /error?aspxerrorpath=/minecraft/mc-mods/base/download/2722575/file复制代码def getLocationHeader(location):\n    headers = {\n        'User-Agent' : 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/53.0.2785.143 Chrome/53.0.2785.143 Safari/537.36'\n        }\n    r = requests.Session()\n    response = r.head(location, headers = headers)\n\n    while response.status_code == 302:\n        header = response.headers['Location']\n        print(\" 该 url 已重定向至 {}\".format(header))\n        response = r.head(header, headers = headers)\n    return header复制代码import java.net.HttpURLConnection;\nimport java.util.*;  \nimport java.net.URI;\nimport java.net.URISyntaxException;\nimport java.net.URL;\nimport java.io.IOException;\n\npublic final class CMPDL {\n        public static void main(String[] args) {\n                String src = \"https://www.curseforge.com/minecraft/mc-mods/base/download/2722575/file\";\n                try {\n                                src = getLocationHeader(src);\n                                System.out.println(src);\n                        } catch(Exception e) {\n                                throw new RuntimeException(e);\n                        }\n                \n        }\n\n\n        public static String getLocationHeader(String location) throws IOException, URISyntaxException {\n                URI uri = new URI(location);\n                HttpURLConnection connection = null;\n                String userAgent=\"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/53.0.2785.143 Chrome/53.0.2785.143 Safari/537.36\";\n                for(;;) {\n                        URL url = uri.toURL();\n                        connection = (HttpURLConnection) url.openConnection();\n                        connection.setRequestProperty(\"User-Agent\", userAgent);\n                        connection.setInstanceFollowRedirects(false);\n                        String redirectLocation = connection.getHeaderField(\"Location\");\n                        \n                        if(redirectLocation == null)\n                                break;\n\n                        if(redirectLocation.startsWith(\"/\"))\n                                uri = new URI(uri.getScheme(), uri.getHost(), redirectLocation, uri.getFragment());\n                        else {\n                                try {\n                                        uri = new URI(redirectLocation);\n                                } catch (URISyntaxException e) {\n                                        url = new URL(redirectLocation);\n                                        uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());\n                                }\n                        }\n                }\n\n                return uri.toString();\n        }\n}复制代码\n",
+    "replies": [
+        {
+            "author": "Ariy",
+            "timestamp": 1566465780,
+            "txt_content": "head请求不了估计是后端限制死了请求方式，建议直接get然后禁止跳转来拿到location\ns = requests.Session()\nres = s.get('https://www.curseforge.com/minecraft/mc-mods/base/download/2722575/file', allow_redirects=False)\nprint res.headers['Location']复制代码\n\n实测可以正常拿到跳转url\n>python tests.py\n>https://edge.forgecdn.net/files/2722/575/base-1.12.2-3.13.0.jar\n复制代码"
+        },
+        {
+            "author": "Chen_Hao_rui",
+            "timestamp": 1566475080,
+            "txt_content": "tian_wc 发表于 2019-8-22 17:23\nhead请求不了估计是后端限制死了请求方式，建议直接get然后禁止跳转来拿到location\nget需要的时间较长，在大量mod（特别是大型mod 5m+）的情况下效率低 ， 不知道能不能改写后端"
+        },
+        {
+            "author": "Chen_Hao_rui",
+            "timestamp": 1566477060,
+            "txt_content": "tian_wc 发表于 2019-8-22 17:23\nhead请求不了估计是后端限制死了请求方式，建议直接get然后禁止跳转来拿到location\n找到问题了 直接用WinHttp 和 WinInet 也是一样的\njava的HttpURLConnection对象默认也是get\n如果手动设置为headconnection.setRequestMethod(\"HEAD\");复制代码\n会跟python报一样的错，看来暂时没有什么办法\n可能是网站不支持"
+        }
+    ]
+}

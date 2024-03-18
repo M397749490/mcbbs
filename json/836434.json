@@ -1,0 +1,59 @@
+{
+    "title": "解读/开发RCON-远程自动化管理你的服务器吧",
+    "author": "TSStudio",
+    "replyCount": 10,
+    "timestamp": 1546513440,
+    "txt_content": " 本帖最后由 20050811 于 2019-1-3 19:21 编辑 \n\n前排提醒：本文大多数编程操作采用PHP，不过其他语言也可以参考。论坛代码功能抽风，用图片代替\n什么是RCON\n      RCON是一个标准的，提供各种游戏服务器管理的接口标准。它最早用于Valve旗下的游戏，Minecraft服务器在一定版本以上也可以使用。具体应该是1.9pre4。如果你想从底层开发RCON相关功能，我推荐你查看Valve文档。\nRCON可以做什么\nRCON是一个提供服务器管理的接口，那么它就可以做到包括执行CONSOLE命令在内的功能。同时，在执行命令完毕时，服务端会返回一个该命令的返回值（尽管有些命令什么也不返回）。当你使用RCON后，它可以做到以下功能：自动充值系统、积分兑换系统、时间控制系统等等。\n如何打开RCON\n如果你开过服务器，你应该会在server.properties中看到如下文字\nenable-rcon=false复制代码当然，你可能会想把它改成true，确实，它要改成true才能启用服务端的rcon功能，但是光启用它是不行的，你还要修改rcon.port和rcon.password两项的值（如果没有，你需要手动创建）。\n例如\n请修改成自己的rcon.port和rcon.password,并妥善保管，不要泄露\n如何利用RCON\n当你打开RCON功能后，本期教程才刚刚开始。\n此处以PHP为例。\n首先，你需要一个能和服务器建立连接的库，例如PHP Rcon。代码在下面贴出来了，请复制到一个文件(确保编码为UTF-8 无BOM)，后保存为Rcon.php\nPHP版本5.6+,酌情去掉namespace,如果不去，需要在等会的*处加上带*的一行\n\n<?php\nnamespace rconpart;\n/**\n * See https://developer.valvesoftware.com/wiki/Source_RCON_Protocol for\n * more information about Source RCON Packets\n *\n * PHP Version 7\n *\n * @copyright 2013-2017 Chris Churchwell\n * [url=home.php?mod=space&uid=1231151]@author[/url] thedudeguy\n * [url=home.php?mod=space&uid=41191]@link[/url] https://github.com/thedudeguy/PHP-Minecraft-Rcon\n */\n\nclass Rcon{\n    private $host;\n    private $port;\n    private $password;\n    private $timeout;\n\n    private $socket;\n\n    private $authorized = false;\n    private $lastResponse = '';\n\n    const PACKET_AUTHORIZE = 5;\n    const PACKET_COMMAND = 6;\n\n    const SERVERDATA_AUTH = 3;\n    const SERVERDATA_AUTH_RESPONSE = 2;\n    const SERVERDATA_EXECCOMMAND = 2;\n    const SERVERDATA_RESPONSE_VALUE = 0;\n\n    /**\n     * Create a new instance of the Rcon class.\n     *\n     * @param string $host\n     * @param integer $port\n     * @param string $password\n     * @param integer $timeout\n     */\n    public function __construct($host, $port, $password, $timeout)\n    {\n        $this->host = $host;\n        $this->port = $port;\n        $this->password = $password;\n        $this->timeout = $timeout;\n    }\n\n    /**\n     * Get the latest response from the server.\n     *\n     * [url=home.php?mod=space&uid=491268]@Return[/url] string\n     */\n    public function getResponse()\n    {\n        return $this->lastResponse;\n    }\n\n    /**\n     * Connect to a server.\n     *\n     * @return boolean\n     */\n    public function connect()\n    {\n        $this->socket = fsockopen($this->host, $this->port, $errno, $errstr, $this->timeout);\n\n        if (!$this->socket) {\n            $this->lastResponse = $errstr;\n            return false;\n        }\n\n        //set timeout\n        stream_set_timeout($this->socket, 3, 0);\n\n        // check authorization\n        return $this->authorize();\n    }\n\n    /**\n     * Disconnect from server.\n     *\n     * @return void\n     */\n    public function disconnect()\n    {\n        if ($this->socket) {\n                    fclose($this->socket);\n        }\n    }\n\n    /**\n     * True if socket is connected and authorized.\n     *\n     * @return boolean\n     */\n    public function isConnected()\n    {\n        return $this->authorized;\n    }\n\n    /**\n     * Send a command to the connected server.\n     *\n     * @param string $command\n     *\n     * @return boolean|mixed\n     */\n    public function sendCommand($command)\n    {\n        if (!$this->isConnected()) {\n                    return false;\n        }\n\n        // send command packet\n        $this->writePacket(self::PACKET_COMMAND, self::SERVERDATA_EXECCOMMAND, $command);\n\n        // get response\n        $response_packet = $this->readPacket();\n        if ($response_packet['id'] == self::PACKET_COMMAND) {\n            if ($response_packet['type'] == self::SERVERDATA_RESPONSE_VALUE) {\n                $this->lastResponse = $response_packet['body'];\n\n                return $response_packet['body'];\n            }\n        }\n\n        return false;\n    }\n\n    /**\n     * Log into the server with the given credentials.\n     *\n     * @return boolean\n     */\n    private function authorize()\n    {\n        $this->writePacket(self::PACKET_AUTHORIZE, self::SERVERDATA_AUTH, $this->password);\n        $response_packet = $this->readPacket();\n\n        if ($response_packet['type'] == self::SERVERDATA_AUTH_RESPONSE) {\n            if ($response_packet['id'] == self::PACKET_AUTHORIZE) {\n                $this->authorized = true;\n\n                return true;\n            }\n        }\n\n        $this->disconnect();\n        return false;\n    }\n\n    /**\n     * Writes a packet to the socket stream.\n     *\n     * @param $packetId\n     * @param $packetType\n     * @param string $packetBody\n     *\n     * @return void\n     */\n    private function writePacket($packetId, $packetType, $packetBody)\n    {\n        /*\n                Size                        32-bit little-endian Signed Integer                 Varies, see below.\n                ID                                32-bit little-endian Signed Integer                Varies, see below.\n                Type                32-bit little-endian Signed Integer                Varies, see below.\n                Body                    Null-terminated ASCII String                        Varies, see below.\n                Empty String    Null-terminated ASCII String                        0x00\n                */\n\n        //create packet\n        $packet = pack('VV', $packetId, $packetType);\n        $packet = $packet.$packetBody.\"\\x00\";\n        $packet = $packet.\"\\x00\";\n\n        // get packet size.\n        $packet_size = strlen($packet);\n\n        // attach size to packet.\n        $packet = pack('V', $packet_size).$packet;\n\n        // write packet.\n        fwrite($this->socket, $packet, strlen($packet));\n    }\n\n    /**\n     * Read a packet from the socket stream.\n     *\n     * @return array\n     */\n    private function readPacket()\n    {\n        //get packet size.\n        $size_data = fread($this->socket, 4);\n        $size_pack = unpack('V1size', $size_data);\n        $size = $size_pack['size'];\n\n        // if size is > 4096, the response will be in multiple packets.\n        // this needs to be address. get more info about multi-packet responses\n        // from the RCON protocol specification at\n        // https://developer.valvesoftware.com/wiki/Source_RCON_Protocol\n        // currently, this script does not support multi-packet responses.\n\n        $packet_data = fread($this->socket, $size);\n        $packet_pack = unpack('V1id/V1type/a*body', $packet_data);\n\n        return $packet_pack;\n    }\n}复制代码\n\n然后你需要再创建一个PHP文件(UTF-8无BOM)，写上如下内容\n结合支付系统等其他系统，就可以做到这样的效果。\n例如：利用积分购买职业(配合计分板和命令方块)\n这是我的私服中测试结果：\n购买前购买过程\n购买后\n当然你也可以配合其他的技术，例如AJAX，实现网页/移动服务器管理功能\n\n提醒：此方法不适用于开服！你服都关了,RCON服务都没了，还开个毛线啊\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "hemp",
+            "timestamp": 1546525860,
+            "txt_content": "是个好东西，某些时候可以派上用场"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1546561800,
+            "txt_content": " 本帖最后由 Akkariin 于 2019-1-4 08:32 编辑 \n\n很早以前就在用的技术了，还是我写的 PHPMC 1 的时候，就是用 Rcon 来执行命令的\n缺点很明显，关了服就没法再启动了，因此后来我换成了标准输入输出\nRcon 处理一些简单的命令还是可以的，我的 QQ 机器人都集成了服务器管理功能，用的就是 Rcon\n另外你的这个用户界面……逼死前端设计师（逃"
+        },
+        {
+            "author": "MeTerminator",
+            "timestamp": 1554478140,
+            "txt_content": "能把php的商店源码共享一下下吗？"
+        },
+        {
+            "author": "down_drop",
+            "timestamp": 1564893120,
+            "txt_content": "Akkariin 发表于 2019-1-4 08:30\n很早以前就在用的技术了，还是我写的 PHPMC 1 的时候，就是用 Rcon 来执行命令的\n缺点很明显，关了服就没法 ...\n机器人插件可以共享一下吗"
+        },
+        {
+            "author": "人走茶凉。",
+            "timestamp": 1580390880,
+            "txt_content": "图全炸。。"
+        },
+        {
+            "author": "浅笑hhh",
+            "timestamp": 1580469240,
+            "txt_content": "11111111111"
+        },
+        {
+            "author": "m00nfly",
+            "timestamp": 1580490480,
+            "txt_content": "提供了一个不错的思路，可以自己折腾一些额外的自动化管理功能了！"
+        },
+        {
+            "author": "yze2015",
+            "timestamp": 1580743860,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "阿莎蕊雅同学",
+            "timestamp": 1609614360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "阿莎蕊雅同学",
+            "timestamp": 1609633260,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

@@ -1,0 +1,109 @@
+{
+    "title": "Bukkit怎么写倒计时",
+    "author": "CarbonPaper99",
+    "replyCount": 20,
+    "timestamp": 1566019680,
+    "txt_content": "主要就是Player JoinEvent 然后计时器开启，当计数值大于100 ticks时调动插件运行传送指令\n但计时器不会写，是一次性的那种，用完就注销。",
+    "replies": [
+        {
+            "author": "吕易天",
+            "timestamp": 1566023160,
+            "txt_content": " 本帖最后由 吕易天 于 2019-8-17 14:38 编辑 \n\nPlayer p=e.getPlayer();\nnew Thread(()->{\nfor(int i=0;i<100;i++)\n{\nfor(int i2=0;i2<50;i++)\n{\nif(!p.isOnline())\n  return;\ntry{\nThread.sleep(1);\n}catch(Throwable e2){}\n}\n}\nif(!p.isOnline())\n  return;\nBukkit.getScheduler().runTask(this,()->{\nBukkit.dispatchCommand(p,\"命令（不带/）\");\n});\n}).start();\n\n\n"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566023880,
+            "txt_content": "吕易天 发表于 2019-8-17 14:26\nPlayer p=e.getPlayer();\nnew Thread(()->{\nfor(int i=0;i{\n就这种答案也好意思往上摆? 误人子弟吗?\n\n有两种方式: 使用 Bukkit 自带的计时器(BukkitRunnable) 或是 Java 提供的线程池: ScheduledExecutorService\n\n我个人推荐你用第二种(因为我比较熟悉).\n\n具体的代码怎么写, 还需要你自己去翻阅文档, 因为这两种方式都没什么技术含量, 百度一下这两个词就有大把多的教程\n\nBukkitRunnable\n\nScheduledExecutorService\n\n另外别用楼上提供的方法, 这种代码放服务器上简直就是害人\n\n另外要是我的答案对你有点用不给金粒也给个人气呗~\n"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566023940,
+            "txt_content": "凋灵兔子 发表于 2019-8-17 14:38\n就这种答案也好意思往上摆? 误人子弟吗?\n\n有两种方式: 使用 Bukkit 自带的计时器(BukkitRunnable) 或是 J ...\n我要是用Bukkit内置的那玩意玩家离线了也会继续等"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566024000,
+            "txt_content": "吕易天 发表于 2019-8-17 14:39\n我要是用Bukkit内置的那玩意玩家离线了也会继续等\n不好意思, Bukkit 内置的计时器也不是你这种用法"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566024000,
+            "txt_content": "凋灵兔子 发表于 2019-8-17 14:40\n不好意思, Bukkit 内置的计时器也不是你这种用法\n你的意思就是runTaskLater嘛，如果用runTaskLater会导致等待这100tick的时间内如果玩家离线又重进就会出现两个重复的task"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566024540,
+            "txt_content": " 本帖最后由 吕易天 于 2019-8-17 14:55 编辑 \n凋灵兔子 发表于 2019-8-17 14:40\n不好意思, Bukkit 内置的计时器也不是你这种用法\n你的意思：\nBukkit.getScheduler().runTaskLater(this,()->Bukkit.dispatchCommand(e.getPlayer(),\"命令\"),100);\n这种方法有问题，所以我才没用"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566025020,
+            "txt_content": "吕易天 发表于 2019-8-17 14:49\n你的意思：\nBukkit.getScheduler().runTaskLater(this,()->{Bukkit.dispatchCommand(e.getPlayer(),\"命令\" ...\n我已经说过了, 我个人习惯用第二种. 第一种是否存在问题我不知道, 但是第二种一定是安全的.\n\n插件属于服务端程序, 再写服务端程序的时候我都是慎之又慎, 特别是涉及到一些敏感资源比如数据库, IO, 线程 等. 因为这些资源如果使用不当, 在服务端这种同时为很多人工作的场景下, 一个很小的问题乘以一百个用户就是一个很大的问题, 而你的解决方式就是用 new Thread 的方式新建一个线程来计时吗? 如果有一百个玩家使用这个功能, 我就要创建一百个线程吗? 有一万个玩家在线我要为这么小的一个功能而耗尽所有服务器资源创建一万个线程吗?"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566025920,
+            "txt_content": " 本帖最后由 吕易天 于 2019-8-17 22:37 编辑 \n凋灵兔子 发表于 2019-8-17 14:57\n我已经说过了, 我个人习惯用第二种. 第一种是否存在问题我不知道, 但是第二种一定是安全的.\n\n插件属于服 ...\n那么我还有一个方法：\n类开头加:\npublic ConcurrentHashMap<String.Long> waitList=new ConcurrentHashMap<String,Long>();\npublic boolean terminate=false;\nonEnable写:\nBukkit.getPluginManager().registerEvents(this,this);\nThread a=new Thread(()->{\nwhile(!terminate)\n{\nPlayer[] temp=new Player[Bukkit.getOnlinePlayers().size()];\nBukkit.getOnlinePlayers().toArray(temp);\nfor(Player i : temp)\n{\nif(waitList.containsKey(i.getUniqueID().toString()))\n{\nif(waitList.get(i.getUniqueID().toString())<=0)\n{\nwaitList.remove(i.getUniqueID().toString());\nBukkit.getScheduler().runTask(this,()->Bukkit.dispatchCommand(i,\"命令\"));\n}else{\nwaitList.replace(i.getUniqueID().toString(),waitList.get(i.getUniqueID().toString())-1);\n}\n}try{\nThread.sleep(0,1);\n}catch(Throwable e){}\n}\ntry{\nThread.sleep(1);\n}catch(Throwable e){}\n}\n});\na.setDaemon(true);\nterminate=false;\na.start();\nonDisable写:\nwaitList.clear();\nterminate=true;\n然后:\n@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=false)\npublic void onPlayerJoin(PlayerJoinEvent e)\n{\nwaitList.put(e.getPlayer().getUniqueID().toString(),5000);\n}\n@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=false)\npublic void onPlayerLeave(PlayerQuitEvent e)\n{\nwaitList.remove(e.getPlayer().getUniqueID().toString());\n}\n"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566026400,
+            "txt_content": "吕易天 发表于 2019-8-17 15:12\n那么我还有一个方法：\n类开头加:\npublic ConcurrentHashMap waitList=new ConcurrentHashMap();\n如果这就是你的真实技术的话, 我建议你还是下架你所有的插件吧."
+        },
+        {
+            "author": "1139365029",
+            "timestamp": 1566027120,
+            "txt_content": " 本帖最后由 1139365029 于 2019-8-17 15:49 编辑 \n\n看了一下回复，\n考虑到假人压测和玩家有加入后立即退出的可能，\n至少需要这些要求：线程不能开太多，也不能不需要时一直开着，玩家退出后不需要继续执行，\n此外还需要额外满足：对玩家/服务器/指令等的操作必须在主线程，但其它操作不需要，\n\n简单的说一下思路，\n首先需要一个List或者类似的东西，\n玩家加入时，将玩家和时间记录进去，\n玩家退出时，或者执行操作之后，将记录移除，\n其次还需要一个线程，用于遍历记录，并进行操作，\n全部操作完毕之后，线程可以退出，\n最后，玩家加入时，除了记录之外，\n若线程未启动，则启动，反之不用管。\n\n代码（未测试，大佬勿喷）：\n忘记线程安全了，重新改了一下，把操作List的代码放到了主线程，感谢@吕易天 的提醒public class UserData {\n  public String name;\n  public Long time;\n}复制代码List<UserData> data=new ArrayList<UserData>();//记录\npublic boolean isRun=false;//线程是否在运行\n\n@EventHandler\npublic void PlayerJoinEvent(PlayerJoinEvent e){\n  UserData ud=new UserData();\n  ud.time=System.currentTimeMillis();\n  ud.name=e.getPlayer().getName();\n  data.add(ud);\n  if(!isRun){\n    UserDataRun ur=new UserDataRun();\n    ur.start();\n  }\n}\n\n@EventHandler\npublic void PlayerQuitEvent(PlayerQuitEvent e){\n  for(int i=0;i<data.size();i++){\n    if(data.get(i).name.equals(e.getPlayer().getName())){\n        data.remove(i);return;\n    }\n  }\n}复制代码public class UserDataRun extends Thread {\n  public void run(){\n    isRun=true;//标记线程正在运行\n    while(data.size()>0){\n      //转移到主线程\n      Bukkit.getServer().getScheduler().runTaskLater(this.plugin, new Runnable() {\n        public void run() {\n          Long time=System.currentTimeMillis()-5000L;//100ticks约5秒\n          for(int i=0;i<data.size();i++){\n            if(data.get(i).time<=time){\n              //在这里执行操作\n\n              data.remove(i);\n              i--;\n            }\n          }\n        }\n      }\n      , 1L);\n      try{\n        Thread.sleep(1000L);//延迟1秒（或者其它也行）\n      }catch(Throwable e){\n        isRun=false;return;\n      }\n    }\n    isRun=false;//线程结束\n  }\n}复制代码"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566027420,
+            "txt_content": "1139365029 发表于 2019-8-17 15:32\n看了一下回复，\n考虑到假人压测和玩家有加入后立即退出的可能，\n至少需要这些要求：线程不能开太多，也不能 ...\n由于ArrayList是非线程安全的，所以我用了ConcurrentHashMap"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566032160,
+            "txt_content": "吕易天 发表于 2019-8-17 15:37\n由于ArrayList是非线程安全的，所以我用了ConcurrentHashMap\n五秒钟内能上线几个人? 你就是这样把一个系统的稳定性寄托于运行时玩家登录多少吗? 好, 我告诉你, 我要压测一个服务器, 一秒钟我就能登录 1000 个人, 你的垃圾代码, 就是整个系统的突破口.\n\n如果你就是这种不负责任的态度, 我问你一句: 就你也配写插件?"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566032640,
+            "txt_content": " 本帖最后由 吕易天 于 2019-8-17 17:06 编辑 \n凋灵兔子 发表于 2019-8-17 16:56\n五秒钟内能上线几个人? 你就是这样把一个系统的稳定性寄托于运行时玩家登录多少吗? 好, 我告诉你, 我要压 ...\n我就是过于负责所以才写出了那种代码,我要真不负责我就直接Bukkit.getScheduler().runTaskLater(this,()->Bukkit.dispatchCommand(e.getPlayer(),\"命令\"),100);"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566032700,
+            "txt_content": "凋灵兔子 发表于 2019-8-17 16:56\n五秒钟内能上线几个人? 你就是这样把一个系统的稳定性寄托于运行时玩家登录多少吗? 好, 我告诉你, 我要压 ...\n如果是你你会怎么写？"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1566032940,
+            "txt_content": "吕易天 发表于 2019-8-17 17:04\n我就是过于负责所以才写出了那种代码\n哦呦, 牛逼啊大神, 过于负责, 所以写出能让别人轻易打垮服务器的代码, 大神负责的方式真是和我等彩笔有所不同哦.\n\n你还说然而有其他机制确保, 请问其他机制是什么? 你的意思是你的软件的稳定性需要其他 \"机制\" 来保证? 不好意思, 我的软件的安全性应该是我负责, 不应该把这部分责任, 就因为你不想负责就推卸给其他 \"机制\", 照你这么说以后别人要删除一个插件还要看你插件的脸色, 万一你的插件用了这个机制, 我就不能删, 是吧?\n\n再说了, ConcurrentHashMap 是你那么用的吗? 你怕是根本就没学过并发编程吧, 你以为 new 个 thread 就叫并发了? 赶紧好好学习学习吧.\n\n不回复你了, 装睡的人叫不醒就不叫了."
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566033060,
+            "txt_content": "凋灵兔子 发表于 2019-8-17 17:09\n哦呦, 牛逼啊大神, 过于负责, 所以写出能让别人轻易打垮服务器的代码, 大神负责的方式真是和我等彩笔有所 ...\n我什么时候说我那是并发了。。。"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566033360,
+            "txt_content": "凋灵兔子 发表于 2019-8-17 17:09\n哦呦, 牛逼啊大神, 过于负责, 所以写出能让别人轻易打垮服务器的代码, 大神负责的方式真是和我等彩笔有所 ...\n还有，如果没有其它机制确保，就算没有我的插件，服务器也会爆炸，只是快一点慢一点的问题"
+        },
+        {
+            "author": "w1453656098",
+            "timestamp": 1566100740,
+            "txt_content": "学习 学习 学习"
+        },
+        {
+            "author": "2280761425",
+            "timestamp": 1566125100,
+            "txt_content": " 本帖最后由 2280761425 于 2019-8-20 14:40 编辑 \n\n如果是cd可以用System.currentTimeMillis()获取当前时间（单位是毫秒）就好，不用开线程这么麻烦延时的话还是用bukkit提供的开延时方法吧（玩家退出取消就行）"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1566134160,
+            "txt_content": "2280761425 发表于 2019-8-18 18:45\n其实用System.currentTimeMillis()获取当前时间（单位是毫秒）就好，不用开线程这么麻烦 ...\n我觉得你还可以用System.nanoTime()，精确到了纳秒"
+        }
+    ]
+}

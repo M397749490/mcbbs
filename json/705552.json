@@ -1,0 +1,69 @@
+{
+    "title": "[1.9+]用CB实现原版幸运方块",
+    "author": "X_Crystal",
+    "replyCount": 12,
+    "timestamp": 1499767920,
+    "txt_content": " 本帖最后由 X_Crystal 于 2017-7-24 22:05 编辑 \n\n这是我一年前自己做的\n应该没有人那么巧也做了这个吧。。。\n\n然后就是\n如果有错误或是漏掉的步骤\n请抱着积极的生活态度和热爱社会的积极心态向我指出\n萌新会很感谢的~哦~\n\n开始正经内容\n\n幸运方块是指破坏该方块后产生一个或一系列随机事件的方块\n根据上面那句话，可以将本帖内容分成三部分\n\n1）幸运方块生成与定位阶段\nA.放置幸运方块\n我的方法是使用定位生物来生成特定方块\n（老方法啦。。。而且也不是什么很特殊的方块啦。。。）\n（为了偷懒，用了下面这种方式，后文同）\n三个持续激活的命令方块\n/execute @e[type=Shulker] ~ ~ ~ /setblock ~ ~ ~ minecraft:tnt 1 replace\n/execute @e[type=Shulker] ~ ~ ~ detect ~ ~ ~ minecraft:tnt 1 /summon ArmorStand ~ ~100 ~ {NoGravity:1b,Invisible:1b,Silent:1b,Marker:1b,Invulnerable:1b,Tags:[\"lucky_block_pos\"]}\n/kill @e[type=Shulker]复制代码这是通过放置潜影贝来生成“命令方块”\n原理：\n放置的方块是一破坏就会点燃的TNT，通过这个方块可以实现破坏时被定位\n盔甲架后面跟的一大堆NBT是保证盔甲架在原位保持不动且不会消失、不会被发现（除使用/kill指令外）\n盔甲架的tag是为了在点燃TNT的时候确定为幸运方块的激活点，可以用[tag=lucky_block_pos]选择\n生成在上方100格是为了破坏方块时不会阻碍（100只是我用的数字，视情况而定）\n电脑配置好的同学有兴趣的话可以试一下，把第三个去掉，只执行第一条和第二条指令 [滑稽脸]\nB.定位幸运方块\n上面第二个命令方块的指令以上面举的100格为例子讲解\nTNT的附加值设为1时，是一破坏就会爆炸的状态（可以按F3将鼠标移到方块上，看右边底端的true和false）；破坏后产生一个点燃的TNT（1.10.2中可以用[type=PrimedTnt]选择）。\n所以，本阶段的命令方块指令如下\n/execute @e[type=PrimedTnt] ~ ~ ~ /execute @e[type=ArmorStand,tag=lucky_block_pos,r=2] ~ ~ ~ /summon ArmorStand ~ ~-100 ~ {NoGravity:1b,Invisible:1b,Invulnerable:1b,Silent:1b,Marker:1b,Tags:[\"lucky_block_active\"]}\n/execute @e[type=ArmorStand,tag=lucky_block_active] ~ ~ ~ /kill @e[type=PrimedTnt,r=2]\n/execute @e[type=ArmorStand,tag=lucky_block_active] ~ ~ ~ /kill @e[type=ArmorStand,tag=lucky_block_pos,r=0,c=1,dy=100]复制代码到目前为止，已经将点燃的TNT和原盔甲架清除，在幸运方块原地使用了带有lucky_block_active标签的盔甲架代替，完成定位。\n接下来就是随机选择事件、生成事件的阶段\n\n2）随机事件选择阶段\n\n因为是随机选择，调皮的lz当然不会放过/spreadplayers的~啦~\n/spreadplayers是在一定范围内随机传送的指令，我们可以利用其随机性生成随机选择\n（附带说一句，lz之所以不用计分板的高频加/减循环是为了尽可能保证随机，当然使用这种方法也是可以的，后面会具体讲）\n比如，我做了24个事件，要利用随机选择，建议通过给盔甲架（带有lucky_block_active标签）某个计分板设置为随机分数来实现\n如下，先创建计分板并召唤盔甲架/scoreboard objectives add random dummy\n/summon ArmorStand ~ ~ ~ {Tags:[\"random\"]}复制代码创建之后，根据下图举例说明（可依照自己的想法改动，此处不提供固定的指令）：\n（带下划线表示可以修改，加粗部分表示重点部分）\n红色：\na.  /scoreboard players set @e[type=ArmorStand,tag=lucky_block_active] random 1\nb.  /scoreboard players set @e[type=ArmorStand,tag=lucky_block_active] random 2\nc.  /scoreboard players set @e[type=ArmorStand,tag=lucky_block_active] random 3\nd.  /scoreboard players set @e[type=ArmorStand,tag=lucky_block_active] random 4\n即：底下一层命令方块为设置盔甲架（带有active标签）在计分板random的分数，依照分数可生成对应事件\n注意：正中间（有浮冰的那条线）在红色层（底层）没有命令方块（/spreadplayers不会将盔甲架传送到那里）\n蓝色：\na,b,c,d.  /tp @e[type=ArmorStand,tag=random] X Y Z\n注意：这里的(X,Y,Z)是浮冰顶端命令方块（黄色a）再向上一格的位置（盔甲架召唤位置），即黄色a在(X,Y-1,Z)\n黄色：\na.  /spreadplayers ~ ~ 1 2 false @e[type=ArmorStand,tag=random]\nb.  /setblock ~ ~2 ~ minecraft:stone_pressure_plate 0 destroy\nb是以前用的，现在加上白色a之后似乎不用黄色b了。。。\n白色：\na.  /execute @e[type=ArmorStand,tag=random] ~ ~ ~ detect ~ ~ ~ minecraft:stone_pressure_plate 1 /setblock ~ ~ ~ minecraft:stone_pressure_plate 0 destroy\n\n这里是利用了destroy可以使被激活的压力板快速变回未激活的状态，从而快速多次激活底下的命令方块\n\n\n\n\n\n2017-07-11_16.46.57 - 副本.png (185.51 KB, 下载次数: 5)\n\n下载附件\n\n2017-7-11 16:58 上传\n\n\n\n\n\n下面是指令的大致结构：\n\n红\n/scoreboard players set @e[type=ArmorStand,tag=lucky_block_active] random [对应事件编号]\n蓝\n/tp @e[type=ArmorStand,tag=random] [X] [Y] [Z]\n黄\n/spreadplayers ~ ~ [最小扩散范围] [最大扩散范围] false @e[type=ArmorStand,tag=random]\n白\n/execute @e[type=ArmorStand,tag=random] ~ ~ ~ detect ~ ~ ~ minecraft:stone_pressure_plate 1 /setblock ~ ~ ~ minecraft:stone_pressure_plate 0复制代码\n\n至此，我们已经给每个出现的盔甲架（带有lucky_block_active标签）附加上的随机生成的计分板分数\n为了使盔甲架在获得分数到生成事件之间分数不发生变化，执行以下指令：\n/scoreboard players tag @e[type=ArmorStand,score_random_min=1,tag=lucky_block_active] remove lucky_block_active复制代码\n表示：所有在random计分板中分数大于等于1（这里表示分数不为0）的盔甲架（lucky_block_active），执行此指令后会消除其lucky_block_active标签\n此指令可以在一个独立的循环型命令方块（保持开启）中执行，因为在盔甲架得到分数到消除标签、锁定分数之间，即使分数发生变化，也对整体没有影响\n\n3）随机事件生成阶段\n\n现在到最后阶段啦~\n事件生成一般是以......的方式构造命令方块组的（全部使用“保持开启”模式）\n中间部分（除去第一个和最后一个）的命令方块自己随便用，首尾两个命令方块有一定的要求\n第一个\n/scoreboard players tag @e[score_random_min=2333,score_random=2333] add 2333\n第二个\n/scoreboard players reset @e[tag=2333] random\n最后一个\n/kill @e[type=ArmorStand,tag=2333]\n复制代码这里2333代替了盔甲架在random最终获得的分数（第二个其实无所谓啦。。。）\n幸运方块的事件生成是以盔甲架（2333标签）为参照物定位的\n比如这个简单黑曜石水牢\n/execute @e[tag=2333] ~ ~ ~ /execute @p ~ ~ ~ /fill ~-1 ~-1 ~-1 ~1 ~2 ~1 minecraft:obsidian 0 replace\n/execute @e[tag=2333] ~ ~ ~ /execute @p ~ ~ ~ /setblock ~1 ~1 ~ minecraft:glass 0 replace\n/execute @e[tag=2333] ~ ~ ~ /execute @p ~ ~ ~ /setblock ~-1 ~1 ~ minecraft:glass 0 replace\n/execute @e[tag=2333] ~ ~ ~ /execute @p ~ ~ ~ /setblock ~ ~1 ~1 minecraft:glass 0 replace\n/execute @e[tag=2333] ~ ~ ~ /execute @p ~ ~ ~ /setblock ~ ~1 ~-1 minecraft:glass 0 replace复制代码\n然后就做完啦！\n\n全过程在上面的隐藏内容里\n\n\n最后，萌新日常般地祝各位同学身~体~健~康~",
+    "replies": [
+        {
+            "author": "pineapple_",
+            "timestamp": 1499769660,
+            "txt_content": "https://wapp.baidu.com/f?kz=4713849869\n我比你高一个版本，233333"
+        },
+        {
+            "author": "X_Crystal",
+            "timestamp": 1499773080,
+            "txt_content": "pineapple_ 发表于 2017-7-11 18:41\nhttps://wapp.baidu.com/f?kz=4713849869\n我比你高一个版本，233333\n23333333333333333\n不过我这只是教程而已了啦ovo\n233333333333333333333333333333333333333"
+        },
+        {
+            "author": "南歌_未央_",
+            "timestamp": 1499786580,
+            "txt_content": "支持一下吧"
+        },
+        {
+            "author": "040516xcy",
+            "timestamp": 1499792460,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "耀冰",
+            "timestamp": 1500047100,
+            "txt_content": "真的是dalao  "
+        },
+        {
+            "author": "qq1027008428",
+            "timestamp": 1500057360,
+            "txt_content": "支持~~~~~~~~"
+        },
+        {
+            "author": "sjx",
+            "timestamp": 1500723480,
+            "txt_content": "电脑配置好的同学有兴趣的话可以试一下，把第三个去掉，只执行第一条和第二条指令\n于是就每gt生成一个as？"
+        },
+        {
+            "author": "798987840",
+            "timestamp": 1500732000,
+            "txt_content": "大佬大佬"
+        },
+        {
+            "author": "798987840",
+            "timestamp": 1500732060,
+            "txt_content": "{:668:6666666666666666666"
+        },
+        {
+            "author": "798987840",
+            "timestamp": 1500732120,
+            "txt_content": "喜欢喜欢喜欢"
+        },
+        {
+            "author": "豆浆heduo",
+            "timestamp": 1500812700,
+            "txt_content": "支持"
+        },
+        {
+            "author": "X_Crystal",
+            "timestamp": 1500904920,
+            "txt_content": "sjx 发表于 2017-7-22 19:38\n于是就每gt生成一个as？\n如果那样做的话会的"
+        }
+    ]
+}

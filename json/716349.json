@@ -1,0 +1,44 @@
+{
+    "title": "[UD]更方便，更快捷的命令注册方式",
+    "author": "魂葬",
+    "replyCount": 7,
+    "timestamp": 1502006880,
+    "txt_content": " 本帖最后由 魂葬 于 2017-8-6 16:25 编辑 \n\n一般情况下，大多数插件在Bukkit注册指令中选择的是通过plugin.yml文件配置来注册指令。例如： name: xxx\nmain: xxx.xxx.xxx\nversion: xxx\nauthor: xxx\ncommands: \n  xxx:复制代码因为yml对格式要求很严格，少写一个空格或者多写一个空格Bukkit根本读不出来。为了方便对命令的注册我去查了Bukkit源码。下面是一些心得。        \n\n\n\n\n07211016_Rnff.png (17.09 KB, 下载次数: 6)\n\n下载附件\n\n2017-8-6 15:56 上传\n\n\n\n\n\n这是存在于Bukkit org.bukkit.command.defaults下的一个Kill指令。在构造函数中它  \nsuper(\"kill\");\nthis.description = \"Commits suicide, only usable as a player\";\nthis.usageMessage = \"/kill\";复制代码这里的super确切的说是调用了org.bukkit.command.Command下的第一个构造函数。   \n\n\n\n\n2.png (20.4 KB, 下载次数: 7)\n\n下载附件\n\n2017-8-6 15:57 上传\n\n\n\n\n\n而KillCommand的构造函数是被  \n\n\n\n\n3.png (9.57 KB, 下载次数: 6)\n\n下载附件\n\n2017-8-6 15:58 上传\n\n\n\n\n\n这个调用的。不难看出它是调用了某一个类的自身register方法。而这个类就是org.bukkit.command.SimpleCommandMap。而SimpleCommandMap是被Bukkit一开始调用过的。要获得SimpleCommandMap只能在CraftServer下的方法getCommandMap()获得   \n  \n\n\n\n\n4.png (21.49 KB, 下载次数: 4)\n\n下载附件\n\n2017-8-6 15:58 上传\n\n\n\n\n\n\n\n\n\n5.png (1.41 KB, 下载次数: 14)\n\n下载附件\n\n2017-8-6 15:58 上传\n\n\n\n\n\n但是在Server下并没有getCommandMap这个方法。所以我们需要通过反射来获得CommandMap进行进一步操作。\nprivate void getCommandMap() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {\n  final Class<?> c = Bukkit.getServer().getClass();\n    for (final Method method : c.getDeclaredMethods())\n      if (method.getName().equals(\"getCommandMap\"))\n        this.commandMap = (CommandMap) method.invoke(Bukkit.getServer(), new Object[0]);\n    }复制代码当然在这个方法的类中定义了一个commandMap的Field。    \n获得了commandMap那我们要怎样继续操作呢？     \n\n\n\n\n10.png (9.11 KB, 下载次数: 2)\n\n下载附件\n\n2017-8-6 16:00 上传\n\n\n\n\n\n还是这里，它调用了SimpleCommandMap的register方法。 \n\n\n\n\n11.png (25.55 KB, 下载次数: 4)\n\n下载附件\n\n2017-8-6 16:01 上传\n\n\n\n\n   \n它首先调用了第一个register，再由第一个regiser调用第二个。    \n不难看出调用register这个方法的两个参数的类型分别为String和Command。    \n那我们首先先从Command下手。    \n因为Command是一个抽象类，不建议通过直接new的方式来获取Command对象，这样不太方便管理。代码也显得冗长。所以我建议新建一个类来继承它。        \n\n\n\n\n12.png (23.49 KB, 下载次数: 4)\n\n下载附件\n\n2017-8-6 16:01 上传\n\n\n\n\n\n继承这个抽象类后，在系统的引导下它会让你生成两个构造函数中的一个和一个必要的execute方法。    \n下面我来介绍一下构造函数：    \n第一个构造函数只有一个参数。这个参数就如同它本身的名字一样就是这个指令的名字，也就是说要使用这个指令需要输入的指令。如：/kill kill就是它的name。    \n第二个构造函数有四个参数。第一个参数同样是它的名字；第二个参数就是他的描述，也就是在使用 /help 你的指令名字 系统会显示出来的字符串；第三个参数就是在execute方法返回值为false的时候系统会显示这个字符串；第四个参数就是该指令的简称。如：假设你设置了k为kill的简称，那么当你输入/k 的时候是等同于输入/kill。    \nexecute方法也就是和平常通过plugin.yml注册的调用onCommand方法的参数一样。分别为sender，输入的指令（如果是简称则显示简称），参数。    \n知道了Command的对象如何获取，那应该如何写入第一个参数string呢？    \n（PS：因为本人比较严谨（其实就是强迫症啦），所以我不想乱入几个字符串）    \n然后我去查找了加载plugin.yml时的源码。通过JavaPluginLoader下的loadPlugin(File file)方法中一步一步查找到了加载plugin.yml中的command节点的源码。也就是在org.bukkit.plugin.PluginDescriptionFile类下的loadMap(Map<?, ?> map)方法中。    \n\n\n\n\n20.png (31.33 KB, 下载次数: 8)\n\n下载附件\n\n2017-8-6 16:03 上传\n\n\n\n\n\n再通过PluginDescriptionFile下的commands这个Field查到它被调用的地方，最后在org.bukkit.plugin.SimplePluginManager下的enablePlugin(Plugin plugin)方法中找到。    \n\n\n\n\n21.png (22.49 KB, 下载次数: 5)\n\n下载附件\n\n2017-8-6 16:04 上传\n\n\n\n\n\n它调用了SimpleCommandMap的registerAll方法。     \n\n\n\n\n30.png (15.45 KB, 下载次数: 8)\n\n下载附件\n\n2017-8-6 16:04 上传\n\n\n\n\n\n所以不难看出那个string类型的对象应该是plugin.getDescription().getName()。而plugin则是一个JavaPlugin对象，所以获得commandMap后可以通过register(this.getDescroption().getName()（PS：当然这是在继承JavaPlugin类中调用，用其他类调用则要获得JavaPlugin的对象）,Command对象)来注册指令。    然后我又去看了plugin.getDescription().getName()到底是什么。     \n\n\n\n\n40.png (21 KB, 下载次数: 5)\n\n下载附件\n\n2017-8-6 16:05 上传\n\n\n\n\n\n不难看出，plugin.getDescription().getName()这个方法返回值应该是plugin.yml的name的那一项，并且如果name中含有空格则会被替换为“_”。    \n最后我在列举一下使用commandMap来注册指令比通过plugin.yml来注册指令的好处。 \n1.你不用再担心会在plugin.yml中写错格式，写中文担心乱码的问题了。 \n2.使用Command类下面独有的execute，在多个指令同时存在时你不用在想使用plugin.yml而通过onCommand方法判断是不是其中某一个指令，而是直接独立使用execute来实现。     \n最后，谢谢大家阅读这篇帖子。希望帖子内容会对你们有用哦~\n\n[groupid=1181]Unknown Domain[/groupid]",
+    "replies": [
+        {
+            "author": "ddyy163",
+            "timestamp": 1503715920,
+            "txt_content": "essentials正是用这种方法注册指令的，毕竟人家指令挺多的哈哈"
+        },
+        {
+            "author": "zghh008",
+            "timestamp": 1504006560,
+            "txt_content": "ddyy163 发表于 2017-8-26 10:52\nessentials正是用这种方法注册指令的，毕竟人家指令挺多的哈哈\n哇。你有可能不了解ess。ess不是通过这种方式注册的。在它的plugin.yml中仍然有command子节点。"
+        },
+        {
+            "author": "ddyy163",
+            "timestamp": 1504143540,
+            "txt_content": "zghh008 发表于 2017-8-29 19:36\n哇。你有可能不了解ess。ess不是通过这种方式注册的。在它的plugin.yml中仍然有command子节点。 ...\n可能我记错了，之前看其他插件源代码的时候发现的"
+        },
+        {
+            "author": "qertyumoho",
+            "timestamp": 1509255060,
+            "txt_content": "没看明白，能不能把要操作的分出来？"
+        },
+        {
+            "author": "360导航",
+            "timestamp": 1520157900,
+            "txt_content": "布局太多反而看迷了，直接说方法最好"
+        },
+        {
+            "author": "Aeva",
+            "timestamp": 1529417160,
+            "txt_content": " 本帖最后由 Aeva 于 2018-6-19 22:09 编辑 \n\n为什么不使用getDeclaredMethod(\"getCommandMap\")直接获得方法而是通过循环?这是我唯一不理解的地方\n\n\n\n\n编号1037.jpg (646 Bytes, 下载次数: 4)\n\n下载附件\n\n2018-6-19 22:04 上传\n\n\n\n\njava初学者,求解答\n"
+        },
+        {
+            "author": "零式解说",
+            "timestamp": 1532487600,
+            "txt_content": "Aeva 发表于 2018-6-19 22:06\n为什么不使用getDeclaredMethod(\"getCommandMap\")直接获得方法而是通过循环?这是我唯一不理解的地方java初 ...\n通过循环的话，可以最大限度的调试误差，不像getDeclaredMethod(\"getCommandMap\")直接获得方法一样有误差便无法读出。"
+        }
+    ]
+}

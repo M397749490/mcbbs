@@ -1,0 +1,49 @@
+{
+    "title": "[基础插件教程][Bukkit]让插件命令支持Tab自动补全",
+    "author": "gooding300",
+    "replyCount": 8,
+    "timestamp": 1535547120,
+    "txt_content": " 本帖最后由 gooding300 于 2018-9-2 13:37 编辑 \n\n0.引言\n进行过1.13游戏的玩家都会知道，Mojang从这一版本开始为命令引入了一套自动的Tab补全，举个例子：\n\n当然，在1.13之前的版本，也可以通过手动按下Tab来完成这样的补全\n\n既然用过的人都说好，那么如何让自己的插件中的命令也能支持这样的自动补全呢？\n所幸，Bukkit和Spigot为我们引入了相关的支持。\n\n1.新事物\n而这个提供了这一功能的接口名为 TabCompleter 。\n顾名思义，这个接口就是用来进行Tab自动补全的，官方将实现了这个接口的类定义为“一个可以提供命令补全建议的类”，我在这里简称自动补全器\n这个接口中只有一个方法，名为onTabComplete。public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args);复制代码\n这个方法可以如此介绍的：\n在用户输入命令时被调用，请求返回可能的命令补全列表。\n参数 sender 命令的来源。如果玩家在命令方块中进行补全，将使用的参数是操作的玩家而不是被操作的命令方块。\n参数 command 会被执行的命令\n参数 alias 所使用的命令别名\n参数 args 传递给命令的参数数组，包括尚未补全的参数。\n返回 可能的命令补全列表，或返回null以使用默认的自动补全功能(玩家名称补全器)。\n例如在上图中，我们所看到的“minecraft:heart_of_the_sea”以及“minecraft:hearvy_weighted_pressure_plate”就是命令补全列表，“@p”、“hea”组成的数组就是参数数组。也就是说，借助这个接口，我们可以为自己的命令提供完全自定义的Tab补全了。\n\n2.如何使用\n先用一张图表示相关类的继承关系。\n\n一个普通的插件，都会有一个继承（extend）自JavaPlugin的类，这里称其为插件主类。public class TestPlugin extends JavaPlugin {\n    public void onEnable() {\n        //插件启动\n    }\n\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        //处理命令\n    }\n}复制代码抑或将命令的执行部分从插件主类中分离出去，单独实现（implement）CommandExecutor，这里称其为命令类。\npublic class TestCommand implements CommandExecutor {\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        //处理命令\n    }\n}复制代码\n由上文可知，只要一个类实现了TabCompleter，便可以提供自动补全功能，因此：\n使用插件主类直接进行命令操作的，只需要覆写（Override）onTabComplete方法即可。public class TestPlugin extends JavaPlugin {\n    public void onEnable() {\n        //插件启动\n    }\n\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        //处理命令\n    }\n\n    @Override\n    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {\n        //处理命令补全\n    }\n}复制代码使用独立命令类的，请将实现CommandExecutor改为实现TabExecutor（无需修改执行相关的代码），增加onTabComplete方法即可。\npublic class TestCommand implements TabExecutor {\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        //处理命令\n    }\n\n    @Override\n    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {\n        //处理命令补全\n    }\n}复制代码\n最后，请不要忘记在setExecutor（设置命令执行器）的时候，也同时setTabCompleter（设置自动补全器）。\n\n3.示例\n在这个示例中，我们为“sub”这个命令进行了子命令补全。\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Collectors;\n\npublic class TestPlugin extends JavaPlugin {\n    private static final String COMMAND_NAME = \"sub\";\n    private String[] subCommands = {\"test\", \"sample\", \"sam\"};//子命令\n\n    public void onEnable() {\n        //注册命令对应的执行器\n        getCommand(COMMAND_NAME).setExecutor(this);\n        //注册命令对应的自动补全器\n        //如果注册了执行器，且自动补全器和执行器在同一个类中，Bukkit会自动尝试将执行器实例转换为命令补全器实例\n        //因此这里可以注册也可以不注册，若注册则不再尝试类型转换\n        getCommand(COMMAND_NAME).setTabCompleter(this);\n    }\n\n    @Override\n    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {\n        //将第二个参数发给命令执行者\n        sender.sendMessage(args.length > 0 ? args[0] : \"nothing\");\n        return true;\n    }\n\n    @Override\n    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {\n        //如果不是能够补全的长度，则返回空列表\n        if (args.length > 1) return new ArrayList<>();\n\n        //如果此时仅输入了命令\"sub\"，则直接返回所有的子命令\n        if (args.length == 0) return Arrays.asList(subCommands);\n\n        //筛选所有可能的补全列表，并返回\n        return Arrays.stream(subCommands).filter(s -> s.startsWith(args[0])).collect(Collectors.toList());\n    }\n}复制代码\n4.进阶\n如果需要补全的是一个物品甚至更多的匹配选项该怎么办？\n显然，不断的流式操作本质上是遍历，难以满足每输入一个字母都要进行补全的操作。\n这时，就可以请上一个有名的数据结构——Trie了，这个数据结构又称为字典树或者前缀树。\n这个数据结构正好能够解决这一需求，只需要在插件启动的时候生成这样一棵“树”，每次进行补全查询的时候只需要极少的时间（时间复杂度可以从O(n)优化到O(logn)）就能获得想要的结果。\n\n教程适用于Spigot/Bukkit服务端，教程内的所有代码均可以自由使用。\n希望这个教程能起到抛砖引玉的作用，欢迎提出更好的实践方案，感谢您的耐心阅读。\n\n\n",
+    "replies": [
+        {
+            "author": "海螺螺",
+            "timestamp": 1535827920,
+            "txt_content": " 本帖最后由 754503921 于 2018-9-2 03:02 编辑 \n而这个在1.13被引入，提供了这一功能的接口名为 TabCompleter 。\n这玩意儿真的是 1.13 引入的吗\n这个接口我记得1.7.10的bukkit就有了，只不过彼时的Minecraft需要手按tab键补全\n\n不断的流式操作纵然有多核运算的加持\n还有这句话什么意思 QAQ\n\n我想学学新的，比如新版本的命令参数类型，指定某个参数只能为int或者玩家啥的\n33dalao请务必讲一讲\ntab补全请求我觉得可以丢给另一个线程处理了直接发一个包回去，嗯，请也讲一讲"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1535867220,
+            "txt_content": " 本帖最后由 gooding300 于 2018-9-2 14:06 编辑 \n754503921 发表于 2018-9-2 02:52\n这玩意儿真的是 1.13 引入的吗\n这个接口我记得1.7.10的bukkit就有了，只不过彼时的Minecraft需要手按tab键 ...\n非常感谢您的建议，已针对您提出的问题再次查看了相关源码并进行了修正。\n\n1.经过搜索，确实在1.7.10的Bukkit文档中找到了这个类，已修改相关内容。\n2.之前对Stream API的并行处理有所误解，未考虑到并行处理不能保证顺序，不适用于补全操作，现已修正。\n3.经过查看Bukkit相关源码，仅发现了玩家名字补全器，原版其他类型的补全器应该尚未加入。\n4.我觉得应该没有必要多线程处理，在Trie中匹配的时间复杂度仅为O(logn)，即使有一亿个待匹配项，只要限定最终的匹配项数量（例如只有一个字母的时候不匹配，否则网络也是个瓶颈），也可以在1ms内处理完毕。"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1536213600,
+            "txt_content": "之前对Stream API的并行处理有所误解，未考虑到并行处理不能保证顺序\n为啥是并行处理，Arrays.stream 返回的应该不是一个并行流，并且要顺序的话 sorted() 就行\n\n至于多线程处理那个，假如我想做个插件搜索引擎（我有病），让百度补全，能不能在取得结果后直接向客户端发送补全包\n\n原版其他的补全器肯定是没有的，但是我们水桶开发者应该非常熟悉搞nms的操作了，你就研究下呗"
+        },
+        {
+            "author": "1204074991",
+            "timestamp": 1558835400,
+            "txt_content": "怎么补全指令呢？好像只能补全参数的样子。"
+        },
+        {
+            "author": "Tcaks_NB",
+            "timestamp": 1561908000,
+            "txt_content": "后排表示支持。"
+        },
+        {
+            "author": "3072481711",
+            "timestamp": 1595082360,
+            "txt_content": "厉害了，楼主"
+        },
+        {
+            "author": "空辉者也",
+            "timestamp": 1598006040,
+            "txt_content": "谢谢楼主，终于不用记插件命令了"
+        },
+        {
+            "author": "桃子酱ME",
+            "timestamp": 1598039340,
+            "txt_content": "楼主我爱你"
+        }
+    ]
+}

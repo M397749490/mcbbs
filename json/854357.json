@@ -1,0 +1,34 @@
+{
+    "title": "gradle缓存的简单分析",
+    "author": "森林蝙蝠",
+    "replyCount": 5,
+    "timestamp": 1554104400,
+    "txt_content": " 本帖最后由 森林蝙蝠 于 2019-11-10 15:30 编辑 \n\n前言：\n有的时候，会看到新人求forge的mdk，也看到新人抱怨为什么forge要这么慢悠悠的构建直接发个整包多好，对这种情况我只想说，还是太年轻，太单纯，因为forge的开发环境不止一个mdk这么简单。\nforge说白了还是一个gradle工程（不了解什么是gradle的可自己百度），由gradle来管理所需要的文件（也即所谓的开发环境），所有gradle构建出来的文件都在C:\\Users\\你的用户名\\.gradle文件夹下，那么一个gradle文件夹究竟有多大呢：\n\n\n虽然这2.8G多是我把forge1.12，1.13，fabric的构建杂七杂八加在一起的总和，但即使是一个“纯净”的forge构建，gradle文件夹压缩后的大小也有500多M，可以说很庞大了——现在明白为什么很少有人分享整包了吧？\n那么这成吨的文件到底代表着什么，就让我们来康康……\n\nCaches文件夹：\n顾名思义，这个文件夹里面是各种缓存文件，你的MC工程直接依赖于这些缓存，千万不要优化症发作，把这些缓存当垃圾清理了哦。\n\n4.9，4.10.2，5.2.1三个文件夹对应三个gradle版本（4.9，4.10.2，5.2.1）的构建信息，有不少是.bin的二进制文件，不可读，略过。\nfabric-loom：fabric loom是fabric使用的gradle构建插件，用于将notch name反混淆成自己的yarn，在这个文件夹下可以看到混淆/反混淆之后的的MC客户端和服务端，以及yarn反混淆表。\n\n\n\n\nQQ图片20190401112754.png (35.59 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:02 上传\n\n\n\n\n\n\n\n\n\nQQ图片20190401114117.png (45 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 14:41 上传\n\n\n\n\n\n（我使用的fabric用的是19w11b的快照，mappings文件夹里面就是yarn表了）\n\nforge_gradle：这个文件夹需要着重介绍一下，因为这个文件夹存储着forge gradle的构建结果：\n\nassets：资源文件夹。\nlibraries：存放着MC的native依赖库，目前只有text2speech native（调用win自带的文字语音转换）和lwjgl native。\nmaven downloader：这里存放着所有从forge maven构建站上下载到的jar文件。\n\n\n\n\nQT2GVUJU6`X196FP]E1MLTL.png (34.83 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 14:48 上传\n\n\n\n\n\n\n\n\n\nQQ图片20190401145448.png (20.51 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\n（Apache common的io分包，作为MC的一个依赖项就被保存在这里）\n\n\nminecraft_repo：未经反混淆的MC源码（notch name）和notch name反混淆到srg name的对照表（mappings），以及mcp本体和修改mc代码的配置（mcp config），对应mcp_repo里的类似文件。\nmcp_repo：mcp repository的缩写，存放着srg反混淆之后的mc源代码，和确定依赖项的pom文件（pom是maven专用的格式）。\n\nminecraft_user_repo：反混淆完毕之后的MC文件（mcp name），1.13能被正常读出来的源码就存放在这里。\nsrg to snapshot：将srg反混淆之后的源码进一步反混淆成正常的代码（mcp name）对照表。\n\n\n\n\nQQ图片20190401152806.png (16 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\n\n\n1.13forge反编译结果（decomp）和重新编译后的class文件（recomp），source（源码），launcher（启动器）包都在这个文件夹下，需要可自取。\n\n\njars-3：这里存储着一些gradle相关的idea插件，以及它们的不同版本。\n\n\n\n\nQQ图片20190404000636.png (89.28 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\n\n不要被这些乱码一般的文件夹名吓到，点进去就是正常的插件jar文件。\n\nminecraft文件夹存储着1.12及其以前的资源文件（包括MC本体和forge）。\n\n\n\n\n\nQQ图片20190410201655.png (45.8 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\npatches文件夹下，可以看到forge给MC原版打的补丁代码。\n\n\n\n\n\nQQ图片20190410202039.png (31.49 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\n补丁代码的真容：\n\n\n\n\n\nQQ图片20190410203023.png (74.02 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:04 上传\n\n\n\n\n\n如果你的mod依赖于其他的mod进行开发，那么你的build.gradle文件中应该会有deobfCompile或者deobfProvided之类的声明项（deobf指反混淆，因为forge mod运行的时候要重新混淆，因此开发时要使用反混淆版本），deobf文件夹中保存着这些依赖mod文件。\n\n\n\n\n\nQQ图片20190410203254.png (21.25 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:09 上传\n\n\n\n\n\n这个文件夹下保存着MC的本体文件，minecraft server则在.gradle\\caches\\minecraft\\net\\minecraft\\minecraft_server\\1.12.2之下。\n\n\n\n\n\nQQ图片20190410203703.png (16.11 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n.gradle\\caches\\minecraft\\net\\minecraftforge\\forge\\1.12.2-14.23.4.2705\\snapshot\\20171003\n20171003是forge1.12默认使用的1.12反混淆表版本，如果开发者使用了别的版本（例如20180814），snapshot文件夹下就会有不止一个文件夹。\n20171003文件夹下保存着forge的源码（source）和构建之后的forge版本，此外还有srg版本供开发者选择。\n\n\n\n\n\nQQ图片20190410204755.png (63.38 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:06 上传\n\n\n\n\n\n.gradle\\caches\\minecraft\\net\\minecraftforge\\forge\\1.12.2-14.23.4.2705\\start文件夹保存着forge工程真正的启动主类GradleStart和GradleStartServer，如果这两个主类缺失，那么你将无法在开发环境中启动MC或者mc server。\n\n\n\n\n\nQQ图片20190410205638.png (24.53 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n大名鼎鼎的userdev文件夹，BON等mcmod反混淆工具需要用到这个：\n\n\n\n\nQQ图片20190410210101.png (42.58 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n\nmodules-2\\files-2.1文件夹下存储着你的forge工程所有的依赖项（例如guava或apache），如果你的开发环境中丢失了依赖，可以尝试在这个文件夹中找回。\n\n\n\n\n\nQQ图片20190410210730.png (67.03 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\nforge有自带的gradle wrapper，那么构建forge工程所使用的gradle本身顺理成章地保存在/.gradle/wrapper下面，all代表完整的gradle，包含着gradle源码和文档，bin就只有gradle二进制程序。\n\n\n\n\n\nQQ图片20190410211511.png (21.33 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 14:56 上传\n\n\n\n\n\n你可以在forge mdk文件夹下找到gradle-wrapper.properties文件（注意标题栏的路径），并像第6行所示，修改gradle版本，例如gradle-4.10.2-all.zip，这样就不用看默认的gradle 2.14了。\n注意：迄今为止，forge 1.13只能使用默认的gradle 4.9，版本不对就会构建失败，但是fabric可以使用gradle 5以上的版本。\n\n注意下图窗口的地址栏——当你开始构建forge工程的时候，如果dists文件夹下没有你在gradle-wrapper.properties中指定的gradle版本，forge就会新建一个随机名称文件夹（如图9fahxxxx），这个文件夹下才是gradle的本体，因此你可以在构建forge开发环境前自己“加速”下载一个gradle.zip文件，然后在构建开始后结束进程，将文件放入forge生成的随机名文件夹中，重新开始构建就可以跳过慢悠悠的gradle下载过程（如果你的ide用了代理下载很快那可以无视）。\n\n\n\n\nQQ图片20190410211900.png (40.96 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 14:58 上传\n\n\n\n\n\n\n\n\n\nQQ图片20190410212558.png (26.7 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-10 14:57 上传\n\n\n\n\n\n\n—————————— 分割线 ————————————\ngradle缓存大致就是如此，没有什么神秘的地方，所有的文件都可以在IDE左侧的资源管理器中找到对应，介绍这个文件夹，只是为了让大家多少了解一些forge和gradle。\n\n\n\n\n\n\n\nQQ图片20190401153635.png\n(38.9 KB, 下载次数: 2)\n\n\n\n\n下载附件\n\n\n2019-11-10 15:04 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nQQ图片20190410211058.png\n(24.34 KB, 下载次数: 2)\n\n\n\n\n下载附件\n\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nQQ图片20190410211900.png\n(40.96 KB, 下载次数: 2)\n\n\n\n\n下载附件\n\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nQQ图片20190410212558.png\n(26.7 KB, 下载次数: 3)\n\n\n\n\n下载附件\n\n\n2019-11-10 15:06 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "117779284",
+            "timestamp": 1554538620,
+            "txt_content": "虽然很大。。但是，不下载。压根没法成功构建啊。\n\n这一步80%的人已经被PASS了·"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1556588820,
+            "txt_content": "下载 -> 不成功 -> 再次下载 -> 再次不成功 -> 告辞"
+        },
+        {
+            "author": "qq2362975089",
+            "timestamp": 1565958900,
+            "txt_content": "能不能吧gradle的缓存不放在C盘。，。我空间不够啊，，"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1565959200,
+            "txt_content": "qq2362975089 发表于 2019-8-16 20:35\n能不能吧gradle的缓存不放在C盘。，。我空间不够啊，，\n可以，改下GRADLE_USER_HOME这个环境变量（如果没有就新建一个系统变量和用户变量），然后文件夹改到别的分区就可以了。\n顺便你的C盘可能要清理一下。"
+        },
+        {
+            "author": "qq2362975089",
+            "timestamp": 1565959920,
+            "txt_content": "森林蝙蝠 发表于 2019-8-16 20:40\n可以，改下GRADLE_USER_HOME这个环境变量（如果没有就新建一个系统变量和用户变量），然后文件夹改到别的 ...\n可以的666"
+        }
+    ]
+}

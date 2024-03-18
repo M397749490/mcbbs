@@ -1,0 +1,209 @@
+{
+    "title": "【命令方块教程】自动寻路！非调用游戏模块寻找路径",
+    "author": "LRual",
+    "replyCount": 40,
+    "timestamp": 1475742600,
+    "txt_content": "10以后，大神的世界我就开始不懂了………………",
+    "replies": [
+        {
+            "author": "晴路卡",
+            "timestamp": 1475742960,
+            "txt_content": "标题: 【命令方块教程】自动寻路！非调用游戏模块寻找路径 本帖最后由 Sunny_KyLe 于 2016-11-11 10:41 编辑 \n\n你好，我是TML小组的晴路卡。我知道于路径寻找，当下最流行的方式应该是调用游戏模块，就像僵尸追踪或者生物仇恨，但是我仍然想把我的方法做出来，也许是因为调用游戏模块适应不了所有情况（如爬梯），也许是我的作品里确实需要这种方法，也许是我吃饱了没事干233首先让我们来看一下存档（仅限1.11+）下载地址[bili=6780799]1[/bili]\n\n\n\n正如所见，这份存档差不多就是在你设置好起点和终点之后（15x15的白色羊毛范围内），再非常温柔高雅华丽地按下按钮，就能生成一条从起点到目标点的最短路径。\n但是我是怎么做的呢？主要是利用了广度优先算法，然后让我们看一下百科：\n（也许dalao们全都看明白了23333）OK可能这样讲不够透彻，那我们先把minecraft关掉，画几张图来说明问题：\n首先，我随手画了一张迷宫：\n黑色的单位我们视作障碍，灰色的单位视作可走的单位，黄色的点我们视作起点，红叉我们视作目标。\n迷宫搞好了，但别急着走233\n我们不妨引入一条规矩：对于每一个箭头标志，在它的周围空白的可走单位都会进一步生成朝向该箭头的箭头，就像这张图：\n（中间的箭头是第一步生成的，周围四个是第二步生成的，边角上的箭头是第三步生成的）\n    妈妈从小就教我：迷宫要倒着走。所以，我们在目标点周围可走的单位先生成一个朝向它的箭头标志。\n\n然后我们把这一规则引入刚才所画的迷宫。第一步是这样：\n\n 继续按照刚才的规则一步一步地扩散箭头，直到在起点出息箭头标志为止。 \n\n我们再从起点开始沿着箭头标志走，路径就奇迹般地出现了。 \n 为了清晰一点，我们把没被走过的路径上的标志去掉，其实不去掉也无所谓 \n\n这里做一些特殊的说明。1.关于箭头重叠：因为我们的路径是一步一步扩散生成的，也许在某个单位会在同一步生里成多个重叠的箭头，对于这种情况，我们可以在执行时随机选择其中一个箭头的方向延伸，也可以将该单位里的标志部分清除只剩下一个方向的箭头\n2.关于多条路径：对于一个目标可能会有多条路径，但多条路径的开端只会存在于起点，所以同样在起点开始执行时选择其中一个箭头的方向延伸就行了。\n       3.关于最短路径：这是怎么做的呢？箭头是一步一步延伸开来的，但之前有说过，一旦起点位置出现箭头标志，整个路径延伸就停止运行，转为从起点开始按照箭头方向走一遍（也就是生成路径了）\n\n实现OK，讲了那么多，实现才是最后要做的事。但是思路我都说了，所以实现我不会讲太多。其实不用对我的命令照抄照搬（会爆炸的233333），实现的大体思路也就是aec和scb相结合，而我这一懒鬼在很大程度上用的是aec，所以很明显这优化不够好，所以大家能自己去思考当然是最好的了233总结如下：1.      使用area_effect_cloud（药水云）来代表单位2.      使用scoreboard来代表单位的方向，执行状态。当然你也可以用多个aec来代表方向（存档爆炸大法好）。3.      execute探测单位周围是否可走并进行扩散4.      在探测到起点单位有方向后停止方向的扩散延伸，并且开始从起点重新按照各个单位的方向走一遍前往目标点的路径。\n5.      如果你想让实体按照路径移动而不是仅仅像我一样用粒子效果表示出路径的话，使用execute aec ~ ~ ~ entitydata entity [dx=0,dy=0,dz=0]{Motion:[x,x,x]}\n存档内的命令（仅供参考）（1）目标点生成初始箭头标志：    execute @e[type=area_effect_cloud,name=Purpose] ~ ~ ~ detect ~1 ~ ~ air -1 summon area_effect_cloud ~1 ~ ~ {CustomName:\"a1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=Purpose] ~ ~ ~ detect ~-1 ~ ~ air -1 summon area_effect_cloud ~-1 ~ ~ {CustomName:\"b1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=Purpose] ~ ~ ~ detect ~ ~ ~1 air -1 summon area_effect_cloud ~ ~ ~1 {CustomName:\"c1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=Purpose] ~ ~ ~ detect ~ ~ ~-1 air -1 summon area_effect_cloud ~ ~ ~-1 {CustomName:\"d1\",Duration:2100000000}\n\n/setblock -7 5 3 minecraft:redstone_block 0\n\n/setblock -7 5 5 minecraft:air 0</font>复制代码（2）箭头标志的延伸：entitydata @e[type=area_effect_cloud,name=a1] {CustomName:\"a2\"}\n\n/entitydata @e[type=area_effect_cloud,name=b1] {CustomName:\"b2\"}\n\n/entitydata @e[type=area_effect_cloud,name=c1] {CustomName:\"c2\"}\n\n/entitydata @e[type=area_effect_cloud,name=d1] {CustomName:\"d2\"}\n\nexecute @e[type=area_effect_cloud,name=a2] ~1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"a1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=a2] ~-1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"b1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=a2] ~ ~ ~1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"c1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=a2] ~ ~ ~-1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"d1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=b2] ~1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"a1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=b2] ~-1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"b1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=b2] ~ ~ ~1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"c1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=b2] ~ ~ ~-1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"d1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=c2] ~1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"a1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=c2] ~-1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"b1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=c2] ~ ~ ~1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"c1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=c2] ~ ~ ~-1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"d1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=d2] ~1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"a1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=d2] ~-1 ~ ~ detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"b1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=d2] ~ ~ ~1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"c1\",Duration:2100000000}\n\nexecute @e[type=area_effect_cloud,name=d2] ~ ~ ~-1 detect ~ ~ ~ air -1 execute @e[type=area_effect_cloud,name=Place,r=0] ~ ~ ~ summon area_effect_cloud ~ ~ ~ {CustomName:\"d1\",Duration:2100000000}\n\n/entitydata @e[type=area_effect_cloud,name=a2] {CustomName:\"a3\"}\n\n/entitydata @e[type=area_effect_cloud,name=b2] {CustomName:\"b3\"}\n\n/entitydata @e[type=area_effect_cloud,name=c2] {CustomName:\"c3\"}\n\n/entitydata @e[type=area_effect_cloud,name=d2] {CustomName:\"d3\"}\n\nexecute @e[type=area_effect_cloud,name=a3] ~ ~ ~ entitydata @e[type=area_effect_cloud,name=Place,r=0] {CustomName:\"OFF\"}\n\nexecute @e[type=area_effect_cloud,name=b3] ~ ~ ~ entitydata @e[type=area_effect_cloud,name=Place,r=0] {CustomName:\"OFF\"}\n\nexecute @e[type=area_effect_cloud,name=c3] ~ ~ ~ entitydata @e[type=area_effect_cloud,name=Place,r=0] {CustomName:\"OFF\"}\n\nexecute @e[type=area_effect_cloud,name=d3] ~ ~ ~ entitydata @e[type=area_effect_cloud,name=Place,r=0] {CustomName:\"OFF\"}\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=a1,r=0] ~ ~ ~ setblock -7 5 -1 redstone_block 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=b1,r=0] ~ ~ ~ setblock -7 5 -1 redstone_block 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=c1,r=0] ~ ~ ~ setblock -7 5 -1 redstone_block 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=d1,r=0] ~ ~ ~ setblock -7 5 -1 redstone_block 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=a1,r=0] ~ ~ ~ setblock -7 5 3 air 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=b1,r=0] ~ ~ ~ setblock -7 5 3 air 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=c1,r=0] ~ ~ ~ setblock -7 5 3 air 0\n\nexecute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ execute @e[type=area_effect_cloud,name=d1,r=0] ~ ~ ~ setblock -7 5 3 air 0\n复制代码（3）清除重叠的箭头：/scoreboard players set @e[type=area_effect_cloud,name=a3] is 1\n\n/scoreboard players set @e[type=area_effect_cloud,name=b3] is 1\n\n/scoreboard players set @e[type=area_effect_cloud,name=c3] is 1\n\n/scoreboard players set @e[type=area_effect_cloud,name=d3] is 1\n\nexecute @e[score_is_min=1] ~ ~ ~ scoreboard players add @e[type=area_effect_cloud,name=OFF,r=0] count 1\n\n/execute @e[score_count_min=2,score_count=2] ~ ~ ~ /kill @r[score_is_min=1,c=1,r=0,type=area_effect_cloud]\n\n/execute @e[score_count_min=3,score_count=3] ~ ~ ~ /kill @r[score_is_min=1,c=2,r=0,type=area_effect_cloud]\n\n/execute @e[score_count_min=4,score_count=4] ~ ~ ~ /kill @r[score_is_min=1,c=3,r=0,type=area_effect_cloud]\n\n/scoreboard players set @e[score_is_min=1] of 0\n\n/execute @e[type=area_effect_cloud,name=Begin] ~ ~ ~ scoreboard players set @r[type=area_effect_cloud,score_is_min=1,r=1] of 2\n\n/setblock -7 5 -3 minecraft:redstone_block 0\n\n/setblock -7 5 -1 minecraft:air 0\n复制代码（4）从起点开始按照箭头方向走：/scoreboard players set @e[score_of_min=2,score_of=2] of 3\n\nexecute @e[type=area_effect_cloud,name=a3,score_of_min=3] ~-1 ~ ~ scoreboard players set @r[type=area_effect_cloud,score_is_min=1,r=0] of 2\n\nexecute @e[type=area_effect_cloud,name=b3,score_of_min=3] ~1 ~ ~ scoreboard players set @r[type=area_effect_cloud,score_is_min=1,r=0] of 2\n\nexecute @e[type=area_effect_cloud,name=c3,score_of_min=3] ~ ~ ~-1 scoreboard players set @r[type=area_effect_cloud,score_is_min=1,r=0] of 2\n\nexecute @e[type=area_effect_cloud,name=d3,score_of_min=3] ~ ~ ~1 scoreboard players set @r[type=area_effect_cloud,score_is_min=1,r=0] of 2\n\n/scoreboard players set @e[score_of_min=3] of 1\n\nexecute @e[type=area_effect_cloud,name=Purpose] ~ ~ ~ execute @e[score_of_min=1,r=0] ~ ~ ~ /setblock -7 5 -3 minecraft:air 0\n复制代码（5）其他的一些效果：/execute @e[name=a3,score_of_min=1] ~ ~ ~ particle reddust ~ ~ ~ 0.25 0 0 0.01 5 force\n\n/execute @e[name=b3,score_of_min=1] ~ ~ ~ particle reddust ~ ~ ~ 0.25 0 0 0.01 5 force\n\n/execute @e[name=c3,score_of_min=1] ~ ~ ~ particle reddust ~ ~ ~ 0 0 0.25 0.01 5 force\n\n/execute @e[name=d3,score_of_min=1] ~ ~ ~ particle reddust ~ ~ ~ 0 0 0.25 0.01 5 force\n\n/execute @e[name=Begin] ~ ~ ~ particle angryVillager ~ ~-0.5 ~ 0.1 0.1 0.1 0.01 5 force\n\n/execute @e[name=Purpose] ~ ~ ~ particle barrier ~ ~ ~ 0 0 0 0.01 1 force\n\n/execute @e[type=bat,name=0] ~ ~ ~ summon area_effect_cloud ~ ~0.5 ~ {CustomName:\"Begin\",Duration:2100000000}\n\n/execute @e[type=bat,name=1] ~ ~ ~ summon area_effect_cloud ~ ~0.5 ~ {CustomName:\"Purpose\",Duration:2100000000}\n\n/kill @e[type=bat,name=0]\n\n/kill @e[type=bat,name=1]\n复制代码\n最后，希望这份不怎么样的教程对大家有帮助2333\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475743920,
+            "txt_content": "存档链接：http://pan.baidu.com/s/1bpsWbCz"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475744220,
+            "txt_content": "若星汉天空 发表于 2016-10-6 17:05\n膜拜0.0  为大触顶贴\nthx23333333"
+        },
+        {
+            "author": "若星汉天空",
+            "timestamp": 1475744700,
+            "txt_content": "膜拜0.0  为大触顶贴"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1475745480,
+            "txt_content": " 本帖最后由 langyo 于 2016-10-6 18:44 编辑 \n\n刚刚确定过了，你这是原创的\n\n支持，你和版主二逼一样有算法，不像CBL新手群里头一群大佬不要编程2333333"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475746020,
+            "txt_content": "langyo 发表于 2016-10-6 17:18\n刚刚确定过了，你这是原创的\n\n支持，你和版主二逼一样有算法，不像CBL新手群里头一群逗比不要编程2333333 ...\n谢谢dalao夸奖！！！"
+        },
+        {
+            "author": "jxudvv",
+            "timestamp": 1475750100,
+            "txt_content": "膜拜大佬orz\n这个能用来走更大的迷宫吗？"
+        },
+        {
+            "author": "34105401",
+            "timestamp": 1475750580,
+            "txt_content": " 本帖最后由 34105401 于 2016-10-6 18:48 编辑 \n\n看起来不错\n\n顺便兹瓷"
+        },
+        {
+            "author": "不笑君",
+            "timestamp": 1475750580,
+            "txt_content": "哈哈哈哈本垃圾围观大佬"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1475752080,
+            "txt_content": " 本帖最后由 FHC红石 于 2016-10-6 19:11 编辑 \n\n开头用你好感觉像在对一个人说活，用大家好吧\n\n这个东西很高能啊，慢慢理解\n\n还有百科的图片被拉长了……代码前面乱了"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1475752380,
+            "txt_content": "Sunny_KyLe 发表于 2016-10-6 16:52\n存档链接：http://pan.baidu.com/s/1bpsWbCz\n存档编辑到帖中吧\n\n不要只放指令，稍微讲下有什么用"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475752440,
+            "txt_content": "FHC红石 发表于 2016-10-6 19:08\n开头用你好感觉像在对一个人说活，用大家好吧\n\n这个东西很高能啊，慢慢理解\n不常在bbs发帖233"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475752680,
+            "txt_content": "jxudvv 发表于 2016-10-6 18:35\n膜拜大佬orz\n这个能用来走更大的迷宫吗？\n可以，但是整套实现需要优化"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475754480,
+            "txt_content": "bbs你狗日常抽筋"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1475757420,
+            "txt_content": "以后是不是可以用minecraft来做c语言的作业了。。"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1475757660,
+            "txt_content": "ruhuasiyu 发表于 2016-10-6 20:37\n以后是不是可以用minecraft来做c语言的作业了。。\n怕是不成23333\n毕竟区别大"
+        },
+        {
+            "author": "3475226700",
+            "timestamp": 1475773380,
+            "txt_content": "谢谢知识"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1476430680,
+            "txt_content": "3475226700 发表于 2016-10-7 01:03\n谢谢知识\n蛤？？？？？"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1476461820,
+            "txt_content": "忽然想起了之前的作品：\nhttp://www.mcbbs.net/forum.php?mod=viewthread&tid=532683\n这里可以来走迷宫了233"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1476512940,
+            "txt_content": "林扬骐 发表于 2016-10-15 00:17\n忽然想起了之前的作品：\nhttp://www.mcbbs.net/forum.php?mod=viewthread&tid=532683\n这里可以来走迷宫了23 ...\n我看过这个作品挺不错的XDD"
+        },
+        {
+            "author": "Time_start",
+            "timestamp": 1477121940,
+            "txt_content": "Sunny_KyLe 发表于 2016-10-6 16:52\n存档链接：http://pan.baidu.com/s/1bpsWbCz\n好赞的帖子，对做地图来说有用吗？"
+        },
+        {
+            "author": "kid小东",
+            "timestamp": 1477122180,
+            "txt_content": "向dalao低头\n太高深了，我都看不懂。。"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1477124400,
+            "txt_content": "kid小东 发表于 2016-10-22 15:43\n向dalao低头\n太高深了，我都看不懂。。\n我觉得我讲得够明了了吧..."
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1477191480,
+            "txt_content": "@贰逼 申请图章"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1477203240,
+            "txt_content": "@贰逼 申请图章"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1478397900,
+            "txt_content": "乾.坤 发表于 2016-10-23 10:58\n@贰逼 申请图章\n我们的征途是星辰大海"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1478999520,
+            "txt_content": "没人看孩子怎么办"
+        },
+        {
+            "author": "吊打小逗比",
+            "timestamp": 1479003600,
+            "txt_content": "6666，这个清真"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1504271220,
+            "txt_content": "时隔一年，基本原理是看懂了，很巧妙，但是还是不懂实现，下载存档看看吧XD"
+        },
+        {
+            "author": "Zevn",
+            "timestamp": 1504335600,
+            "txt_content": "之前看到帖子时下载下来“试玩”了一下，默默放了14个方块放上起点和终点按下按钮，然后就卡成了PPT。所以系统还有必要优化，当有无穷多的相同长度路径时，应该在最短路径里选择转弯最少的.\n所以我觉得应该在计算路径时优先直走，等直走完了以后再往回倒着走岔路.\n\n\nps：之前没回复是害怕挖坟，但既然有人挖出来了我还是说一下比较好.\n\n"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1504341840,
+            "txt_content": "你地图下面居然还藏了一堆命令方块，瞬间不想研究，你们都是dalao"
+        },
+        {
+            "author": "dijian",
+            "timestamp": 1504593540,
+            "txt_content": "看的不是很懂，但是能写出这么多的内容真的不容易。"
+        },
+        {
+            "author": "清风sx",
+            "timestamp": 1561682040,
+            "txt_content": "每次图都挂。。。如果只是路径的话，无数个tp就可以实现（也可以tp盔甲架）"
+        },
+        {
+            "author": "苍白的豆子",
+            "timestamp": 1563076500,
+            "txt_content": "6666666666666666666666"
+        },
+        {
+            "author": "kayn-",
+            "timestamp": 1597508400,
+            "txt_content": "为啥会有个评论在楼主之上233"
+        },
+        {
+            "author": "zblh",
+            "timestamp": 1597565940,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "清风Aaron",
+            "timestamp": 1597571760,
+            "txt_content": "流批啊兄弟"
+        },
+        {
+            "author": "xiner123",
+            "timestamp": 1604659200,
+            "txt_content": "感谢分享哦~很棒的教程"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1604996100,
+            "txt_content": "这是某种动态规划吧"
+        },
+        {
+            "author": "月溪-",
+            "timestamp": 1605162480,
+            "txt_content": "看起来很不错，虽然不怎么懂"
+        }
+    ]
+}

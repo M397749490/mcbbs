@@ -1,0 +1,69 @@
+{
+    "title": "[1.14+]坐标原点的妙用及利用坐标动态控制粒子的移动方向与速度",
+    "author": "Chelover_C60",
+    "replyCount": 12,
+    "timestamp": 1578725940,
+    "txt_content": " 本帖最后由 Chelove_C60 于 2020-1-12 14:25 编辑 \n\n      大家好，这里是丢人C60。\n      说起我是怎么接触到坐标原点这个东西的，最先是因为一次偶然发现particle的dx,dy,dz参数可以输入相对坐标，但是用相对坐标输入后基本找不到粒子效果。然后因为一个偶然的因素，我开始怀疑游戏对particle的delta参数的解析是由绝对坐标决定的，如果不是绝对坐标，游戏会自动转化成绝对坐标。于是我tp至坐标原点进行了一系列的实验，大致验证了这个猜想。具体内容会在下面解释。\n      但是这个发现当时并没有引起我的重视，因为所有东西都局限于坐标原点，使用意义不大。直到我第二次接触坐标原点（也就是前不久，我回答一个问题的时候想到了坐标原点，也因为当时在复习，就偷了个懒）。这个时候我突然意识到，这个东西可能比较有用，但事实证明除了能吸引一下眼球、以及用来偷懒以外，基本没啥用。\n      但是既然已经研究过了，那就拿来水一帖吧。\n\n\n\n通过坐标变换，便捷地修改含有3个double数据的list键值\n      这是我在回答一个问题时偶然想到的东西。\n      如果我想让一个玩家发射出火球，那么最常规的做法应该是什么？生成marker，往前tp一段距离，然后获取marker和玩家的坐标并适当放大，保存至计分上。然后做差，并适当缩小后存至火球的direction和power。嗯，看起来没有任何问题。现在换个角度想一想，如果我在坐标原点生成这个marker，调整好角度后将其向前tp适当距离，是不是就可以免去计分板计算的环节，直接把结果拿来用？基于这个思路，我写了以下函数，让执行该函数的玩家发射火球\nfun1.mcfunction\ntag @s add summoning\nexecute anchored eyes run summon fireball ^ ^ ^ {direction:[0d,0d,0d],Tags:[\"mark\"]}\nsummon armor_stand ~ ~ ~ {Tags:[\"mark\"]}\nexecute as @e[type=armor_stand,tag=mark] rotated as @a[tag=summoning] run tp 0.0 0.0 0.0\nexecute as @e[type=armor_stand,tag=mark] at @s run tp ^ ^ ^0.1\ndata modify entity @e[type=fireball,tag=mark,limit=1] power set from entity @e[type=armor_stand,limit=1,tag=mark] Pos\nexecute as @e[type=armor_stand,tag=mark] at @s run tp ^ ^ ^1.5\ndata modify entity @e[type=fireball,tag=mark,limit=1] direction set from entity @e[type=armor_stand,limit=1,tag=mark] Pos\nkill @e[type=armor_stand,tag=mark]\ntag @e[type=fireball,tag=mark] remove mark\ntag @s remove summoning复制代码     这也是我在回答那个问题的时候给出的命令。\n      这里解释一下第5行和第7行的0.1和1.5的来历：这两个数据是我测试得到的数据。通过攻击一个火球后迅速data get，然后根据勾股定理估算出的。估算出power的模大概是0.1，direction的模大概是1.6，因此在修改power的时候将marker向前tp 0.1格，修改direction的时候就直接在0.1的基础上再向前tp 1.5格，这样得到的Pos值就是所需要的direction和power值。\n      不过这样要求原点附近的4个区块一直保持加载。我在写这个帖子的时候，想到了一个改进措施。感觉可能有点占用版面，这里折叠一下吧，有兴趣的可以看看。\n\nfun4.mcfunctiontag @s add summoning\nexecute anchored eyes run summon fireball ^ ^ ^ {direction:[0d,0d,0d],Tags:[\"mark\"]}\nsummon armor_stand ~ ~ ~ {Tags:[\"mark\"]}\nexecute as @e[type=armor_stand,tag=mark] run function fun5\ntag @e[type=fireball,tag=mark] remove mark\ntag @s remove summoning复制代码fun5.mcfunctionexecute rotated as @a[tag=summoning] run tp 0.0 0.0 0.0\nexecute at @s run tp ^ ^ ^0.1\ndata modify entity @e[type=fireball,tag=mark,limit=1] power set from entity @s Pos\nexecute at @s run tp ^ ^ ^1.5\ndata modify entity @e[type=fireball,tag=mark,limit=1] direction set from entity @s Pos\nkill @s复制代码      此时，让玩家执行fun4即可发射火球。\n      这里我在tp marker之前，使用execute指定这个marker，让它在移动至未加载区块之后依然能被选中，且正确执行相关命令，避免了必须强制加载原点周围4个区块的麻烦。\n      不过这样也就只能改改Motion，direction和power这3个标签了，所以局限性很大，不过在一定可以忽略不计的程度上确实方便了一些，因为避免了使用计分板。\n\n\n\n坐标与粒子运动的蜜汁结合\n      首先来了解一下particle的蜜汁解析方式吧。\n/particle <颗粒名称> [<pos>] [<delta>] <速度> <数量> [force/normal] [<可见玩家>]\n      这里解释一下里面的参数。后面的两个参数不需要管，因为用不上。\n颗粒名称：粒子效果的名称pos：粒子生成的坐标，格式为<x y z>delta：粒子生成时的分散程度（如果数量不为0）或粒子的移动速度（如果数量为0），格式为<dx dy dz>。一旦填写此参数，后面两个参数变为必填。速度：以某种方式计算粒子的速度。数量：一次生成粒子的数量。如果数量为0，则生成1个粒子，此时粒子具有指定的初速度。\n      如果要让指定的粒子具有指定的初速度，常规的做法是直接指定delta，然后令数量为0。以火焰粒子为例，/particle flame ~ ~ ~ 2 0 0 1 0会生成一个沿x轴正方向移动的粒子。\n      那么，该如何动态指定这个delta呢？还记不记得我之前说过，dx,dy,dz可以由相对坐标指定？我猜不少人想到了/particle flame ~ ~ ~ ~2 ~ ~ 1 0，但是很抱歉，这个粒子究竟往哪运动，我也说不清，因为命令执行点的坐标会影响到这个粒子的运动方向。\n      我做出的假设是，游戏在解析坐标时，首先会把所有相对坐标和局部坐标替换成绝对坐标，然后再进行解析。目前看来这个假设基本成立。依据这个原理，假设你的坐标是100 200 300，我们试着分析以上命令。首先，游戏把所有坐标替换为绝对坐标。这时，命令由/particle flame ~ ~ ~ ~2 ~ ~ 1 0变成了/particle flame 100 200 300 102 200 300 1 0。这个时候看一下delta，它的值是102 200 300，它的运动方向是向南稍偏东，且明显偏上，速度非常快。\n      虽然这个过程有点不讨好，但至少找到了一个可以控制粒子速度的接口。如果我指定坐标为原点附近的某个点，是不是就可以做到任意控制粒子的运动方向及速度了呢？以此为依据，我首先做了一个小玩具。\nexecute positioned 6 5 8 facing entity @e[type=zombie,sort=nearest,limit=1] eyes positioned 0.0 0.0 0.0 run particle minecraft:flame 6 5 8 ^ ^ ^1 0.5 0\n\n\n      这里解释一下，命令中出现的两次 6 5 8 是信标的坐标，这里不能用marker代替，由于positioned 0.0 0.0 0.0 修改了命令基准点，所以particle的pos参数必须手动指定。那么即使我使用marker，最多也就是把第一个positioned的参数改成positioned as <marker>或 at <marker>，第二个信标的坐标依然需要穷举。那么既然不管用不用marker都需要穷举，那我还不如不用marker，对吧？\n      好，现在分析一下这个命令的工作方式。首先，确定命令基准点为信标坐标，然后调整朝向，面向最近的僵尸。然后再次调整命令执行基准点为坐标原点。然后手动指定粒子的出现坐标，并使用局部坐标来指定生成粒子的delta参数（游戏会自动转化为绝对坐标），确保粒子的运动方向一定是朝向最近的僵尸。\n      使用局部坐标是最容易想到的方法，也是最容易理解的，但是有一定的局限，就是虽然粒子的运动方向可控了，但是粒子的运动速度是固定的。解决方法是使用相对坐标。不过使用相对坐标可能较难理解。\nexecute positioned 6 5 8 as @e[type=zombie,sort=nearest,limit=1] at @s anchored eyes positioned ^ ^ ^ run particle minecraft:flame 6 5 8 ~-6.5 ~-5.5 ~-8.5 0.05 0\n\n\n      这张gif里，可以明显地看到当僵尸靠近信标时，粒子的速度减慢了。\n      分析一下这个命令。首先调整命令基准点为信标所在位置，然后再通过as、at、anchored、positioned一系列动作调整基准点至最近的僵尸的眼部。然后将基准点的坐标减去信标的坐标，即得到粒子的运动速度，然后调整至合适的倍率即可。\n      对于一些受重力影响的粒子（如item粒子），在生成时可以适当增加dy的大小，来抵消重力的影响。\nexecute positioned 6 5 8 as @e[type=zombie,sort=nearest,limit=1] at @s anchored eyes positioned ^ ^ ^ run particle minecraft:item diamond 6 5 8 ~-6.5 ~-2.5 ~-8.5 0.1 0\n\n\n      这条命令和上面的命令大体上相同，不再过多分析。\n\n      总结一下吧，使用坐标来动态指定粒子的运动速度是可行的，但是一个无法克服的问题是必须穷举坐标，这也导致粒子只能由方块发出，而不能由实体发出此问题已由SPG及其他玩家解决，在指定粒子运动速度的前提下，可以通过指定一个远大于实体坐标的数字，来使实体坐标对速度的影响可以忽略不计，详见本帖2楼。不过，我觉得如果在地图上能看到向玩家发射粒子的方块，也很高级，是吧（滑稽）",
+    "replies": [
+        {
+            "author": "SPGoding",
+            "timestamp": 1578768840,
+            "txt_content": " 本帖最后由 SPGoding 于 2020-1-12 03:17 编辑 \n使用坐标来动态指定粒子的运动速度是可行的，但是一个无法克服的问题是必须穷举坐标\n使用方块为基准的、硬编码了坐标的命令：\nexecute positioned 6 5 8 facing entity @e[type=zombie,sort=nearest,limit=1] eyes positioned 0.0 0.0 0.0 run particle minecraft:flame 6 5 8 ^ ^ ^1 0.5 0\n\n使用实体为基准的、没有任何硬编码的命令：\nexecute as @p at @s anchored eyes facing entity @e[type=zombie,sort=nearest,limit=1] eyes run particle minecraft:flame ^ ^ ^ ^ ^ ^100000000 0.000000005 0\n\n原理：\n1. 在 <delta> 参数指定的相对坐标与本地坐标会被转换为绝对坐标，并被对待为该粒子的飞行速度，如楼主所述；\n2. 有两种方法让实体的坐标不影响粒子的飞行速度：\n　　a) 用 positioned 把坐标修改到 0.0 0.0 0.0，如楼主所述；\n　　b) 用一个远大于实体坐标的数字，使得实体坐标跟 0 没什么区别。\n\n\n特别鸣谢：暗夜姐姐、可文哥哥、我的钟表地图。"
+        },
+        {
+            "author": "xiaoye_time",
+            "timestamp": 1578827400,
+            "txt_content": "膜拜大佬表示我看不懂"
+        },
+        {
+            "author": "NancyS7",
+            "timestamp": 1578833040,
+            "txt_content": "Alt+F4即可！"
+        },
+        {
+            "author": "涛滔埠决",
+            "timestamp": 1581262740,
+            "txt_content": "昨天还在为这个挠头，今天就看到了"
+        },
+        {
+            "author": "a1594235487",
+            "timestamp": 1581409560,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "时之虫",
+            "timestamp": 1582045380,
+            "txt_content": "妈呀我连常规思路都想不出来。我赶紧学习一下。"
+        },
+        {
+            "author": "kunkun520",
+            "timestamp": 1596007020,
+            "txt_content": "\n我连常规思路都想不出来。..."
+        },
+        {
+            "author": "私‘’恋",
+            "timestamp": 1596288840,
+            "txt_content": "我连常规思路都想不出来"
+        },
+        {
+            "author": "405483478",
+            "timestamp": 1596534060,
+            "txt_content": "**，小作业赛高"
+        },
+        {
+            "author": "永爱不忘",
+            "timestamp": 1597898220,
+            "txt_content": "8别说了  你说的再通俗易懂我还是不会"
+        },
+        {
+            "author": "胖虎123",
+            "timestamp": 1598000340,
+            "txt_content": "活到老学到老"
+        },
+        {
+            "author": "3213030094",
+            "timestamp": 1600250640,
+            "txt_content": "感谢分享，奇怪的知识增长"
+        }
+    ]
+}

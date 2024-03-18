@@ -1,0 +1,239 @@
+{
+    "title": "authlib-injector 开源的游戏外登录规范",
+    "author": "yushijinhun",
+    "replyCount": 46,
+    "timestamp": 1513428600,
+    "txt_content": " 本帖最后由 yushijinhun 于 2017-12-24 13:04 编辑 \n\n0x00 前言\n\n本项目的前身是authlib-agent（http://www.mcbbs.net/thread-556500-1-1.html）。\n本项目的原理如果用一句话概括，就是：把Mojang的正版登录API劫持成自己的，从而实现游戏外登录。\n\n众所周知，如果MC服务端不开启online-mode，那么就无法对入服玩家进行认证（任何人都可以用任何身份进入服务器），但并不是所有服主都愿意开启online-mode（如果开启，你的玩家都必须是正版用户），这就催生了不少非Mojng官方的登录系统的产生。\n\n这些登录系统大体可以分为以下两类：\n游戏内登录（如Authme）游戏外登录（如BeeLogin）\n\n它们的确解决了非正版服的验证问题，但无论在功能上还是在安全性上，都是不及Mojang的正版验证系统的。\n那么有没有什么办法可以实现与正版相媲美的验证系统呢。答案是有的，就是劫持Mojang的正版验证API（也叫Yggdrasil），让它为我所用。\n\n这便是authlib-injector所做的事情：将MC服务端/客户端中Mojang的正版验证API，替换成自己的。这样你便得到了一个功能和正版验证近乎一样的验证系统。\n\n事实上，这样的技术早在前几年就已经被我开发出来（也就是authlib-agent项目）。\n但是问题也随之而来：如果每一个服务器都要自己开发一个Yggdrasil服务端、一个服务器专用的启动器，那么不但服主会有很大的工作量，而且玩家也会有许多不便。\n\n关于authlib-agent项目\n在开发authlib-agent时，我仅仅是抱着玩玩的心态，而未曾想过它会被众多服务器所用。当时做出的许多不合理设计（如随意命名的API Endpoint、配置文件内置于JAR中），现在也逐步暴露了出来。而先前我开发authlib-agent的目的，也只是证明实现Yggdrasil私服的可行性。但现在看来，这已毋庸置疑。现在所需要的，是对这一技术的推广。\n由于不完备和缺少文档，许多服主和开发者对authlib-agent望而却步。确实，authlib-agent项目真正能帮助到开发者的也只有javaagent部分。要将这个技术投入实际使用中，还需要开发一个完善的Yggdrasil服务端，和一个支持authlib-agent的启动器，这样的任务绝不是凭一人之力能够完成的。\n\n因此，我萌生了一个想法：\n能否制定一个民间规范，只要启动器和Yggdrasil服务端的开发者共同遵守它，就能使它们两个能够一起工作？\n如果这能够实现的话，试想：\n一个服主在GitHub上找到了一个实现该规范的验证服务端，然后在服务器上部署了它；\n而玩家在该MC服务器注册之后，打开他平时使用的（实现上文所述规范的）MC启动器，输入该服务器的URL，以及他自己的用户名和密码，便能像正版一般进行游戏。\n\n\n0x01 简介\n\nauthlib-injector是一个游戏外登录规范，使用CC BY-SA 4.0授权。它描述了一套类Mojang Yggdrasil的API，并且对Yggdrasil服务端及启动器的实现作出了规范。\nauthlib-injector也包含了一个mod，使用GPL-3.0授权。它能够注入到MC客户端和服务端，使之使用指定的Yggdrasil服务端进行验证相关操作。\n\n特性：\n支持获取远程配置\n  直接从验证服务端获取相关配置信息（见此），不需要像authlib-agent一样自己编译和生成JAR更为细致的文档\n  较authlib-agent，对验证服务端和启动器给出了更加详细的规范平台通适性\n  支持绝大多数基于JVM的MC服务端，如Spigot、Bungeecord\n  支持绝大多数版本的MC客户端Maybe more?\n\n\nGitHub Wiki（规范部分）: to2mbn/authlib-injector/wiki\nGitHub Repo（mod部分）：to2mbn/authlib-injector\n\n\n0x02 如何贡献\n\n该项目依然处于早期阶段，这个规范也并没有多少实现。\n如果你读过前言部分，就不难意识到这个项目绝不是能凭我一己之力完成的。而要实现上文我所试想的，也绝不是一朝一日。\n我希望广大启动器和验证服务端的开发者能够支持我这个规范，并对其不足之处提出建议。\n\n如果你对本规范有修改建议，或是想反馈mod部分的问题，请在GitHub上开一个issue。\n\n如果你想对本项目作出贡献，欢迎你对本项目的mod部分开PR。\n如果你是一个验证服务端或启动器开发者，你并不一定需要在GitHub上开PR，只要在你的程序中实现本规范，也算是对本项目的支持。\n\n\n0x03 未来计划\n\nGUI登录\n由于启动器不支持authlib-injector的情况难免会出现，我打算在authlib-injector中实现一个登录GUI。\n如果启动器不支持本规范，玩家需要将authlib-injector放入mods目录（或是添加javaagent参数，这适用于原版），然后在启动器里选择离线验证。\n当authlib-injector检测到启动器没有提供登录信息时，便挂起启动进程，要求用户登录，之后将登录信息注入到MC启动参数中。\n这就相当于把原来属于启动器的验证任务，转移到了authlib-injector。\n\n自动化测试和Yggdrasil服务端mock\n提供一套自动化的API集成测试（依照规范编写），能够让验证服务端开发者对自己的服务端进行测试。\n提供一个最简可用Yggdrasil服务端，能够让启动器开发者mock Yggdrasil服务端，从而对启动器进行测试。\n\nGitHub：to2mbn/yggdrasil-mock\n\n\n0x04 相关项目\n\nInfinityStudio/ILauncher ci010主导开发的启动器Indexyz/Identity Indexyz开发的验证服务端printempw/blessing-skin-server 第三方Minecraft皮肤站，由621sama主导开发\n  注：该验证服务端目前使用的是authlib-agent，准备迁移到authlib-injector。但主要开发者因学业关系，还未能进行Maybe yours?\n\n\n\n0x05 鸣谢\n\nzzzz621samaGPlane和其他许多支持本项目的人\n",
+    "replies": [
+        {
+            "author": "YueHaxgu",
+            "timestamp": 1513432440,
+            "txt_content": "我想知道这是个啥玩意儿"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1513434240,
+            "txt_content": "跳楼牛逼！！"
+        },
+        {
+            "author": "1377023219",
+            "timestamp": 1513566180,
+            "txt_content": "1.找HMCL和PCL等启动的作者加入支持\n2.自己弄一个启动器\n3.在服务器端弄传统的聊天栏登录或木牌\n\n我觉得写mod没啥意义，因为换启动器比加mod简单多了(对新人来说，有的连forge都不知道，更别说拖入原版jar，像我原版玩家，原版+optifine，都没有forge的)，mod最多对正版启动器的玩家方便点，你尝试加个正版绑定就行了。"
+        },
+        {
+            "author": "yushijinhun",
+            "timestamp": 1513677600,
+            "txt_content": "1377023219 发表于 2017-12-18 11:03\n1.找HMCL和PCL等启动的作者加入支持\n2.自己弄一个启动器\n3.在服务器端弄传统的聊天栏登录或木牌\n\n1. 启动器作者我已经约好了的，就比如我在文中提到的ci010的启动器。\n2. 与其重起炉灶，不如向现有启动器开pr，内置这个功能或者以插件的形式提供。\n3. 传统的聊天栏登录正是我想要取代的。对两者优劣的具体分析，可见621sama的这篇文章：https://blessing.studio/minecraft-yggdrasil-api-third-party-implementation/\n\nauthlib-injector并不需要forge/liteloader才能工作。在设计之初我使用javaagent来进行注入，这样只需添加一个JVM参数即可。在启动器支持的情况下，添加JVM参数是启动器自己完成的，不需要干预。\n而目前没有成熟的支持authlib-injector的启动器是现状，并且用户也不一定乐意使用支持它的启动器，所以我就想通过mod的方式来加载。在这种情况下，启动器不需要支持authlib-injector，但是需要forge/liteloader，并且用户要手动将authlib-injector放进mods中。"
+        },
+        {
+            "author": "410855403",
+            "timestamp": 1514471940,
+            "txt_content": "如果项目开源可以联系国外开发者共同开发"
+        },
+        {
+            "author": "volta薯片~",
+            "timestamp": 1515852000,
+            "txt_content": "和主流启动器作者沟通一下\n如果能支持的话，不就实现推广了"
+        },
+        {
+            "author": "死你，哈",
+            "timestamp": 1516017360,
+            "txt_content": "厉害厉害，可以可以，666"
+        },
+        {
+            "author": "死你，哈",
+            "timestamp": 1516187160,
+            "txt_content": "厉害厉害，可以可以，666"
+        },
+        {
+            "author": "FlyGay",
+            "timestamp": 1516443420,
+            "txt_content": "这样子实现起来不仅会可能很冗杂外加普及有点困难的，因为即使是懂得开发亦或者是已经开发好拿去用的伺服或多或少会遇到各种瓶颈。想要实现，我觉得最好就是在“内部”实现，client/serverend不也可以被反编译了吗(划掉、逃 \nemmm...至少我还没有这个功力，想象力总该要有。"
+        },
+        {
+            "author": "yushijinhun",
+            "timestamp": 1516618740,
+            "txt_content": "FlyGay 发表于 2018-1-20 18:17\n这样子实现起来不仅会可能很冗杂外加普及有点困难的，因为即使是懂得开发亦或者是已经开发好拿去用的伺服或 ...\n实现游戏外登录的方法肯定不止这一种。但选择的切入点不同，实现的难度也不同。mc客户端和服务端中，与登录相关的地方非常多，而且版本之间差异很大，再加上如spigot这样的第三方服务端，如果要从你说的“内部”下手，那么工作量就比较大。\n相反，登录api在不同的客户端和服务端中都是一致的，即一段代表了api endpoint的url字符串。而且mojang为了保持其与不同mc版本间的兼容性，便不会对其做出破坏性的改动。所以，相对于从“内部”入手来说，从api处入手更为简单，而且也有更好的兼容性。\n但你说的不无道理，yggdrasil服务端的开发确实有一定难度，而这正是我在解决的。目前我在做的有三点，一是完善规范，二是为yggdrasil服务端编写自动化的集成测试，三是编写一个最简的yggdrasil服务端实现以供参考。\n同时我也在和blessing skin server及hmcl的作者合作，他们会在下一个主版本里支持authlib-injector。"
+        },
+        {
+            "author": "dogeop",
+            "timestamp": 1516714860,
+            "txt_content": "yggdrasil的服务端，forge简单，但是bukkit方向上面嘛。你除非也用launchwrapper去搞asm注入，把yggdrasil给换成你的。\n否则就比较难。"
+        },
+        {
+            "author": "dogeop",
+            "timestamp": 1516714980,
+            "txt_content": "也有另外一个办法，你记不记得，jar根目录有个key文件，如果你用hosts劫持了mojang的域名，自己实现出一样的api endpoint进去，把它用的https key（证书）换掉，就可以实现开着online-mode登录了。"
+        },
+        {
+            "author": "dogeop",
+            "timestamp": 1516715820,
+            "txt_content": "哦对，直接把spigot编译好的com.mojang.authlib删了，自己实现一个魔改版authlib，加个读配置文件的步骤就好了么，配置文件自己规定一下。\n（其实这是最简单粗暴的办法了）"
+        },
+        {
+            "author": "维达哎哎",
+            "timestamp": 1516722240,
+            "txt_content": "原来的 authlib-agent-master 不是很好么，我用很久了，现在搞得这么复杂。\n\n客户端用 bat 来 hack HTML 启动器\n并且在高级设置内 hack 游戏\n\n服务端就直接加一条参数，这样几乎是全版本通用的。"
+        },
+        {
+            "author": "1933922282",
+            "timestamp": 1516793820,
+            "txt_content": "        Mcbbs有你更精彩~"
+        },
+        {
+            "author": "z109512502",
+            "timestamp": 1519621440,
+            "txt_content": "……很想用，但是不会用，很无奈"
+        },
+        {
+            "author": "yyeerai",
+            "timestamp": 1519635000,
+            "txt_content": "z109512502 发表于 2018-2-26 13:04\n……很想用，但是不会用，很无奈\n加qq教你"
+        },
+        {
+            "author": "z109512502",
+            "timestamp": 1519808100,
+            "txt_content": "yyeerai 发表于 2018-2-26 16:50\n加qq教你\n109512502，加我"
+        },
+        {
+            "author": "m13245jia",
+            "timestamp": 1519907520,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "m13245jia",
+            "timestamp": 1519907580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Romcnov",
+            "timestamp": 1521207720,
+            "txt_content": "正在尝试实现Authlib-injector规范的Yggdrasil服务端，感觉文档还是讲得有点不太清楚。"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1521211200,
+            "txt_content": "Romcnov 发表于 2018-3-16 21:42\n正在尝试实现Authlib-injector规范的Yggdrasil服务端，感觉文档还是讲得有点不太清楚。 ...\n这是一个现有实现\nhttps://github.com/to2mbn/yggdrasil-mock"
+        },
+        {
+            "author": "wangduidui",
+            "timestamp": 1521262740,
+            "txt_content": " 强，前排围观"
+        },
+        {
+            "author": "xpesir",
+            "timestamp": 1526146260,
+            "txt_content": " 本帖最后由 xpesir 于 2018-5-13 01:38 编辑 \n\n终于有人肝起了这东西啊。大概在14-15年我肝过 那时候是16版本的MC。后来移植到1.7中途弃坑。自己服务器用没公开 详细百度logincraft和LogCraftEX。不过也没啥详细的。\n====================补充=======================\n回去翻了下，发现那时的启动器源码还在23333333\n\n\n\n\n\n\n\nQQ截图20180513013538.png\n(20.37 KB, 下载次数: 1)\n\n\n\n\n下载附件\n\n\n2018-5-13 01:37 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nQQ图片20180513013524.png\n(23.65 KB, 下载次数: 1)\n\n\n\n\n下载附件\n\n\n2018-5-13 01:38 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "LQ柒小章XT",
+            "timestamp": 1529169780,
+            "txt_content": "版主编好的下载不了啦谁有"
+        },
+        {
+            "author": "Romcnov",
+            "timestamp": 1533272100,
+            "txt_content": "authlib-injector有没有QQ交流群什么的？"
+        },
+        {
+            "author": "MoCha_666",
+            "timestamp": 1533702480,
+            "txt_content": "如果出个教程就好了！"
+        },
+        {
+            "author": "Maple_Lemon",
+            "timestamp": 1538836140,
+            "txt_content": "这东西怎么用?"
+        },
+        {
+            "author": "wyxslh",
+            "timestamp": 1553068140,
+            "txt_content": "怎么实现authlib-injector和正版同时能登陆"
+        },
+        {
+            "author": "Bad_Ceiling",
+            "timestamp": 1553273160,
+            "txt_content": "好牛的样子 "
+        },
+        {
+            "author": "SunDreams",
+            "timestamp": 1556754600,
+            "txt_content": "1.14使用时会导致无法开启服务端"
+        },
+        {
+            "author": "2404540291",
+            "timestamp": 1556772060,
+            "txt_content": "正好需要\n真是雪中送炭,"
+        },
+        {
+            "author": "刘雨华",
+            "timestamp": 1561590480,
+            "txt_content": "你好，我现在使用authlib-injector开发了Makku启动器，目前遇到以下情况：\n1 首次启动大概率提示验证服务正在停机维护，Yggdrasil服务器日志没提示收到请求\n2 玩家因网络异常掉线后无法重连，会提示各种千奇百怪的错误，服务器控制台则是Netty的报错提示\n如果需要详细日志，我可稍后上传，望解答。"
+        },
+        {
+            "author": "ImLazy",
+            "timestamp": 1563757620,
+            "txt_content": "表示1.14.3的服务器不能用"
+        },
+        {
+            "author": "xtr169",
+            "timestamp": 1566438900,
+            "txt_content": "规范真好"
+        },
+        {
+            "author": "zycdojar",
+            "timestamp": 1569832500,
+            "txt_content": "希望可以用mcp实现，因为javaargent并不是所有启动器都支持的"
+        },
+        {
+            "author": "午申",
+            "timestamp": 1574560800,
+            "txt_content": "所以我要怎么获取属于我的API root？看了半天没看懂…"
+        },
+        {
+            "author": "小帅120",
+            "timestamp": 1575620880,
+            "txt_content": "虽然看不懂 但是 为了装B必须说看到没这个就是什么来着......"
+        },
+        {
+            "author": "xiriyeyu",
+            "timestamp": 1583562240,
+            "txt_content": "感谢大佬分享！！！"
+        },
+        {
+            "author": "深拥v",
+            "timestamp": 1583902080,
+            "txt_content": "1.12.2spigot端使用后玩家UUID全乱了，金币点券在线时长领地等全都成为另一个同名玩家的了"
+        },
+        {
+            "author": "n1529905750",
+            "timestamp": 1584205440,
+            "txt_content": "PCL什么时候可以支持啊"
+        },
+        {
+            "author": "寒幽xy",
+            "timestamp": 1584337080,
+            "txt_content": "十分感谢，今天服务器被熊了"
+        },
+        {
+            "author": "sakurakaori",
+            "timestamp": 1585446360,
+            "txt_content": "怎么你这帖子里没有介绍怎么创建注册外置登录的注册网站的教程？？？也就是认证服务器那里，怎么创建属于自己的服务器注册网站？？？"
+        },
+        {
+            "author": "h'y'x",
+            "timestamp": 1586317260,
+            "txt_content": "\nMCBBS有你更精彩~"
+        },
+        {
+            "author": "轻珞酱",
+            "timestamp": 1587616140,
+            "txt_content": "https://www.mcbbs.net/thread-974321-1-1.html\n这是XenforoLogin的xenforo版本，目前使用authlib实现登录，希望可以考虑加入"
+        },
+        {
+            "author": "dongliang",
+            "timestamp": 1588542060,
+            "txt_content": "厉害厉害，可以可以，666"
+        }
+    ]
+}

@@ -1,0 +1,119 @@
+{
+    "title": "[兼教程]【丧心病狂】2048在command_block下的思路与实现",
+    "author": "Mine268",
+    "replyCount": 22,
+    "timestamp": 1468893840,
+    "txt_content": " 本帖最后由 Mine268 于 2016-7-27 15:35 编辑 \n之前我已经在贴吧发过一回了，现在转到mcbbs来。\n贴吧发布地址：http://tieba.baidu.com/p/4678164509\n下载地址：http://pan.baidu.com/s/1nvESfh；http://pan.baidu.com/s/1i5HcbT  （注：前面那个是修复bug版的，后面那个是有bug版）\n稿件地址（如果你无聊可以下载来看看233）：http://pan.baidu.com/s/1geY0WEJ\n【声明】\n贴吧吧友@pixelsteam 目前制作（或许会在将来发布）的2048 UP版本与本作品不构成侵权。\n未经授权的情况下，任何人禁止转载本帖以及本地图。\n\n2048在command_block下的思路与实现\n<说明>       建议版本：1.9.4以上       开发版本：1.9.4       本作品只完成了2048一个方向的移动合并，其余三个方向均未动工，但是其余三个方向的移动合并方式与已完成的一个方向完全相同，如果有谁再问为什么没有做完的直接打脸(*￣︶￣)y，本作品旨在演示原理。\n\n\n\n<基本操作方法>\n\n \n\n棕色羊毛的踏板开始新一轮游戏\n\n\n\n四边上的踏板代表向四个方向移动数字（虽然只完成了一个方向）\n\n【原理讲解在后头】\n\n\n<2048简介>       2048百度简介：百度链接       当然，最好玩几把2048感受一下>>http://2048game.com/ （wasd移动）\n\n<实现原理>【首先谨记：Never Give Up! （重做过一边的人含着泪说????(?Д`)????】【使用的记分板：2048（记录Shulker的分数），test（用于等值检测模块判断Shulker的分数是否相等）】实现的过程大致分为两个步骤：     1） 开局     2） 移动合并接下来将会对这两个步骤分别讲解\n\n1、开局\n-开局：首先这是我们的2048界面， Shulker（潜隐贝）是我们的数字：\n\n\n\n开始后会在4×4的数字板（暂且这么称呼）上的随机两个格子放两个Shulker，具体的实现方法就是先在一个特定的位置summon两个名字为“2”的Shulker，并将他们的2048分数设置为2，再将它们打散到数字板中，命令如下：//清除原来的Shulker\n/kill @e[type=Shulker]\n//生成shulker×2\n/summon Shulker X Y Z {NoAI:1,CustomName:\"2\",CustomNameVisible:1,Invulnerable:1b}\n/summon Shulker X Y Z {NoAI:1,CustomName:\"2\",CustomNameVisible:1,Invulnerable:1b}\n//给生成的shulker设置2048的分数\n/scoreboard players set @e[type=Shulker,name=2] 2048 2\n//把生成的Shulker打散到数字板中，使用spreadplayers指令\n//-1462 1013是数字板的中心xz坐标，没有y值，2 3是打散距离\n/spreadplayers -1462 1013 2 3 false @e[name=2,type=Shulker]\n复制代码然后开局完毕\n\n2、移动合并\n然后来讲讲如何判断       这个步骤就是2048的核心步骤，而我实现这个步骤的主体思路是：“分情况处理”，有些类似于数学中的分类讨论，在此我们先不看四行，只看单一的一行，从上往下分别标号1、2、3、4：\n\n      因为其它四行的样式与这一行一样，对这一行的处理就可以类比推导到其他行我们再撇开Shulker的分数不同的问题，只关注这四个格子上是否存在Shulker，那么就会出现这些情况（1代表有Shulker，0代表没有Shulker)：\n0000；0001；0010；0100；1000；\n0011；0101；1001；0110；1010；1100；\n1110；1101；1011；0111\n1111复制代码       在此，0000这种情况不会有任何动作，所以我们把这种情况排掉，所以就剩下15种：0001；0010；0100；1000；\n0011；0101；1001；0110；1010；1100；\n1110；1101；1011；0111\n1111复制代码       然后我们再分情况处理，而要做到分情况处理，testfor探测相对位置的Shulker即可，至于怎么探测相对位置的Shulker，我们在后面会讲到，具体指令如下：/execute @e[type=ArmorStand,name=yellow] ~6 ~~ testfor @e[r=0,type=Shulker] {CustomNameVisible:1b}复制代码       这就完成了对1000这一种情况的鉴别（前头的execute用于相对位置的确定，我们之后再说，现在的重点是testfor指令鉴别情况），但是这也就衍生出来一个问题那就是，这里只是检测1号位是否有shulker，而1号位有shulker的情况不止这一种，比如说1100、1010、1001等，这就会使我们情况判断不准确引起处理错误。       为了解决这个问题，我们只要用一些叫null的Invisible的as来占掉空位，在检测时连带检测空位即可，举个例子，1000与1001虽然1号位都有shulker，但是4号位不一样，因为有占位机制，所以1000的4号位是null，而1001的4号位是shulker。所以判断1000的真正指令是这样：\n//检测4号位是否是null\n/execute @e[type=ArmorStand,name=yellow] ~ ~ ~testfor @e[r=0,type=ArmorStand,name=null]\n//检测3号位是否是null\n/execute @e[type=ArmorStand,name=yellow] ~2 ~~ testfor @e[r=0,type=ArmorStand,name=null]\n//检测2号位是否是null\n/execute @e[type=ArmorStand,name=yellow] ~4 ~~ testfor @e[r=0,type=ArmorStand,name=null]\n//检测1号位是否是Shulker\n/execute @e[type=ArmorStand,name=yellow] ~6 ~~ testfor @e[r=0,type=Shulker] {CustomNameVisible:1b}复制代码       而我们的占位模块就在这里：\n\n\n\n       就数字板的旁边每一个icb翻转对应一个格子（别问我为什么是翻转对应，当我把占位模块做完之后我才发现做反了，然后我也懒得改了╮(￣▽￣\")╭），这是一个占位单元：\n\n\n       icb用来检测其对应位置是否有shulker，如果有，就把那个位置原有的null清除掉，如果没有，就在其对应位置生成null，指令如下：//rcb\n/testfor @e[x=X,y=Y,z=Z,r=0,type=Shulker]\n//然后比较器输出，连接cb\n/kill@e[x=-1463,y=56,z=1010,r=0,type=ArmorStand,name=null]\n//连接非门（就是那个火把）\n/summon ArmorStand -1463 56 1010 {CustomName:\"null\",Invisible:1b,NoGravity:1b}复制代码       所以真实的数字板应该是这样的（gm 3）：\n\n\n\n       判断完了情况，然后就是处理了，这里就要用到相对位置这个概念，至于相对位置在这里是什么，怎么实现，往下看就知道了。\n[很晕对吧，这就对了，，]\n       现在我们来讲讲我们之前提到的相对位置的确定，相对位置这个概念的引入帮助我减少了3/4的工程量，而且之后的判断相加合并等操作也与之密不可分，可见其作用巨大（想偷懒就直说(╬￣皿￣)凸）       相对位置在这里类似于汇编中的偏移地址（byte[es:0x01]），我们在从右往左的第一行的4号位有一个叫yellow的Invisible的as（你可以看到第四行的4号位的as颜色比较深，那是应为那里有null和yellow两个as），通过依次将这个as传送到第三、第二、第一、第四行的4号位并在每次传送后进行情况判断处理，我们就可以实现一个方向的移动合并       当我们踩下黄色羊毛的踏板是，会在(-1462 56 978)，就是我们的黄色处理cb群的起始位置，放置一个redstone_block，然后就会启动这一个装置：\n\n\n       四条cb链的底部的cb会依次传送yellow，而上面的四个icb就是将当前要判断处理的shulker的分数映射到寄存模块中（下面两个ccb就别管了~一个是weather clear，一个是激活上面四个ccb），指令如下：/scoreboard players operation@e[type=ArmorStand,r=0,x=-1449,y=57,z=1016] 2048 =@e[type=Shulker,x=-1463,y=56,z=1014,r=0] 2048\n/scoreboard players operation @e[type=ArmorStand,r=0,x=-1447,y=57,z=1016]2048 = @e[type=Shulker,x=-1461,y=56,z=1014,r=0] 2048\n/scoreboard players operation@e[type=ArmorStand,r=0,x=-1445,y=57,z=1016] 2048 =@e[type=Shulker,x=-1459,y=56,z=1014,r=0] 2048\n/scoreboard players operation @e[type=ArmorStand,r=0,x=-1451,y=57,z=1016]2048 = @e[type=Shulker,x=-1465,y=56,z=1014,r=0] 2048复制代码然后再启动判断处理机制就可以了。\n       Well，这里蹦出来了一个新东东：寄存模块，我来解释一下       寄存模块的作用就是将当前要处理的shulker的分数暂时储存，这样当判断模块（之后会讲）判断的时候就可以直接调用寄存模块的分数，而不用麻烦的从数字板那里调用分数，而当我们要相加的时候，也可以直接调用寄存模块的分数，说白了，寄存模块就像编程语言里面的变量一样。       而寄存模块的构成十分简单。。。就是四个as，分别叫a1,a2,a3,a4,分别对应1号位，2号位，3号位，4号位。每次处理一行之前只要对应映射到寄存模块就可以了。\n       好吧到这里相对位置也讲完了。。。(? ˙з˙)?\n\n\n\n然后就是判断处理了啊~       判断方法我已经在上面讲过了，这里就不再多说，每一次传送之后都会激活这一竖行的ccb，ccb后面跟着的就是判断机制：\n \n\n       我们先讲：【1000,0100,0010,0001】这四种情况的处理，非常简单，只要把他们tp到1号位即可，我们用0100举例：/execute @e[type=ArmorStand,name=yellow] ~4 ~~ tp @e[type=Shulker,r=0] ~-4 ~ ~复制代码       然后再讲这6种情况：【0011；0101；1001；0110；1010；1100】由于出现了2个shulker在一行的情况，我们有必要判断两个shulker的2048分数是否相等，如果相等，就把分数加起来，清除掉一个后再移动；如果不相等，就把两个一起移动。       那么这里，就要用到“等值检测模块”，简称“等测模块”（等厕(￣y▽￣)╭）：\n\n\n       等测模块所使用的记分板是test，防止与2048记分板混淆，其成员有：【Checker1;Checker2;CheckResult;Bool】，初始值为：[Checker1.test=1;Checker2.test=0;CheckResult.test=0;Bool.test=0;]       Checker1、2用于存放要对比的两个shulker的分数       CheckResult用于存放Checker1、2的处理结果       Bool用于存放两个分数是否相等（0>不等，1>相等）       等测模块的实现方法就是先把Checker1、2的分数想减，结果存放于CheckResult，然后检测如果CheckResult的test=0，则相等，Bool的test改为1       如果CheckResult的test≠0，则不相等，Bool的test不变，为0       实现指令如下，指令与指令之间用icb连接（chain-condition-always active）:/scoreboard players operation@e[name=CheckResult,type=ArmorStand] test = @e[name=Checker1,type=ArmorStand]test\n/scoreboard players operation@e[name=CheckResult,type=ArmorStand] test -= @e[name=Checker2,type=ArmorStand]test\n/testfor @e[name=CheckResult,type=ArmorStand,score_test_min=0,score_test=0]\n/scoreboard players set@e[name=Bool,type=ArmorStand] test 1复制代码       可以通过在特定左边放红石块一次性激活这些指令，也可以手动摆放4个cb激活。而我就是后者，前者因为时序的原因无法正常判断。       这样，【0011；0101；1001；0110；1010；1100】这6种情况就好判断了，将寄存模块中对应的as的2048值赋到Checker1、2中，启动等测模块即可。       然后再检测Bool的值，如果等于1：//加分\n/execute @e[type=ArmorStand,name=yellow] ~2 ~~ scoreboard players operation @e[type=Shulker,r=0] 2048 +=@e[type=ArmorStand,name=a2] 2048\n//清除没用Shulker\n/execute @e[type=ArmorStand,name=yellow] ~2 ~~ tp @e[type=Shulker,r=0] ~-2 ~ ~\n//把已加分的shulker传送到特定的位置\n/execute @e[type=ArmorStand,name=yellow] ~4 ~~ kill @e[type=Shulker,r=0]\n//清空寄存模块和等测模块，供下一次使用，这里我是把清空指令串到一起，再一键激活\n/setblock -1477 56 969minecraft:redstone_block\n/setblock -1448 57 1015 minecraft:redstone_block复制代码      而对于：【1110；1101；1011；0111】，则先判断后两个是否相等，如果相等，相加移动；如果不是，判断前两个是否相等，如果相等，相加移动，但是这里要注意，检测bool的test=0的ccb之后要用红石块配合icb才可以继续接下去，就像这样：/testfor@e[type=ArmorStand,name=Bool,score_test=0,score_test_min=0]\n/setblock ~-1 ~ ~ minecraft:redstone_block\n//这里空一个方块\n/setblock ~1 ~ ~ air复制代码应为icb有可能会互相影响。对于：【1111】的话方法可以从【1110；1101；1011；0111】推导，只是多判断几次，在此不过多论述。\n\n\n\n        判断相加之后就是新的shulker（数字2）的生成，这里就又要用到映射的概念，在地图中有一个这样的地方：\n\n\n\n        这就是映射处了，每一行分别对应数字板的边框，还记得之前的占位模块吧，它还有一个作用，对于边框来说，如果边框部位的格子上没有shulker，它不仅仅会在那里生成null，也会在映射处将其对应的地方放上海晶灯，反之则放水。当一个方向的移动合并完成之后，就会在这里生成2个shulker并打散到对应的海晶灯上在对应传送，由于有shulker的边框格子在这里被置换为了水，所以随机生成的shulker不会与原有的在边框上的shulker重合\n\n然后这就是全部内容了，大家再见~\n",
+    "replies": [
+        {
+            "author": "Mine268",
+            "timestamp": 1469000220,
+            "txt_content": "乙烯_中国 发表于 2016-7-20 15:37\n看这质量先小高亮加分予以表扬，待细看后再行提高评价\n谢，有疏漏的地方我会再修改的~"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1469000220,
+            "txt_content": "看这质量先小高亮加分予以表扬，待细看后再行提高评价"
+        },
+        {
+            "author": "LBL_CB",
+            "timestamp": 1469017260,
+            "txt_content": "又是你\n贴吧没人回就来这了"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1469021880,
+            "txt_content": "LBL_CB 发表于 2016-7-20 20:21\n又是你\n贴吧没人回就来这了\n被你发现了2333333"
+        },
+        {
+            "author": "42142特防",
+            "timestamp": 1469070720,
+            "txt_content": "不好，我智商不够用了。"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1469079540,
+            "txt_content": "42142特防 发表于 2016-7-21 11:12\n不好，我智商不够用了。\n要我借你一点吗233"
+        },
+        {
+            "author": "Java_command",
+            "timestamp": 1471150380,
+            "txt_content": "很神奇，我回头想个办法做一个{:10_508:}"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471158540,
+            "txt_content": "看到一半就晕了\n话说楼主怎么只有4级233333"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471158540,
+            "txt_content": " 本帖最后由 MODlover 于 2016-8-14 21:47 编辑 \n\n对了如果移动不了会怎么样\n例如：向右移动，但都是以下5种情况里面的：（0表示没有，1表示有）\n0000，0001，0011，0111，1111复制代码\n并且没有相邻的2个数字相等，此时原版2048中应该会移动失败，即不移动，也不会产生新的2\n另外，原版中还有很小的概率产生4而不是2\n\n还有，如果4个方向都移动不了，应该游戏结束，然而也没有讲到"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1471238280,
+            "txt_content": "MODlover 发表于 2016-8-14 15:09\n对了如果移动不了会怎么样\n例如：向右移动，但都是以下5种情况里面的：（0表示没有，1表示有）\n我也没有考虑那么多了啊，不能移动的话就直接重新开始吧，毕竟这只是一个原理展示的帖子嘛~"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1471238700,
+            "txt_content": "MODlover 发表于 2016-8-14 15:09\n看到一半就晕了\n话说楼主怎么只有4级233333\n因为我不怎么逛bbs的啊~\n晕了的话也正常，，，毕竟这么多嘛，慢慢看吧"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471417380,
+            "txt_content": "Mine268 发表于 2016-8-15 13:18\n我也没有考虑那么多了啊，不能移动的话就直接重新开始吧，毕竟这只是一个原理展示的帖子嘛~ ...\n好吧。。不过占位模块其实可以用压力板"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1471422900,
+            "txt_content": "MODlover 发表于 2016-8-17 15:03\n好吧。。不过占位模块其实可以用压力板\n是啊，，，当初没有想到【不过你似乎看懂了233"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471426500,
+            "txt_content": " 本帖最后由 MODlover 于 2016-8-17 18:47 编辑 \nMine268 发表于 2016-8-17 16:35\n是啊，，，当初没有想到【不过你似乎看懂了233\n对的，我自己在做，压力板版本的占位系统只有2个CB\n方法是：execute @e[type=Shulker] ~ ~ ~ entitydata @e[name=null,r=1] {CustomName:\"a\"}\nexecute @e[name=a] ~ ~ ~ detect ~ ~-1 ~ stone_pressure_plate 0 entitydata @e[name=a,r=1] {CustomName:\"null\"}复制代码\nrepeat,unconditioned,always active\n盔甲架要飘在压力板上面1格\n不过我的这个不是杀死盔甲架，是根据盔甲架的名字来判断的，所以要先召唤好16个盔甲架\n缺点是探测Shulker消失的反应速度较慢\n另外，负责移动Shulker的CB我也简化了，移动Shuiker只要1个CB就行（每个方向1个）\n向x轴正方向移动\nexecute @e[name=null] ~-2 ~ ~ tp @e[type=Shulker,r=1] ~2 ~ ~复制代码\nrepeat,unconditioned,needs redstone\n就是每一个null盔甲架把Shulker拉过来\n需要执行至少4次以保证没有BUG，所以用紫色的\n\n\n\n"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1471445640,
+            "txt_content": "MODlover 发表于 2016-8-17 17:35\n对的，我自己在做，压力板版本的占位系统只有2个CB\n方法是：\nrepeat,unconditioned,always active\n这个方法是可行的，但是有一个人（看这个2048来的灵感）的方法更为巧妙——先移动，再判断，再处理，这样只要判断4种情况：\n0001\n0011\n0111\n1111复制代码\n而且他是通过判断空格来实现移动的，占位都剩了233"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1471489320,
+            "txt_content": " 本帖最后由 MODlover 于 2016-8-20 08:27 编辑 \nMine268 发表于 2016-8-17 22:54\n这个方法是可行的，但是有一个人（看这个2048来的灵感）的方法更为巧妙——先移动，再判断，再处理，这样 ...\n处理合并的时候我是不分情况的。\n计分板：全都是dummy\nvalue，表示Shulker代表的数字\ncheck，用于等厕（滑稽）\ncombine，当check=0时，combine=1，用于简化后面的一些CB\n移动前执行一条指令：\nexecute @e[type=Shulker] ~ ~ ~ scoreboard players operation @e[r=1] check = @e[type=Shulker,r=1] value复制代码\nImpulse,unconditional,needs redstone，后面所有未说明的CB都是这个设置\n把盔甲架加上的原因是步骤结束之后还有检测一下是否有东西改变了（即判定移动失败）\n接下来是核心的指令（等厕）：\n/execute @e[type=Shulker] ~2 ~ ~ execute @e[type=Shulker,r=1] ~-0.8 ~ ~ scoreboard players operation @e[type=Shulker,c=1] check -= @e[type=Shulker,r=2,c=-1]复制代码\n然后\n/scoreboard players set @e[type=Shulker,score_check=0,score_check_max=0] combine 1复制代码\n最后kill，但是注意kill是有顺序的（否则有BUG），先从x大的开始，所以要用3个CB\n内容如下：[code]/execute @e[score_combine=1,x=X,dx=1] ~-2 ~ ~ kill @e[type=Shulker]\n其中X是Shulker所在的X坐标\nkill完再移动一下（仍然4次）可以重新激活前面的那个CB\n最后,把combine=1的value乘2，再把它们的value加到玩家的分数里面去，再把它们的combine设为0\n然后，检查有没有check>0且为null的盔甲架，有则开始下一轮，没有则不动。\n这些指令我就不给了（好懒），没有execute\n不过我的电脑上面spreadplayers 用不了，一样的选择器，spreadplayers找不到实体，tp却能找到，我也是醉了"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1472036640,
+            "txt_content": "MODlover 发表于 2016-8-18 11:02\n处理合并的时候我是不分情况的。\n计分板：全都是dummy\nvalue，表示Shulker代表的数字\n我很认真的看完了，但是我似乎军训之后变蠢了233没有看懂，，，能否先把主体思路讲一下，这样子便于理解\n【ps：我的显示器中间偏右的一块地方直接坏了，，，"
+        },
+        {
+            "author": "MODlover",
+            "timestamp": 1472044380,
+            "txt_content": "Mine268 发表于 2016-8-24 19:04\n我很认真的看完了，但是我似乎军训之后变蠢了233没有看懂，，，能否先把主体思路讲一下，这样子便于理解\n ...\nValue表示Shulker代表的数字，Check用于等厕\n另外，由于我家的电脑的spreadplayers指令坏了，我无法实验，所以不保证指令正确\n\n假设向右移动\n先把每个数字移动前的Value加到自己的Check和自己原来所在的盔甲架的Check\n\n然后向右移动（不合并）\n然后，每一个数字的Check都减去左边那个数字的Value，\n即判断是否与左边的数字相同，如果相同Check就是0\n然后把Check=0的Combine设为1\n然后，用execute删除Combine=1的数字左边的数字\n必须从右边开始往左删，否则会达不到原版的效果\n因此需要3个CB\n\n接下来把Combine=1的数字的Value乘2，就像合并了一样（虽然没有合并的动画）\n最后再往右tp一遍\n\n然后，需要判断移动成功还是失败，移动失败的判断标志是没有任何数字改变位置\n这里我们只要寻找名字为null且check大于0的盔甲架，即原来有数字，移动完没有数字的\n找到了就判断移动成功，生成新的数字并开始下一轮\n否则不动。\n然后根据潜影贝的Value改名（比如原来是2，合并完了Value是4，名字也应该改成4，但是名字不能乘2，也不能让名字直接变成Value的值，所以这个只好穷举了，Value为4，8，16，32，64，128，256，512，1024，2048的分别改名，让它们的名字变成Value的值）\n最后把Combine=1的数字的Value加到玩家的分数上面去，然后把它们设置Combine=0\n\n什么？判断不能移动然后重新开始？你想太多了。。。"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1472209320,
+            "txt_content": "MODlover 发表于 2016-8-24 21:13\nValue表示Shulker代表的数字，Check用于等厕\n另外，由于我家的电脑的spreadplayers指令坏了，我无法实验 ...\nwell我大概懂了，对于最后一句话说明一下，我的观点是：每一次进行同样的操作，类似于重新开始，只是没有清盘这个动作而已"
+        },
+        {
+            "author": "莲华酱",
+            "timestamp": 1472209860,
+            "txt_content": " 本帖最后由 619815617 于 2018-11-30 19:40 编辑 \n\n1111111111111111111"
+        },
+        {
+            "author": "Mine268",
+            "timestamp": 1472285700,
+            "txt_content": "619815617 发表于 2016-8-26 19:11\n建议改成不用踏板的。改成按钮的形式会更好，，\n木已成舟，懒得改了233333"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1472307720,
+            "txt_content": "LZ你牛，在下佩服{:10_560:}\n果然丧心病狂"
+        }
+    ]
+}

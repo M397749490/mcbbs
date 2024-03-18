@@ -1,0 +1,74 @@
+{
+    "title": "关于自定义事件的激活问题",
+    "author": "Cuki",
+    "replyCount": 13,
+    "timestamp": 1597321560,
+    "txt_content": "这里写了一个事件A 一个事件B  并且B继承了A\n然后callEvent(B) 监听器只能监听到B事件\n\n但是看doc里 PlayerMoveEvent 和 PlayerTeleportEvent 也是继承关系\nPlayerTeleportEvent 触发时也会触发 move\n\n\n那么在自己做事件的时候 是需要call了B还要在call个A吗 ",
+    "replies": [
+        {
+            "author": "南柯郡守",
+            "timestamp": 1597321680,
+            "txt_content": "你是extend还是implement\nextend应该是会连带触发A事件吧\n\n\n不是很确定  我自己还没试过继承自己的事件"
+        },
+        {
+            "author": "Cuki",
+            "timestamp": 1597321860,
+            "txt_content": "南柯郡守 发表于 2020-8-13 20:28\n你是extend还是implement\nextend应该是会连带触发A事件吧\n是extends的 然后两个事件在构造方法里都有输出信息 调用是没问题的 就是监听器监听不到父类"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1597321980,
+            "txt_content": "Cuki 发表于 2020-8-13 20:31\n是extends的 然后两个事件在构造方法里都有输出信息 调用是没问题的 就是监听器监听不到父类 ...\n不然你把B事件的代码放出来看看\n\n万一我能看出点啥呢"
+        },
+        {
+            "author": "Cuki",
+            "timestamp": 1597322220,
+            "txt_content": "这个是开始描述的A类\n[code]public class PlayerStatsChangeEvent extends Event {\n    private static final HandlerList handlers = new HandlerList();\n    private final Player player;\n    private final StatsType type;\n\n    public PlayerStatsChangeEvent(Player player, StatsType type) {\n        this.player = player;\n        this.type = type;\n\n    }\n\n    public enum StatsType{\n        JOIN,\n    }\n\n    @Override\n    public HandlerList getHandlers() {\n        return handlers;\n    }\n\n    public static HandlerList getHandlerList() {\n        return handlers;\n    }\n\n\n    public Player getPlayer() {\n        return player;\n    }\n\n    public StatsType getType() {\n        return type;\n    }\n}复制代码[/code]\n\n\n\n这个是B\n\npublic class PlayerStatsChangeJoinEvent extends PlayerStatsChangeEvent{\n    private static final HandlerList handlers = new HandlerList();\n    private final Player player;\n    private final JoinStats joinStats;\n\n    public PlayerStatsChangeJoinEvent(Player player, JoinStats joinStats) {\n        super(player, StatsType.JOIN);\n        this.player = player;\n        this.joinStats = joinStats;\n    }\n\n    @Override\n    public HandlerList getHandlers() {\n        return handlers;\n    }\n\n    public static HandlerList getHandlerList() {\n        return handlers;\n    }\n\n    public Player getPlayer() {\n        return player;\n    }\n\n    public JoinStats getJoinStats() {\n        return joinStats;\n    }\n}复制代码\n\n\n\n用的时候就直接call的PlayerStatsChangeJoinEvent\n然后监听器同时监听了 PlayerStatsChangeJoinEvent 和 PlayerStatsChangeEvent\n但是只输出了 PlayerStatsChangeJoinEvent 的内容"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1597322520,
+            "txt_content": "Cuki 发表于 2020-8-13 20:37\n这个是开始描述的A类\n必须call两次\n你可以Spigot阅读源码\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1597324920,
+            "txt_content": "你看一下吧，我关于事件监听循环的教程\n是这样的，事件监听的注册是很死的\n就是说@EventHandler标记的方法\n有且仅有一个参数，代表事件本身对吧\n注册的时候，取这个参数，获得他的类，注册进总线\n换句话说，不存在什么多态监听，监听父事件什么的\n只能监听那一个在方法的参数里面的事件，而且是按照事件的类直接存储的\n调用的时候，按照call方法传入的参数的类，挨个调用事件监听器\n综上所述，不存在多态监听"
+        },
+        {
+            "author": "Ming200096",
+            "timestamp": 1597326900,
+            "txt_content": "666666666666666666"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1597327440,
+            "txt_content": "William_Shi 发表于 2020-8-13 21:22\n你看一下吧，我关于事件监听循环的教程\n是这样的，事件监听的注册是很死的\n就是说@EventHandler标记的方法\n所以只能是在事件里面手动再call 父事件嘛"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1597327560,
+            "txt_content": "南柯郡守 发表于 2020-8-13 22:04\n所以只能是在事件里面手动再call 父事件嘛\n我认为恰当的逻辑是在合适的时机call父事件后\n你自己监听父事件，看是不是符合子事件逻辑\n符合就再call子事件\n这个听起来好像好点"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1597327560,
+            "txt_content": "南柯郡守 发表于 2020-8-13 22:04\n所以只能是在事件里面手动再call 父事件嘛\nSpigot源码里很多是callEvent完再callEvent"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1597328640,
+            "txt_content": "William_Shi 发表于 2020-8-13 22:06\n我认为恰当的逻辑是在合适的时机call父事件后\n你自己监听父事件，看是不是符合子事件逻辑\n符合就再call子 ...\n但如果子事件需要更多参数就有点尬了\n\n不过确实先call父事件再判断子事件在逻辑上会比较方便\n\n但是好像bukkit 的那些子事件也都是参数比父事件多些\n\nPlayerEvent只有一个player参数PlayerBedEnterEvent就多一个Block bed 甚至 PlayerBedEnterEvent.BedEnterResult bedEnterResult\n\n\n没去翻源码 所以也不清楚bukkit是怎么实现的"
+        },
+        {
+            "author": "Cuki",
+            "timestamp": 1597343280,
+            "txt_content": "William_Shi 发表于 2020-8-13 22:06\n我认为恰当的逻辑是在合适的时机call父事件后\n你自己监听父事件，看是不是符合子事件逻辑\n符合就再call子 ...\n= = 这个观点的话肯定是不对的\n就拿move事件和tp事件来讲\ntp继承了move\n同时监听这两个事件 也是先触发tp 也就是子事件\n\n\n\n\nQQ截图20200814022738.png (1.57 KB, 下载次数: 0)\n\n下载附件\n\n2020-8-14 02:27 上传\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1597346640,
+            "txt_content": "Cuki 发表于 2020-8-14 02:28\n= = 这个观点的话肯定是不对的\n就拿move事件和tp事件来讲\ntp继承了move\n\nCraftBukkit源码里是挨个callEvent的\n并没有监听一个事件再发布另一个事件的逻辑"
+        }
+    ]
+}

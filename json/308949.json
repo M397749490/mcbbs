@@ -1,0 +1,109 @@
+{
+    "title": "Minecraft 服务器数据自动上传百度云 【新增Windows + Linux】",
+    "author": "dfc643",
+    "replyCount": 20,
+    "timestamp": 1406389740,
+    "txt_content": " 本帖最后由 dfc643 于 2014-7-31 15:57 编辑 \n\n想必大家有部分人是在 VPS 上面开的 Minecraft 服务器，但是对于 Minecraft 来说地图数据简直非常重要。但是一旦数据丢了可不得了。所以呢咱就编写了一个自动上传百度云的 PHP 脚本。适合在 Linux 的服务器上运行。可以自动将数据打包上传至百度网盘。\n\n另外值得一提的是，由于太懒就直接调用系统 shell 了，这样也可以方便改写成 shell 脚本，则可以省去 php 这样的东西了。\n另外近期作成 Windows 版本请继续往下看\n\nLinux 软件包要求：\nphp5 zip 以及 curl cron\n\nLinux 版如何使用：\n1、将 mcbkp.php 中的相关目录路径更换成您的相关路径。\n2、请填写您的 百度API 的 AccessToken 代码。\n3、为 Linux 计划任务 Cron 添加一条新计划任务。\n\ncrontab -e 范例：\n0 */6 * * * php /root/mcbkp.php #每隔 6 小时自动上传 MC 数据到百度网盘\n\nmcbkp.php 程序代码 (Linux版)：\n<?php\n// MINECRAFT data backup tool\n// @ by Norckon\n\ndate_default_timezone_set('PRC');\n\n// Backup filename and source path\n//   BAKPATH: Where want you storage backup archive.\n//   SRCPATH: Where Minecraft server installed.\n$bakpath = \"/root/mcbackups\";\n$srcpath = \"/root/cauldron\";\n\n// Create Zip Archive\n//   SRC: Which directories want to compress\n//   DST: Where storage Zip Archive\n//   MAPNAME: Which map want you backup in Minecraft\n//   MODE: How to backup\n//      1: Current map only\n//      2: Current map and mods\n//      3: All the server and data \nfunction CreateArchive($src, $dst, $mapname, $mode) {\n        // Create new zip archive file\n        switch($mode) {\n                case 1:\n                        system(\"zip -qr $dst $src/$mapname/\");\n                        break;\n                case 2:\n                        system(\"zip -qr $dst $src/$mapname/ $src/mods/\");\n                        break;\n                case 3:\n                        system(\"zip -qr $dst $src/\");\n                        break;\n                default:\n                        echo \"I don't known which mode you want.\";\n        }\n}\n\n// Remove older backups\nfunction RemoveOld ($path) {\n        system(\"rm -f $path/mcbkp_*.mcb\");\n}\n\n// Upload to Baidu netdisk\nfunction bdpcsUpload($accesstoken, $path ,$filename) {\n        system('curl -k -L -F \"file=@'.$path.'\" \"https://c.pcs.baidu.com/rest/2.0/pcs/file?method=upload&access_token='.$accesstoken.'&path=/apps/fmcbackups/'.$filename.'\"');\n}\n\n// Main function\nfunction FMain() {\n        global $bakpath,$srcpath;\n        // Remove all older backups\n        RemoveOld($bakpath);\n        // Create new backup\n        $bkparc = $bakpath.\"/mcbkp_\".date(\"Y_m_d_H_i_s\").\".mcb\";\n        CreateArchive($srcpath, $bkparc, \"world\", 1);\n        // Upload to baidudisk\n        // 百度网盘 API 使用方法 ：http://www.fcsys.us/webapp/wordpress/?p=1292\n        bdpcsUpload(\"YOUR_ACCESS_TOKEN\", $bkparc, \"/mcbkp_\".date(\"Y_m_d_H_i_s\").\".mcb\");\n}\n\nFMain();\n?>复制代码mcbkp.sh (Shell版本)：\n由于 aa210063654 提供，感谢作者\n#!/bin/bash\n#debug switch  -xv\n\n#filename : mcbk.sh\n#author : nyacat\n\n#settings\n  #default var\n    backup_path=\"~/mcbackups\"\n    server_path=\"~/cauldron\"\n    map_name=\"world\"\n    backup_mode=1\n    pcs_token=\"\"\n    pcs_appid=\"\"\n    backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\".zip\"\n\n#usage\nfunction usage () {\n    echo \"Usage:\"\n    echo \"    backup mode\"\n    echo \"    $0 -m 1/2/3\"\n    echo \"        1.backup map only\"\n    echo \"        2.backup map and mods\"\n    echo \"        3.backup all files\"\n    echo\n    echo \"    show usage\"\n    echo \"    $0 -H\"\n    echo\n    echo \"e.g:\"\n    echo \"  $0 -m 1\"\n    echo\n    exit 1\n  }\n\n#root user check\n#    if [[ $UID -ne 0 ]];\n#      then\n#        echo \"Please run $0 as root.\"\n#        exit 2\n#      fi\n\n#usage check\n    if [[ -z \"$1\" ]] || [[ -z \"$2\" ]] || [ $2 -gt 3 ] || [[ \"$1\" = \"-H\" ]]\n      then\n        usage\n      fi\n\n#first,remove older backups\n    rm -f ${backup_path}\"/minecraft_server_bk*.zip\"\n\n#second,create archive\n    while getopts \"m:H\" opts\n      do\n        case ${opts} in\n          m)\n            backup_mode=${OPTARG}\n          ;;\n          H)\n            usage\n          ;;\n          ?)\n            usage\n          ;;\n          *)\n            usage\n          ;;\n        esac\n      done\n\n    case ${backup_mode} in\n          1)\n            backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-map.zip\"\n            server_path=${server_path}\"/\"${map_name}\n          ;;\n          2)\n            backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-map_mods.zip\"\n            server_path=${server_path}\"/\"${map_name}\" \"${server_path}\"/mods\"\n          ;;\n          3)\n            server_path=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-all.zip\"\n          ;;\n          *)\n            usage\n          ;;\n        esac\n\n  if [ -d \"$server_path\" ]; then\n    zip -q -r ${backup_path}\"/\"${backup_name} ${server_path}\n  else\n    echo \"no such dir\"\n  fi\n\n#upload to pcs\n  if [ -a \"${backup_path}\"/\"${backup_name}\" ]&&[ -s \"${backup_path}\"/\"${backup_name}\" ]; then\n    curl -k -L -F 'file=@'${backup_path}\"/\"${backup_name} 'https://c.pcs.baidu.com/rest/2.0/pcs/file?method=upload&access_token='$pcs_token'&path=/apps/'$pcs_appid'/'$backup_name\n  else\n    echo \"no such file\"\n  fi\n复制代码\n\n\n\nWindows 版如何使用\n1、将压缩包里面的 mcbkp 文件夹与 mcbkp.php 解压到 C 盘根目录\n2、在系统中添加环境变量 （见附件中的图）\n3、修改 mcbkp.php 中的相关参数，请使用 utf-8 编辑器如 notepad++\n4、在控制面板中添加一项计划任务（见附件中的图）\n5、下载地址：http://pan.baidu.com/s/1pJt1Ps3\n\nmcbkp.php 程序代码 (Windows版)\n<?php\n// MINECRAFT 数据备份工具\n// @ by Norckon\n\ndate_default_timezone_set('PRC');\n\n// 【请先设置】备份文件路径与MC服务器路径设置等相关设置\n//   BAKPATH: 你想在何处存储备份文件\n//   SRCPATH: MC服务器被安装在何处\n//   GMAP   : 你所要备份的地图\n//   GMODE  : 备份模式参照下面的说明\n//   GTOKEN : 百度开发者的 ACCESS TOKEN\n//   GAPPID : 你的PCS的的应用名称，即网盘apps文件夹中的文件夹名\n\n$bakpath = \"C:\\\\mcbkp\";\n$srcpath = \"C:\\\\cauldron\";\n$gmap    = \"world\";\n$gmode   = 1;\n$gtoken  = \"你的ACCESSTOKEN\";\n$gappid  = \"你的PCS的的应用名称\";\n// 百度网盘 API 使用方法 ：http://www.fcsys.us/webapp/wordpress/?p=1292\n\n// 创建压缩档案\n//   SRC: 想要压缩哪一些目录\n//   DST: 何处存储压缩档\n//   MAPNAME: 想要备份MC服务器中的哪一张地图\n//   MODE: 怎么备份\n//      1: 只备份该地图\n//      2: 备份地图与MOD\n//      3: 备份所有服务器文件\nfunction CreateArchive($src, $dst, $mapname, $mode) {\n        // Create new zip archive file\n        switch($mode) {\n                case 1:\n                        system(\"zip -qr $dst $src/$mapname/\");\n                        break;\n                case 2:\n                        system(\"zip -qr $dst $src/$mapname/ $src/mods/\");\n                        break;\n                case 3:\n                        system(\"zip -qr $dst $src/\");\n                        break;\n                default:\n                        echo \"I don't known which mode you want.\";\n        }\n}\n\n// 删除陈旧备份\nfunction RemoveOld ($path) {\n        system(\"del /f /s /q $path\\\\mcbkp_*.mcbw\");\n}\n\n// 上传至百度网盘\nfunction bdpcsUpload($accesstoken, $path ,$appname ,$filename) {\n        system('curl -# -k -L -F \"file=@'.$path.'\" \"https://c.pcs.baidu.com/rest/2.0/pcs/file?method=upload&access_token='.$accesstoken.'&path=/apps/'.$appname.'/'.$filename.'\"');\n}\n\n// Main function\nfunction FMain() {\n        global $bakpath,$srcpath,$gmap,$gmode,$gtoken,$gappid;\n        // Remove all older backups\n        RemoveOld($bakpath);\n        // Create new backup\n        $bkparc = $bakpath.\"\\\\mcbkp_\".date(\"Y_m_d_H_i_s\").\".mcbw\";\n        CreateArchive($srcpath, $bkparc, $gmap, $gmaode);\n        // Upload to baidudisk\n        bdpcsUpload($gtoken, $bkparc, $gappid, \"/mcbkp_\".date(\"Y_m_d_H_i_s\").\".mcbw\");\n}\n\nFMain();\n?>复制代码\n这些可能需要一些技术，请多多咨询谷歌或者必应。\n\nby 北极光.Norckon\n\n\n\n\n\n\nQQ截图20140726234951.png\n(37.58 KB, 下载次数: 11)\n\n\n\n\n下载附件\n\n\n2014-7-26 23:50 上传\n\n\n\n\n\n\n\n\n效果图\n\n\n\n\n\n\n\n\n\n\n\nQQ截图20140731083002.png\n(14.15 KB, 下载次数: 5)\n\n\n\n\n下载附件\n\n\n2014-7-31 08:49 上传\n\n\n\n\n\n\n\n\n添加环境变量\n\n\n\n\n\n\n\n\n\n\n\nQQ截图20140731084153.png\n(7.96 KB, 下载次数: 4)\n\n\n\n\n下载附件\n\n\n2014-7-31 08:49 上传\n\n\n\n\n\n\n\n\n添加计划任务\n\n\n\n\n\n\n\n\n\n\n\n\n\nmcbkp.zip\n\n\n2014-7-26 23:49 上传\n点击文件名下载附件\n\n\n\n\n1 KB, 下载次数: 15\n\n\nLinux版\n\n\n\n",
+    "replies": [
+        {
+            "author": "daijiangbiao",
+            "timestamp": 1406391240,
+            "txt_content": "话说我没用过Linux，不知道怎么用。。"
+        },
+        {
+            "author": "815132496",
+            "timestamp": 1406392320,
+            "txt_content": "对程序一概不通~~~"
+        },
+        {
+            "author": "Aikawastep",
+            "timestamp": 1406392680,
+            "txt_content": "O.O 只能围观。。不懂"
+        },
+        {
+            "author": "Koke_Cacao",
+            "timestamp": 1406393640,
+            "txt_content": "网盘很慢的"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406561520,
+            "txt_content": "daijiangbiao 发表于 2014-7-27 00:14\n话说我没用过Linux，不知道怎么用。。\n其实还好啦，都差不多的"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406561640,
+            "txt_content": "Aikawastep 发表于 2014-7-27 00:38\nO.O 只能围观。。不懂\n嗯谢谢呢"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406561640,
+            "txt_content": "Koke_Cacao 发表于 2014-7-27 00:54\n网盘很慢的\n嗯，怎么说呢，还行吧，美国VPS上传大概是 300K 左右，毕竟是后台运行的，慢点也没关系。"
+        },
+        {
+            "author": "gfyx",
+            "timestamp": 1406572800,
+            "txt_content": "网盘还行吧{:10_493:}"
+        },
+        {
+            "author": "1076617170",
+            "timestamp": 1406592660,
+            "txt_content": "= =估计那些用家用机开的人 尤其是电信的恐怕没用吧 还有现在大部分人用的是windows系统= =linux系统的话不会用"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406598600,
+            "txt_content": "1076617170 发表于 2014-7-29 08:11\n= =估计那些用家用机开的人 尤其是电信的恐怕没用吧 还有现在大部分人用的是windows系统= =linux系统的话不 ...\n其实 Linux 很简单的啦，稍稍几个命令就行了"
+        },
+        {
+            "author": "1076617170",
+            "timestamp": 1406598900,
+            "txt_content": "dfc643 发表于 2014-7-29 09:50\n其实 Linux 很简单的啦，稍稍几个命令就行了\n表示不懂"
+        },
+        {
+            "author": "aa210063654",
+            "timestamp": 1406648700,
+            "txt_content": "- -.mcb....说白了就是zip。。用file一发就知道了，何必换个后缀\n而且...不来个usage么，本地脚本应该来个usage才是王道\n最后....部分php禁用system函数怎么办"
+        },
+        {
+            "author": "an.com",
+            "timestamp": 1406681220,
+            "txt_content": "具体好麻烦哦"
+        },
+        {
+            "author": "nausicaa",
+            "timestamp": 1406685000,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406767980,
+            "txt_content": "aa210063654 发表于 2014-7-29 23:45\n- -.mcb....说白了就是zip。。用file一发就知道了，何必换个后缀\n而且...不来个usage么，本地脚本应该来个u ...\n是的呢，所以说了有人能写个 shell 会更好呢，咱不会写 shell 的说"
+        },
+        {
+            "author": "咸鱼气功王",
+            "timestamp": 1406768700,
+            "txt_content": "用阿里云的服务器，一天一个快照全不担心。，"
+        },
+        {
+            "author": "aa210063654",
+            "timestamp": 1406774640,
+            "txt_content": "dfc643 发表于 2014-7-31 08:53\n是的呢，所以说了有人能写个 shell 会更好呢，咱不会写 shell 的说\n= =有空的时候帮你搞定一个"
+        },
+        {
+            "author": "aa210063654",
+            "timestamp": 1406780400,
+            "txt_content": "dfc643 发表于 2014-7-31 08:53\n是的呢，所以说了有人能写个 shell 会更好呢，咱不会写 shell 的说#!/bin/bash\n#debug switch  -xv\n\n#filename : mcbk.sh\n#author : nyacat\n\n#settings\n  #default var\n    backup_path=\"~/mcbackups\"\n    server_path=\"~/cauldron\"\n    map_name=\"world\"\n    backup_mode=1\n    pcs_token=\"\"\n    pcs_appid=\"\"\n    backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\".zip\"\n\n#usage\nfunction usage () {\n    echo \"Usage:\"\n    echo \"    backup mode\"\n    echo \"    $0 -m 1/2/3\"\n    echo \"        1.backup map only\"\n    echo \"        2.backup map and mods\"\n    echo \"        3.backup all files\"\n    echo\n    echo \"    show usage\"\n    echo \"    $0 -H\"\n    echo\n    echo \"e.g:\"\n    echo \"  $0 -m 1\"\n    echo\n    exit 1\n  }\n\n#root user check\n#    if [[ $UID -ne 0 ]];\n#      then\n#        echo \"Please run $0 as root.\"\n#        exit 2\n#      fi\n\n#usage check\n    if [[ -z \"$1\" ]] || [[ -z \"$2\" ]] || [ $2 -gt 3 ] || [[ \"$1\" = \"-H\" ]]\n      then\n        usage\n      fi\n\n#first,remove older backups\n    rm -f ${backup_path}\"/minecraft_server_bk*.zip\"\n\n#second,create archive\n    while getopts \"m:H\" opts\n      do\n        case ${opts} in\n          m)\n            backup_mode=${OPTARG}\n          ;;\n          H)\n            usage\n          ;;\n          ?)\n            usage\n          ;;\n          *)\n            usage\n          ;;\n        esac\n      done\n\n    case ${backup_mode} in\n          1)\n            backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-map.zip\"\n            server_path=${server_path}\"/\"${map_name}\n          ;;\n          2)\n            backup_name=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-map_mods.zip\"\n            server_path=${server_path}\"/\"${map_name}\" \"${server_path}\"/mods\"\n          ;;\n          3)\n            server_path=\"minecraft_server_bk-\"`date +%Y%m%d_%H%M%S`\"-all.zip\"\n          ;;\n          *)\n            usage\n          ;;\n        esac\n\n  if [ -d \"$server_path\" ]; then\n    zip -q -r ${backup_path}\"/\"${backup_name} ${server_path}\n  else\n    echo \"no such dir\"\n  fi\n\n#upload to pcs\n  if [ -a \"${backup_path}\"/\"${backup_name}\" ]&&[ -s \"${backup_path}\"/\"${backup_name}\" ]; then\n    curl -k -L -F 'file=@'${backup_path}\"/\"${backup_name} 'https://c.pcs.baidu.com/rest/2.0/pcs/file?method=upload&access_token='$pcs_token'&path=/apps/'$pcs_appid'/'$backup_name\n  else\n    echo \"no such file\"\n  fi\n复制代码\n没测试过,写好就仍上来了"
+        },
+        {
+            "author": "dfc643",
+            "timestamp": 1406793180,
+            "txt_content": "aa210063654 发表于 2014-7-31 12:20\n没测试过,写好就仍上来了\n谢谢呢，其实 PHP 也是完成的 SHELL 作用，按道理翻译过来直接能用"
+        },
+        {
+            "author": "yushijinhun",
+            "timestamp": 1407561000,
+            "txt_content": "表示还不如把服务器扔进git版本库，再写个脚本定时提交推送。这样即省硬盘又省力。"
+        }
+    ]
+}

@@ -1,0 +1,39 @@
+{
+    "title": "[娱乐]MultiExp——多倍经验[1.10]",
+    "author": "GiNYAi",
+    "replyCount": 6,
+    "timestamp": 1510552200,
+    "txt_content": " 本帖最后由 GiNYAi 于 2017-11-13 14:56 编辑 \n\n一个简单的小插件\n基于spongeforge-1.10.2 API 5.1\n试了一下似乎1.11.2也能跑\n\n截图\n\n\n\n\n\nTIM图片20171113145341.png (14.87 KB, 下载次数: 1)\n\n下载附件\n\n2017-11-13 14:54 上传\n\n\n\n\n\n\n命令\nMultiExp reload - 重载插件                 权限:MultiExp.Commands\n也可以使用sponge plugins reload 重载\n\n配置文件\n//根节点\nMultiples:{\n         //随便起名字的一个节点\n        Example1:{\n                //倍率\n                Scale = 1\n                //自定义的权限\n                Permission = \"example.permission\"\n        }\n         //随便起名字的另一个节点\n        Example2:{\n                //倍率\n                Scale = 1.5\n                //如果没有指定自定义权限的默认设置的权限\n                //Permission = \"MultiExp.Multiples.Example2\"\n                //执行时给玩家发的消息,支持原始JSON文本或者使用&作为样式符号\n                Message = \"%player%,%origin_exp%,%final_exp%,%gain_exp%\"\n        }\n}复制代码\n\n下载\n\n\n\nMultiExp-1.1-SNAPSHOT.jar\n(6 KB, 下载次数: 77)\n\n\n\n2017-11-13 14:12 上传\n点击文件名下载附件\nMultiExp-1.1\n\n\n\n\n\n\n源代码\n@Plugin(id = MultiExp.PLUGIN_ID,name = MultiExp.PLUGIN_NAME,authors = {\"GiNYAi\"})\npublic class MultiExp {\n    public final static String PLUGIN_ID = \"multiexp\";\n    public final static String PLUGIN_NAME = \"MultiExp\";\n\n    @Inject\n    private Logger logger;\n\n    @Inject\n    @ConfigDir(sharedRoot = true)\n    private Path defaultConfigDir;\n    private Path configPath;\n\n    private ConfigurationLoader<CommentedConfigurationNode> configurationLoader;\n    private CommentedConfigurationNode rootNode;\n    private LinkedHashMap<String,Double> scaleMap;\n    private HashMap<String,String> messageMap;\n\n    @Listener\n    public void onPreLoad(GamePreInitializationEvent event){\n        MinecraftForge.EVENT_BUS.register(this);\n        configPath = defaultConfigDir.resolve(PLUGIN_NAME+\".conf\");\n        try {\n            if(!configPath.toFile().exists()){\n                Sponge.getAssetManager().getAsset(this,\"default_config.conf\").get()\n                        .copyToFile(configPath);\n            }\n            reload();\n        } catch (IOException e) {\n            logger.error(PLUGIN_NAME+\" failed to load config\",e);\n        }\n    }\n\n    @Listener\n    public void onGameStart(GameStartingServerEvent event){\n        CommandSpec reload = CommandSpec.builder()\n                .permission(\"MultiExp.Commands.Reload\")\n                .executor(((src, args) -> {\n                    try {\n                        reload();\n                    }catch (Exception e){\n                        logger.error(PLUGIN_NAME+\" failed to load config\",e);\n                        throw new CommandException(Text.of(\"Failed to reload.\"),e);\n                    }\n                    src.sendMessage(Text.of(\"Reload complete.\"));\n                    return CommandResult.success();\n                })).build();\n        CommandSpec root = CommandSpec.builder()\n                .permission(\"MultiExp.Commands.Command\")\n                .child(reload,\"reload\")\n                .build();\n        Sponge.getCommandManager().register(this,root,PLUGIN_NAME);\n    }\n\n    @Listener\n    public void onReload(GameReloadEvent event) {\n        try {\n            reload();\n        }catch (Exception e){\n            logger.error(PLUGIN_NAME+\" failed to load config\",e);\n        }\n    }\n\n    private void reload() throws IOException {\n        configurationLoader = HoconConfigurationLoader.builder().setPath(configPath).build();\n        rootNode = configurationLoader.load();\n        scaleMap = new LinkedHashMap<>();\n        messageMap = new HashMap<>();\n        for(CommentedConfigurationNode node:rootNode.getNode(\"Multiples\").getChildrenMap().values()){\n            String permission = node.getNode(\"Permission\").getString(\"MultiExp.Multiples.\"+node.getKey().toString());\n            double scale = node.getNode(\"Scale\").getDouble();\n            String message = node.getNode(\"Message\").getString(null);\n            if(scaleMap.containsKey(permission)){\n                logger.warn(\"Multiple \"+node.getKey().toString()+\" use the permission:\"+permission+\" has been used by other multiple\");\n            }else {\n                scaleMap.put(permission,scale);\n                messageMap.put(permission,message);\n            }\n        }\n    }\n\n    @SubscribeEvent\n    public void onGainExp(PlayerPickupXpEvent event){\n        Player player = (Player) event.getEntityPlayer();\n        for(String permission: scaleMap.keySet()){\n            if(player.hasPermission(permission)){\n                int originExp = event.getOrb().getXpValue();\n                double expExp = originExp * scaleMap.get(permission);\n                int finalExp = (int) Math.round(expExp);\n                event.getOrb().xpValue = finalExp;\n                int gainExp = finalExp-originExp;\n                String message = messageMap.get(permission);\n                if(message!=null){\n                    message = message.replaceAll(\"%player%\",player.getName());\n                    message = message.replaceAll(\"%origin_exp%\",String.valueOf(originExp));\n                    message = message.replaceAll(\"%final_exp%\",String.valueOf(finalExp));\n                    message = message.replaceAll(\"%gain_exp%\",String.valueOf(gainExp));\n                    Text text;\n                    try {\n                        text = TextSerializers.JSON.deserialize(message);\n                    }catch (Exception e){\n                        text = TextSerializers.FORMATTING_CODE.deserializeUnchecked(message);\n                    }\n                    player.sendMessage(text);\n                }\n                break;\n            }\n        }\n    }\n\n}复制代码\n\n本插件所用所有代码均为原创,不存在借用/抄袭等行为\n",
+    "replies": [
+        {
+            "author": "Not103",
+            "timestamp": 1510612800,
+            "txt_content": "+个时间如何？规定什么时候开启 开启多久这样这些的功能"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1510660320,
+            "txt_content": "Not103 发表于 2017-11-14 06:40\n+个时间如何？规定什么时候开启 开启多久这样这些的功能\n我还是觉得完全基于权限控制比较好一点"
+        },
+        {
+            "author": "YouisBoy",
+            "timestamp": 1510732140,
+            "txt_content": "支持原创，感谢为sponge端开发插件"
+        },
+        {
+            "author": "keler",
+            "timestamp": 1518085440,
+            "txt_content": "楼主  1.11.2用不了"
+        },
+        {
+            "author": "jwx233",
+            "timestamp": 1518338820,
+            "txt_content": "支持MM？"
+        },
+        {
+            "author": "a904375464",
+            "timestamp": 1535783760,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

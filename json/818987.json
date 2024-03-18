@@ -1,0 +1,64 @@
+{
+    "title": "【CBL|SPG】制作物品模型动画",
+    "author": "SPGoding",
+    "replyCount": 11,
+    "timestamp": 1535968740,
+    "txt_content": " 本帖最后由 SPGoding 于 2018-9-10 22:36 编辑 \n\nMinecraft Vanilla 中，拉弓有动画，抛钓竿有动画…然而我们自己拿胡萝卜钓竿改的武器没有动画！\n今天咱就来做这么个东西：\n\n\n首先了解一下动画的原理：许多帧的连续播放。\n为了制作模型动画，每一帧都需要是一个单独的模型文件。胡萝卜钓竿的耐久度太低（25），用来制作动画实属浪费，应该尽量把它留给需要进行右键判定的物品。本教程中使用钻石斧（diamond_axe，耐久 1561，足够我们浪了）作为动画模型的载体。\n* 9.10 更新，可以把胡萝卜钓竿的材质修改为透明并放置在玩家副手。这样所有的帧模型就都可以用钻石斧来制作了，省去了区分胡萝卜钓竿、钻石斧的麻烦，并且将能够引入动画打断机制。教程后文并未更改，仍区分了胡萝卜钓竿和钻石斧，如有特殊需求请自行更改。\n\n我们还需要一个计分项来记录动画播放到的位置。本文中使用 cd（cooldown，设定上在动画播放过程中是不能使用武器的，属于“冷却”阶段）进行记录。\n* 9.10 更新，不同的动画可以通过新建记分板分数进行记录，甚至可以通过检测记分板的值来做到打断前摇/后摇的效果，瞬间提升游戏操作流畅感与操作上限。所谓的流畅感，就是在玩家按下按键以后能够迅速获得响应（制作动画本身就是提升流畅感的一种方式）。引入打断机制，响应会更加及时。\n\n制作一个模型动画，大体过程如下：\n右键「胡萝卜钓竿改的武器」触发（Q 与 F 触发同理，但是它们两个在使用的时候手中会短暂地空一下，尤其是 Q，这一点可能会略微影响体验，不过用得好也许会反而增加手感。顺带提一个效果，本人正好尝试做了蓄力效果（长按右键蓄力，松开右键释放，类似原版拉弓射箭），传授一点人生经验。检测长按右键，就是要检测分数连续上升。但是，胡萝卜钓竿的判断在长按右键时有延迟，约 5 刻响应一次，以及由于网络波动等原因需要再给出 2 刻的富余，两次右键触发的间隔只要在 7 刻以内就应该认为是蓄力过程中，超出 7 刻没有触发右键则判定为释放技能。不过这会造成 7 刻释放的滞后，流畅感会略受影响）。设置 cd 的值为动画时长。每刻减少 cd 的值。根据 cd 的值放置不同耐久度的钻石斧（或胡萝卜钓竿），实现动画。在 cd 为某个值时，产生武器的效果（这样可以让动画和效果同步，增强游戏体验。cd 大于此值的时段称为前摇，cd 小于此值的时段称为后摇）。\n\n\n看着简单，其实还是有不少坑的（主要是在写模型的部分）。\n\n一. 右键「胡萝卜钓竿改的武器」触发。\n胡萝卜钓竿的右键检测是基本功，用计分板判据 minecraft.used:minecraft.carrot_on_a_stick 即可，我就不多讲了【跑。\n\n二. 设置 cd 的分数为动画时长。\n以下是一个触发以后的函数示例：scoreboard players set @s cd 13复制代码\n该动画将持续 13 刻（0.65 秒）\n\n三. 每刻减少 cd 的值。\n在加了 #minecraft:tick 的函数中写上这条命令scoreboard players remove @a cd 1复制代码\n\n四. 根据 cd 的值放置不同耐久度的钻石斧，实现动画。\n本教程中，将制作一个「将火把向后引、迅速向前甩」的动画（如帖子开头动图所示）。\n这里开始说本教程第一个重点：钻石斧需要修改攻击速度。\n为什么呢？因为在使用 replaceitem 更换物品的时候，物品会有一个快速向上移动的动画：\n\n\n事实上，它会严重干扰我们自制动画的效果（想象一下，你的武器快速地上下抽动…噫）\n这个动画的速度与玩家的攻击速度属性有关。属性越高，动画越快。因此，想要它不播放这个动画，我们可以把攻击速度设到极高…\n然而，经过测试，不管多高都会有一个上升的过程。让我们一起大呼：MJSB（这四个字母是本教程第二个重点）！\n极高不行，只能把它设置到极低，使其不会向上移动。玩家默认攻击速度为 4，将其减至小于等于 0 即可彻底禁用该动画。以下是一个示例 NBT：{AttributeModifiers:[{AttributeName:\"generic.attackSpeed\",Operation:0,Amount:-4d,UUIDMost:1L,UUIDLeast:1L}],HideFlags:63,display:{Name:\"\"\"\"},Unbreakable:1b}复制代码\n接下来我们开始写每一帧的模型。\n\n以下是火把正常状态下的模型 foobar:item/pca/torch/normal（使用胡萝卜钓竿作为载体，使其可以通过右键触发命令。该胡萝卜钓竿也需要设置攻击速度 -4。* 如前文 9.10 更新所言，可以全部使用钻石斧制作。）：\n{\n    \"textures\": {\n        \"torch\": \"foobar:item/pca/torch\"\n    },\n    \"elements\": [\n        {\n            \"from\": [7, 3, 7],\n            \"to\": [9, 13, 9],\n            \"faces\": {\n                \"north\": {\n                    \"uv\": [2, 0, 0, 10],\n                    \"texture\": \"#torch\"\n                },\n                \"east\": {\n                    \"uv\": [0, 0, 2, 10],\n                    \"texture\": \"#torch\"\n                },\n                \"south\": {\n                    \"uv\": [2, 0, 0, 10],\n                    \"texture\": \"#torch\"\n                },\n                \"west\": {\n                    \"uv\": [0, 0, 2, 10],\n                    \"texture\": \"#torch\"\n                },\n                \"up\": {\n                    \"uv\": [0, 0, 2, 2],\n                    \"rotation\": 180,\n                    \"texture\": \"#torch\"\n                },\n                \"down\": {\n                    \"uv\": [0, 5, 1, 6],\n                    \"texture\": \"#torch\"\n                }\n            }\n        }\n    ],\n    \"display\": {\n        \"firstperson_righthand\": {\n            \"translation\": [0, 10, 0],\n            \"rotation\": [-30, 0, 0],\n            \"scale\": [1.5, 1.5, 1.5]\n        },\n        \"thirdperson_righthand\": {\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 0, 0],\n            \"scale\": [1.3, 1.3, 1.3]\n        },\n        \"gui\": {\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 45, -45],\n            \"scale\": [1.5, 1.5, 1.5]\n        }\n    }\n}复制代码\n本文第三个重点，所有帧模型的 display.firstperson_xxxhand.translation[1] 的值需要在原有基础上加 10，这是因为前文我们为了避免那个扰人的上抬动画将攻击速度修改为 0，武器现在永远静止在了正常位置向 y 轴负方向偏移 10 个单位（手动测量，误差 <= 1 个单位）的位置，需要手动矫正，否则会看不到武器。\n这是火把的贴图 foobar:item/pca/torch：\n\n\n这是火把向后引的帧模型 foobar:item/pca/torch/back：\n{\n    \"parent\": \"foobar:item/pca/torch/normal\",\n    \"display\": {\n        \"firstperson_righthand\": {\n            \"translation\": [0, 10, 0],\n            \"rotation\": [15, 0, -20],\n            \"scale\": [1.5, 1.5, 1.5]\n        },\n        \"thirdperson_righthand\": {\n            \"translation\": [0, 0, 0],\n            \"rotation\": [45, 0, 0],\n            \"scale\": [1.3, 1.3, 1.3]\n        }\n    }\n}复制代码\n\n这是火把向前伸的帧模型 foobar:item/pca/torch/front：\n{\n    \"parent\": \"foobat:item/pca/torch/normal\",\n    \"display\": {\n        \"firstperson_righthand\": {\n            \"translation\": [0, 10, 0],\n            \"rotation\": [-60, 0, 20],\n            \"scale\": [1.5, 1.5, 1.5]\n        },\n        \"thirdperson_righthand\": {\n            \"translation\": [0, 0, 0],\n            \"rotation\": [-45, 0, 0],\n            \"scale\": [1.3, 1.3, 1.3]\n        }\n    }\n}复制代码\n\n然后我们把除了 normal 外的两个帧模型设置到钻石斧 minecraft:item/diamond_axe 上面（normal 设置到胡萝卜钓竿上，因为我们要进行右键检测）：\n{\n    \"overrides\": [\n        {\n            \"predicate\": {\n                \"damage\": 6.4061499039077514413837283792441e-4\n            },\n            \"model\": \"foobar:item/pca/torch/back\"\n        },\n        {\n            \"predicate\": {\n                \"damage\": 0.00128122998078155028827674567585\n            },\n            \"model\": \"foobar:item/pca/torch/front\"\n        }\n    ]\n}复制代码\n\n以下是实现动画的示例命令，需要由玩家高频执行：\nexecute if entity @s[scores={cd=5..13}] run replaceitem entity @s hotbar.0 minecraft:diamond_axe{Damage:1s,display:{Name:\"\"\"\"},AttributeModifiers:[{AttributeName:\"generic.attackSpeed\",Operation:0,Amount:-4d,UUIDMost:1L,UUIDLeast:1L}],Unbreakable:1b,HideFlags:63}\nexecute if entity @s[scores={cd=2..4}] run replaceitem entity @s hotbar.0 minecraft:diamond_axe{Damage:2s,display:{Name:\"\"\"\"},AttributeModifiers:[{AttributeName:\"generic.attackSpeed\",Operation:0,Amount:-4d,UUIDMost:1L,UUIDLeast:1L}],Unbreakable:1b,HideFlags:63}\nexecute if entity @s[scores={cd=1}] run replaceitem entity @s hotbar.0 minecraft:carrot_on_a_stick{Damage:2s,display:{Name:\"\"\"\"},AttributeModifiers:[{AttributeName:\"generic.attackSpeed\",Operation:0,Amount:-4d,UUIDMost:1L,UUIDLeast:1L}],Unbreakable:1b,HideFlags:63}复制代码\n\n五. 在 cd 为某个值时，产生武器的效果。\n可以在上面那个函数中加入以下命令：\nexecute if entity @s[scores={cd=4}] run functoin foobar:shoot_fireball复制代码\n其中 foobar:shoot_fireball 是发射火球的函数。\n\n另外在折腾几天的过程中我还有些小技巧想与大家分享：\ncd 分配得越长，帧持续越长，显得越「柔」。适合用于蓄力等动作；反之则适合于快速击打、释放等动作。display 中，rotation translation 的变换幅度越大，显得力道越大。不过要注意不要太大使得物品转到了一些奇怪的位置…最好在 cd 快到零以前的一段时间内就让模型恢复原状（1..3 这样的），可以保证动画之间的连贯。如果刚好卡在 0 恢复的话多个动画间的连接也许会非常突兀。在写帧模型的时候，把 elements 分配到区域的正中间，可以保证修改 rotation 时物品不会转飞（因为 display 里面旋转的原点是 (8, 8, 8) 来着）。否则每次旋转都需要通过修改 translation 将模型调至原先位置，很麻烦，而且很可能调不准。在第一人称时，指向玩家的为 z 轴正方向，指向玩家右侧的为 x 轴正方向，指向玩家上方的为 y 轴正方向。display 的 rotation 中，三个元素分别是绕着 x y z 轴旋转的角度（单位为度），顺时针旋转为正，逆时针旋转为负。顺带一提，模型 JSON 中东南西北这四个方向和 x y z 轴的关联与世界坐标系一致，即面向玩家的固定是南面，面向玩家右侧的固定是东面，玩家面向的方向固定是北面，等等。在第三人称时，x y z 轴的方向与第一人称一致。不过由于手臂是向下垂的状态，z 轴正方向是顺着手臂指向玩家的，相对于玩家来说的话是指向上方。x 轴正方向仍指向玩家右侧，y 轴正方向是手臂的上方，相对于玩家来说则是前方。多数情况下第三人称的旋转角度直接复制第一人称的即可，这里特别提这么一条是为了防止在手动微调的时候大家对 x y z 轴的正方向困惑。使用 Q 触发的技能，会导致脸前出现物品的掉落物实体，可以通过修改 display.ground 的 scale 为 [0, 0, 0] 使掉落物不可见。使用 Q 或 F 的瞬间，玩家手中会空一下，这是客户端补帧所致，我个人没有发现什么解决途径。不过由于在前文中避免了上扬动画，所以在空了一刻以后就会出现期望的模型动画。在编写 cd 时候需要为这一刻留出富裕。另外抛砖引个玉，可以在动画进行中手动 replaceitem minecraft:air，与触发时刻的空手交相呼应。在模型动画的进行途中如果能够通过 playsound 播放音效，并通过 cd 保证音效与动画同步，游戏的打击感可能会进一步提升，仍然是抛砖引玉。模型动画在多人游戏时对网络要求与服务器配置很高，如果 ping 高的话会吞掉一些帧，如果 tps 不稳定动画的持续时间会很诡异。因此，为多人地图制作模型动画时，不能制作过于精细的动画。每一个帧模型最少持续 3 刻，最好能够到 5 刻以上，否则丢帧可能性很高。在一般情况下动画都应该放在客户端计算，但是迫于限制 Minecraft 中只能把动画显示放在服务端计算，由此带来的弊端十分明显，不过仍可以接受的。如果不需要考虑多人游戏，仅仅在单人游戏制作的话，每帧持续时长也建议在 2 刻以上，否则可能会由于 Minecraft 补帧机制出现意料外的问题。由空气 replaceitem 为某个物品时，屏幕下方物品栏会出现短暂的动画。目前我们都是在 diamond_axe 和 carrot_on_a_stick 之间替换，不会造成奇怪的影响。如果需要在空气和某个物品替换时，可以在 display.gui 中将 scale 修改为 [2.3, 1, 1] 以此抵消动画（不抵消也没啥影响）。动画十二原则有兴趣的话可以去搜一搜。当然，迫于精度问题，在 Minecraft 中不好实现。不过，作为知识学习一下还是不错的JSON 模型很有趣！\n\n\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1535969640,
+            "txt_content": "竟然还有Attribute这种操作..."
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1535970360,
+            "txt_content": "逐渐代替插件"
+        },
+        {
+            "author": "xiaowei233v",
+            "timestamp": 1535973540,
+            "txt_content": "游戏技巧命令版简直是一个月发一次=-="
+        },
+        {
+            "author": "Sakur9",
+            "timestamp": 1535979720,
+            "txt_content": "厉害了，很棒。"
+        },
+        {
+            "author": "quanee",
+            "timestamp": 1538007720,
+            "txt_content": "大佬!!!厉害!!"
+        },
+        {
+            "author": "不死鸟与龙",
+            "timestamp": 1595222340,
+            "txt_content": "长智识了"
+        },
+        {
+            "author": "密云",
+            "timestamp": 1595300040,
+            "txt_content": "欢迎来到：学废系列      T_T"
+        },
+        {
+            "author": "堕天使之墓",
+            "timestamp": 1595803740,
+            "txt_content": "666666666666666666666"
+        },
+        {
+            "author": "pigred",
+            "timestamp": 1602340740,
+            "txt_content": "有点厉害楼主"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1602380640,
+            "txt_content": "开头的火把动画给我一种要敲人的感觉"
+        },
+        {
+            "author": "黑sky",
+            "timestamp": 1606272240,
+            "txt_content": "像我们这种人也就只能看看了"
+        }
+    ]
+}

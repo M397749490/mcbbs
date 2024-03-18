@@ -1,0 +1,49 @@
+{
+    "title": "[1.16.1] Pixel-perfect 算法实现",
+    "author": "LocusAzzurro",
+    "replyCount": 8,
+    "timestamp": 1595190420,
+    "txt_content": " 本帖最后由 LocusAzzurro 于 2020-7-19 21:36 编辑 \n\n前言 - 什么是pixel-perfect算法\n\n这个算法可以让我们在绘制像素曲线时保持1像素的宽度，在绘制的同时实时移除L形状位置上的像素。\n下图左侧是正常的铅笔工具绘制的像素曲线，右侧是经过算法加持形成的曲线，中间标记出了移除的像素。\n\n\n\n\n\npixel_perfect_example.png (4.34 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-20 04:24 上传\n\n\n\n\n\n\nfunction实现\n\ntick.json\n{\n \"values\": [\n \"pixel:draw\"\n ]\n}复制代码\n\ndraw.mcfunction\n#pixel-imperfect-comparison\n\ntag @a remove ip_drawing\nexecute as @p[nbt={SelectedItem:{id:\"minecraft:clay_ball\"}}] run tag @s add ip_drawing\n\nexecute at @a[tag=ip_drawing] align xzy run setblock ~ ~-1 ~ white_wool\n\n#pixel-perfect\n\ntag @a remove drawing\nexecute as @p[nbt={SelectedItem:{id:\"minecraft:slime_ball\"}}] run tag @s add drawing\n\nexecute at @e[tag=p2] if entity @a[tag=drawing,distance=..5] run particle minecraft:end_rod ~ ~0.5 ~ 0.1 0 0.1 0.005 1 force\n\nexecute at @a[tag=drawing] align xzy unless entity @e[tag=pixel,distance=0] run function pixel:iterate复制代码\n\niterate.mcfunction\n#drawing @ p1\n\nexecute at @e[tag=p1,tag=!nodraw] run setblock ~ ~-1 ~ white_wool\n\n#trace iteration\n\nkill @e[tag=p1]\ntag @e[tag=p2] add p1\ntag @e[tag=p1] remove p2\ntag @e[tag=p3] add p2\ntag @e[tag=p2] remove p3\nexecute at @p align xzy run summon armor_stand ~ ~ ~ {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[\"p3\",\"pixel\"]}\n\n#corner pixel check\n\nexecute at @e[tag=p2] run summon armor_stand ~1 ~ ~1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[\"anchor1\"]}\nexecute store result score __cornerTest1 corner run execute as @e[tag=anchor1] at @e[tag=anchor1] if entity @e[distance=..1.5,tag=pixel]\nkill @e[tag=anchor1]\n\nexecute at @e[tag=p2] run summon armor_stand ~1 ~ ~-1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[\"anchor2\"]}\nexecute store result score __cornerTest2 corner run execute as @e[tag=anchor2] at @e[tag=anchor2] if entity @e[distance=..1.5,tag=pixel]\nkill @e[tag=anchor2]\n\nexecute at @e[tag=p2] run summon armor_stand ~-1 ~ ~1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[\"anchor3\"]}\nexecute store result score __cornerTest3 corner run execute as @e[tag=anchor3] at @e[tag=anchor3] if entity @e[distance=..1.5,tag=pixel]\nkill @e[tag=anchor3]\n\nexecute at @e[tag=p2] run summon armor_stand ~-1 ~ ~-1 {NoGravity:1b,Invulnerable:1b,Invisible:1b,Tags:[\"anchor4\"]}\nexecute store result score __cornerTest4 corner run execute as @e[tag=anchor4] at @e[tag=anchor4] if entity @e[distance=..1.5,tag=pixel]\nkill @e[tag=anchor4]\n\n#condition check\n\ntag @e[tag=p2] add nodraw\n\nexecute if score __cornerTest1 corner matches 2 if score __cornerTest2 corner matches 2 if score __cornerTest3 corner matches 2 if score __cornerTest4 corner matches 2 run tag @e[tag=p2] remove nodraw\n\nexecute as @e[tag=p2,tag=nodraw] at @e[tag=p2,tag=nodraw] if entity @e[tag=nodraw,tag=p1,distance=..1] run tag @e[tag=p2] remove nodraw复制代码\n\n实现说明\n\n循环function：\n检测手持粘液球的玩家并运行算法，一个考虑到的点是只有玩家移动了超过一格距离才会进行一次迭代计算。另外加了一些粒子标记当前计算的位置。\n\n迭代function：\n\n第一部分主要是跟随玩家移动生成盔甲架，并且对齐到整数坐标便于计算。行进方式类似于贪吃蛇，用p1,p2,p3三个tag分辨生成的先后顺序。\n\n\n\n\n\niteration.png (2.75 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-20 04:16 上传\n\n\n\n\n\n\n接下来是检测三个盔甲架是否形成了一个直角，这里用的方法是在p2的盔甲架位置周围四个对角的位置分别生成盔甲架，然后检测1.5格范围内的盔甲架数量（1.5格刚好可以检测到旁边和对角，直线里比较远的则不在范围内），然后分别写入计分板备用。如果是直线，四个数值就都是2，如果是直角，会有两个2，一个1，一个3。\n\n\n\n\n\ncorner_check.png (13.75 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-20 04:16 上传\n\n\n\n\n\n\n然后是条件检测，先默认p2位置的盔甲架属于直角，因此不绘制（nodraw）。然后检测三个盔甲架是否直线，如果是则移除tag。\n后面的一个检测是在行进路线呈S型时进行的判断，因为刚才的行进规则，p2上的nodraw会在下一次迭代里继承到p1上，因为这个算法是保留S型里后绘制的那个像素，因此检测之前的p1上是不是已经有了nodraw，如果有就保留现在的p2位置的像素，移除p1。如果只是简单的直角，则保留nodraw，不绘制像素。\n\n不同情况的处理方式见下图：\n黄色=移除检测；红色=确认移除；绿色=确认保留\n\n\n\n\n\ncondition_check.png (4.4 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-20 04:17 上传\n\n\n\n\n\n\n最后就是实际生成方块，是在每次周期开始的时候进行，如果p1最后确认为要绘制的像素，就在盔甲架下方一格位置生成方块。\n\n\n\n后话\n\n前几天RMG群里有人说到Aseprite里的这个工具，有点感兴趣，于是研究了一下算法。应该只能单机用，没做多人优化，算个prototype/proof of concept吧。版本兼容的话因为1.16刚出的就顺手用了，1.15/1.14应该也可以用。（记得放进去之后先跑一下 pixel:init 创建计分板）\n\n\n\n\npixel.zip\n(2.9 KB, 下载次数: 0)\n\n\n\n2020-7-20 04:26 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "Xiao2",
+            "timestamp": 1595206020,
+            "txt_content": "https://www.mcbbs.net/thread-892788-1-1.html\n如果来一波内部算法那岂不是又锦上添花\n@00ll00"
+        },
+        {
+            "author": "Liang66666",
+            "timestamp": 1595207700,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1595426700,
+            "txt_content": "补充一下：\n对于更大半径的画笔 可以使用同样的方式进行补偿\n如果绘制路径发现直角，那就将直角位置的整个画笔都删掉"
+        },
+        {
+            "author": "kayn-",
+            "timestamp": 1596253920,
+            "txt_content": "通俗易懂的编码，爱了"
+        },
+        {
+            "author": "ausygendjxhx",
+            "timestamp": 1596274080,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "私‘’恋",
+            "timestamp": 1596288780,
+            "txt_content": "通俗易懂的编码，爱了"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1602036660,
+            "txt_content": "我一直以为pixel是神奇宝贝有关的名字XD，原来是这个意思吗"
+        },
+        {
+            "author": "春木呱",
+            "timestamp": 1602139020,
+            "txt_content": "厉害还可以这样玩"
+        }
+    ]
+}

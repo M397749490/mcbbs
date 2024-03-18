@@ -1,0 +1,24 @@
+{
+    "title": "[已解决]1.12版本MC新建实体中父类的方法DropFewsItem()被调用，而子类中的未被调用。",
+    "author": "飞翔之歌",
+    "replyCount": 3,
+    "timestamp": 1583825640,
+    "txt_content": " 本帖最后由 飞翔之歌 于 2020-3-10 16:12 编辑 \n\n具体就是，我新建了一个实体，也重写了DropFewsItem()方法。按照源码：\n@Override\n    protected void dropFewItems(boolean wasRecentlyHit, int lootingModifier) {\n        Minecraft.getMinecraft().player.sendMessage(new TextComponentString(\"TEST\"));\n        this.dropItem(Items.COAL, 1*(this.rand.nextInt(lootingModifier))+2);\n    }复制代码\n在调用dropFewItems时，应该会发送一条\"TEST\"消息到玩家的聊天框，但是并没有这么做，而且也没掉落煤炭，而是掉落了父类EntityZombie的掉落物——腐肉。\n由于我准备设置更多的掉落物，所以不可能重写getDropItem(),只能重写dropFewItems()方法。\n截图:\n\n更多的源码在:github上了，以及该类的源码在这里。如果上不了github,这里有该类的源码\npackage flysong.darkages.entity.DarkZombies;\n\nimport net.minecraft.client.Minecraft;\nimport net.minecraft.entity.monster.EntityZombie;\nimport net.minecraft.init.Items;\nimport net.minecraft.init.MobEffects;\nimport net.minecraft.potion.PotionEffect;\nimport net.minecraft.util.text.TextComponentString;\nimport net.minecraft.world.World;\n\npublic class EntityDarkZombies extends EntityZombie {\n    public EntityDarkZombies(World worldIn)\n    {\n        super(worldIn);\n        this.setSize(0.9F,2.925F);\n    }\n\n    @Override\n    protected void dropFewItems(boolean wasRecentlyHit, int lootingModifier) {\n        Minecraft.getMinecraft().player.sendMessage(new TextComponentString(\"TEST\"));\n        this.dropItem(Items.COAL, 1*(this.rand.nextInt(lootingModifier))+2);\n    }\n\n    @Override\n    public void onLivingUpdate() {\n        if (this.world.isDaytime() && !this.world.isRemote && !this.isChild() && this.shouldBurnInDay())\n        {\n            this.addPotionEffect(new PotionEffect(MobEffects.WITHER,1,4));\n        }\n        super.onLivingUpdate();\n    }\n}\n复制代码\n解决方法:dropFewItems已经过时",
+    "replies": [
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583826420,
+            "txt_content": "看了一下 在1.12版本\n会优先尝试调用 getLootTable 这个方法 如果返回不为null\n则会根据返回的地址加载 loottable获取掉落物\n而不会通过dropFewItems方法"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1583827140,
+            "txt_content": "-1. Minecraft 这个类是客户端独占的。你这样给玩家发消息，是会在服务器端上崩溃的。\n0. 实体掉落是由战利品表控制的。参考 assets/minecraft/loot_tables/entities/zombie.json。\n1. dropFewItems 这个方法只有两个地方在用：史莱姆（掉落史莱姆球）和凋灵（掉落下界之星）。这两个是非常明显的历史遗留。其他实体的掉落都是写成了战利品表。\n2. 为你自己的实体添加掉落：覆写 EntityLiving 的 getLootTable 方法：\n@Override\nprotected ResourceLocation getLootTable() {\n  return new ResourceLocation(\"my_mod\", \"entities/my_mob\");\n}复制代码\n然后你的战利品表 JSON 应放置在 assets/my_mod/loot_tables/entities/my_mob.json。\n战利品表的相关教程可在 mcbbs 上原版相关板块中找到。MinecraftWiki 上也有详尽的关于战利品表的说明。\n你也可以参考 https://harbinger.covertdragon.team/chapter-23/ 虽然并不完整就是了。"
+        },
+        {
+            "author": "飞翔之歌",
+            "timestamp": 1583827800,
+            "txt_content": "谢谢@3TUSK @GiNYAi  ,已解决\n"
+        }
+    ]
+}

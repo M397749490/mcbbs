@@ -1,0 +1,69 @@
+{
+    "title": "Forge写的GUI界面数组越界",
+    "author": "Tale丿神话",
+    "replyCount": 12,
+    "timestamp": 1559458680,
+    "txt_content": " 本帖最后由 ok1120137764 于 2019-6-2 15:40 编辑 \n\n不知道什么原因 我拦截打开背包 然后把背包界面替换成我自己写的gui界面然后点击一个格子 会有数组越界异常 下面放代码\n监听类\n\npackage mc.modu.tale_sh.modugui;\n\nimport mc.modu.tale_sh.modugui.guis.GuiBackpack;\nimport net.minecraft.client.Minecraft;\nimport net.minecraft.client.gui.Gui;\nimport net.minecraft.client.gui.inventory.GuiChest;\nimport net.minecraft.client.gui.inventory.GuiInventory;\nimport net.minecraft.client.renderer.GlStateManager;\nimport net.minecraft.entity.player.EntityPlayer;\nimport net.minecraft.util.ResourceLocation;\nimport net.minecraft.util.math.BlockPos;\nimport net.minecraft.world.World;\nimport net.minecraftforge.client.event.GuiOpenEvent;\nimport net.minecraftforge.client.event.RenderGameOverlayEvent;\nimport net.minecraftforge.common.MinecraftForge;\nimport net.minecraftforge.fml.common.eventhandler.SubscribeEvent;\nimport net.minecraftforge.fml.common.network.FMLNetworkEvent;\nimport org.lwjgl.opengl.GL11;\n\nimport java.awt.*;\nimport java.math.BigDecimal;\nimport java.math.RoundingMode;\nimport java.util.*;\nimport java.util.List;\n\npublic class EventLoader {\n    private static final String TEXTURE_PATH = ModuGui.MOD_ID + \":\" + \"textures/gui/container/hatred.png\";\n    private static final ResourceLocation TEXTURE = new ResourceLocation(TEXTURE_PATH);\n\n    public EventLoader() {\n        MinecraftForge.EVENT_BUS.register(this);\n    }\n\n    @SubscribeEvent\n    public void onGuiOpen(GuiOpenEvent event) {\n        if (event.getGui() instanceof GuiInventory) {\n            event.setGui(new GuiBackpack(Minecraft.getMinecraft().player));\n        }\n    }\n}复制代码\n\nGUI类\n\npackage mc.modu.tale_sh.modugui.guis;\n\nimport mc.modu.tale_sh.modugui.ModuGui;\nimport mc.modu.tale_sh.modugui.container.BackpackContainer;\nimport net.minecraft.client.gui.Gui;\nimport net.minecraft.client.gui.inventory.GuiContainer;\nimport net.minecraft.client.renderer.GlStateManager;\nimport net.minecraft.entity.player.EntityPlayer;\nimport net.minecraft.util.ResourceLocation;\n\nimport java.awt.*;\n\npublic class GuiBackpack extends GuiContainer {\n    private static final String TEXTURE_PATH = ModuGui.MOD_ID + \":\" + \"textures/gui/container/backpack.png\";\n    private static final ResourceLocation TEXTURE = new ResourceLocation(TEXTURE_PATH);\n    private double scale;\n\n    public GuiBackpack(EntityPlayer player) {\n        super(new BackpackContainer(player));\n        scale = 0.3;\n        this.xSize = (int) Math.ceil(733 * scale);\n        this.ySize = (int) Math.ceil(1000 * scale);\n    }\n\n    @Override\n    public void initGui() {\n        super.initGui();\n    }\n\n    @Override\n    protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY) {\n        int screenMouseX = mouseX - guiLeft;\n        int screenMouseY = mouseY - guiTop;\n        drawString(mc.fontRenderer, mouseX + \" \" + mouseY, 50, 50, Color.WHITE.getRGB());\n        drawString(mc.fontRenderer, screenMouseX + \" \" + screenMouseY, 50, 60, Color.WHITE.getRGB());\n        GlStateManager.pushMatrix();\n        mc.getTextureManager().bindTexture(TEXTURE);\n        GlStateManager.translate(guiLeft, guiTop, 0);\n        GlStateManager.scale(0.306, scale, scale);\n        GlStateManager.enableBlend();\n        GlStateManager.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);\n        GlStateManager.color(1.0F, 1.0F, 1.0F, 1F);\n        //画背景\n        Gui.drawModalRectWithCustomSizedTexture(0, 0, 0, 0, 733, 1000, 856, 1000);\n        GlStateManager.disableBlend();\n        GlStateManager.popMatrix();\n    }\n}复制代码\n\n容器类\n\npackage mc.modu.tale_sh.modugui.container;\n\nimport net.minecraft.entity.player.EntityPlayer;\nimport net.minecraft.entity.player.InventoryPlayer;\nimport net.minecraft.inventory.Container;\nimport net.minecraft.inventory.IInventory;\nimport net.minecraft.inventory.InventoryBasic;\nimport net.minecraft.inventory.Slot;\nimport net.minecraftforge.items.ItemStackHandler;\nimport net.minecraftforge.items.SlotItemHandler;\n\npublic class BackpackContainer extends Container {\n    public ItemStackHandler items = new ItemStackHandler(45);\n\n    public BackpackContainer(EntityPlayer player) {\n        for (int i = 0; i < 5; i++) {\n            for (int j = 0; j < 9; j++) {\n                addSlotToContainer(new SlotItemHandler(items, i * 9 + j, 12 + j * 23, 41 + i * 22));\n            }\n        }\n        for (int i = 0; i < 4; i++) {\n            for (int j = 0; j < 9; j++) {\n                addSlotToContainer(new Slot(player.inventory, i * 9 + j, 12 + j * 23, 171 + i * 23));\n            }\n        }\n    }\n\n    @Override\n    public boolean canInteractWith(EntityPlayer playerIn) {\n        return true;\n    }\n}复制代码\n\n\n\n异常\n\n[Server thread/FATAL]: Error executing task\njava.util.concurrent.ExecutionException: java.lang.IndexOutOfBoundsException: Index: 67, Size: 46\n        at java.util.concurrent.FutureTask.report(FutureTask.java:122) ~[?:1.8.0_191]\n        at java.util.concurrent.FutureTask.get(FutureTask.java:192) ~[?:1.8.0_191]\n        at net.minecraft.util.Util.runTask(Util.java:30) [Util.class:?]\n        at net.minecraft.server.MinecraftServer.updateTimeLightAndEntities(MinecraftServer.java:754) [MinecraftServer.class:?]\n        at net.minecraft.server.MinecraftServer.tick(MinecraftServer.java:699) [MinecraftServer.class:?]\n        at net.minecraft.server.integrated.IntegratedServer.tick(IntegratedServer.java:156) [IntegratedServer.class:?]\n        at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:548) [MinecraftServer.class:?]\n        at java.lang.Thread.run(Thread.java:748) [?:1.8.0_191]\nCaused by: java.lang.IndexOutOfBoundsException: Index: 67, Size: 46\n        at java.util.ArrayList.rangeCheck(ArrayList.java:657) ~[?:1.8.0_191]\n        at java.util.ArrayList.get(ArrayList.java:433) ~[?:1.8.0_191]\n        at net.minecraft.inventory.Container.slotClick(Container.java:287) ~[Container.class:?]\n        at net.minecraft.network.NetHandlerPlayServer.processClickWindow(NetHandlerPlayServer.java:1168) ~[NetHandlerPlayServer.class:?]\n        at net.minecraft.network.play.client.CPacketClickWindow.processPacket(CPacketClickWindow.java:47) ~[CPacketClickWindow.class:?]\n        at net.minecraft.network.play.client.CPacketClickWindow.processPacket(CPacketClickWindow.java:12) ~[CPacketClickWindow.class:?]\n        at net.minecraft.network.PacketThreadUtil$1.run(PacketThreadUtil.java:21) ~[PacketThreadUtil$1.class:?]\n        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511) ~[?:1.8.0_191]\n        at java.util.concurrent.FutureTask.run(FutureTask.java:266) ~[?:1.8.0_191]\n        at net.minecraft.util.Util.runTask(Util.java:29) ~[Util.class:?]\n        ... 5 more复制代码\n\n琢磨好久了 求大佬给点帮助\n\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1559458680,
+            "txt_content": " 本帖最后由 森林蝙蝠 于 2019-6-2 18:14 编辑 \n\n你把playerInventory和你自己指定的container格子分配到同一个索引位置上去了，游戏分不清你是不是放在那45个SlotItemHandler外面，就崩溃了。"
+        },
+        {
+            "author": "1605153193",
+            "timestamp": 1559462340,
+            "txt_content": "楼主应该看得懂英文吧？这个问题你最好放GitHUB上去，这里的MOD问答基本上都是解决崩溃的，涉及代码的懂得人真的不多，你应该去和其他MOD作者探讨这个问题，最好@几个有空的MOD作者来集思广益，虽然我也不知道怎么解决这个问题，但我相信总有办法能解决的，就想官网下的1.12.2的热力膨胀套件不能用一样。"
+        },
+        {
+            "author": "Tale丿神话",
+            "timestamp": 1559464800,
+            "txt_content": "1605153193 发表于 2019-6-2 15:59\n楼主应该看得懂英文吧？这个问题你最好放GitHUB上去，这里的MOD问答基本上都是解决崩溃的，涉及代码的懂得 ...\n好的 谢谢"
+        },
+        {
+            "author": "Tale丿神话",
+            "timestamp": 1559467800,
+            "txt_content": "森林蝙蝠 发表于 2019-6-2 17:13\ni*9+j是数组索引，很容易超过你给的45这个范围，自然会下标越界，i自己就可以了。 ...\ni自己？ 我的i是行j是列 所以i*9+j的"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1559470380,
+            "txt_content": "ok1120137764 发表于 2019-6-2 17:30\ni自己？ 我的i是行j是列 所以i*9+j的\n已经修改了回答。"
+        },
+        {
+            "author": "Tale丿神话",
+            "timestamp": 1559470560,
+            "txt_content": " 本帖最后由 ok1120137764 于 2019-6-2 18:19 编辑 \n森林蝙蝠 发表于 2019-6-2 17:13\n你把playerInventory和你自己指定的container格子分配到同一个索引位置上去了，游戏分不清你是不是放在那45 ...\n那请问要怎么修复这个问题呢 要怎么把playerInventory和自己指定的container合并到一起"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1559526300,
+            "txt_content": "ok1120137764 发表于 2019-6-2 18:16\n那请问要怎么修复这个问题呢 要怎么把playerInventory和自己指定的container合并到一起 ...\n同一个container下，gui是统一的，位置错开就行了。"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1559562900,
+            "txt_content": " 本帖最后由 gooding300 于 2019-6-3 20:18 编辑 \n\nSlotItemHandler和Slot是两个不同的组件，addSlotToContainer每个组件都会导致背包显示容量增加，显示的格子也会重叠在一起，但是实际容量只有5*9，导致了这一崩溃。\n\n编程求助还是建议发到编程开发版块吧。"
+        },
+        {
+            "author": "Tale丿神话",
+            "timestamp": 1559792820,
+            "txt_content": "gooding300 发表于 2019-6-3 19:55\nSlotItemHandler和Slot是两个不同的组件，addSlotToContainer每个组件都会导致背包显示容量增加，显示的格 ...\n编程开发版我也发了 但是没一个人理我 那个实际容量是没办法改变了的吗"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1559797860,
+            "txt_content": " 本帖最后由 gooding300 于 2019-6-6 13:12 编辑 \nok1120137764 发表于 2019-6-6 11:47\n编程开发版我也发了 但是没一个人理我 那个实际容量是没办法改变了的吗\n去掉\nfor (int i = 0; i < 4; i++) {\n            for (int j = 0; j < 9; j++) {\n                addSlotToContainer(new Slot(player.inventory, i * 9 + j, 12 + j * 23, 171 + i * 23));\n            }\n        }复制代码\n试一试\n\n编程求助版块大佬多，这里只有我这种不靠谱的萌新。"
+        },
+        {
+            "author": "Tale丿神话",
+            "timestamp": 1559801220,
+            "txt_content": "gooding300 发表于 2019-6-6 13:11\n去掉\n\n试一试\n这个去掉肯定是可以的 但是就达不到我想要的要求了 这个是获取玩家背包的 编程求助的大佬都不愿意搭理我"
+        },
+        {
+            "author": "Si_shen___",
+            "timestamp": 1559805360,
+            "txt_content": "一点也看不懂"
+        }
+    ]
+}

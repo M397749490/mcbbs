@@ -1,0 +1,74 @@
+{
+    "title": "关于 Mixin 升级到 0.8 和 ModLauncher 的那些事",
+    "author": "海螺螺",
+    "replyCount": 13,
+    "timestamp": 1580993940,
+    "txt_content": " 本帖最后由 海螺螺 于 2020-2-7 12:28 编辑 \n\n关于 Mixin 升级到 0.8 和 ModLauncher 的那些事\n\n本文同时发布于 https://izzel.io/2020/02/06/mixin-0-8-guide/\n\n仿生 ModLauncher 不会梦到 LaunchWrapper\nMixinConnector\n从 1.13 起，Forge 抛弃了原来的 LauncherWrapper，改用了 cpw 编写的 ModLauncher，也就是说，Mixin 原来基于 Tweaker 的那一套不能用了，为此，Mixin 引入了 MixinConnector。\n首先，你需要让一个类实现 IMixinConnector，比如：\nimport org.spongepowered.asm.mixin.connect.IMixinConnector;\n\npublic class ExampleConnector implements IMixinConnector {\n\n    @Override\n    public void connect() {\n    }\n}\n然后在其中添加需要添加的 Mixin 配置文件：\nimport org.spongepowered.asm.mixin.Mixins;\nimport org.spongepowered.asm.mixin.connect.IMixinConnector;\n\npublic class ExampleConnector implements IMixinConnector {\n\n    @Override\n    public void connect() {\n        Mixins.addConfiguration(\"mixins.example.json\");\n    }\n}\n最后，你需要在 MANIFEST.MF 文件中，指定这个 jar 文件使用的 Mixin Connector：\n文件 META-INF/MANIFEST.MF\nManifest-Version: 1.0\nMixinConnector: ExampleConnector\n记得在最后空一行。\n当然，也可以使用构建工具，比如 Gradle：\njar {\n    manifest.attributes(\n        'MixinConnector': 'ExampleConnector'\n    )\n}\n剩余的内容就是普通的 Mixin 编写了，包括编写 Mixin 类，配置文件。\nModLauncher 支持\n当然，截至本文发出时，ModLauncher 生态仍然没有官方的 Mixin 支持，因此在 ModLauncher 引导 Mixin 需要一点奇淫巧计。\n比如我的项目 https://github.com/IzzelAliz/MixinLoader ，下载之后扔到 mods 文件夹，你的 Forge 就有了 Mixin 环境。\n其他特性\nMixin 0.8 带来了新的 tsrg 混淆表格式支持，以及 MixinGradle 对 ForgeGradle 3+ 的支持。升级至 MixinGradle 0.7 就可以快乐生成 refmap 了。\n同时，现在 Mixin Config 可以继承自其他的，只需要\n文件 mixins.example.json\n{\n  \"parent\": \"mixins.parent.json\"\n}\n更多特性可以阅读官方的 Release note\n\n",
+    "replies": [
+        {
+            "author": "Аuraro",
+            "timestamp": 1580996460,
+            "txt_content": "不明觉厉。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1581016140,
+            "txt_content": "ModLoader 支持\n\n当然，截至本文发出时，ModLoader 生态仍然没有官方的 Mixin 支持，因此在 ModLoader 引导 Mixin 需要一点奇淫巧计。\n\n是 Modlauncher。"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1581086280,
+            "txt_content": "modlauncher的作者就怎么没时间开发吗，连mixin都不兼容，好歹mixin 0.8做了兼容了"
+        },
+        {
+            "author": "火车撞鸟",
+            "timestamp": 1581088200,
+            "txt_content": "1a2s3d4f1 发表于 2020-2-7 22:38\nmodlauncher的作者就怎么没时间开发吗，连mixin都不兼容，好歹mixin 0.8做了兼容了\n ...\n\nMixin 当前已经能在 forge 1.13+ 下使用了，但是因为 Mixin 使用到了 ILaunchPluginService ，而 modlauncher 并不原生支持加载 mods 文件夹中的 \n ILaunchPluginService ，所以需要借助其他的东西。\n但是无论是 MixinLoader 还是 MixinBootstrap 都没能解决在 Java9+ 下使用 Mixin 的问题，所以我个人感觉比较完美的方案之一是把它加到启动的 libraries 中去\n\n{\n    \"id\": \"1.15.2-forge-31.1.1-mixin-0.8\",\n    \"type\": \"release\",\n    \"inheritsFrom\": \"1.15.2-forge-31.1.1\",\n    \"libraries\": [\n        {\n            \"name\": \"org.spongepowered:mixin:0.8\",\n            \"url\": \"https://repo.spongepowered.org/maven/\"\n        },\n        {\n            \"name\": \"org.ow2.asm:asm-analysis:7.2\",\n            \"url\": \"https://repo1.maven.org/maven2/\"\n        },\n        {\n            \"name\": \"org.ow2.asm:asm-util:7.2\",\n            \"url\": \"https://repo1.maven.org/maven2/\"\n        }\n    ]\n}"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1581088560,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-2-7 23:46 编辑 \n火车撞鸟 发表于 2020-2-7 23:10\nMixin 当前已经能在 forge 1.13+ 下使用了，但是因为 Mixin 使用到了 ILaunchPluginService ，而 modlau ...\n那么fabric能搞到java13就好解释了，看起来forge能逼死fabric，实际等到多数mod是forge时，patchworkmc就准备好了，接下来只有处理mod了，把forge编译为fabric modhttps://github.com/PatchworkMC/patchwork-api，听着就刺激\n\n小问题，如果forge core mod同时注入2个地方，会像mixin一样炸吗？"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1581089400,
+            "txt_content": "火车撞鸟 发表于 2020-2-7 23:10\nMixin 当前已经能在 forge 1.13+ 下使用了，但是因为 Mixin 使用到了 ILaunchPluginService ，而 modlau ...\n随便整了一下，现在应该支持除了 Java 9 的各种版本了"
+        },
+        {
+            "author": "火车撞鸟",
+            "timestamp": 1581090120,
+            "txt_content": " 本帖最后由 火车撞鸟 于 2020-2-7 23:46 编辑 \n1a2s3d4f1 发表于 2020-2-7 23:16\n那么fabric能搞到java13就好解释了，似乎modluancuer不能在java11下启动，看起来forge能逼死fabric ...\nforge 1.15+ 支持使用 Java11 启动。\nforge core mod 的自由度比 fabric mixin 大得多，虽然 mixin 也可以通过 IMixinConfigPlugin 来使用原生 ASM 修改字节码，但是也有局限性，比如不能凭空造一个类。\n尽管 Mixin 已经能胜任绝大多数场景下的简单的字节码修改，但是有些场景恐怕不行，比如修改一个类的超类。\n像 OptiFine 这样的大型 CoreMod ，使用纯 Mixin 恐怕无法完成。\nforge core mod 的冲突得看具体怎么改，比如 forge 1.8.9 下的 SpiderFrog OldAnimationsMod 2.4.2 和 ItemPhysic 1.3 ，由于防砍动画模组直接替换了整个类，而且几乎没有兼容 Forge 对原版的修改，会导致 NoSuchMethodError；再比如网易皮肤模组和 CustomSkinLoader 同时替换了 SkinManager 类中的 loadSkinFromCache 方法，具体哪个模组替换有效得看模组加载顺序，后加载的模组替换有效。\n\n我之前有设想过 Fabric 与 Forge 兼容的问题，设想是 OptiFine 魔改的 LaunchWrapper 启动 FabricLoader ，用 FabricLoader 启动 ModLauncher （大杂烩），最后使用 forge patch 过的 minecraft ，不过需要魔改这三者其一达到使用同一个 ClassLoader 启动 Minecraft ，恐怕工作量不小"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1581090420,
+            "txt_content": " 本帖最后由 海螺螺 于 2020-2-7 23:49 编辑 \n火车撞鸟 发表于 2020-2-7 23:42\nforge 1.15+ 支持使用 Java11 启动。\nforge core mod 的自由度比 fabric mixin 大得多，虽然 mixin 也可 ...\n讲道理我不认为修改一个类的超类是正确的操作，正确的应该是让他再实现一个接口之类\nsponge 全部由 mixin 进行字节码的修改，同时目前 sponge 的生态中只存在三条 at（使用at也是不被sponge社区鼓励的行为），纯 mixin 基本上可以完成各种操作了\n\nmixin对于多个相同注入点也有一定的处理，比如设置priority\n"
+        },
+        {
+            "author": "1a2s3d4f1",
+            "timestamp": 1581091140,
+            "txt_content": " 本帖最后由 1a2s3d4f1 于 2020-2-8 00:07 编辑 \n火车撞鸟 发表于 2020-2-7 23:42\nforge 1.15+ 支持使用 Java11 启动。\nforge core mod 的自由度比 fabric mixin 大得多，虽然 mixin 也可以 ...\noptifine改原版类的操作不安全把（导致其他core mod崩溃https://github.com/modmuss50/OptiFabric/issues/55）\n\n大杂烩，knot融合到modluncher，modluncher启动融合了fabric加载器的forge,检查fabric mod，统一为intermediary名，自动处理混淆（fabric-asm）fabric模拟forge环境倒是有，patchworkmc（在github上找到）\n真不知道optifabric咋搞的操作，让optifine处于最高优先，用mixin改optifine类让其兼容fabric api"
+        },
+        {
+            "author": "火车撞鸟",
+            "timestamp": 1581091560,
+            "txt_content": " 本帖最后由 火车撞鸟 于 2020-2-8 00:14 编辑 \n1a2s3d4f1 发表于 2020-2-7 23:59\noptifine改原版类的操作不安全把（导致其他core mod崩溃https://github.com/modmuss50/OptiFabric/issues/ ...\nOptiFabric是把打完patch和反混淆之后的OptiFine修改的原版类直接打进反混淆后的原版Minecraft缓存里，所以可以最高优先加载。\nForge 1.12.2 以前 OptiFine 直接把 TweakOrder 设为 -1000 ，来实现高优先加载；到 1.14.4 ModLauncher 使用了一套轮询(?)(Vote)系统来决定优先级，倒是引起了使用 js 的 core mod 的问题：https://github.com/cpw/modlauncher/issues/37"
+        },
+        {
+            "author": "Scarlet1832",
+            "timestamp": 1585641480,
+            "txt_content": " 本帖最后由 Scarlet1832 于 2020-3-31 16:13 编辑 \n火车撞鸟 发表于 2020-2-8 00:06\nOptiFabric是把打完patch和反混淆之后的OptiFine修改的原版类直接打进反混淆后的原版Minecraft缓存里，所 ...\n大佬，我尝试用你的optiforge来解决optifine和forge在1.15.2不兼容的问题。可是添加optiforge模组，启动就会报错。我用java -jar来启动MixinLoader-1.1-SNAPSHOT.jar时显示其中没有主清单属性。"
+        },
+        {
+            "author": "布袋猫",
+            "timestamp": 1588673280,
+            "txt_content": "请问，我也是装了最新版的spongeforge，提示需要mixin0.8，那怎么才能更新minxin？"
+        },
+        {
+            "author": "caizhong3",
+            "timestamp": 1595323680,
+            "txt_content": "我火星了     实在太赞了  继续Mixin走起"
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "title": "[Tutorial][BoneStudio]从零开始的MC特效(五 | BukkitRunnable与粒子特效)",
+    "author": "602723113",
+    "replyCount": 7,
+    "timestamp": 1548946440,
+    "txt_content": " 本帖最后由 602723113 于 2019-1-31 22:56 编辑 \n\n目录:\n导读BukkitRunnable之逐渐在玩家身旁出现的粒子\n\n导读：\n本教程需要读者有一定的空间想象能力(因为我也懒得画图了233)\n本教程使用的 Spigot1.10.2-R0.1-SNAPSHOT 核心\n在阅读之前请确保你具有高中数学必修4和和Java基础的知识\n<To初中生>: 如果你是初中的话，别慌，你有趋向的概念就可以读懂本教程(应该吧...)\n<To高中生>: 如果你还未学到关于上面的那本书，别慌学到了再来看也行233 (雾\n<To大学生>: 没什么好说的...\n\nBukkitRunnable之逐渐在玩家身旁出现的粒子\n如果读者还不知道这是个什么东西的话，可以通过以下几个地方进行了解 Bukkit中文文档 或者 这个 还有就是我自己的 视频教程\n首先利用BukkitRunnable的Task性质，我们可以制造一个 粒子特效逐渐渲染 的效果，而不是像以前那样一下子就渲染完毕，我们来看以下的例子\npublic class CrownEffect extends BukkitRunnable {\n    /**\n     * 玩家\n     */\n    private Player player;\n    private double degree = 0;\n\n    public CrownEffect(Player player) {\n        this.player = player;\n    }\n\n    @Override\n    public void run() {\n\n    }\n}复制代码首先我们创建了一个类称之为 CrownEffect 之后我们让它继承于 BukkitRunnable，之后我们需要往run方法里写粒子的出现方式\n@Override\npublic void run() {\n    // 用于检查玩家是否不在线的情况\n    if (player == null || !player.isOnline()) {\n        cancel();\n    }\n    Location playerLocation = player.getLocation();\n    // 转弧度制\n    double radians = Math.toRadians(degree);\n\n    // 这里我写得简单了一点，我们将玩家的坐标克隆之后直接进行x, y, z的变换\n    // 不难看出，我们这里是想建立一个 0.3 为半径的圆，作为我们想要实现的皇冠\n    Location playEffectLocation = playerLocation.clone().add(0.3 * Math.cos(radians), 2D, 0.3 * Math.sin(radians));\n    // 粒子播放，这里我使用了类库\n    ParticleEffect.REDSTONE.display(new ParticleEffect.OrdinaryColor(Color.ORANGE), playEffectLocation, 50);\n\n    // 我们只需要degree在0~360度内即可\n    if (degree >= 360) { \n       degree = 0;\n    } else {\n       // 这里其实就是修改了步长为20 degree\n       degree += 20;\n    }\n}复制代码通过上方的代码，相信你已经可以理解我们所要实现的内容了，之后我们对这个类进行进一步的完善\n/**\n * 王冠特效\n *\n * [url=home.php?mod=space&uid=1231151]@author[/url] Zoyn\n */\npublic class CrownEffect extends BukkitRunnable {\n\n    /**\n     * 玩家\n     */\n    private Player player;\n    private double degree = 0;\n\n    public CrownEffect(Player player) {\n        this.player = player;\n    }\n\n    @Override\n    public void run() {\n        if (player == null || !player.isOnline()) {\n            cancel();\n        }\n        Location playerLocation = player.getLocation();\n        double radians = Math.toRadians(degree);\n\n        Location playEffectLocation = playerLocation.clone().add(0.3 * Math.cos(radians), 2D, 0.3 * Math.sin(radians));\n        ParticleEffect.REDSTONE.display(new ParticleEffect.OrdinaryColor(Color.ORANGE), playEffectLocation, 50);\n\n        if (degree >= 360) {\n            degree = 0;\n        } else {\n            degree += 20;\n        }\n    }\n\n    /**\n     * 开启特效的方法\n     */\n    public void startEffect() {\n        runTaskTimer(主类的实例, 0L, 1L);\n    }\n\n    /**\n     * 关闭特效的方法\n     */\n    public void stopEffect() {\n        cancel();\n    }\n}复制代码调用方法\nCrownEffect crownEffect = new CrownEffect(player);\ncrownEffect.startEffect();复制代码\n\n如果我们将run内的绘制算法更改一下会怎样呢？\n\n\n    @Override\n    public void run() {\n        // 依然还是要判断玩家\n        if (player == null || !player.isOnline()) {\n            cancel();\n        }\n        Location playerLocation = player.getLocation().add(0, 1D, 0);\n        double radians = Math.toRadians(degree);\n        double x = 半径 * Math.cos(radians);\n        double y = Math.sin(radians);\n        double z = 半径 * Math.sin(radians);\n\n        Location playEffectLocation = playerLocation.clone().add(x, y, z);\n        ParticleEffect.REDSTONE.display(new ParticleEffect.OrdinaryColor(Color.RED), playEffectLocation, 50);\n\n        if (degree >= 360) {\n            degree = 0;\n        } else {\n            degree += 10;\n        }\n    }复制代码\n那么你就可以看到这样的效果\n\n\n以上便是BukkitRunnable与粒子特效的小技巧，下面放送一个自己利用前几节课的知识加上本节的知识所写的一个特效\n// 会旋转的DNA\npublic class RotatableDNA extends BukkitRunnable {\n\n    // 原点\n    private Location location;\n\n    private float yaw = 0;\n    private double y = 0D;\n\n    public RotatableDNA(Location location) {\n        this.location = location.clone();\n    }\n\n    @Override\n    public void run() {\n        for (double degree = 0, angle = 180; degree < 480; degree += 5, angle += 5) {\n            // 第一条\n            double radians = Math.toRadians(degree);\n            double x = Math.cos(radians);\n            double z = Math.sin(radians);\n            Vector vector = VectorUtils.getVector(location, location.clone().add(x, y, z));\n            Vector rotatedVector = VectorUtils.rotateVector(vector, yaw, 0);\n            location.add(rotatedVector);\n            ParticleEffect.REDSTONE.display(new ParticleEffect.OrdinaryColor(Color.RED), location, 50);\n            location.subtract(rotatedVector);\n\n            // 第二条\n            double radians2 = Math.toRadians(angle);\n            double x2 = Math.cos(radians2);\n            double z2 = Math.sin(radians2);\n\n            Vector vector2 = VectorUtils.getVector(location, location.clone().add(x2, y, z2));\n            Vector rotatedVector2 = VectorUtils.rotateVector(vector2, yaw, 0);\n            location.add(rotatedVector2);\n            ParticleEffect.REDSTONE.display(new ParticleEffect.OrdinaryColor(Color.RED), location, 20);\n            location.subtract(rotatedVector2);\n\n            //中间连线\n            if (degree % 30 == 0) {\n                Location pointA = location.clone().add(rotatedVector);\n                Location pointB = location.clone().add(rotatedVector2);\n                EntityNBT.buildLine(pointA, pointB);\n            }\n\n            y += 0.1;\n        }\n\n        // 将yaw设定在0~360之间进行循环\n        if (yaw >= 360) {\n            yaw = 0;\n        } else {\n            yaw += 5;\n        }\n        y = 0;\n    }\n\n    public void startEffect() {\n        runTaskTimer(主类实例, 0L, 1L);\n    }\n}复制代码调用方法\nRotatableDNA rotatableDNA = new RotatableDNA(location);\nrotatableDNA.startEffect();复制代码具体效果\n  \n\n\n结语\n到这里这个教程就已经完全结束了，希望你能从这个教程学到一些东西...\n高三不易，望读者谅解! —— 撰写: 一个来自普高文科的学生 2019/1/31\n\n\n[groupid=1306]Bone Studio[/groupid]",
+    "replies": [
+        {
+            "author": "宝强经纪人",
+            "timestamp": 1548950940,
+            "txt_content": "莫老可还行\n看了好久你的插件开发教程"
+        },
+        {
+            "author": "911010331",
+            "timestamp": 1548954660,
+            "txt_content": "顶。。。。。。"
+        },
+        {
+            "author": "天之剑心",
+            "timestamp": 1548981300,
+            "txt_content": "莫老发的，占沙发！！！！！！"
+        },
+        {
+            "author": "我不是憨憨",
+            "timestamp": 1548994740,
+            "txt_content": "日常看莫老教程"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1549106340,
+            "txt_content": "卡端神器"
+        },
+        {
+            "author": "xiaodong150",
+            "timestamp": 1553634060,
+            "txt_content": "这个介绍很详细，之前看到一个跟粒子有关的插件，一直读不懂代码。这个思路很可以，满分100 我感觉可以给200分。还有这个DNA不错"
+        },
+        {
+            "author": "丿Assassin",
+            "timestamp": 1558238940,
+            "txt_content": "莫老大神牛"
+        }
+    ]
+}

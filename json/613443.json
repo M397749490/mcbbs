@@ -1,0 +1,49 @@
+{
+    "title": "[UD]Vault插件使用快速入门教程",
+    "author": "trychen",
+    "replyCount": 8,
+    "timestamp": 1470046080,
+    "txt_content": " 本帖最后由 trychen 于 2016-8-4 13:58 编辑 \n\n引言:\n在使用学习Vault之前我们得了解三点：\nVault是什么？  Vault是一款Bukkit插件，它集合了经济、权限、聊天三个功能的接口Vault能做什么？  Vault可以一次适配，兼容使用Vault能给我们带来什么好处？ 使用Vault可以使我们的开发更加便利，如果现在有5个热门的权限系统，Vault的好处就是不需要对每一个权限系统进行适配，开发者只需要关注Vault提供接口\n\n使用Vault进行开发时我们需要注意什么？\n有个权限插件、有个经济插件（需要支持Vault）。softdepend和depend的声明，避免NPE例如使用经济相关的API时我们获取到Economy必须判断是否为空（处理没有安装经济插件或者权限插件的情况）\n\n如何获取Vault：\nMCBBS、BukkitDev、Github、Maven\n\n如何添加Vault库：在plugin.yml中添加：softdepend: [Vault] 或 depend: [Vault]复制代码Maven：在你的pom.xml文件中的repository中添加一下代码，然后同步：\n<repository>\n        <id>vault-repo</id>\n        <url>http://nexus.theyeticave.net/content/repositories/pub_releases</url>\n</repository>复制代码\nEclipse：右键项目 → Build Path → Add External Archives → 你下载好的Vault jar文件\nIDEA:\n方法一：\nFile → Project Structure → Modules → 你的插件Modules名 → Dependencies → 左下角＋号 → JARs or directories… → 你下载好的Vault jar文件\n\n方法二：\nFile → Libraries → 左上 角＋号 → 你下载好的Vault jar文件 → 你的插件Modules名\n\n使用Vault时我们会主要用到的类：\nPermission：权限系统相关\nEconomy：货币/经济系统相关（注意：不同的经济插件往往有着不同的货币精度。有的插件是整数而有的是小数）\nChat：聊天相关，前缀等等相关\n\n如何获取上述的三个类：\n首先我们可以先定义以上类的变量：\nprivate Permission permission = null;\nprivate Economy economy = null;\nprivate Chat chat = null;复制代码然后我们在onEnable方法中初始化相应的变量：\n    /**\n     * 初始化Vault\n     * @return 是否成功\n     */\n    private boolean initVault(){\n        boolean hasNull = false;\n        //获取权限系统实例\n        RegisteredServiceProvider<Permission> permissionProvider = getServer().getServicesManager().getRegistration(net.milkbowl.vault.permission.Permission.class);\n        if (permissionProvider != null) {\n            if ((permission = permissionProvider.getProvider()) == null) hasNull = true;\n        }\n        //初始化聊天系统实例\n        RegisteredServiceProvider<Chat> chatProvider = getServer().getServicesManager().getRegistration(net.milkbowl.vault.chat.Chat.class);\n        if (chatProvider != null) {\n            if ((chat = chatProvider.getProvider()) == null) hasNull = true;\n        }\n        //初始化经济系统实例\n        RegisteredServiceProvider<Economy> economyProvider = getServer().getServicesManager().getRegistration(net.milkbowl.vault.economy.Economy.class);\n        if (economyProvider != null) {\n            if ((economy = economyProvider.getProvider()) == null) hasNull = true;\n        }\n        return !hasNull;\n    }复制代码以上例子中，我使用了ServicesManager来获取各系统Service的实例，然后我们使用getProvider方法获取对应实例。然后我们给类中变量赋值，并且同时判断是否为空，然后作为方法的返回值。之所以要这样做，是因为有的服主可能会安装了Vault以为不需要经济插件、权限插件，所以当我们在主类的onEnable中调用方法的时候，我们得对返回值做出处理，如下：\nif (!initVault()){\n       getLogger().severe(\"初始化Vault支持失败,请检测是否已经安装Vault插件和权限插件、经济插件\");\n       return;\n}复制代码上面例子中，如果我们判断到初始化Vault实例失败，就在log中写入错误内容，并且停止插件的继续加载。\n\nJavaDoc：\n我们可以直接在Github中查看API，或者在官方链接中查看，里面有三个类对应方法的详细内容。\n经济系统使用说明：\n在获取了经济系统的实例后，我们可以调用以下方法获取我们需要的信息：\n以下大部分可以传入玩家名代替Playe(不推荐)\neconomy.hasAccount(player) 判断玩家是否有经济账号信息。\neconomy.has(player, 50.0) 判断玩家player是否有50元。\neconomy.getBalance(player) 获取玩家player的“余额”。\neconomy.withdrawPlayer(player, 50.0) 拿走玩家50元。\neconomy.depositPlayer(player, 50.0) 给玩家50元。//Bank系统可以自己查看方法，方法名基本是前面加bank，可以使用economy.hasBankSupport()判断是否支持\n权限系统使用说明：\n在获取了权限系统的实例后，我们可以调用以下方法获取我们需要的信息：\n以下大部分可以传入玩家名代替Playe(不推荐)\npermission.playerHas(player, \"UnknownDomain\") 判断玩家是否有\"UnknownDomain\"权限。\npermission.groupHas(world, \"ud\", \"mccraft.cn\") 判断权限组\"ud\"是否在world这个世界有\"mccraft.cn\"的权限。\npermission.getPrimaryGroup(player) 获取玩家player的主要权限组。\npermission.playerAdd(player,\"ci.mccraft.cn\") 给玩家添加\"ci.mccraft.cn\"权限。\npermission.groupAdd(world, \"ud\",\"maven.mccraft.cn\") 给权限组\"ud\"在world世界添加\"maven.mccraft.cn\"权限。\nRemove：同理把Add改成Remove。\n\n聊天管理系统使用说明：\n这个不再列出了，方法基本是xxxPlayerPrefix之类的。Prefix是前缀，Suffix是后缀。\n\n\n\n[groupid=1181]Unknown Domain[/groupid]",
+    "replies": [
+        {
+            "author": "ju哌y",
+            "timestamp": 1470070320,
+            "txt_content": "挺详细的，以后有时间也弄一些vault上的插件"
+        },
+        {
+            "author": "在下小熊猫",
+            "timestamp": 1470105060,
+            "txt_content": "{:10_540:}暂时没用到，先收藏+1顶"
+        },
+        {
+            "author": "asd1107557827",
+            "timestamp": 1470283800,
+            "txt_content": "有用，可以慢慢学，可能有些看不懂"
+        },
+        {
+            "author": "沐子酱",
+            "timestamp": 1515852900,
+            "txt_content": "好东西，但。。。萌新不一定看得懂啊"
+        },
+        {
+            "author": "GhostGuJI_Dada",
+            "timestamp": 1548646020,
+            "txt_content": "感谢分享的知识"
+        },
+        {
+            "author": "任政桥",
+            "timestamp": 1556354880,
+            "txt_content": "有用，可以慢慢学，可能有些看不懂"
+        },
+        {
+            "author": "MGDX",
+            "timestamp": 1562990580,
+            "txt_content": "不错的分享，学习下！"
+        },
+        {
+            "author": "777ih",
+            "timestamp": 1585203900,
+            "txt_content": "学不会0.0，有点难啊\n"
+        }
+    ]
+}

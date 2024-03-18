@@ -1,0 +1,504 @@
+{
+    "title": "[MIKAZE3]服务器优化心得",
+    "author": "MIKAZE3",
+    "replyCount": 99,
+    "timestamp": 1561331100,
+    "txt_content": " 本帖最后由 MIKAZE3 于 2020-6-24 21:04 编辑 \n优化是指对解决同一问题的几个不同的程序，进行比较、修改、调整或重新编写程序把一般程序为语句最少、占用内存量少、处理速度最快、外部设备分时使用效率最高的最优程序大多数的优化插件、改服务端配置文件，都是限制服务器内的一些东西，来进行优化，其实这可以说不是优化而是减少服务器的负担，来实现所谓的“优化”\n\n服务器优化之基础指令讲解\n\n-Xms 设置初始内存堆大小 默认值：物理内存的1/64 ≧1GB 空余堆内存小于40%时，JVM就会增大堆直到-Xmx的最大限制.-Xmx 设置最大内存堆大小 默认值：物理内存的大小-1GB（单端情况下）-Xmn 年轻代大小 此处的大小是（eden+ 2 survivor space 后面会讲解到)-XX:NewSize 设置年轻代大小（不建议使用，最好使用-Xmn）-XX:MaxNewSize 年轻代最大值（不建议使用，最好使用-Xmn）-XX:PermSize 设置持久代初始值 （不建议设置）默认值：物理内存的1/64-XX:MaxNewSize 设置持久代最大值 （不建议设置）默认值：物理内存的1/4-Xss 设置每个线程的堆栈大小 默认值：768K~1024K（看情况而定）-XX:NewRatio 年轻代与年老代的比值（不计持久代）默认值：4-XX:SurvivorRatio Eden区与Survivor区的大小比值 默认值：8-XX:LargePageSizeInBytes 设置内存页大小（不建议设置）默认值：128M\n\n\n为了照顾一些萌新，我在这里说一下Java其实是一种编程语言，它所运行的程序其实可以当做在虚拟机当中运行，也就是一个独立的系统，所以它可以兼容在所有平台当中运行，JVM也就是Java虚拟机的名称\n这里是Java的内存堆设置，也就是Java虚拟机JVM的内存设置，-Xms和-Xmx讲解：-Xms是设置所运行程序的初始申请的内存，-Xmx是设置所运行程序的最大申请的内存，当JVM的程序运行所需要的内存不足时，就会与-Xmx所设置的值去申请内存，如果内存申请的大小已经达到了-Xmx所设置的值，就会导致服务器卡顿，内存溢出，等一系列问题。\n-Xmn讲解：JVM内存堆是整个堆大小=年轻代大小 + 年老代大小 + 持久代大小，增大-Xmn的值后,将会减小年老代大小.此值对服务器性能影响较大,Sun官方推荐配置为整个堆的3/8，也就是-Xmx的3/8。\n-Xss讲解：在JDK5.0以后每个线程堆栈大小都默认为1M,以前的Java版本每个线程堆栈大小为256K.更具应用的线程所需内存大小进行调整，在相同物理内存下，减小这个值能让服务器生成更多的线程，但是操作系统对一个进程内的线程数还是有限制的,不能无限生成,一般在3000~5000左右，一般小的程序， 如果栈不是很深， 应该是256k够用的 大的程序建议使用512k。这个选项对性能影响比较大，需要严格的测试（你们一般设置768K~1024K左右就行了）。\n-XX:NewRatio讲解：-XX:NewRatio=4表示年轻代与年老代所占比值为1:4,年轻代占整个堆栈的1/5，当Xms=Xmx，并且设置了Xmn的情况下，该参数不要进行设置。\n-XX:SurvivorRatio讲解：设置为8,则两个Survivor区与一个Eden区的比值为2:8,一个Survivor区占整个年轻代的1/10。\n\n\n\n\n服务器优化之CMS垃圾回收器讲解\n-XX:+UseConcMarkSweepGC 启用CMS垃圾收集器（不回收，只收集）-XX:CMSFullGCsBeforeCompaction CMS垃圾收集多少次之后进行一次内存空间进行压缩、整理-XX:+CMSParallelRemarkEnabled 降低CMS标记要收集的垃圾时，所使用的停顿时间-XX+UseCMSCompactAtFullCollection 在FULL GC（清理整个堆的空间）的时候， 对年老代进行一次压缩-XX:CMSInitiatingOccupancyFraction=N 使用cms作为垃圾回收，使用到N％后开始CMS收集（默认值N=70）-XX:+UseCMSInitiatingOccupancyOnly 用于设定回收阈值(上面指定的N%)如果不指定,JVM只在第一次使用上面的设定值-XX:+CMSScavengeBeforeRemark 降低CMS在remark时的开销-XX:+ExplicitGCInvokesConcurrent 减少FULL GC的时间开销-XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses 永远使用CMSGC不使用其他GC（不建议使用）-XX:ParallelGCThreads=N 设置CMSGC使用的CPU线程数（默认值N=CPU核心数/2≧4）\n\n-XX:CMSFullGCsBeforeCompaction讲解：由于并发收集器不对内存空间进行压缩、整理，所以运行一段时间以后会产生\"碎片\"，使得运行效率降低，此值设置运行多少次GC以后对内存空间进行压缩、整理。\n\n-XX+UseCMSCompactAtFullCollection讲解：CMS是不会移动内存的， 因此， 这个非常容易产生碎片， 导致内存不够用， 因此， 内存的压缩这个时候就会被启用。 增加这个参数是个好习惯，可能会影响性能,但是可以消除碎片。\n\n\n\n\n服务器优化之G1垃圾回收器讲解\n\n-XX:+UseG1GC 使用 G1 垃圾收集器-XX:MaxGCPauseMillis=N 设置期望达到的最大GC停顿时间指标（JVM会尽力实现，但不保证达到）默认值：N=200-XX:InitiatingHeapOccupancyPercent=N 启动并发GC周期时的堆内存占用百分比. G1之类的垃圾收集器用它来触发并发GC周期,基于整个堆的使用率,而不只是某一代内存的使用比. 值为 0 则表示”一直执行GC循环”默认值：N=45-XX:NewRatio=N 新生代与老生代(new/old generation)的大小比例(Ratio). 默认值：N=2-XX:SurvivorRatio=N eden/survivor 空间大小的比例(Ratio). 默认值：N=8-XX:MaxTenuringThreshold=N 提升年老代的最大临界值(tenuring threshold). 默认值：N=15-XX:ParallelGCThreads=N 设置垃圾收集器在并行阶段使用的线程数,默认值随JVM运行的平台不同而不同.-XX:ConcGCThreads=N 并发垃圾收集器使用的线程数量. 默认值随JVM运行的平台不同而不同.-XX:G1ReservePercent=N设置堆内存保留为假天花板的总量,以降低提升失败的可能性. 默认值：N=10-XX:G1HeapRegionSize=N 使用G1时Java堆会被分为大小统一的的区(region)。此参数可以指定每个heap区的大小. 默认值将根据 heap size 算出最优解. 最小值为 1Mb, 最大值为 32Mb。建议默认值：N=16M\n\n\n服务器优化之其他优化指令讲解\n\n-XX:+AggressiveHeap 试图是使用大量的物理内存长时间大内存使用的优化（JVM运行之后直接占用系统物理内存至-Xmx最大值）-Xincgc 使用增量式GC 降低GC暂停时间-XX:+AggressiveOpts 通过获取HotSpot VM获取到最新的优化提升服务器的性能-XX:+UseBiasedLocking 锁机制的改善：偏向锁 （优化线程）可以优化服务器的启动速度与运行速度-XX:+UseCompressedOops 优化JVM的64位内存占用与减少GC耗时-XX:+UseFastAccessorMethods 对JVM的快速优化-XX:+DisableExplicitGC 禁止调用System.gc()-server 启用服务器模式，使用服务器的代码优化策略，内存与CPU的使用策略-d64 使用64位模式运行JVM（可实现一定优化）\n\n\n\n服务器优化之回收器的区别与特点\n\nGC的基本常识（很长，请耐心看）：    1.GC回收机制熟悉么，分代算法知道么？\n2.了解 Java 虚拟机的垃圾回收算法？    从年轻代空间（包括 Eden 和 Survivor 区域）回收内存被称为 Minor GC。 Major GC 是清理永久代。Full GC 是清理整个堆空间—包括年轻代和永久代。\n> Android GC\nAndroid GC 原理探究- http://geek.csdn.net/news/detail/193654> Java中的GC是什么? 为什么要有GC?\nGC目的：回收堆内存中不再使用的对象，释放资源\n回收时间：当对象永久地失去引用后，系统会在合适的时候回收它所占的内存。  GC System.gc()或Runtime.getRuntime().gc()，\n  忘记或者错误的内存回收会导致程序或系统的不稳定甚至崩溃，Java提供的GC功能可以自动监测对象是否超过作用域从而达到自动回收内存的目的。垃圾回收可以有效的防止内存泄露，有效的使用可以使用的内存。\n 采用“分代式垃圾收集”。这种方**跟Java对象的生命周期将堆内存划分为不同的区域，在垃圾收集过程中，可能会将对象移动到不同区域： \n - 伊甸园（Eden）：这是对象最初诞生的区域，并且对大多数对象来说，这里是它们唯一存在过的区域。 \n - 幸存者乐园（Survivor）：从伊甸园幸存下来的对象会被挪到这里。 \n - 终身颐养园（Tenured）：这是足够老的幸存对象的归宿。年轻代收集（Minor-GC）过程是不会触及这个地方的。当年轻代收集不能把对象放进终身颐养园时，就会触发一次完全收集（Major-GC），这里可能还会牵扯到压缩，以便为大对象腾出足够的空间。  在C/C++中，释放无用变量内存空间的事情要由程序员自己来解决。\n  Java有了GC，就不需要程序员去人工释放内存空间。当Java虚拟机发觉内存资源紧张的时候，就会自动地去清理无用变量所占用的内存空间。当然，如果需要，程序员可以在Java程序中显式地使用System.gc()来强制进行一次立即的内存清理。 因为显式声明是做堆内存全扫描，也就是 Full GC，是需要停止所有的活动的（Stop The World Collection），你的应用能承受这个吗？而其显示调用System.gc()只是给虚拟机一个建议，不一 定会执行，因为System.gc()在一个优先级很低的线程中执行。\n  java的GC功能可以自动监测对象是否超过作用域从而达到自动回收内存的目的，java语言没有提供释放已分配内存的俄显示操作方法。在应用程序中，只要某对象变得不可达，也就是没有根（root）引用该对象，这个对象就会成为垃圾回收器的目标。GC的基本原理:\n 1.对于程序员来说，用new关键字即在堆中分配了内存，我们称之为“可达”。对于GC来说，只要所有被引用的对象为null时，我们称之为“不可达”，就将进行内存的回收。\n 2.当一个对象被创建时，GC开始监控这个对象的大小、内存地址及使用情况。GC采用有向图的方式记录和管理堆(heap)中的所有对象，通过这种方式可以明确哪些对象是可达的，哪些不是。当确定为不可达时，则对其进行回收。\n 3.保证GC在不同平台的实现问题，java规范对其很多行为没有进行严格的规定。对于采用什么算法，什么时候进行回收等。-- GC收集器有哪些?1.serial收集器\n单线程，工作时必须暂停其他工作线程。多用于client机器上，使用复制算法\n2.ParNew收集器\nserial收集器的多线程版本，server模式下虚拟机首选的新生代收集器。复制算法\n3.Parallel Scavenge收集器\n复制算法，可控制吞吐量的收集器。吞吐量即有效运行时间。\n4.Serial Old收集器\nserial的老年代版本，使用整理算法。\n5.Parallel Old收集器\n第三种收集器的老年代版本，多线程，标记整理\n6.CMS收集器\n目标是最短回收停顿时间。7.G1收集器,基本思想是化整为零，将堆分为多个Region，优先收集回收价值最大的Region。> Java GC，GC 算法，GC机制\n内存分配过程为（来源于《成为JavaGC专家part I》-http://www.importnew.com/1993.html\n成为JavaGC专家Part II — 如何监控Java垃圾回收机制-http://www.importnew.com/2057.html\nJDK5.0垃圾收集优化之 - http://calvin.iteye.com/blog/91905\n三大Java 虚拟机垃圾回收机制的比较（HotSpot, JRockit, IBM JVM）- https://blog.csdn.net/ZYC88888/article/details/70918799\n垃圾回收器,如何判断对象是否存活- http://blog.csdn.net/TyroneRenek ... 59114835?ref=myread\nJVM初探- 内存分配、GC原理与垃圾收集器-- http://blog.csdn.net/zjf280441589/article/details/53946312\n深入理解JVM之一：Java内存区域: https://yq.aliyun.com/articles/14408#-- 在Java中，它的内存管理包括两方面：内存分配（创建Java对象的时候）和内存回收。了解JVM，才能写出更高效，充分利用有限的内存的程序。\n  Java垃圾回收主要做的是两件事：1）内存回收； 2）碎片整理。  内存管理小技巧:\n　　1）尽量使用直接量，eg：String javaStr = \"小学徒的成长历程\";\n　　2）使用StringBuilder和StringBuffer进行字符串连接等操作;\n　　3）尽早释放无用对象;\n　　4）尽量少使用静态变量;\n　　5）缓存常用的对象:可以使用开源的开源缓存实现，eg：OSCache，Ehcache;\n　　6）尽量不使用finalize()方法;\n　　7）在必要的时候可以考虑使用软引用SoftReference。-- GC回收机制算法：分代复制垃圾回收和标记垃圾回收，增量垃圾回收。   学习Java GC机制，可以帮助我们在日常工作中排查各种内存溢出或泄露问题，解决性能瓶颈，达到更高的并发量，写出更高效的程序。我们将从4个方面学习Java GC机制：1，内存是如何分配的；2，如何保证内存不被错误回收（即：哪些内存需要回收）；3，在什么情况下执行GC以及执行GC的方式；4，如何监控和优化GC机制。--  了解Java GC机制，必须先清楚在JVM中内存区域的划分。\n在Java运行时的数据区里，JVM管理的内存区域分为几个模块：\n  1，程序计数器（Program Counter Register）：程序计数器是一个比较小的内存区域，用于指示当前线程所执行的字节码执行到了第几行，可以理解为是当前线程的行号指示器。字节码解释器在工作时，会通过改变这个计数器的值来取下一条语句指令。\n 每个程序计数器只用来记录一个线程的行号，所以它是线程私有（一个线程就有一个程序计数器）的。\n   如果程序执行的是一个Java方法，则计数器记录的是正在执行的虚拟机字节码指令地址；如果正在执行的是一个本地（native，由C语言编写 完成）方法，则计数器的值为Undefined，由于程序计数器只是记录当前指令地址，所以不存在内存溢出的情况，因此，程序计数器也是所有JVM内存区 域中唯一一个没有定义OutOfMemoryError的区域。  2，虚拟机栈（JVM Stack）：一个线程的每个方法在执行的同时，都会创建一个栈帧（Statck Frame），栈帧中存储的有局部变量表、操作站、动态链接、方法出口等，当方法被调用时，栈帧在JVM栈中入栈，当方法执行完成时，栈帧出栈。\n   局部变量表中存储着方法的相关局部变量，包括各种基本数据类型，对象的引用，返回地址等。在局部变量表中，只有long和double类型会占用2个局部变量空间（Slot，对于32位机器，一个Slot就是32个bit），其它都是1个Slot。需要注意的是，局部变量表是在编译时就已经确定 好的，方法运行所需要分配的空间在栈帧中是完全确定的，在方法的生命周期内都不会改变。\n   虚拟机栈中定义了两种异常，如果线程调用的栈深度大于虚拟机允许的最大深度，则抛出StatckOverFlowError（栈溢出）；不过多 数Java虚拟机都允许动态扩展虚拟机栈的大小(有少部分是固定长度的)，所以线程可以一直申请栈，知道内存不足，此时，会抛出 OutOfMemoryError（内存溢出）。\n   每个线程对应着一个虚拟机栈，因此虚拟机栈也是线程私有的。  3，本地方法栈（Native Method Statck）：本地方法栈在作用，运行机制，异常类型等方面都与虚拟机栈相同，唯一的区别是：虚拟机栈是执行Java方法的，而本地方法栈是用来执行native方法的，在很多虚拟机中（如Sun的JDK默认的HotSpot虚拟机），会将本地方法栈与虚拟机栈放在一起使用。\n  本地方法栈也是线程私有的。  4，堆区（Heap）：堆区是理解Java GC机制最重要的区域，没有之一。在JVM所管理的内存中，堆区是最大的一块，堆区也是Java GC机制所管理的主要内存区域，堆区由所有线程共享，在虚拟机启动时创建。堆区的存在是为了存储对象实例，原则上讲，所有的对象都在堆区上分配内存（不过现代技术里，也不是这么绝对的，也有栈上直接分配的）。\n  一般的，根据Java虚拟机规范规定，堆内存需要在逻辑上是连续的（在物理上不需要），在实现时，可以是固定大小的，也可以是可扩展的，目前主流的虚拟机堆区都是可扩展的。如果在执行垃圾回收之后，仍没有足够的内存分配，也不能再扩展，将会抛出OutOfMemoryError:Java heap space异常。\n    “Java内存分配机制”。  5，方法区（Method Area）：在Java虚拟机规范中，将方法区作为堆的一个逻辑部分来对待，但事实上，方法区并不是堆（Non-Heap）；另外，不少人的博客中，将Java GC的分代收集机制分为3个代：青年代，老年代，永久代，这些作者将方法区定义为“永久代”，这是因为，对于之前的HotSpot Java虚拟机的实现方式中，将分代收集的思想扩展到了方法区，并将方法区设计成了永久代。不过，除HotSpot之外的多数虚拟机，并不将方法区当做永久代，HotSpot本身，也计划取消永久代。本文中，由于笔者主要使用Oracle JDK6.0，因此仍将使用永久代一词。\n  方法区是各个线程共享的区域，用于存储已经被虚拟机加载的类信息（即加载类时需要加载的信息，包括版本、field、方法、接口等信息）、final常量、静态变量、编译器即时编译的代码等。\n  方法区在物理上也不需要是连续的，可以选择固定大小或可扩展大小，并且方法区比堆还多了一个限制：可以选择是否执行垃圾收集。一般的，方法区上 执行的垃圾收集是很少的，这也是方法区被称为永久代的原因之一（HotSpot），但这也不代表着在方法区上完全没有垃圾收集，其上的垃圾收集主要是针对常量池的内存回收和对已加载类的卸载。\n  在方法区上进行垃圾收集，条件苛刻而且相当困难，效果也不令人满意，所以一般不做太多考虑，可以留作以后进一步深入研究时使用。\n  在方法区上定义了OutOfMemoryError:PermGen space异常，在内存不足时抛出。\n  运行时常量池（Runtime Constant Pool）是方法区的一部分，用于存储编译期就生成的字面常量、符号引用、翻译出来的直接引用（符号引用就是编码是用字符串表示某个变量、接口的位置，直接引用就是根据符号引用翻译出来的地址，将在类链接阶段完成翻译）；运行时常量池除了存储编译期常量外，也可以存储在运行时间产生的常量（比如String类的intern()方法，作用是String维护了一个常量池，如果调用的字符“abc”已经在常量池中，则返回池中的字符串地址，否则，新建一个常量加入池中，并返回地址）。  6，直接内存（Direct Memory）：直接内存并不是JVM管理的内存，可以这样理解，直接内存，就是 JVM以外的机器内存，比如，你有4G的内存，JVM占用了1G，则其余的3G就是直接内存，JDK中有一种基于通道（Channel）和缓冲区 （Buffer）的内存分配方式，将由C语言实现的native函数库分配在直接内存中，用存储在JVM堆中的DirectByteBuffer来引用。 由于直接内存收到本机器内存的限制，所以也可能出现OutOfMemoryError的异常。-- Java对象的访问方式。一般来说，一个Java的引用访问涉及到3个内存区域：JVM栈，堆，方法区。\n以最简单的本地变量引用：Object obj = new Object()为例：\n  Object obj表示一个本地引用，存储在JVM栈的本地变量表中，表示一个reference类型数据；\n  new Object()作为实例对象数据存储在堆中；\n  堆中还记录了Object类的类型信息（接口、方法、field、对象类型等）的地址，这些地址所执行的数据存储在方法区中；\n在Java虚拟机规范中，对于通过reference类型引用访问具体对象的方式并未做规定.--  Java GC机制：JVM 内置的通用垃圾回收原则。堆内存划分为 Eden、Survivor(年轻代) ， Tenured/Old (老年代)空间：\n1.Minor GC\n    从年轻代空间（包括 Eden 和 Survivor 区域）回收内存被称为 Minor GC。但是，当发生Minor GC事件的时候，有一些有趣的地方需要注意到：\n    当 JVM 无法为一个新的对象分配空间时会触发 Minor GC，比如当 Eden 区满了。所以分配率越高，越频繁执行 Minor GC。内存池被填满的时候，其中的内容全部会被复制，指针会从0开始跟踪空闲内存。Eden 和 Survivor 区进行了标记和复制操作，取代了经典的标记、扫描、压缩、清理操作。所以 Eden 和 Survivor 区不存在内存碎片。写指针总是停留在所使用内存池的顶部。执行 Minor GC 操作时，不会影响到永久代。从永久代到年轻代的引用被当成 GC roots，从年轻代到永久代的引用在标记阶段被直接忽略掉。\n   质疑常规的认知，所有的 Minor GC 都会触发“全世界的暂停（stop-the-world）”，停止应用程序的线程。对于大部分应用程序，停顿导致的延迟都是可以忽略不计的。其中的真相就 是，大部分 Eden 区中的对象都能被认为是垃圾，永远也不会被复制到 Survivor 区或者老年代空间。如果正好相反，Eden 区大部分新生对象不符合 GC 条件，Minor GC 执行时暂停的时间将会长很多。\n  所以 Minor GC 的情况就相当清楚了——每次 Minor GC 会清理年轻代的内存。2.Major GC vs Full GC\n    Major GC 是清理永久代。Full GC 是清理整个堆空间—包括年轻代和永久代。\n很不幸，实际上它还有点复杂且令人困惑。首先，许多 Major GC 是由 Minor GC 触发的，所以很多情况下将这两种 GC 分离是不太可能的。另一方面，许多现代垃圾收集机制会清理部分永久代空间，所以使用“cleaning”一词只是部分正确。\n   这使得我们不用去关心到底是叫 Major GC 还是 Full GC，大家应该关注当前的 GC 是否停止了所有应用程序的线程，还是能够并发的处理而不用停掉应用程序的线程。   这种混乱甚至内置到 JVM 标准工具。下面一个例子很好的解释了我的意思。让我们比较两个不同的工具 Concurrent Mark 和 Sweep collector (-XX:+UseConcMarkSweepGC)在 JVM 中运行时输出的跟踪记录。\n   关于JVM，需要说明一下的是，目前使用最多的Sun公司的JDK中，自从 1999年的JDK1.2开始直至现在仍在广泛使用的JDK6，其中默认的虚拟机都是HotSpot。2009年，Oracle收购Sun，加上之前收购 的EBA公司，Oracle拥有3大虚拟机中的两个：JRockit和HotSpot，Oracle也表明了想要整合两大虚拟机的意图，但是目前在新发布 的JDK7中，默认的虚拟机仍然是HotSpot，因此本文中默认介绍的虚拟机都是HotSpot，相关机制也主要是指HotSpot的GC机制。-- GC机制的基本算法是：分代收集 新生代：一般是指大批对象产生的快，消亡的也快；老生代：一般是指大批对象产生后，不容易消。\n-- 年轻代：\n　 新生代的主要垃圾回收方法，在新生代中，使用“停止-复制”算法进行清理，将新生代内存分为2部分，1部分 Eden区较大，1部分Survivor比较小，并被划分为两个等量的部分。每次进行清理时，将Eden区和一个Survivor中仍然存活的对象拷贝到 另一个Survivor中，然后清理掉Eden和刚才的Survivor。\n    这里也可以发现，停止复制算法中，用来复制的两部分并不总是相等的（传统的停止复制算法两部分内存相等，但新生代中使用1个大的Eden区和2个小的Survivor区来避免这个问题）\n　　由于绝大部分的对象都是短命的，甚至存活不到Survivor中，所以，Eden区与Survivor的比例较大，HotSpot默认是 8:1，即分别占新生代的80%，10%，10%。如果一次回收中，Survivor+Eden中存活下来的内存超过了10%，则需要将一部分对象分配到 老年代。用-XX:SurvivorRatio参数来配置Eden区域Survivor区的容量比值，默认是8，代表Eden：Survivor1：Survivor2=8:1:1.-- 老年代：\n    老年代存储的对象比年轻代多得多，而且不乏大对象，对老年代进行内存清理时，如果使用停止-复制算法，则相当低效。一般，老年代用的算法是标记-整理算法，即：标记出仍然存活的对象（存在引用的），将所有存活的对象向一端移动，以保证内存的连续。\n     在发生Minor GC时，虚拟机会检查每次晋升进入老年代的大小是否大于老年代的剩余空间大小，如果大于，则直接触发一次Full GC，否则，就查看是否设 置了-XX:+HandlePromotionFailure（允许担保失败），如果允许，则只会进行MinorGC，此时可以容忍内存分配失败；如果不允许，则仍然进行Full GC（这代表着如果设置-XX:+Handle PromotionFailure，则触发MinorGC就会同时触发Full GC，哪怕老年代还有很多内存，所以，最好不要这样做）。\n    方法区（永久代），永久代的回收有两种：常量池中的常量，无用的类信息，常量的回收很简单，没有引用了就可以被回收。对于无用的类进行回收，必须保证3点：1.类的所有实例都已经被回收；2.加载类的ClassLoader已经被回收。3.类对象的Class对象没有被引用（即没有通过反射引用该类的地方）\n   永久代的回收并不是必须的，可以通过参数来设置是否对类进行回收。HotSpot提供-Xnoclassgc进行控制，使用-verbose，-XX:+TraceClassLoading、-XX:+TraceClassUnLoading可以查看类加载和卸载信息：\n     -verbose、-XX:+TraceClassLoading可以在Product版HotSpot中使用；\n     -XX:+TraceClassUnLoading需要fastdebug版HotSpot支持。-- 垃圾收集器   在介绍垃圾收集器之前，需要明确一点，就是在新生代采用的停止复制算法中，“停 止（Stop-the-world）”的意义是在回收内存时，需要暂停其他所有线程的执行。这个是很低效的，现在的各种新生代收集器越来越优化这一点，但仍然只是将停止的时间变短，并未彻底取消停止。  1. Serial收集器：新生代收集器，使用停止复制算法，使用一个线程进行GC，其它工作线程暂停。使用-XX:+UseSerialGC可以使用Serial+Serial Old模式运行进行内存回收（这也是虚拟机在Client模式下运行的默认值）\n  2. ParNew收集器：新生代收集器，使用停止复制算法，Serial收集器的多线程版，用多个线程进行GC，其它工作线程暂停，关注缩短垃圾收集时间。使用-XX:+UseParNewGC开关来控制使用ParNew+Serial Old收集器组合收集内存；使用-XX:ParallelGCThreads来设置执行内存回收的线程数。\n  3. Parallel Scavenge 收集器：新生代收集器，使用停止复制算法，关注CPU吞吐量，即运行用户代码的时间/总时间，比如：JVM运行100分钟，其中运行用户代码99分钟，垃圾收集1分钟，则吞吐量是99%，这种收集器能最高效率的利用CPU，适合运行后台运算（关注缩短垃圾收集时间的收集器，如CMS，等待时间很少，所以适 合用户交互，提高用户体验）。使用-XX:+UseParallelGC开关控制使用 Parallel Scavenge+Serial Old收集器组合回收垃圾（这也是在Server模式下的默认值）；使用-XX:GCTimeRatio来设置用户执行时间占总时间的比例，默认99，即 1%的时间用来进行垃圾回收。使用-XX:MaxGCPauseMillis设置GC的最大停顿时间（这个参数只对Parallel Scavenge有效）\n  4. Serial Old收集器：老年代收集器，单线程收集器，使用标记整理（整理的方法是Sweep清理和Compact压缩，清理是将废弃的对象干掉，只留幸存的对象，压缩是将移动对象，将空间填满保证内存分为2块，一块全是对象，一块空闲）算法，使用单线程进行GC，其它工作线程暂停（注意，在老年代中进行标 记整理算法清理，也需要暂停其它线程），在JDK1.5之前，Serial Old收集器与ParallelScavenge搭配使用。\n  5. Parallel Old收集器：老年代收集器，多线程，多线程机制与Parallel Scavenge差不错，使用标记整理（与Serial Old不同，这里的整理是Summary汇总和Compact压缩，汇总的意思就是将幸存的对象复制到预先准备好的区域，而不是像Sweep（清 理）那样清理废弃的对象）算法，在Parallel Old执行时，仍然需要暂停其它线程。Parallel Old在多核计算中很有用。Parallel Old出现后（JDK 1.6），与Parallel Scavenge配合有很好的效果，充分体现Parallel Scavenge收集器吞吐量优先的效果。使用-XX:+UseParallelOldGC开关控制使用Parallel Scavenge +Parallel Old组合收集器进行收集。\n  6. CMS（Concurrent Mark Sweep）收集器：老年代收集器，致力于获取最短回收停顿时间，使用标记清除算法，多线程，优点是并发收集（用户线程可以和GC线程同时工作），停顿小。使用-XX:+UseConcMarkSweepGC进行ParNew+CMS+Serial Old进行内存回收，优先使用ParNew+CMS（原因见后面），当用户线程内存不足时，采用备用方案Serial Old收集。\n  CMS收集的方法是：先3次标记，再1次清除，3次标记中前两次是初始标记和重新标记（此时仍然需要停止（stop the world））， 初始标记（Initial Remark）是标记GC Roots能关联到的对象（即有引用的对象），停顿时间很短；并发标记（Concurrent remark）是执行GC Roots查找引用的过程，不需要用户线程停顿；重新标记（Remark）是在初始标记和并发标记期间，有标记变动的那部分仍需要标记，所以加上这一部分 标记的过程，停顿时间比并发标记小得多，但比初始标记稍长。在完成标记之后，就开始并发清除，不需要用户线程停顿。\n  所以在CMS清理过程中，只有初始标记和重新标记需要短暂停顿，并发标记和并发清除都不需要暂停用户线程，因此效率很高，很适合高交互的场合。\n  CMS也有缺点，它需要消耗额外的CPU和内存资源，在CPU和内存资源紧张，CPU较少时，会加重系统负担（CMS默认启动线程数为(CPU数量+3)/4）。\n  另外，在并发收集过程中，用户线程仍然在运行，仍然产生内存垃圾，所以可能产生“浮动垃圾”，本次无法清理，只能下一次Full GC才清理，因此在GC期间，需要预留足够的内存给用户线程使用。所以使用CMS的收集器并不是老年代满了才触发Full GC，而是在使用了一大半（默认68%，即2/3，使用-XX:CMSInitiatingOccupancyFraction来设置）的时候就要进行Full GC，如果用户线程消耗内存不是特别大，可以适当调高-XX:CMSInitiatingOccupancyFraction以降低GC次数，提高性能，如果预留的用户线程内存不够，则会触发Concurrent Mode Failure，此时，将触发备用方案：使用Serial Old 收集器进行收集，但这样停顿时间就长了，因此-XX:CMSInitiatingOccupancyFraction不宜设的过大。\n  还有，CMS采用的是标记清除算法，会导致内存碎片的产生，可以使用-XX：+UseCMSCompactAtFullCollection来设置是否在Full GC之后进行碎片整理，用-XX：CMSFullGCsBeforeCompaction来设置在执行多少次不压缩的Full GC之后，来一次带压缩的Full GC。\nG1收集器：在JDK1.7中正式发布，与现状的新生代、老年代概念有很大不同，目前使用较少，不做介绍。\n注意并发（Concurrent）和并行（Parallel）的区别：\n     并发是指用户线程与GC线程同时执行（不一定是并行，可能交替，但总体上是在同时执行的），不需要停顿用户线程（其实在CMS中用户线程还是需要停顿的，只是非常短，GC线程在另一个CPU上执行）；\n     并行收集是指多个GC线程并行工作，但此时用户线程是暂停的；所以，Serial和Parallel收集器都是并行的，而CMS收集器是并发的.-- 垃圾回收器经典算法：\n  1）Reference counting（引用计数）\n基本思想是：当对象创建并赋值时该对象的引用计数器置1，每当对象给任意变量赋值时，引用记数＋1；一旦退出作用域则引用记数－1。一旦引用记数变为0，则该对象可以被垃圾回收。\n引用记数有其相应的优势：对程序的执行来说，每次操作只需要花费很小块的时间。这对于不能被过长中断的实时系统来说有着天然的优势。\n但也有其不足：不能够检测到环（两个对象的互相引用）；同时在每次增加或者减少引用记数的时候比较费时间。在现代的垃圾回收算法中，引用记数已经不再使用。\n  2）Mark-sweep（标记清理）\n基本思想是：每次从根集出发寻找所有的引用（称为活对象），每找到一个，则对其做出标记，当追踪完成之后，所有的未标记对象便是需要回收的垃圾。\n也叫追踪算法，基于标记并清除。这个垃圾回收步骤分为两个阶段：在标记阶段，垃圾回收器遍历整棵引用树并标记每一个遇到的对象。在清除阶段，未标记的对象被释放，并使其在内存中可用。\n  3）Copying collection（复制收集）\n基本思想是：将内存划分为两块，一块是当前正在使用；另一块是当前未用。每次分配时使用当前正在使用内存，当无可用内存时，对该区域内存进行标记，并将标记的对象全部拷贝到当前未用内存区，这是反转两区域，即当前可用区域变为当前未用，而当前未用变为当前可用，继续执行该算法。\n拷贝算法需要停止所有的程序活动，然后开始冗长而繁忙的copy工作。这点是其不利的地方。\n  近年来还有两种算法：\n  4）Generational garbage collection（分代）\n其思想依据是：\n  (1) 被大多数程序创建的大多数对象有着非常短的生存期。\n  (2) 被大多数程序创建的部分对象有着非常长的生存期。\n简单拷贝算法的主要不足是它们花费了更多的时间去拷贝了一些长期生存的对象。\n而分代算法的基本思想是：将内存区域分两块（或更多），其中一块代表年轻代，另一块代表老的一代。针对不同的特点，对年轻一代的垃圾收集更为频繁，对老代的收集则较少，每次经过年轻一代的垃圾回收总会有未被收集的活对象，这些活对象经过收集之后会增加成熟度，当成熟度到达一定程度，则将其放进老代内存块中。\n分代算法很好的实现了垃圾回收的动态性，同时避免了内存碎片，是目前许多JVM使用的垃圾回收算法。\n  5）Conservative garbage collection（保守）\n转自“不死码农”原贴：https://www.cnblogs.com/leeego-123/p/11298267.htmlGC回收器对比全面对比5大GC的内存伸缩能力CMS回收器图解\n\n\n\n\n\n服务器优化之优化代码汇总\n\n在这里，我推荐使用我做的一个Minecraft服务器Bat启动生成器\n\n\n服务器优化之1.7.10服务端核心选择\n\n大家熟知的服务端核心都有：Cauldron Kcauldron Thermos Contigo Uranium\n个人对这些服务端核心的对比：Cauldron<Kcauldron≦Thermos≦Contigo≦Uranium看个人来使用吧\n\n服务器优化之1.12.2服务端核心选择\n\n在这里我只做forge服务端的对比大家熟知的都有墨端(Mohist)猫端(CatServer)\n墨端似乎也有1.7.10版本，但是没多少人使用个人对这两核心的对比 CatServer≧Mohist（话说，墨端的问题还是很多滴，希望两个核心的作者尽心尽力，打造出国内最好服务端核心）\n\n服务器优化之其他版本服务端核心选择\n\n施工中....\n\n\n服务器卡顿分析程序教程\n\n施工中....\n\n",
+    "replies": [
+        {
+            "author": "ttc_V",
+            "timestamp": 1561334040,
+            "txt_content": "斯国一，希望更新更多哦如果还有的话[:dragon:]"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1561342080,
+            "txt_content": "讲解得还不错，就是能不能再详细些？\n支持一下楼主！"
+        },
+        {
+            "author": "0ojixueseno0",
+            "timestamp": 1561345860,
+            "txt_content": "MOD服中启动内存请务必（注意是务必！！！）调至一样！\nhttp://www.mcbbs.net/forum.php?m ... 28&pid=14151625"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1561369440,
+            "txt_content": "0ojixueseno0 发表于 2019-6-24 11:11\nMOD服中启动内存请务必（注意是务必！！！）调至一样！\nhttp://www.mcbbs.net/forum.php?mod=redirect&goto ...\n虽然说这样可以避免每次垃圾回收完成后JVM重新分配内存。\n但是会很占用内存，前提是内存足够，我会写在帖子里的"
+        },
+        {
+            "author": "刘德华1019",
+            "timestamp": 1561370340,
+            "txt_content": "哈哈哈哈哈哈哈哈哈哈哈哈哈"
+        },
+        {
+            "author": "ksqeib445",
+            "timestamp": 1561382040,
+            "txt_content": "0ojixueseno0 发表于 2019-6-24 11:11\nMOD服中启动内存请务必（注意是务必！！！）调至一样！\nhttp://www.mcbbs.net/forum.php?mod=redirect&goto ...\n也不是务必啦。。这样对cpu资源消耗不是很严重"
+        },
+        {
+            "author": "q996495551",
+            "timestamp": 1561416480,
+            "txt_content": "支持支持支持支持支持支持"
+        },
+        {
+            "author": "Auroras",
+            "timestamp": 1561433280,
+            "txt_content": "谢谢楼主的教程，这对我帮助很大。"
+        },
+        {
+            "author": "cp666",
+            "timestamp": 1561459020,
+            "txt_content": "正好要转为独立云主机了，看看"
+        },
+        {
+            "author": "mcbbs2050",
+            "timestamp": 1561470060,
+            "txt_content": "不错的教程呢"
+        },
+        {
+            "author": "Misaka。",
+            "timestamp": 1561545840,
+            "txt_content": "来学习一下"
+        },
+        {
+            "author": "Recho",
+            "timestamp": 1561557900,
+            "txt_content": "持续关注"
+        },
+        {
+            "author": "a9610230101",
+            "timestamp": 1561616520,
+            "txt_content": "3ㄆQQQQQQQQQQQQQQQQQ"
+        },
+        {
+            "author": "teguaijun",
+            "timestamp": 1561646100,
+            "txt_content": "感谢楼主，这篇文章有大用"
+        },
+        {
+            "author": "Denge12345",
+            "timestamp": 1561715160,
+            "txt_content": "讲解得还不错，挺好的"
+        },
+        {
+            "author": "Hui丶Jerry",
+            "timestamp": 1561774140,
+            "txt_content": "感谢教程"
+        },
+        {
+            "author": "a70502317",
+            "timestamp": 1561780080,
+            "txt_content": "如果调整一下 全部添加 会咋样。。"
+        },
+        {
+            "author": "齐天大西瓜",
+            "timestamp": 1561807080,
+            "txt_content": "mcbbs有你更精彩~"
+        },
+        {
+            "author": "DDST",
+            "timestamp": 1561811520,
+            "txt_content": "121121222132131321231231231321321"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1561816080,
+            "txt_content": "a70502317 发表于 2019-6-29 11:48\n如果调整一下 全部添加 会咋样。。\n会导致无法启动，因为有些垃圾清理机制不能混用，我有时间了我会排版说明的"
+        },
+        {
+            "author": "q1919440101",
+            "timestamp": 1561856220,
+            "txt_content": "11111111111"
+        },
+        {
+            "author": "Style星空",
+            "timestamp": 1561888980,
+            "txt_content": "哇，感谢楼主，真的????有用"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1561994040,
+            "txt_content": "学到了，感谢"
+        },
+        {
+            "author": "店家有咸鱼",
+            "timestamp": 1562046780,
+            "txt_content": "支持学习一下"
+        },
+        {
+            "author": "2573959096",
+            "timestamp": 1562087400,
+            "txt_content": "感觉很实用啊，有利于服务器的优化"
+        },
+        {
+            "author": "zxc601404321",
+            "timestamp": 1562096100,
+            "txt_content": "很棒的教程！"
+        },
+        {
+            "author": "862899738",
+            "timestamp": 1562325960,
+            "txt_content": "码住，不错的帖子"
+        },
+        {
+            "author": "Brave_boy",
+            "timestamp": 1562389260,
+            "txt_content": "十分好用的呢 支持"
+        },
+        {
+            "author": "狗鸽GarryGale",
+            "timestamp": 1562405820,
+            "txt_content": "十分有用的信息，感谢！"
+        },
+        {
+            "author": "terry_lin92",
+            "timestamp": 1562406420,
+            "txt_content": "谢谢楼主的教程 很想看更多這樣專業的東西"
+        },
+        {
+            "author": "2755271615",
+            "timestamp": 1562408460,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "灭HIM专家",
+            "timestamp": 1562462100,
+            "txt_content": "GAY到了，还有这么多配置方法"
+        },
+        {
+            "author": "2313043769",
+            "timestamp": 1562516760,
+            "txt_content": "自己搞着很头疼，感谢大大分享出来！"
+        },
+        {
+            "author": "LOL_xz",
+            "timestamp": 1562538180,
+            "txt_content": "关于神奇宝贝服务器的话，也是这样设置的吗？还是进行其他方面的优化"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1562688360,
+            "txt_content": "LOL_xz 发表于 2019-7-8 06:23\n关于神奇宝贝服务器的话，也是这样设置的吗？还是进行其他方面的优化\n都可以的"
+        },
+        {
+            "author": "南京扛把子",
+            "timestamp": 1562692560,
+            "txt_content": "感谢大佬无私奉献"
+        },
+        {
+            "author": "南京扛把子",
+            "timestamp": 1562767020,
+            "txt_content": "干货 学到了"
+        },
+        {
+            "author": "落樱狼姬",
+            "timestamp": 1562825820,
+            "txt_content": "厉害厉害啊"
+        },
+        {
+            "author": "青瓷_",
+            "timestamp": 1563022440,
+            "txt_content": "试试看！"
+        },
+        {
+            "author": "1107128185",
+            "timestamp": 1563029940,
+            "txt_content": "感谢 mcbbs精彩有你"
+        },
+        {
+            "author": "cxk8999",
+            "timestamp": 1563217920,
+            "txt_content": "支持一下楼主！"
+        },
+        {
+            "author": "1062311992",
+            "timestamp": 1563231420,
+            "txt_content": "太棒了楼主正是我需要的"
+        },
+        {
+            "author": "yxy2",
+            "timestamp": 1563376800,
+            "txt_content": "谢谢大佬发言~~"
+        },
+        {
+            "author": "yxy2",
+            "timestamp": 1563376860,
+            "txt_content": "谢谢大佬发言~~"
+        },
+        {
+            "author": "879876746",
+            "timestamp": 1563437220,
+            "txt_content": "支持支持，谢谢楼主"
+        },
+        {
+            "author": "qq2415786013",
+            "timestamp": 1563494760,
+            "txt_content": "看看楼主的问题"
+        },
+        {
+            "author": "xxx小盆友",
+            "timestamp": 1563737520,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "2634068617",
+            "timestamp": 1563924300,
+            "txt_content": "支持一下"
+        },
+        {
+            "author": "周润发",
+            "timestamp": 1563960840,
+            "txt_content": "支持一下楼主"
+        },
+        {
+            "author": "jfyddb",
+            "timestamp": 1564002120,
+            "txt_content": "66666666666666666666666666666"
+        },
+        {
+            "author": "绿奈",
+            "timestamp": 1564009920,
+            "txt_content": "好详细,原来开服指令还能这样写"
+        },
+        {
+            "author": "Lever..",
+            "timestamp": 1564014480,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "35241331",
+            "timestamp": 1564138020,
+            "txt_content": "謝謝大佬"
+        },
+        {
+            "author": "Clin_影子",
+            "timestamp": 1564178640,
+            "txt_content": "感谢楼主~"
+        },
+        {
+            "author": "qqq7586025",
+            "timestamp": 1564193880,
+            "txt_content": "66666666666666666666666"
+        },
+        {
+            "author": "哔哩咖啡猫",
+            "timestamp": 1564547760,
+            "txt_content": "挺不错的！"
+        },
+        {
+            "author": "Nitric_acid",
+            "timestamp": 1564562340,
+            "txt_content": "年轻代年老代是什么?"
+        },
+        {
+            "author": "1114128271",
+            "timestamp": 1564581120,
+            "txt_content": "可以 不错 感谢大佬"
+        },
+        {
+            "author": "舒畅87",
+            "timestamp": 1564648440,
+            "txt_content": "MCBBS有你更精彩。"
+        },
+        {
+            "author": "超人520",
+            "timestamp": 1564758420,
+            "txt_content": "好..........水字数"
+        },
+        {
+            "author": "大犇",
+            "timestamp": 1564803000,
+            "txt_content": "感谢楼主大大的分享，服务器优化大幅提升！"
+        },
+        {
+            "author": "xiaojvzi233",
+            "timestamp": 1565254920,
+            "txt_content": "试试康，希望好用qwq"
+        },
+        {
+            "author": "195588537",
+            "timestamp": 1565321340,
+            "txt_content": "支持楼主，哈哈哈哈"
+        },
+        {
+            "author": "浑水",
+            "timestamp": 1565359680,
+            "txt_content": "谢谢楼主分享"
+        },
+        {
+            "author": "fkxiaojiang",
+            "timestamp": 1565412180,
+            "txt_content": "支持楼主"
+        },
+        {
+            "author": "1600496156",
+            "timestamp": 1565433360,
+            "txt_content": "支持，我看看怎么样的"
+        },
+        {
+            "author": "kaicheng233",
+            "timestamp": 1565441040,
+            "txt_content": "厉害啊！！！"
+        },
+        {
+            "author": "fadlp321",
+            "timestamp": 1565446200,
+            "txt_content": "很莫得影响，"
+        },
+        {
+            "author": "大A！",
+            "timestamp": 1565486100,
+            "txt_content": "太好了"
+        },
+        {
+            "author": "wshycaa",
+            "timestamp": 1565503860,
+            "txt_content": "一直裸奔中，过来了解一下~"
+        },
+        {
+            "author": "minecraft10234",
+            "timestamp": 1565574060,
+            "txt_content": "不错，支持LZ！"
+        },
+        {
+            "author": "chentao520",
+            "timestamp": 1565768460,
+            "txt_content": "不错哦支持楼主！"
+        },
+        {
+            "author": "1819517035",
+            "timestamp": 1565786400,
+            "txt_content": "我都不懂 看了知道感觉挺有意思的"
+        },
+        {
+            "author": "1441423941",
+            "timestamp": 1565870640,
+            "txt_content": "支持一下楼主！"
+        },
+        {
+            "author": "TGNDB123",
+            "timestamp": 1565879100,
+            "txt_content": "123123123123"
+        },
+        {
+            "author": "chrillsims3",
+            "timestamp": 1565904960,
+            "txt_content": "学习一下 谢谢分享"
+        },
+        {
+            "author": "めぐみん",
+            "timestamp": 1565910840,
+            "txt_content": "感谢分享！"
+        },
+        {
+            "author": "dj_xk",
+            "timestamp": 1565935260,
+            "txt_content": "感谢楼主分享"
+        },
+        {
+            "author": "932593801",
+            "timestamp": 1566011880,
+            "txt_content": "这么强的嘛？"
+        },
+        {
+            "author": "幻雪宝宝",
+            "timestamp": 1566012540,
+            "txt_content": "卑微家用机，优化还是卡"
+        },
+        {
+            "author": "a888kay",
+            "timestamp": 1566222900,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "QQ2364947161",
+            "timestamp": 1566619080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "弥猫うた",
+            "timestamp": 1566691080,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "dddyychy",
+            "timestamp": 1566955560,
+            "txt_content": "新人腐竹学习学习大佬牛逼"
+        },
+        {
+            "author": "2949",
+            "timestamp": 1566968460,
+            "txt_content": "谢谢大佬"
+        },
+        {
+            "author": "YinDang",
+            "timestamp": 1567035060,
+            "txt_content": "感谢作者的教程！"
+        },
+        {
+            "author": "sll1314123",
+            "timestamp": 1567080840,
+            "txt_content": "感谢作者作者好厉害"
+        },
+        {
+            "author": "南京扛把子",
+            "timestamp": 1567081620,
+            "txt_content": "适用于MOD服务器么？"
+        },
+        {
+            "author": "1853541084",
+            "timestamp": 1567084020,
+            "txt_content": "教你如何使用启动命令来优化服务器"
+        },
+        {
+            "author": "MIKAZE3",
+            "timestamp": 1567084440,
+            "txt_content": "14907471 发表于 2019-8-29 20:27\n适用于MOD服务器么？\n我有说 适用于所有使用java8 64位的服务器"
+        },
+        {
+            "author": "77153406",
+            "timestamp": 1567088580,
+            "txt_content": "支持，顶贴!!!!"
+        },
+        {
+            "author": "anyi70",
+            "timestamp": 1567093680,
+            "txt_content": "卢本伟牛逼，正需要这个"
+        },
+        {
+            "author": "1529590746@qq.c",
+            "timestamp": 1567101180,
+            "txt_content": "感谢楼主的分享！收藏了"
+        },
+        {
+            "author": "mazd666",
+            "timestamp": 1567138560,
+            "txt_content": "來參考一下 感恩"
+        },
+        {
+            "author": "Tuhacrt",
+            "timestamp": 1567334280,
+            "txt_content": "果然潭里大佬整理就是清楚，牛逼"
+        },
+        {
+            "author": "Evalyn",
+            "timestamp": 1567340940,
+            "txt_content": "emmmmmmmmmmmmmm"
+        },
+        {
+            "author": "1398043665",
+            "timestamp": 1567568820,
+            "txt_content": "6666666666666666666"
+        },
+        {
+            "author": "佟星杰",
+            "timestamp": 1567966020,
+            "txt_content": "感谢楼主分享"
+        },
+        {
+            "author": "三列玖座丶",
+            "timestamp": 1568029440,
+            "txt_content": "已经在使用了哈哈，很棒的教程"
+        }
+    ]
+}

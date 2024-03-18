@@ -1,0 +1,39 @@
+{
+    "title": "请问作物的物品模型为什么加载不出来（红黑格）",
+    "author": "luzongyue",
+    "replyCount": 6,
+    "timestamp": 1556155260,
+    "txt_content": " 本帖最后由 luzongyue 于 2019-4-25 15:28 编辑 \n\n其他方块都没有问题，就是作物会显示红黑格。上面的字是(Modid):block_crop#age=0\n我的是一种类似原版甘蔗的作物，只有一种模型，有AGE这个blockstates。\n难道是作物的注册模型方法和其他方块不一样吗：\nModelResourceLocation model = new ModelResourceLocation(block.getRegistryName(), \"inventory\");\nModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(block), 0, model);复制代码\n(ccc是我的modid）\nblockstats block 下的json文件都按照原版的甘蔗写的，没有问题。blockstats:\n\n{\n    \"variants\": {\n        \"normal\": { \"model\": \"ccc:block_crop\" }\n    }\n}\n\nblock:{\n    \"parent\": \"block/tinted_cross\",\n    \"textures\": {\n        \"cross\": \"ccc:blocks/block_crop\"\n    }\n}\n\n\n\n\n基本可以理解为我创造了一个和甘蔗一模一样的作物，生长方式都差不多，只是改了一些生长模式的代码，关于模型等代码都直接复制粘贴。\n唯一和原版不同的地方可能就在于注册模型的代码了，但是我翻不到原版注册模型的代码，所以只好求助了。。\n\n谢谢啦！\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "luzongyue",
+            "timestamp": 1556176320,
+            "txt_content": "真心求助呀~~~研究了一天了。。。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1556177520,
+            "txt_content": "blockstats block 下的json文件都按照原版的甘蔗写的，没有问题。\n\n肯定有问题。block state json 的用途是把每一个可能的方块状态组合对应到某一个具体的方块模型上去。你看一下原版小麦的 block state json 你就知道了。如果你是希望所有 AGE 的状态都是一个模型的话，可以试试这样写 block state json：\n\n{\n  \"forge_marker\": 1,\n  \"default\": {\n    \"model\": \"ccc:block_crop\"\n  },\n  \"variants\": {\n    \"age\": {\n      \"0\": {},\n      \"1\": {},\n      \"2\": {},\n      \"3\": {},\n      \"4\": {},\n      \"5\": {},\n      \"6\": {},\n      \"7\": {}\n    }\n  }\n}复制代码\n\nModelLoader.setCustomModelResourceLocation 是给物品模型的，和方块无关。\n90% 的方块模型不需要注册，只需要正确编写 block state json 即可。\n（那些需要“注册”的模型都是重新实现的 IBakedModel，绝大多数时候你不需要这么复杂的东西……）"
+        },
+        {
+            "author": "luzongyue",
+            "timestamp": 1556211780,
+            "txt_content": "u.s.knowledge 发表于 2019-4-25 15:32\n肯定有问题。block state json 的用途是把每一个可能的方块状态组合对应到某一个具体的方块模型上去。你 ...\n你好！感谢帮助！但是原版甘蔗也有AGE这个属性啊，然而甘蔗的json文件就是只有一个normal，因为甘蔗所有age都只对应了一种模型。。。小麦是因为有很多个模型才这么写，我只希望对应一种模型"
+        },
+        {
+            "author": "luzongyue",
+            "timestamp": 1556230200,
+            "txt_content": " 本帖最后由 luzongyue 于 2019-4-26 06:12 编辑 \nu.s.knowledge 发表于 2019-4-25 15:32\n肯定有问题。block state json 的用途是把每一个可能的方块状态组合对应到某一个具体的方块模型上去。你 ...\n不好意思。。改写成了这样，还是没有变化，红黑格加上ccc:block_crop#age=0\n{\n    \"forge_marker\": 1,\n        \"default\": {\n    \"model\": \"ccc:block_chili\"\n  }\n}\n难道是block下的block_crop.json的问题吗，而且原版的甘蔗就是像我之前那样写的。。为什么我的就不行\n谢谢。。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1556239980,
+            "txt_content": "luzongyue 发表于 2019-4-26 06:10\n不好意思。。改写成了这样，还是没有变化，红黑格加上ccc:block_crop#age=0\n{\n    \"forge_marker\": 1,\n1. 麻烦不要省略掉 variants 那一大坨啊…… variants 声明了属性组合到模型的具体映射的。\n2. 原版甘蔗那么写肯定有它的道理…… 它是使用了名为 IStateMapper 的机制来忽略掉 age 那个属性不管的。\n// 订阅 ModelRegistryEvent 并调用下列代码\n// block 是你的那个方块的引用。\n// AGE 是你用的名为 AGE 的 IProperty 字段，换成你实际使用的那一个。\nBlockStateMapper.registerBlockStateMapper(block, new StateMap.Builder().ignore(AGE).build());复制代码"
+        },
+        {
+            "author": "luzongyue",
+            "timestamp": 1556251920,
+            "txt_content": "u.s.knowledge 发表于 2019-4-26 08:53\n1. 麻烦不要省略掉 variants 那一大坨啊…… variants 声明了属性组合到模型的具体映射的。\n2. 原版甘蔗 ...\n你好。。请问一下我的block_crop下面的class里，这个propertyinteger是静态的，这个ignore方法调用不了，应该是在其他地方调用？\npublic static final PropertyInteger AGE = PropertyInteger.create(\"age\", 0, 15);\n"
+        }
+    ]
+}

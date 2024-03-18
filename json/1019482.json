@@ -1,0 +1,99 @@
+{
+    "title": "[动画抽奖机制作教程] 超多奖品 点击就送",
+    "author": "MCSugar_cane",
+    "replyCount": 18,
+    "timestamp": 1586938560,
+    "txt_content": "许多租赁服里都有类似抽奖机的趣味性设施，比如神秘箱也是一种改版的抽奖机。这些设施也并非是单纯的趣味性，它们通常与整体功能性相辅相成，比如用服务器货币进行抽奖来赢得特殊物品道具等。\n下面就让小蔗来带你在原版服中完成一个抽奖机的制作（Minecraft:Java 1.15.2），这个抽奖机要能够实现以下功能：\n稳定 - 再多人游戏中能够稳定运行效应 - 花费 抽奖卷 抽奖一次，抽奖卷可以通过金币购买或活动赠送动画 - 抽奖时会有老虎机一样的动画效果公示 - 将抽奖结果全服通告\n\n具体流程如下：\n玩家消耗金币购买抽奖卷玩家消耗抽奖卷进行抽奖，每次只能一个玩家进行抽奖。在有玩家抽奖时，关闭抽奖入口即可抽奖机动态随机显示奖品时，抽奖者具有 mcadmin-lottery-ready 标签随机显示一定次数后，将最后一次随机物品作为奖品，通告并发放给抽奖者！注意处理抽奖者突然下线的问题\n\n完成后效果图：\n那么，我们正式开始吧！首先是可让玩家通过金币购买抽奖卷，我们需要创建虚拟计分板来代表金币：\nscoreboard objectives add mcadmin-money dummy [\"金币\"]复制代码然后编辑抽奖卷物品，这里小蔗就用纸来做了：\ngive @p minecraft:paper{mcadminLottery:1b,display:{Name:\"[\"\\\\u00a76抽奖卷\"]\",Lore:[\"[\"\"]\",\"[\"\\\\u00a77用于抽奖机抽奖\"]\"]}} 1复制代码其中 mcadminLottery 为自定义 NBT，后续我们判断是否为抽奖卷时只需判断物品是否有该 NBT 即可。\n购买则用告示牌商店，利用其 clickEvent 的 run_command 可以无权限运行指令。告示牌每一行都可以有一个 clickEvent ，所以最多能运行四个指令。一般情况下是足够做物品出售了，但这里小蔗为了优化交互体验，增加了一些提示，所以需要在下方放置命令方块接替告示牌没做完的工作。\n告示牌主要负责为操作者添加标签及金币不足的提示，为操作者添加标签是为了交接给命令方块后不至于让命令方块一头雾水的 @p 而导致可能发生的错误选择。因为在多人游戏中，离系统站得最近的可能并非是执行购买操作的玩家，所以 @p 选择器并非是一个好选择。而借助告示牌，我们可以使用 @s 选择器来精确地选中执行操作的玩家。\n\n告示牌中指令如下：\n#给无 mcadmin-money 计分项的玩家一个具体值，供后续检测\nscoreboard players add @s mcadmin-money 0\ntellraw @s[scores={mcadmin-money=..49}] [\"\\u00a7b\\u00a7l[MCAdmin] \\u00a7c您的余额不足，购买失败。\\n\\u00a7e- 该商品需要 \\u00a7e\\u00a7l50\\u00a7e 金币，您当前仅有 \",{\"score\":{\"name\":\"@s\",\"objective\":\"mcadmin-money\"},\"color\":\"yellow\",\"bold\":\"true\"},\" \\u00a7e金币\"]\ntag @s[scores={mcadmin-money=50..}] add mcadmin-canBuy-lottery\n#激活命令方块组，注意相对位置的契合\ndata merge block ~1 ~-3 ~ {auto:1b}复制代码\n告示牌完整代码如下，你也可以用 MCAdmin 提供的工具进行生成： 告示牌生成器\ngive @p minecraft:oak_sign{BlockEntityTag:{Text1:'[{\"text\":\"\\\\u00a74\\\\u00a7l[商铺]\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/scoreboard players add @s mcadmin-money 0\"}}]',Text2:'[{\"text\":\"\\\\u00a7e出售 | 抽奖卷*1\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/tellraw @s[scores={mcadmin-money=..49}] [\\\"\\\\u00a7b\\\\u00a7l[MCAdmin] \\\\u00a7c您的余额不足，购买失败。\\\\\\\\n\\\\u00a7e- 该商品需要 \\\\u00a7e\\\\u00a7l50\\\\u00a7e 金币，您当前仅有 \\\",{\\\"score\\\":{\\\"name\\\":\\\"@s\\\",\\\"objective\\\":\\\"mcadmin-money\\\"},\\\"color\\\":\\\"yellow\\\",\\\"bold\\\":\\\"true\\\"},\\\" \\\\u00a7e金币\\\"]\"}}]',Text3:'[{\"text\":\"\\\\u00a7b价格 | 金币*50\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/tag @s[scores={mcadmin-money=50..}] add mcadmin-canBuy-lottery\"}}]',Text4:'[{\"text\":\"\\\\u00a7a[MCAdmin.cn]]\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"/data merge block ~1 ~-3 ~ {auto:1b}\"}}]'}} 1复制代码\n接着是命令组中指令：\ndata merge block ~ ~ ~ {auto:0b}\nscoreboard players remove @a[distance=..20,tag=mcadmin-canBuy-lottery] mcadmin-money 50\ngive @a[distance=..20,tag=mcadmin-canBuy-lottery] minecraft:paper{mcadminLottery:1b,display:{Name:\"[\"\\\\u00a76抽奖卷\"]\",Lore:[\"[\"\"]\",\"[\"\\\\u00a77用于抽奖机抽奖\"]\"]}} 1\nexecute as @a[distance=..20,tag=mcadmin-canBuy-lottery] run tellraw @s [\"\\u00a7b\\u00a7l[MCAdmin] \\u00a7a成功购买\\u00a7e\\u00a7l抽奖卷*1\\u00a7a，花费\\u00a76\\u00a7l 50 \\u00a76 金币\\u00a7a，当前余额: \",{\"score\":{\"name\":\"@s\",\"objective\":\"mcadmin-money\"},\"color\":\"gold\",\"bold\":\"true\"}]\ntag @a[tag=mcadmin-canBuy-lottery] remove mcadmin-canBuy-lottery复制代码命令组按照上图中所示依次摆放即可，无需条件制约，将脉冲方块设置为红石激活。\n至此，我们完成了抽奖卷的购买操作，下一步我们先暂时略过验证玩家是否持有抽奖卷，而是考虑如何做抽奖动画以及物品发放。\n\n\n\n在物品动画上，小蔗选择以物品框中的变化来实现，为此要注意处理玩家可能将物品框破坏或将物品打出。通常给予物品展示框无敌数据标签 Invulnerable:1b 即可（物品展示框是实体），该无敌效果对创造模式玩家无效。如果玩家在生存模式下还需要对展示框附着方块进行保护。\n通过 /data get 我们可以发现展示框中物品也是由 Item:{} 数据值控制。所以用 /data merge entity 即可对其展示物品进行变更。\n例如用下述指令我们就可以面朝 Z+ 轴放置一个朝向正确的物品展示框：\n#Facing 为展示框朝向，须在实际运用中进行调整；ItemRotation 用于初始化物品朝向；ItemDropChance:0f 则是将物品掉落率设置为0，即使被破坏也不会掉落其中物品\nsummon minecraft:item_frame ~ ~ ~ {Tags:[\"lotteryFrame\"],Facing:2b,Invulnerable:1b,ItemRotation:0b,ItemDropChance:0f}复制代码\n小蔗这里是要在物品展示框（抽奖页面）出现后关闭抽奖入口，所以准备直接用展示框覆盖掉原先的抽奖入口（按钮、拉杆或告示牌等），直到抽奖结束后再替换回来。\n替换展示框中物品的代码如下，给物品 Name 属性值是为了当玩家准星放在展示框上时显示其名字。\ndata merge entity @e[tag=lotteryFrame,limit=1] {Item:{id:\"minecraft:grass\",Count:1b,tag:{display:{Name:\"[\"\\\\u00a7a草\"]\"}}},ItemRotation:0b}复制代码\n\n\n\n\n接下来，我们只要让他从物品池里随机显示即可。这里小蔗建议使用选择器实现随机，例如1.13之前的 @r 或1.13之后的 @e[sort=random,limit=1]。\n具体就是将许多实体（marker）放置在不同命令方块（命令组）上，通过随机选择一个 marker 激活它下边的命令方块，如图：\n\n这里小蔗是用盔甲架来当作 marker 以方便展示，在大数量级上还是用药水云以获得更好的性能。盔甲架召唤代码：\nsummon minecraft:armor_stand ~ ~ ~ {CustomName:\"[\"lotteryMarker\"]\",CustomNameVisible:1b,PersistenceRequired:1b,Tags:[\"lotteryMarker\"],Small:true,Marker:true}复制代码利用放置红石块的方式进行激活，代码如下：execute at @e[tag=lotteryMarker,sort=random,limit=1] run setblock ~ ~ ~ redstone_block replace复制代码重置系统只需将所有 marker 处方块替换为空气：execute at @e[tag=lotteryMarker] run setblock ~ ~ ~ air replace复制代码\n随机激活的命令组其中三组的指令如下：#第一组\ndata merge entity @e[tag=lotteryFrame,limit=1] {Item:{id:\"minecraft:leather_helmet\",Count:1b,tag:{display:{Name:\"[\"\\\\u00a78远古的\\\\u00a7e皮革护甲\"]\",color:444661}}},ItemRotation:0b}\ngive @a[tag=mcadmin-lottery-done] minecraft:leather_helmet{display:{Name:\"[\"\\\\u00a78远古的\\\\u00a7e皮革护甲\"]\",Lore:[\"[\"\"]\",\"[\"\\\\u00a77远古祭祀洗礼过的皮革护甲\"]\",\"[\"\\\\u00a77似乎拥有古老的\\\\u00a73魔法\"]\"],color:444661},Enchantments:[{id:\"minecraft:projectile_protection\",lvl:3s},{id:\"minecraft:respiration\",lvl:1s}],AttributeModifiers:[{AttributeName:\"generic.luck\",Name:\"lucky\",Amount:0.25d,Operation:1,UUIDMost:6527969787195994L,UUIDLeast:6527969787195994L,Slot:head}]} 1\nexecute as @a[tag=mcadmin-lottery-done] run tellraw @a [\"\\u00a76\\u00a7l[抽奖机] \\u00a7e恭喜 \",{\"selector\":\"@s\",\"bold\":\"true\"},\" \\u00a7e在抽奖机中获得了 \\u00a7f[\\u00a78远古的\\u00a7e皮革护甲\\u00a7f] \\u00a7e!\"]\n#第二组\ndata merge entity @e[tag=lotteryFrame,limit=1] {Item:{id:\"minecraft:feather\",Count:1b,tag:{display:{Name:\"[\"\\\\u00a7c异兽的\\\\u00a7f羽毛\"]\"}}},ItemRotation:0b}\ngive @a[tag=mcadmin-lottery-done] minecraft:feather{display:{Name:\"[\"\\\\u00a7c异兽的\\\\u00a7f羽毛\"]\",Lore:[\"[\"\"]\",\"[\"\\\\u00a77被羽毛攻击者将昏昏欲睡\"]\"]},Enchantments:[{id:\"minecraft:looting\",lvl:1s}],AttributeModifiers:[{AttributeName:\"generic.attackDamage\",Name:\"act\",Amount:4d,Operation:0,UUIDMost:8712244862932496L,UUIDLeast:8712244862932496L,Slot:mainhand}]} 1\nexecute as @a[tag=mcadmin-lottery-done] run tellraw @a [\"\\u00a76\\u00a7l[抽奖机] \\u00a7e恭喜 \",{\"selector\":\"@s\",\"bold\":\"true\"},\" \\u00a7e在抽奖机中获得了 \\u00a7f[\\u00a7c异兽的\\u00a7f羽毛\\u00a7f] \\u00a7e!\"]\n#第三组\ndata merge entity @e[tag=lotteryFrame,limit=1] {Item:{id:\"minecraft:air\"},ItemRotation:0b}\nexecute as @a[tag=mcadmin-lottery-done] run tellraw @a [\"\\u00a76\\u00a7l[抽奖机] \\u00a7e很遗憾， \",{\"selector\":\"@s\",\"bold\":\"true\"},\" \\u00a7e在抽奖机中什么也没抽中...\"]复制代码突然出现的 mcadmin-lottery-done 是否让你觉得有亿点跟不上？没关系，请先接着往下看。\n\n\n\n接着稍微复杂的一环就是循环系统的控制了。需在开始后循环定时替换一次物品，在循环多少次后停止并发放相应物品给玩家。\n这里我们在替换物品后加上发放物品并通告的指令，就无需再另行处理，直接在循环替换前给抽奖者添加 mcadmin-lottery-done 标签即可。\n#>创建计分板，只需执行一次\nscoreboard objectives add _gs dummy\n#>初始化，需要在循环开始前执行一次\nscoreboard players set mcadmin-lotteryTick _gs 4\nscoreboard players set mcadmin-ticked _gs 0\nscoreboard players set mcadmin-doneTick _gs 40\n#>循环开始\nscoreboard players add mcadmin-tick _gs 1\nexecute if score mcadmin-ticked _gs >= mcadmin-doneTick _gs run tag @a[tag=mcadmin-lottery-ready] add mcadmin-lottery-done\nexecute if score mcadmin-ticked _gs >= mcadmin-doneTick _gs run tag @a[tag=mcadmin-lottery-done] remove mcadmin-lottery-ready\nexecute if score mcadmin-ticked _gs >= mcadmin-doneTick _gs run scoreboard players operation mcadmin-tick _gs = mcadmin-lotteryTick _gs\nexecute if score mcadmin-tick _gs >= mcadmin-lotteryTick _gs run execute at @e[tag=lotteryMarker,sort=random,limit=1] run setblock ~ ~ ~ redstone_block replace\nexecute if score mcadmin-tick _gs >= mcadmin-lotteryTick _gs run execute at @e[tag=lotteryMarker] run setblock ~ ~ ~ air replace\nexecute if score mcadmin-tick _gs >= mcadmin-lotteryTick _gs run scoreboard players add mcadmin-ticked _gs 1\nexecute if score mcadmin-tick _gs >= mcadmin-lotteryTick _gs run scoreboard players set mcadmin-tick _gs 0\n#当抽奖者意外下线或抽奖结束时执行后续操作(X3 Y3 Z3)并停止循环(X2 Y2 Z2)：\nexecute unless entity @a[tag=mcadmin-lottery-ready] run data merge block X3 Y3 Z3 {auto:1b}\nexecute unless entity @a[tag=mcadmin-lottery-ready] run data merge block X2 Y2 Z2 {auto:0b}复制代码X3 Y3 Z3 处命令组：一个红石中继器以做延迟，避免提前移除玩家 tag 导致发放物品失败data merge block ~ ~ ~ {auto:0b}\ntag @a remove mcadmin-lottery-ready\ntag @a remove mcadmin-lottery-done\nkill @e[tag=lotteryFrame,limit=1]\nsetblock X4 Y4 Z4 minecraft:oak_wall_sign[facing=south]{Text1:\"[{\"text\":\"[抽奖机]\",\"color\":\"dark_red\",\"bold\":\"true\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"tag @s[nbt={Inventory:[{id:\\\\\"minecraft:paper\\\\\",tag:{mcadminLottery:1b}}]}] add mcadmin-canLottery\"}}]\",Text2:\"[{\"text\":\"随机奖品，祝你好运\",\"color\":\"gold\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"tellraw @s[tag=!mcadmin-canLottery] [\\\\\"\\\\\\\\u00a7b\\\\\\\\u00a7l[MCAdmin] \\\\\\\\u00a7c您需要一个抽奖卷用于抽奖。\\\\\"]\"}}]\",Text3:\"[{\"text\":\"消耗 | 抽奖卷*1\",\"color\":\"aqua\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"execute as @s[tag=mcadmin-canLottery] run data merge block X1 Y1 Z1 {auto:1b}\"}}]\",Text4:\"[{\"text\":\"[MCAdmin.cn]\",\"color\":\"green\"}]\"}复制代码\n\n\n\n最后我们再回过来处理验证玩家是否持有抽奖卷，并将所有系统对接。\n用 Inventory 即可检测玩家背包中是否含有指定物品：@s[nbt={Inventory:[{id:\"minecraft:paper\",tag:{mcadminLottery:1b}}]}]复制代码然后再利用 tag 反选做出提示，这一部分小蔗也建议放在告示牌中：tag @s[nbt={Inventory:[{id:\"minecraft:paper\",tag:{mcadminLottery:1b}}]}] add mcadmin-canLottery\ntellraw @s[tag=!mcadmin-canLottery] [\"\\u00a7b\\u00a7l[MCAdmin] \\u00a7c您需要一个抽奖卷用于抽奖。\"]\n#激活后续执行抽奖的命令组\nexecute as @s[tag=mcadmin-canLottery] run data merge block X1 Y1 Z1 {auto:1b}复制代码整合在告示牌中代码如下：give @p minecraft:oak_sign{BlockEntityTag:{Text1:\"[{\"text\":\"[抽奖机]\",\"color\":\"dark_red\",\"bold\":\"true\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"tag @s[nbt={Inventory:[{id:\\\\\"minecraft:paper\\\\\",tag:{mcadminLottery:1b}}]}] add mcadmin-canLottery\"}}]\",Text2:\"[{\"text\":\"随机奖品，祝你好运\",\"color\":\"gold\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"tellraw @s[tag=!mcadmin-canLottery] [\\\\\"\\\\\\\\u00a7b\\\\\\\\u00a7l[MCAdmin] \\\\\\\\u00a7c您需要一个抽奖卷用于抽奖。\\\\\"]\"}}]\",Text3:\"[{\"text\":\"消耗 | 抽奖卷*1\",\"color\":\"aqua\",\"clickEvent\":{\"action\":\"run_command\",\"value\":\"execute as @s[tag=mcadmin-canLottery] run data merge block X1 Y1 Z1 {auto:1b}\"}}]\",Text4:\"[{\"text\":\"[MCAdmin.cn]\",\"color\":\"green\"}]\"}} 1复制代码\n接着是预处理抽奖的命令组：\ndata merge block ~ ~ ~ {auto:0b}\n#防止上次抽奖玩家突然掉线后依然存在 ready 标签\ntag @a remove mcadmin-lottery-ready\ntag @p[tag=mcadmin-canLottery] add mcadmin-lottery-ready\nclear @a[tag=mcadmin-lottery-ready] minecraft:paper{mcadminLottery:1b} 1\ntag @a[tag=mcadmin-lottery-ready] remove mcadmin-canLottery\nsetblock X4 Y4 Z4 air replace\nsummon minecraft:item_frame X4 Y4 Z4 {Tags:[\"lotteryFrame\"],Facing:3b,Invulnerable:1b,ItemRotation:0b,ItemDropChance:0f}\n#初始化循环\nscoreboard players set mcadmin-lotteryTick _gs 4\nscoreboard players set mcadmin-ticked _gs 0\nscoreboard players set mcadmin-doneTick _gs 40\n#启动循环\ndata merge block X2 Y2 Z2 {auto:1b}复制代码\n整个系统鸟瞰图：\n\n",
+    "replies": [
+        {
+            "author": "ChapterII",
+            "timestamp": 1586944080,
+            "txt_content": "考虑做成数据包?沙发"
+        },
+        {
+            "author": "⊙u⊙",
+            "timestamp": 1586944380,
+            "txt_content": "竟然没用lt...\n没有物品概率设置？那池子里要是弄99%小草和1%钻石岂不是要很多实体？"
+        },
+        {
+            "author": "MCSugar_cane",
+            "timestamp": 1586946480,
+            "txt_content": "⊙u⊙ 发表于 2020-4-15 17:53\n竟然没用lt...\n没有物品概率设置？那池子里要是弄99%小草和1%钻石岂不是要很多实体？ ...\n挖 好久不见\n这个只是作为 mcadmin.cn 里新人教程的一个作品啦\n后面有（不）机（咕）会（咕）的话会完善的"
+        },
+        {
+            "author": "MCSugar_cane",
+            "timestamp": 1586946480,
+            "txt_content": "ChapterII 发表于 2020-4-15 17:48\n考虑做成数据包?沙发\n咕.咕?咕!"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1586951220,
+            "txt_content": "loot replace entity @e[type=minecraft:item_frame,limit=1,sort=nearest] container.0 loot minecraft:gameplay/fishing复制代码请（"
+        },
+        {
+            "author": "MCSugar_cane",
+            "timestamp": 1586970180,
+            "txt_content": "(=°ω°)丿 发表于 2020-4-15 19:47\n请（\n收到了，天气冷，我睡了"
+        },
+        {
+            "author": "你还不黑",
+            "timestamp": 1587008700,
+            "txt_content": "一直想学习这个找到了  哈哈哈"
+        },
+        {
+            "author": "1_41421356237",
+            "timestamp": 1587052200,
+            "txt_content": "执行告示牌指令需要对应权限吧？我记得需要啊\n所以建议用/trigger"
+        },
+        {
+            "author": "2362028557",
+            "timestamp": 1587055080,
+            "txt_content": "就怕自己做的抽奖机，搞来搞去自己一直是非酋"
+        },
+        {
+            "author": "MCSugar_cane",
+            "timestamp": 1587111060,
+            "txt_content": "1_41421356237 发表于 2020-4-16 23:50\n执行告示牌指令需要对应权限吧？我记得需要啊\n所以建议用/trigger\n嗯。你记错了"
+        },
+        {
+            "author": "雪-ices",
+            "timestamp": 1587214020,
+            "txt_content": "膜拜大佬awa"
+        },
+        {
+            "author": "Ruainbow_",
+            "timestamp": 1587869940,
+            "txt_content": "糖罐！为什么不用数据包！"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1588129320,
+            "txt_content": "数据包，有点害怕，不敢看，数据包难拆解，看不懂。"
+        },
+        {
+            "author": "HUIGE723",
+            "timestamp": 1588136760,
+            "txt_content": "我靠，大佬牛皮，膜拜"
+        },
+        {
+            "author": "HUIGE723",
+            "timestamp": 1588136760,
+            "txt_content": "做的也太用心了吧"
+        },
+        {
+            "author": "棒法芬芳",
+            "timestamp": 1595139720,
+            "txt_content": "⊙u⊙ 发表于 2020-4-15 17:53\n竟然没用lt...\n没有物品概率设置？那池子里要是弄99%小草和1%钻石岂不是要很多实体？ ...\n我要是小蔗我就用lt"
+        },
+        {
+            "author": "密云",
+            "timestamp": 1595171700,
+            "txt_content": "可以可以，一直想搞个抽奖机，666"
+        },
+        {
+            "author": "乔伟是大猪头",
+            "timestamp": 1595178300,
+            "txt_content": "ChapterII 发表于 2020-4-15 17:48\n考虑做成数据包?沙发\n好好厉害啊  我喜欢这个"
+        }
+    ]
+}

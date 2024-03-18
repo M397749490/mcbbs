@@ -1,0 +1,54 @@
+{
+    "title": "[1.14]如何使用loot replace",
+    "author": "ruhuasiyu",
+    "replyCount": 9,
+    "timestamp": 1560873060,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2019-6-20 13:42 编辑 \n\n命令loot replace 可用于动态替换实体/方块物品，是个十分便利的命令。然而可能很多人不知道，该命令是可以一次性替换多个槽位物品的。\nloot replace entity @s 槽位 <source>\nloot replace block x y z 槽位 <source>复制代码执行该命令之后，\n（1）首先会根据掉落品表确定将要掉落的物品序列，这些物品可能会相同。如果是潜影箱 \"type\":\"dynamic\"得到的掉落物，第X个就是第X个槽位的物品，即使该位置为空。但是通常的战利品表会忽视那些没有掉落物的项。\n\n（2）根据liach查看源代码(见2L)得到结论(或见英文版wiki)，确定槽位对应的编号，然后从其开始的编号从小到大依次排列构成将要放入的槽位的序列。\n槽位编号容器container.0~container.530~53快捷栏hotbar.0~hotbar.80~8背包inventory.0~inventory.269+0~26，即9~35主手weapon或weapon.mainhand98副手weapon.offhand99靴子栏armor.feet100护腿栏armor.legs101胸甲栏armor.chest102头盔栏armor.head103末影箱enderchest.0~enderchest.26200+0~26，即200~226村民背包villager.0~villager.7300+0~7，即300~307马、驴、骡的鞍horse.saddle400马的马铠、羊驼的地毯horse.armor401驴、骡、羊驼的箱子horse.chest499驴、骡、羊驼的背包horse.0~horse.14500+0~14，即500~514注意到，无论是玩家还是容器，选择槽位container.0和hotbar.0是一样的，实际效果是相同的。\n\n（3）然后确定槽位数量。玩家可以在命令中指定槽位数量\nloot replace entity @s 槽位 槽位数量 <source>\nloot replace block x y z 槽位 槽位数量 <source>复制代码如果未指定槽位数量，替换的槽位数量为战利品表的物品序列长度，对于潜影箱 \"type\":\"dynamic\"而言，固定是27个槽位。\n\n（4）最后将物品序列塞入槽位序列。\n尝试塞入不合法的物品(头盔塞入非头部的盔甲、胸甲塞入非胸部的物品、马鞍塞入非马鞍)时，原物品不会被替换掉。没有相应槽位时，也是无法塞入物品的。包括container序号大于27的槽位也是不存在的，即使是大箱子。物品数量不足以塞满确定的槽位数量时，多余的槽位物品会被清空。\n\n\n例如使用\nloot replace entity @s weapon.mainhand mine x y z diamond_pickaxe{isShulkerMarker:1b}复制代码挖掘修改过战利品表的潜影盒时，\n主手塞入潜影盒内第1个掉落物，若空则清空该位置\n副手塞入潜影盒内第2个掉落物，若空则清空该位置\n靴子塞入潜影盒内第3个掉落物品，若空或非法则清空该位置\n护腿塞入潜影盒内第4个掉落物品，若空或非法则清空该位置\n胸甲塞入潜影盒内第5个掉落物品，若空或非法则清空该位置\n头盔塞入潜影盒内第6个掉落物品，若空或非法则清空该位置\n\n例如使用\nloot replace entity @s hotbar.0 loot 战利品表\n或\nloot replace entity @s container.0 loot 战利品表复制代码快捷栏塞入第1-9个物品\n背包塞入第10-36个物品\n主手、副手、靴子、护腿、胸甲、头盔塞入第99-104个物品\n末影箱塞入第201-227个物品\n\n下面这个例子中，我们可以将玩家手部的一个物品转移到头部，类似于插件/hat指令。\nsetblock ~ 255 ~ shulker_box{Items:[{Slot:0b,id:\"minecraft:firework_star\",Count:1b}]}\ndata modify block ~ 255 ~ Items[0].id set from entity @s SelectedItem.id\ndata modify block ~ 255 ~ Items[0].tag set from entity @s SelectedItem.tag\nloot replace entity @s armor.head 1 mine ~ 255 ~ diamond_pickaxe{isShulkerMarker:1b}\n\nexecute store result score #temp sivalue run data get entity @s SelectedItem.Count\nexecute store result block ~ 255 ~ Items[0].Count byte 1 run scoreboard players remove #temp sivalue 1\nloot replace entity @s weapon.mainhand 1 mine ~ 255 ~ diamond_pickaxe{isShulkerMarker:1b}\n\nsetblock ~ 255 ~ air\n复制代码\\data\\minecraft\\loot_tables\\blocks\\shulker_box.json{\n    \"type\": \"minecraft:block\",\n    \"pools\": [\n        {\n            \"rolls\": 1,\n            \"entries\": [\n                {\n                    \"type\": \"minecraft:alternatives\",\n                    \"children\": [\n                        {\n                            \"type\": \"minecraft:dynamic\",\n                            \"name\": \"minecraft:contents\",\n                            \"conditions\": [\n                                {\n                                    \"condition\": \"minecraft:match_tool\",\n                                    \"predicate\": {\n                                        \"nbt\":\"{isShulkerMarker:1b}\"\n                                    }\n                                }\n                            ]\n                        },\n                        {\n                            \"type\": \"minecraft:item\",\n                            \"functions\": [\n                                {\n                                    \"function\": \"minecraft:copy_name\",\n                                    \"source\": \"block_entity\"\n                                },\n                                {\n                                    \"function\": \"minecraft:copy_nbt\",\n                                    \"source\": \"block_entity\",\n                                    \"ops\": [\n                                        {\n                                            \"source\": \"Lock\",\n                                            \"target\": \"BlockEntityTag.Lock\",\n                                            \"op\": \"replace\"\n                                        },\n                                        {\n                                            \"source\": \"LootTable\",\n                                            \"target\": \"BlockEntityTag.LootTable\",\n                                            \"op\": \"replace\"\n                                        },\n                                        {\n                                            \"source\": \"LootTableSeed\",\n                                            \"target\": \"BlockEntityTag.LootTableSeed\",\n                                            \"op\": \"replace\"\n                                        }\n                                    ]\n                                },\n                                {\n                                    \"function\": \"minecraft:set_contents\",\n                                    \"entries\": [\n                                        {\n                                            \"type\": \"minecraft:dynamic\",\n                                            \"name\": \"minecraft:contents\"\n                                        }\n                                    ]\n                                }\n                            ],\n                            \"name\": \"minecraft:shulker_box\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}复制代码\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "chyx",
+            "timestamp": 1560873900,
+            "txt_content": "太长慢慢去看\n我先要说\nbugs.mojang.com\n等着你"
+        },
+        {
+            "author": "Тιмγα姬",
+            "timestamp": 1560878040,
+            "txt_content": "遇事不决，量子力......走错片场，打扰了\n大晚上为什么要发这种看得眼睛疼的东西"
+        },
+        {
+            "author": "小矿工ing",
+            "timestamp": 1560901620,
+            "txt_content": "期待，回头试试。\n真的看着眼睛疼。。。"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1560912780,
+            "txt_content": "遇事不决，量子力学.jpg\n所以大佬的原版hat是怎么实现的？"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1560913320,
+            "txt_content": "NoName德里奇 发表于 2019-6-19 10:53\n遇事不决，量子力学.jpg\n所以大佬的原版hat是怎么实现的？\n下面列出了函数，以及对潜影盒战利品表的修改"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1560922920,
+            "txt_content": "搞晕了半天才发现这并不是bug，只是working as intended……\n\n几个小细节：\n头盔也有非法物品（鞘翅等能放在其它装备格的物品不能放头盔格）如果用非法物品填充某格失败，原先那格的东西不会被清空\n\n\n看样子是时候详细写写这个了 https://minecraft.gamepedia.com/Commands#minecraft:item_slot\n\n\n    private static final Map<String, Integer> slotNamesToSlotCommandId = SystemUtil.consume(Maps.newHashMap(), hashMap_1 -> {\n        for (int int_1 = 0; int_1 < 54; ++int_1) {\n            hashMap_1.put(\"container.\" + int_1, int_1);\n        }\n        for (int int_2 = 0; int_2 < 9; ++int_2) {\n            hashMap_1.put(\"hotbar.\" + int_2, int_2);\n        }\n        for (int int_3 = 0; int_3 < 27; ++int_3) {\n            hashMap_1.put(\"inventory.\" + int_3, 9 + int_3);\n        }\n        for (int int_4 = 0; int_4 < 27; ++int_4) {\n            hashMap_1.put(\"enderchest.\" + int_4, 200 + int_4);\n        }\n        for (int int_5 = 0; int_5 < 8; ++int_5) {\n            hashMap_1.put(\"villager.\" + int_5, 300 + int_5);\n        }\n        for (int int_6 = 0; int_6 < 15; ++int_6) {\n            hashMap_1.put(\"horse.\" + int_6, 500 + int_6);\n        }\n        hashMap_1.put(\"weapon\", 98);\n        hashMap_1.put(\"weapon.mainhand\", 98);\n        hashMap_1.put(\"weapon.offhand\", 99);\n        hashMap_1.put(\"armor.head\", 100 + EquipmentSlot.HEAD.getEntitySlotId());\n        hashMap_1.put(\"armor.chest\", 100 + EquipmentSlot.CHEST.getEntitySlotId());\n        hashMap_1.put(\"armor.legs\", 100 + EquipmentSlot.LEGS.getEntitySlotId());\n        hashMap_1.put(\"armor.feet\", 100 + EquipmentSlot.FEET.getEntitySlotId());\n        hashMap_1.put(\"horse.saddle\", 400);\n        hashMap_1.put(\"horse.armor\", 401);\n        hashMap_1.put(\"horse.chest\", 499);\n    });\n复制代码\n\n这段代码就是 1.14.3 Pre 2 中反编译的 item slot 参数转整数格子编号的逻辑。\n还有这个loot replace的时候是连号replace的，如果中间有个号断掉了那么那个对应的号的loot就没了。\n不过号中间差那么多应该不会出现两头有中间没的现象。\n\n"
+        },
+        {
+            "author": "hawdsf.",
+            "timestamp": 1560943740,
+            "txt_content": "厉害 路过路过看不懂"
+        },
+        {
+            "author": "wazzzzz",
+            "timestamp": 1589199540,
+            "txt_content": "有点长。。。。。等收藏起来过会再看"
+        },
+        {
+            "author": "🥶❄️☠️",
+            "timestamp": 1589206320,
+            "txt_content": "loot replace强行直译是战利品重放，是这个意思吗？"
+        }
+    ]
+}

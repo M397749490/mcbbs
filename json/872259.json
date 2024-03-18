@@ -1,0 +1,284 @@
+{
+    "title": "MC报错分析指南——从入门到放弃",
+    "author": "a1294790523",
+    "replyCount": 55,
+    "timestamp": 1560146760,
+    "txt_content": " 本帖最后由 a1294790523 于 2019-12-20 11:38 编辑 \n\n\n写这篇指南的原因\n\n很多人可能会说，你写这篇指南干嘛呢，不是到问答版提问就完事了吗？\n但我写这篇指南的原因，正是因为问答版的现状。\n随意打开问答版的一个帖子，就能看见各式各样的误导和使用了通用解决方案的回答，这些回答对问答版而言是降维打击，这篇指南，为的就是给提问者和回答者提供一些解决的问题的思路，以及为整合者和服主的错误解决提供帮助而写。\n\nPS1：本指南的回复区不提供一对一的崩溃解决方案，需要提崩溃相关的问题的请左转问答版提问\nPS2：可配合同类作品食用：\n海螺：[教程] 自己动手排查报错\nhttps://www.mcbbs.net/thread-729487-1-1.html\n蝙蝠：怎么看崩溃报告和Timings？\nhttps://www.mcbbs.net/thread-860103-1-1.html\n\n\n\n前言\n\n本指南为服主、客户端整合者、普通玩家所写\n请确保你有至少10分钟的时间来阅读某一章节\n为保证内容通俗易懂，已大幅简化一些内容\n小人不才，如在阅读过程中发现有不懂的或者有不恰当的地方\n欢迎提出疑问或建议\n\n\n\n\n必要知识\n\n崩溃发生的原因\n\n异常指的是在程序运行过程中发生的异常事件，通常是由外部问题（如硬件错误、输入错误）所导致的。在Java等面向对象的编程语言中异常属于对象。——百度百科\n玩过Mod整合包的玩家和服主应该对崩溃并不陌生，崩溃，其实是因为程序出现了一个无法处理的异常而导致的，在Java中使用的异常处理机制为中止模型，当出现了不安全或不恰当的情况时，程序可以抛出异常，但当这个异常无法被处理时，Java虚拟机就会随着这个异常的出现而终止，于是就产生了我们所说的崩溃。\n\n异常的类型\n\n在Java中异常有两大类， Error和Exception（它们的上一级是Throwable，也是最底层的类），由这两大类派生出其他异常，一般来说，Error下的异常是系统内部的异常，而Exception下的异常是可以被处理的异常，异常的一般命名模式为异常名+类别，其中异常名称采用驼峰命名法命名（单词首字母大写），比如IlegalAccessException就是一个类别为Exception，异常名为illegal access（非法访问）的异常。\n\n\n包名\n\n指的就是命名空间（可以理解为将东西区分开来的玩意），一般形式为xxx.yyy.zzz，“.”是分隔符，也代表了路径，比如com.sand.crash的路径就是com\\sand\\crash，在堆栈中包名后跟着类名，也用“.”分隔 。\n\n堆栈（Stack）\n\n这里实际指的是栈，一个栈由多个栈帧组成，为简便起见，你可以将栈理解为一个完整的生产工序，而将一个栈帧看成其中的一个流程。\n栈帧的表现形式为：包名.类名.方法名\n\n异常链\n\n我们可以把一个程序的执行看成审核流程，一个审核流程由收件->一级部门审核->二级部门审核->三级部门审核->最高级部门审核组成，那么如果最高级部门审核中出现问题，那么就需要一级级下发下去，让作者知道审核不通过的原因，那么，就构成了一条异常链，与单个异常相比较，它提供了更多的信息，让分析更为便利。\n\n\n线程\n\n一个线程可以理解为一个人，在游戏中存在着多个线程，为了协助完成共同的任务，就出现了所谓的线程状态（State）：NEW（我刚来的，还没准备好）、RUNNABLE（我在干活哦）、BLOCKED（我需要的东西被占用了，等他用完我才能继续干活）、WAITING（我需要等待某个人的动作才能继续干活）、TIMED_WAITING（与前者相同，只是加了时间限制）、TERMINATED（我活干完啦或者被其他人打断了）\n\n\n报告分析\n\n错误分析的顺序\n\n\n从时间和效率上考虑，一般的崩溃分析次序为：\nJVM崩溃日志>崩溃报告>日志\n需要指出的一点是，崩溃报告是由Minecraft本身生成的，而非Java本身，如果在早期启动阶段崩溃，那么我们只能通过日志分析原因。\n\n崩溃报告分析\n\n\n那么，我们先由信息量最小的崩溃报告讲起：\n\n崩溃报告的位置位于crash-reports（客户端在.minecraft\\ crash-report s）文件夹，其目录下的文件便是崩溃报告了，命名方式为crash-日期_时间-客户端(client)/服务器(server).txt，例如\ncrash-2019-02-07_22.16.28-server.txt\n\n首先是渲染类的崩溃：\n\n\n---- Minecraft Crash Report ---←告诉你这玩意是MC的崩溃报告\n// There are four lights! ←随机的崩溃日志句子，详情可见Wiki\nTime: 2019-06-09 13:52:03 CST←崩溃时间\nDescription: Updating screen events\n↑①先看描述，这里是在更新屏幕事件java.lang.NoSuchMethodError: mezz.jei.gui.overlay.IngredientListOverlay.getStackUnderMouse()Lnet/minecraft/item/ItemStack; \n↑②看异常：java.lang是包名，我们直接可以看最后一段NoSuchMethodError，异常名叫No Such Method，即没有这样的方法，而冒号（“:”）后给出了详细信息，也就是找不到的方法和它的方法描述符\n↓这是出现异常前的堆栈，执行顺序从下到上at org.cfpa.i18nupdatemod.hotkey.HotKeyHandler.onKeyPress(HotKeyHandler.java:87) ↑③看堆栈，我们可以看见这里出现了一个模组的名字，从包名（org.cfpa.i18nupdatemod.hotkey）可以得出是i18nupdatemod，如果不确定包名指的是什么mod，可拿包名在下方加载的mod搜索或百度搜索一下以帮助判断 at net.minecraftforge.fml.common.eventhandler.ASMEventHandler_863_HotKeyHandler_onKeyPress_Pre.invoke(.dynamic) \n↑这里是触发按键的FML事件\nat net.minecraftforge.fml.common.eventhandler.ASMEventHandler.invoke(ASMEventHandler.java:90)\nat net.minecraftforge.fml.common.eventhandler.EventBus.post(EventBus.java:182)\nat net.minecraft.client.gui.GuiScreen.handleInput(GuiScreen.java:511)\nat net.minecraft.client.Minecraft.runTick(Minecraft.java:1759)\nat net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:1098)\nat net.minecraft.client.Minecraft.run(Minecraft.java:3942)\nat net.minecraft.client.main.Main.main(SourceFile:123)\nat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\nat sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)\nat sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)\nat java.lang.reflect.Method.invoke(Unknown Source)\nat net.minecraft.launchwrapper.Launch.launch(Launch.java:135)\nat net.minecraft.launchwrapper.Launch.main(Launch.java:28)\n\n↓这是产生错误时的所有已知的详细信息↓\nA detailed walkthrough of the error, its code path and all known details is as follows:\n---------------------------------------------------------------------------------------\n\n↓影响的界面↓\n-- Affected screen --\nScreen name: mezz.jei.gui.recipes.RecipesGui←可以看到是jei的合成GUI\n\n↓影响的地图↓\n-- Affected level --\nLevel name: MpServer←地图名称\nAll players: 1 total; [GCEntityClientPlayerMP['sandtechnology'/435, l='MpServer', x=216.56, y=68.00, z=269.96]] ←玩家\nChunk stats: MultiplayerChunkCache: 230, 230\nLevel seed: 0←地图种子\nLevel generator: ID 00 - default, ver 1.  Features enabled: false←地图生成器，后面那个应该是是否开启了巨大化世界\nLevel generator options: ←地图生成器设置\nLevel spawn location: World: (228,64,256), Chunk: (at 4,4,0 in 14,16; contains blocks 224,0,256 to 239,255,271), Region: (0,0; contains chunks 0,0 to 31,31, blocks 0,0,0 to 511,255,511) ←地图出生点位置（包括地图坐标、区块、Region）\nLevel time: 201 game time, 201 day time←地图时间\nLevel dimension: 0←地图维度，0为主世界\nLevel storage version: 0x00000 - Unknown? ←地图存储版本\nLevel weather: Rain time: 0 (now: false), thunder time: 0 (now: false) ←地图天气\nLevel game mode: Game mode: creative (ID 1). Hardcore: false. Cheats: false←地图游戏模式\nForced entities: 133 total; [省略]\nRetry entities: 0 total; []\nServer brand: fml,forge←服务器侧名称\nServer type: Integrated singleplayer server←服务器侧类型\n↓系统信息↓\n-- System Details --\nMinecraft Version: 1.12.2\nOperating System: Windows 10 (amd64) version 10.0\nJava Version: 1.8.0_211, Oracle Corporation\nJava VM Version: Java HotSpot(TM) 64-Bit Server VM (mixed mode), Oracle Corporation\nMemory: 837386992 bytes (798 MB) / 4294967296 bytes (4096 MB) up to 4294967296 bytes (4096 MB)\nJVM Flags: 6 total; -XX:+UseG1GC -XX:-UseAdaptiveSizePolicy -XX:-OmitStackTraceInFastThrow -Xmn128m -Xmx4096m -XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump\nIntCache: cache: 6, tcache: 0, allocated: 13, tallocated: 95\nFML: MCP 9.42 Powered by Forge 14.23.5.2838 211 mods loaded, 211 mods active\nStates（状态）: 'U' = Unloaded（已卸载） 'L' = Loaded（已加载） 'C' = Constructed （已构造）'H' = Pre-initialized（预初始化） 'I' = Initialized（初始化） 'J' = Post-initialized（后初始化） 'A' = Available（可用） 'D' = Disabled（已禁用） 'E' = Errored（出错）\nState（状态）IDVersion（版本）Source（来源）Signature（签名）LCHIJAminecraft1.12.2minecraft.jarNoneLCHIJAmcp9.42minecraft.jarNoneLCHIJAFML8.0.99.99forge-1.12.2-14.23.5.2838.jare3c3d50c7c986df74c645c0ac54639741c90a557LCHIJAforge14.23.5.2838forge-1.12.2-14.23.5.2838.jare3c3d50c7c986df74c645c0ac54639741c90a557LCHIJAcreativecoredummy1.0.0minecraft.jarNoneLCHIJAjecharacters1.12.0-3.3.0JustEnoughCharacters-1.12.0-3.3.0.jarNoneLCHIJAmicdoodlecore\nminecraft.jarNoneLCHIJAsmoothfontcoremc1.12.2-1.16minecraft.jarNone\n\n（以下省略系统信息，包括加载的资源包，是否使用了VBO等，一般可基本不看）\n==========================================================\n\n\n通篇下来，有以下几个关键信息\n\n1.        这是在更新屏幕事件（渲染时）崩溃\n2.        崩溃的原因和i18nupdatemod有关系\n3.        这是按下一个按键时导致的崩溃\n4.        崩溃的根本原因是找不到jei的方法\n\n由上面的关键信息进一步推理可知，这是i18nupdatemod模组和jei新版本不兼容引起的问题\n\n我们可以尝试：\n\n1.        降级jei到旧版本\n2.        反馈给i18nupdatemod作者943（该问题已在新版本修复）\n\n\n\n接下来看看计算（ticking）实体时的崩溃（为了节省空间，前文提到过的内容不会再重复）：\n\n↓提醒你下列核心mod已经安装（核心mod一般会修改MC原版的代码，因此它们也有导致崩溃的可能）\nWARNING: coremods are present:\n  LoadingPlugin (Bloodmoon(血月)-MC1.12.2-1.5.3.jar)\n  TheBetweenlandsLoadingPlugin (TheBetweenlands-3.4.9-core.jar)\n  Do not report to Forge! (If you haven't disabled the FoamFix coremod, try disabling it in the config! Note that this bit of text will still appear.) ([优化]FoamFix-0.10.5.jar)\nContact their authors BEFORE contacting forge\n\n// There are four lights!\n\nTime: 7/4/19 12:32 AM\nDescription: Ticking entity\n↑告诉你在计算实体\n\n\njava.lang.NoSuchMethodError: net.minecraft.world.World.func_175682_a(Lnet/minecraft/util/EnumParticleTypes;ZDDDDDD[I)V\n↑与前文相同的异常，但这次提到的是找不到MC内的方法\n        at com.matez.wildnature.event.fallEvent.fallEvent(fallEvent.java:52)\n↑传递实体掉落事件到名为wildnature的mod\n        at net.minecraftforge.fml.common.eventhandler.ASMEventHandler_300_fallEvent_fallEvent_LivingFallEvent.invoke(.dynamic)\n↑传递实体掉落事件\n        at net.minecraftforge.fml.common.eventhandler.ASMEventHandler.invoke(ASMEventHandler.java:90)\n        at net.minecraftforge.fml.common.eventhandler.EventBus.post(EventBus.java:187)\n        at net.minecraftforge.common.ForgeHooks.onLivingFall(ForgeHooks.java:631)\n（以下省略N行）\n\nA detailed walkthrough of the error, its code path and all known details is as follows:\n---------------------------------------------------------------------------------------\n\n-- Head --\nThread: Server thread←服务器主线程\nStacktrace（堆栈跟踪）:\n        at com.matez.wildnature.event.fallEvent.fallEvent(fallEvent.java:52)\n（以下省略N行，与上文大致相同）\n\n-- Entity being ticked –\n↑告诉你被计算的实体信息\nDetails:\n        Entity Type: minecraft:spider (net.minecraft.entity.monster.EntitySpider)\n↑实体类型，括号内为实体具体的类\n        Entity ID: 4279\n↑实体的ID（生成时自动分配）\n        Entity Name: Spider\n↑实体名称\n        Entity's Exact location: -510.30, 38.00, -606.92\n↑实体的精确坐标\n        Entity's Block location: World: (-511,38,-607), Chunk: (at 1,2,1 in -32,-38; contains blocks -512,0,-608 to -497,255,-593), \nRegion: (-1,-2; contains chunks -32,-64 to -1,-33, blocks -512,0,-1024 to -1,255,-513)\n↑实体所在的位置（包括方块位置、区块位置、Region位置）\n        Entity's Momentum: -0.03, -1.25, -0.07\n↑实体的动量\n        Entity's Passengers: []\n↑乘着实体的实体\n        Entity's Vehicle: ~~ERROR~~ NullPointerException: null\n↑实体乘着的实体（这里因为不存在而出现了NPE，即空指针异常）\n（以下省略N行）\nLoaded coremods (and transformers): \n加载的核心mod（和transformers<-可以理解成修改class的玩意）：\nLoadingPlugin (Bloodmoon(血月)-MC1.12.2-1.5.3.jar)\n  lumien.bloodmoon.asm.ClassTransformer\nTheBetweenlandsLoadingPlugin (TheBetweenlands-3.4.9-core.jar)\n  thebetweenlands.core.TheBetweenlandsClassTransformer\nDo not report to Forge! (If you haven't disabled the FoamFix coremod, try disabling it in the config! Note that this bit of text will still appear.) ([优化]FoamFix-0.10.5.jar)\n  pl.asie.foamfix.coremod.FoamFixTransformer\n==========================================================\n概览上面的崩溃报告，我们可以得到下列的关键信息：\n\n1.        崩溃与wildnature这个mod有关\n2.        找不到的是MC自身的方法\n3.        崩溃是在实体掉落时发生的\n\n由此可以得出解决办法：\n\n1.        删除相关的核心mod看看是否恢复正常\n2.        如果不是，删除该mod并反馈给作者\n\n不过一般核心mod导致的这种问题很少在游戏时发生，所以此处直接删除了该mod\n\n==========================================================\n\nForge也提供了一个自动删除出错实体的方法，但并不推荐使用，因为可能会导致数据丢失\n在config\\forge.cfg中    # Set this to true to remove any Entity that throws an error in its update method instead of closing the server and reporting a crash log. BE WARNED THIS COULD SCREW UP EVERYTHING USE SPARINGLY WE ARE NOT RESPONSIBLE FOR DAMAGES.\n        # 设置此项为true后，如果在调用某实体的更新方法时出现异常，则会以删除该实体的方式来防止服务器崩溃\n        # 警告：这个选项可以弄糟一切东西，我们不会为此选项带来的损失负责\n          B:removeErroringEntities=false\n\n    # Set this to true to remove any TileEntity that throws an error in its update method instead of closing the server and reporting a crash log. BE WARNED THIS COULD SCREW UP EVERYTHING USE SPARINGLY WE ARE NOT RESPONSIBLE FOR DAMAGES.\n        # 设置此项为true后，如果在调用某实体方块的更新方法时出现异常，则会以删除该实体方块的方式来防止服务器崩溃\n        # 警告：这个选项可以弄糟一切东西，我们不会为此选项带来的损失负责\n           B:removeErroringTileEntities=false复制代码\n\n\n特殊：字节码崩溃\n\n前面提到，可以通过搜索E来看看出错的mod并删除，但这并不适用于字节码崩溃。\n因为这个是因为调用了有问题的代码导致的，也就是说，其原因是核心mod把代码改坏了或JVM不兼容该代码：\n下面是一个启动时的崩溃：\nWARNING: coremods are present:\n↓核心mod列表\n  BetterFoliageLoader ([更好的叶子]BetterFoliage-MC1.12-2.1.10.jar)\n  SSLoadingPlugin ([一年四季]SereneSeasons-1.12.2-1.2.15-universal.jar)\n  CXLibraryCore ([前置-更大容量的箱子]cxlibrary-1.12.1-1.6.1.jar)\n  DynamicSurroundingsCore (DynamicSurroundings-core-1.12.2-3.5.4.3.jar)\n  Inventory Tweaks Coremod ([R键整理]InventoryTweaks-1.63.jar)\nContact their authors BEFORE contacting forge\n（中间省略）\nDescription: Unexpected error\njava.lang.VerifyError: Operand stack overflow\n↑校验错误：操作数的堆栈溢出\nException Details:\n↑异常详细信息\n  Location:←位置\n↓一般来说，修改代码的时候会打印日志\n↓我们需要在启动日志搜索这个类RenderChunk\n↓如果搜索不到，请将核心mod一个个卸载尝试是否能够启动\nnet/minecraft/client/renderer/chunk/RenderChunk.func_178581_b(FFFLnet/minecraft/client/renderer/chunk/ChunkCompileTaskGenerator;)V @542: aload\n  Reason:\n    Exceeded max stack size.\n==========================================================\n\n还有一个典型的让其他mod背黑锅的崩溃：\nnet.minecraftforge.fml.common.LoaderExceptionModCrash: Caught exception from Applied Energistics 2 (appliedenergistics2)\nCaused by: java.lang.VerifyError: JVMVRFY012 堆栈形状不一致 类=net/minecraftforge/client/model/ModelLoader$VanillaModelWrapper，方法=getTextures()Ljava/util/Collection;，pc=14\n（以下省略N行）\nLCE   | appliedenergistics2        | rv5-stable-11                | appliedenergistics2-rv5-stable-11.jar             | None     \n\n这里并不是AE2的问题，只是因为AE2调用了这个方法而已，这里根据https://github.com/AppliedEnergi ... stics-2/issues/3792知道是CTM的问题，更新新版本即可\n\n这些崩溃一般是因为forge版本不兼容、安装了错误的mod版本等等导致的，如果更新所有核心mod后仍无法启动，建议将核心mod一个个卸载尝试是否能够启动\n\n启动日志分析\n\n在没有生成崩溃报告的情况下，我们需要查看日志，日志有六个等级，从上到下依次有：FATAL（致命）、ERROR（错误）、WARN（警告）、INFO（信息）、TRACE（追踪），一般来说，日志只会输出INFO等级及以上的信息。\n日志一般位于logs（客户端在.minecraft\\logs）文件夹下，有latest.log（最新日志）和debug.log（debug日志）\n对于旧版本，还根据阶段和内容分开了日志，有\nfml-junk-earlystartup.log（FML启动早期的输出，正如其名，是无用日志）\nfml-server/client -x.log（x为分卷数字，FML服务器/客户端的之前的日志输出）\nfml-server/client -latest.log（FML服务器/客户端的最新日志输出）\nlatest.log（原版服务器/客户端的日志输出）\nFML：全称为Forge mod Loader，就是加载mod的玩意\n\n在看日志的时候，不能断章取义，只看SEVERE和WARNING级别，而应该联系上下文（Registering->注册，Discovering->寻找，Inspecting->查看，Ignoring->忽略）：\n\n[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleClassPath: [<Java Class Path>]  \n[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleFolder: [D:\\mc\\应用\\.minecraft\\mods]  \n[16:21:01] [main/INFO]: Registering discovery module EnumeratorModuleFolder: [D:\\mc\\应用\\.minecraft\\mods\\1.12.2]  \n[16:21:01] [main/INFO]: Registering enumerator plugin DefaultEnumeratorPlugin: [com.mumfrey.liteloader.core.api.DefaultEnumeratorPlugin@273c947f]  \n=================寻找mod阶段======================\n[16:21:01] [main/INFO]: Discovering valid mod files in folder D:\\mc\\应用\\.minecraft\\mods  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'Decocraft-2.6.0_1.12.2.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\Decocraft-2.6.0_1.12.2.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'Flan's Mod-1.12.2-5.5.2.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\Flan's Mod-1.12.2-5.5.2.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'jei_1.12.2-4.13.1.225.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\jei_1.12.2-4.13.1.225.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'journeymap-1.12-5.4.9.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\journeymap-1.12-5.4.9.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'lostcities-1.12-2.0.17.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\lostcities-1.12-2.0.17.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'NGTLib2.4.3-20_forge-1.12.2-14.23.2.2611.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\modsundefinedGTLib2.4.3-20_forge-1.12.2-14.23.2.2611.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'PTRLib-1.0.2.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\PTRLib-1.0.2.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in 'RTM2.4.4-23_forge-1.12.2-14.23.2.2611.jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\RTM2.4.4-23_forge-1.12.2-14.23.2.2611.jar  \n[16:21:01] [main/INFO]: Inspecting jar metadata in '【自定义人物】CustomNPCs_1.12.2(26aug18).jar'  \n[16:21:01] [main/INFO]: Ignoring D:\\mc\\应用\\.minecraft\\mods\\【自定义人物】CustomNPCs_1.12.2(26aug18).jar  \n[16:21:01] [main/INFO]: Discovering valid mod files in folder D:\\mc\\应用\\.minecraft\\mods\\1.12.2  \n[16:21:01] [main/INFO]: Discovering tweaks on class path...  \n=================加载mod阶段======================\n[16:21:02] [main/INFO]: Baking listener list for EnumerationObserver with 1 listeners  \n[16:21:02] [main/INFO]: Registering discovered mod files in folder D:\\mc\\应用\\.minecraft\\mods  \n[16:21:02] [main/INFO]: Registering discovered mod files in folder D:\\mc\\应用\\.minecraft\\mods\\1.12.2  \n[16:21:02] [main/INFO]: Initialising LiteLoader Mixins  \n[16:21:02] [main/INFO]: Compatibility level set to JAVA_8  \n[16:21:02] [main/INFO]: LiteLoader PREINIT complete  \n==========注入tweaker（可以理解为改代码的玩意）阶段============\n[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.transformers.event.EventProxyTransformer'  \n[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.launch.LiteLoaderTransformer'  \n[16:21:02] [main/INFO]: Injecting required class transformer 'com.mumfrey.liteloader.client.transformers.CrashReportTransformer'  \n[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.transformers.event.EventTransformer'  \n[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.common.transformers.LiteLoaderPacketTransformer'  \n[16:21:02] [main/INFO]: Queuing required class transformer 'com.mumfrey.liteloader.transformers.event.json.ModEventInjectionTransformer'  \n[16:21:02] [main/INFO]: Calling tweak class optifine.OptiFineForgeTweaker  \n[16:21:02] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: acceptOptions  \n[16:21:02] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: injectIntoClassLoader  \n[16:21:02] [main/INFO]: [optifine.OptiFineClassTransformer:dbg:221]: OptiFine ClassTransformer  \n[16:21:02] [main/INFO]: [optifine.OptiFineClassTransformer:dbg:221]: OptiFine ZIP file: E:\\hmcldownloads\\librariesundefinedet\\optifine\\optifine\\1.12.2-HD_U_E4_pre1\\optifine-1.12.2-HD_U_E4_pre1.jar  \n[16:21:02] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker  \n[16:21:02] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.FMLDeobfTweaker  \n[16:21:02] [main/INFO]: Loading tweak class name org.spongepowered.asm.launch.MixinTweaker  \n[16:21:02] [main/INFO]: Loading tweak class name org.spongepowered.asm.mixin.EnvironmentStateTweaker  \n[16:21:02] [main/INFO]: Loading tweak class name com.mumfrey.liteloader.launch.LiteLoaderTweaker$PreInitTweaker  \n[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker  \n[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLInjectionAndSortingTweaker  \n[16:21:02] [main/INFO]: Calling tweak class net.minecraftforge.fml.relauncher.CoreModManager$FMLPluginWrapper\n=================文件校验开始====================\n[16:21:07] [main/INFO]: Found valid fingerprint for Minecraft Forge. Certificate fingerprint e3c3d50c7c986df74c645c0ac54639741c90a557  \n[16:21:07] [main/INFO]: Found valid fingerprint for Minecraft. Certificate fingerprint cd99959656f753dc28d863b46769f7f8fbaefcfc  \n============文件校验结束，开始进行代码修改=============\n[16:21:07] [main/INFO]: Calling tweak class net.minecraftforge.fml.relauncher.CoreModManager$FMLPluginWrapper  \n[16:21:07] [main/INFO]: Calling tweak class org.spongepowered.asm.launch.MixinTweaker  \n[16:21:07] [main/INFO]: Initialised Mixin FML Remapper Adapter with net.minecraftforge.fml.common.asm.transformers.deobf.FMLDeobfuscatingRemapper@36b9cb99  \n[16:21:07] [main/INFO]: Calling tweak class org.spongepowered.asm.mixin.EnvironmentStateTweaker  \n[16:21:07] [main/INFO]: Calling tweak class com.mumfrey.liteloader.launch.LiteLoaderTweaker$PreInitTweaker  \n[16:21:07] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.FMLDeobfTweaker  \n[16:21:08] [main/INFO]: Loading tweak class name net.minecraftforge.fml.common.launcher.TerminalTweaker  \n[16:21:08] [main/WARN]: Tweak class name org.spongepowered.asm.mixin.EnvironmentStateTweaker has already been visited -- skipping  \n[16:21:08] [main/INFO]: Calling tweak class net.minecraftforge.fml.common.launcher.TerminalTweaker  \n[16:21:08] [main/INFO]: [optifine.OptiFineForgeTweaker:dbg:56]: OptiFineForgeTweaker: getLaunchArguments  \n[16:21:09] [main/INFO]: Launching wrapped minecraft {net.minecraft.client.main.Main}  \n[16:21:09] [main/INFO]: Injecting downstream transformers  \n[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.transformers.event.EventTransformer'  \n[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.common.transformers.LiteLoaderPacketTransformer'  \n[16:21:09] [main/INFO]: Injecting additional class transformer class 'com.mumfrey.liteloader.transformers.event.json.ModEventInjectionTransformer'  \n[16:21:09] [main/INFO]: FML detected, switching to searge mappings  \n\n↓此处为错误出现点，是崩溃的原因↓\n[16:21:11] [main/ERROR]: Unable to launch \n\n↓此处为异常链，这是二级异常，我们从最底层往上看↓ \njava.lang.reflect.InvocationTargetException: null  \n↑直接看异常名：调用目标（Invocation Target）的异常，后面的详细信息为null，说明没有指定信息，需要往下看\nat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_60]  \nat sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_60]  \nat sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[?:1.8.0_60]  \nat java.lang.reflect.Method.invoke(Unknown Source) ~[?:1.8.0_60]  \nat net.minecraft.launchwrapper.Launch.launch(Launch.java:135) [launchwrapper-1.12.jar:?]  \nat net.minecraft.launchwrapper.Launch.main(Launch.java:28) [launchwrapper-1.12.jar:?]  \n\nCaused by: joptsimple.MultipleArgumentsForOptionException: Found multiple arguments for option width, but you asked for only one  \n↑最低级异常已给出原因：Found multiple arguments for option width, but you asked for only one，翻译为：你给出的参数width有两个，但这里只能有一个。这里说的是启动参数，我们搜索arguments，发现与Optifine有关系，这里最终的原因是因为Liteloader和Optifine传递的启动参数重复了，所以不能同时使用--tweakclass参数加载的方式共存，需要将Optifine放在mods文件夹内以mod形式加载（感谢@gooding300 的纠正与解惑）\n（以下省略N行）\nException in thread \"main\" （在main线程发生异常）\n\n插件报错分析\n\n\n一般来说，插件报错都是配置问题，如果配置有错误，会在加载时给予提醒，比如最常见的编码错误：\n[Server thread/ERROR]: Cannot load pluginsundefinedeverLag\\config.yml\norg.bukkit.configuration.InvalidConfigurationException:\nunacceptable character '?' (0xD9A6) special characters are not allowed in \"'string'\", position 1660（在第1660个字符发现无法解析的字符'?' (0xD9A6)，string类型不允许使用特殊字符）\nat org.bukkit.configuration.file.YamlConfiguration.loadFromString(YamlConfiguration.java:56) ~[patched_1.10.2.jar:git-Paper-817]\n……(省略)\n\n还有与插件事件有关的错误：\n\n[22:20:28 ERROR]: Could not pass event InventoryClickEvent to Jobs v4.11.1（无法将事件InventoryClickEvent传递给插件Jobs v4.11.1）\norg.bukkit.event.EventException←第二级异常\nat org.bukkit.plugin.java.JavaPluginLoader$1.execute(JavaPluginLoader.ja\nva:338) ~[JavaPluginLoader$1.class:1.7.10-R0.1-SNAPSHOT]\nat org.bukkit.plugin.RegisteredListener.callEvent(RegisteredListener.jav\na:62) ~[RegisteredListener.class:1.7.10-R0.1-SNAPSHOT]\n……(省略)\nCaused by（意思为原因为，是异常链的标志）:\njava.lang.NoSuchMethodError: org.bukkit.event.inventory.InventoryClic\nkEvent.getClickedInventory()Lorg/bukkit/inventory/Inventory; ←第一级异常\nat com.gamingmesh.jobs.listeners.JobsListener.onInventoryClick(JobsListe\nner.java:819) ~[?:?]\n……(省略)\n对于异常链，从下到上看，最下的是最低级的异常\n这些报错的分析方法与上文分析客户端崩溃的方法基本相同\n\nWatchdog报错分析\n\nWatchdog报错在低配置服务器特别常见，比如Paper核心的特色报错（服务器未响应时dump一下服务器主线程，帮助分析卡服原因）：\n\n[Paper Watchdog Thread/ERROR]: --- DO NOT REPORT THIS TO PAPER - THIS IS NOT A BUG OR A CRASH ---\n（不要报告给Paper开发者——这不是Bug或报错！！！）\n[Paper Watchdog Thread/ERROR]: The server has not responded for 35 seconds! Creating thread dump\n（服务器已停止响应35秒！正在创建线程dump）\n[Paper Watchdog Thread/ERROR]: ------------------------------\n[Paper Watchdog Thread/ERROR]: Server thread dump (Look for plugins here before reporting to Paper!):\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 java.net.SocketInputStream.socketRead0(Native Method)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 java.net.SocketInputStream.socketRead(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 java.net.SocketInputStream.read(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 java.net.SocketInputStream.read(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.InputRecord.readFully(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.InputRecord.readV3Record(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.InputRecord.read(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.SSLSocketImpl.readRecord(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.SSLSocketImpl.performInitialHandshake(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.SSLSocketImpl.startHandshake(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.security.ssl.SSLSocketImpl.startHandshake(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.net.www.protocol.https.HttpsClient.afterConnect(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.net.www.protocol.https.AbstractDelegateHttpsURLConnection.connect(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.net.www.protocol.http.HttpURLConnection.getInputStream0(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.net.www.protocol.http.HttpURLConnection.getInputStream(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 sun.net.www.protocol.https.HttpsURLConnectionImpl.getInputStream(Unknown Source)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.mojang.authlib.HttpAuthenticationService.performGetRequest(HttpAuthenticationService.java:130)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService.makeRequest(YggdrasilAuthenticationService.java:66)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService.fillGameProfile(YggdrasilMinecraftSessionService.java:180)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.destroystokyo.paper.profile.PaperMinecraftSessionService.fillGameProfile(PaperMinecraftSessionService.java:35)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService.fillProfileProperties(YggdrasilMinecraftSessionService.java:173)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 com.destroystokyo.paper.profile.PaperMinecraftSessionService.fillProfileProperties(PaperMinecraftSessionService.java:28)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 net.minecraft.server.v1_12_R1.TileEntitySkull$1.load(TileEntitySkull.java:79)\n[15:08:53] [Paper Watchdog Thread/ERROR]:                 net.minecraft.server.v1_12_R1.TileEntitySkull$1.load(TileEntitySkull.java:46)\n\n\n\n还有就是真正停止响应的报错（此时会强制停止服务器）：\nThe server has stopped responding!\n[07:31:15] [Spigot Watchdog Thread/ERROR]: Please report this to http://www.spigotmc.org/\n[07:31:15] [Spigot Watchdog Thread/ERROR]: Be sure to include ALL relevant console errors and Minecraft crash reports\n[07:31:15] [Spigot Watchdog Thread/ERROR]: Spigot version: git-Spigot-642f6d2-57ab4cf (MC: 1.12.2)\n[07:31:15] [Spigot Watchdog Thread/ERROR]: ------------------------------\n[07:31:15] [Spigot Watchdog Thread/ERROR]: Server thread dump (Look for plugins here before reporting to Spigot!):\n[07:31:15] [Spigot Watchdog Thread/ERROR]: ------------------------------\n[07:31:15] [Spigot Watchdog Thread/ERROR]: Current Thread: Server thread（服务器主线程）\n[07:31:15] [Spigot Watchdog Thread/ERROR]:         PID: 18 | Suspended（是否挂起）: false | Native（是否为本地线程）: false | State（状态）: WAITING\n[07:31:15] [Spigot Watchdog Thread/ERROR]:         Stack:\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 java.lang.Object.wait(Native Method)\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 java.lang.Thread.join(Thread.java:1252)\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 java.lang.Thread.join(Thread.java:1326)\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 com.wasteofplastic.acidisland.Updater.waitForThread(Updater.java:361)\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 com.wasteofplastic.acidisland.Updater.getResult(Updater.java:302)\n[07:31:15] [Spigot Watchdog Thread/ERROR]:                 com.wasteofplastic.acidisland.ASkyBlock.checkUpdatesNotify(ASkyBlock.java:579)\n（以下线程信息省略）\n[07:31:15] [Spigot Watchdog Thread/INFO]: Startup script './start.sh' does not exist! Stopping server.\n[07:31:15] [Spigot Watchdog Thread/INFO]: Stopping server\n\n\n\n对于这类报错，与客户端的分析方式也相同，但主要分析服务器主线程，一步步顺藤摸瓜找原因，这需要了解java相关的类库和相关的线程知识，但对于这些命名规范的包名、类名和方法名来说，你知道专有名词的意思也能猜个八 九不离十：\n\n\n\nPaper核心的特色报错：TileEntitySkull load（实体方块头颅加载？）-> Yggdrasil fillGameProfile（玩家游戏信息？）-> makeRequest（发送请求？）-> net read ssl（看样子在联网）\n联想：看起来是一个头颅加载皮肤时联网获取皮肤引起的卡顿，为正常现象\n\n停止响应的报错：checkUpdatesNotify（检查更新啊）->状态为WAITING（在等东西）->com.wasteofplastic.acidisland.Updater.wait（下面是一个插件的包名，应该是酸岛插件的问题）\n联想：应该是网络原因，禁止酸岛插件的检查更新就行了\n\n\n\n在这里安利一下服务器监控插件yum，可以很快捷地知道在主线程的网络操作\n\n对于非上述类型的watchdog报错，一般是因为服务器配置较低或者代码较为低效，导致处理时间过长而关闭服务器，可以通过直接禁用Watchdog功能避免此问题。\n\n对于旧版本，可以在server.properties中将max-tick-time设置为-1\n\n而对于新版本，可以在spigot.yml中将timeout-time设置为一个比较大的值\n\n同时，建议进行服务器的优化，可以看看这两篇优化教程：\n\n【优化】服务器优化指南 | 和卡顿永远说再见\nhttps://www.mcbbs.net/thread-774469-1-1.html\n\nMinecraft服务器优化教程 —— 让多带50%的玩家不再是梦\nhttps://www.mcbbs.net/thread-478126-1-1.html\n\n也可以深入了解服务器配置文件，实现更加深度的优化：\nhttps://www.mcbbs.net/thread-872611-1-1.html\n\n\nJava虚拟机崩溃分析\n\n这类报错较少见，但仍有发生，一般为显卡驱动bug、内存不足导致，有时也会由内存损坏等硬件问题导致，这类报错的文件命名为hs_err_pidxxxx.log，并位于.minecraft或服务器根目录下：\n这里看看一个dll引起的报错：\n##JRE检测到了一个致命错误：\n## A fatal error has been detected by the Java Runtime Environment:\n#\n#  EXCEPTION_ACCESS_VIOLATION (0xc0000005) at pc=0x00000000693878bd, pid=7392, tid=0x0000000000001f84←异常类型，这个需要搜索解决方案\n#\n# JRE version: Java(TM) SE Runtime Environment (8.0_211-b12) (build 1.8.0_211-b12)\n# Java VM: Java HotSpot(TM) 64-Bit Server VM (25.211-b12 mixed mode windows-amd64 compressed oops)\n# Problematic frame（产生问题的帧）:\n# C  [sqlite-3.7.2-sqlitejdbc.dll+0x478bd]←主要分析这个dll是干嘛的，搜索一下，更新与其相关的东西\n#\n# Core dump written. Default location: D:\\qiyuan\\qiyuan\\hs_err_pid7392.mdmp\n#\n# If you would like to submit a bug report, please visit:\n#   http://bugreport.java.com/bugreport/crash.jsp\n#\n#这个崩溃发生在JVM的本地代码之外\n#请查看产生问题的帧以汇报问题\n# The crash happened outside the Java Virtual Machine in native code.\n# See problematic frame for where to report the bug.\n（中间省略，直接看Java的堆，此处分析方式与一般报错分析相同）\nStack: [0x0000000066f60000,0x0000000067060000],  sp=0x000000006705ee30,  free space=1019k\nJ=compiled Java code（已编译的java代码）, j=interpreted（已解释）, Vv=VM code（虚拟机代码）, C=native code（本地代码）\nNative frames（本地代码帧）:  C  [sqlite-3.7.2-sqlitejdbc.dll+0x478bd]\nJava frames（Java代码帧）:  \nJ 21524  org.sqlite.NativeDB.reset(J)I (0 bytes) @ 0x0000000005a9543b [0x0000000005a95400+0x3b]\nJ 24085 C1 org.sqlite.RS.close()V (81 bytes) @ 0x00000000065ff274 [0x00000000065ff040+0x234]\nj  org.sqlite.PrepStmt.executeUpdate()I+25\nj  fr.xephi.authme.datasource.SQLite.setUnlogged(Ljava/lang/String;)V+94←可知为Authme的数据库操作\nj  fr.xephi.authme.datasource.CacheDataSource.setUnlogged(Ljava/lang/String;)V+8\nj  fr.xephi.authme.process.quit.AsynchronousQuit.processQuit(Lorg/bukkit/entity/Player;)V+176\nj  fr.xephi.authme.process.Management.lambda$performQuit$7(Lorg/bukkit/entity/Player;)V+5\nj  fr.xephi.authme.process.Management$$Lambda$63.run()V+8\nJ 35531 C2 org.bukkit.craftbukkit.v1_7_R4.scheduler.CraftAsyncTask.run()V (532 bytes) @ 0x000000000963e584 [0x000000000963e340+0x244]\nJ 32137 C2 java.util.concurrent.ThreadPoolExecutor.runWorker(Ljava/util/concurrent/ThreadPoolExecutor$Worker;)V (225 bytes) @ 0x0000000005449340 [0x0000000005448d60+0x5e0]\nj  java.util.concurrent.ThreadPoolExecutor$Worker.run()V+5\nj  java.lang.Thread.run()V+11\nv  ~StubRoutines::call_stub\n\n这里的解决方式是重置数据库，有的时候这类问题也与内存损坏有关联\n\n下面是物理内存不足的报错：\n#\n# There is insufficient memory for the Java Runtime Environment to continue.\n#因所需的内存不足，JRE无法继续运行\n# Native memory allocation (mmap) failed to map 352321536 bytes for Failed to commit area from 0x00000000dd000000 to 0x00000000f2000000 of length 352321536.\n#因为无法提交从0x00000000dd000000到0x00000000f2000000地址，长度为352321536的区域，本地内存分配器（mmap）无法映射352321536个字节\n# Possible reasons:\n#可能的原因\n#   The system is out of physical RAM or swap space\n#   系统物理内存或交换空间不足\n#   The process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap\n#  这个进程运行时启用了CompressedOops参数，Java堆内存可能阻止了本地内存的增长\n# Possible solutions:\n# 可能的解决方案：\n#   Reduce memory load on the system\n#   减少系统所占用的内存\n#   Increase physical memory or swap space\n#   增加物理内存或交换空间\n#   Check if swap backing store is full\n#   查看交换的backing store是否已满\n#   Decrease Java heap size (-Xmx/-Xms)\n#   减少Java的堆内存（参数为-Xmx/-Xms）注：这里是减少启动器设置的内存\n#   Decrease number of Java threads\n#   减少Java的线程数\n#   Decrease Java thread stack sizes (-Xss)\n#  减少Java的线程堆栈大小（参数为-Xss）\n#   Set larger code cache with -XX:ReservedCodeCacheSize=\n#  用-XX:ReservedCodeCacheSize=参数将代码缓存设置得更大\n#   JVM is running with Unscaled Compressed Oops mode in which the Java heap is\n#     placed in the first 4GB address space. The Java Heap base address is the\n#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress\n#     to set the Java Heap base and to place the Java Heap above 4GB virtual address.\n#JVM运行在未缩放的压缩指针模式时，JAVA堆会被放在\n#初始的4GB地址空间内，Java堆的基本地址是本地堆增长的最大限制\n#请使用-XX:HeapBaseMinAddress来将Java堆的基本地址放置在4GB的虚拟内存地址之内\n# This output file may be truncated or incomplete.\n#\n#  Out of Memory Error (os_windows.cpp:3371), pid=7780, tid=0x00000000000002f4\n#\n\n按上面的解决方案来就行了\n\n\n总结\n\n\n0.遇到问题，第一个做的应该是更新对应mod，因为这些问题可能已经在新版本中被解决。\n1.报错并不可怕，你需要做的是认真分析报错，找到相关原因，一步步解决。\n2.遇到莫名其妙、无法分析的错误时，可以在mojang的问题追踪器（https://bugs.mojang.com/）、spigot和forge论坛、Github上搜索一下，那里可能已经有了解决方案。\n3.搜索请搜索特别的词，如异常+描述信息（即第一行的内容）\n4.如果实在不能解决，建议到对应问题mod的反馈处反馈（如果你会英文的话）。\n\n附录\n\n常见崩溃\n\n建议配合\n\nhttps://www.mcbbs.net/thread-516637-1-1.html\nhttps://www.mcbbs.net/thread-860103-1-1.html\nhttps://www.mcbbs.net/thread-729487-1-1.html\n\n\n食用\n\njava.lang.IllegalStateException: failed to create a child event loop\nCaused by: io.netty.channel.ChannelException: failed to open a new selector\nCaused by: java.io.IOException: Unable to establish loopback connection\nCaused by: java.net.SocketException: No buffer space available (maximum connections reached?): bind\n\n解决办法：如果不是vps，你可以拿着这个崩溃日志去找服务商\n如果是vps，请检查你的后台进程是否正常，可能是中毒了\n原因解释：\nhttps://blog.csdn.net/itxiaohei323/article/details/8280702\nhttps://blog.csdn.net/yzy199391/article/details/78911329\n\n\njava.lang.IllegalArgumentException: Cannot get property PropertyEnum{name=variant, clazz=class vazkii.botania.api.state.enums.PoolVariant, values=[DEFAULT, CREATIVE, DILUTED, FABULOUS]} as it does not exist in BlockStateContainer{block=minecraft:air, properties=[]}\n\n解决办法：卸载voxelmap并替换为其他的小地图mod\n\n\ncom.google.gson.JsonSyntaxException: java.io.EOFException: End of input at line 8 column 5\n        at com.google.gson.Gson.fromJson(Gson.java:813)\n        at com.google.gson.Gson.fromJson(Gson.java:768)\n        at net.minecraft.server.management.UserList.func_152679_g(UserList.java:202)\n\n解决办法：手动打开usercache.json进行修复\n\n\njava.lang.UnsatisfiedLinkError:xxxxx\\xxx.dll\n\n解决办法：请补上xxxx路径的dll，相关dll应该在对应的mod文件夹内\n\n\ncpw.mods.fml.common.LoaderException: java.lang.NoClassDefFoundError: scala/collection/Seq（或者带有trove4j）\n\n解决办法：库文件缺失，请重新安装forge\n\n\n报错一：org.lwjgl.LWJGLException: SetPixelFormat failed (-1073281958)\n报错二：java.lang.IllegalStateException: GLFW error 65542: WGL: The driver does not appear to support OpenGL\n报错三：org.lwjgl.LWJGLException: Pixel format not accelerated\n\n解决办法：用驱动精灵之类的东西更新显卡驱动，如果已经是最新，请前往对应的笔记本制造商官网下载驱动，如果仍提示报错二，请按下述教程操作：\n\n解决1代及2代Intel核显在Win10下无法使用OpenGL的问题\nhttps://www.liyanfeng.com/post/113.html\n\n\njava.lang.OutOfMemoryError: unable to create new native thread\n\n解决方法：在JVM参数中加入-Xss1M\n\n\njava.lang.IllegalAccessError: tried to access class cofh.api.transport.IEnderAttuned from class cofh.lib.transport.EnderRegistry\n\n解决方法：用压缩包打开非cofhteam自家mod（指除了热力膨胀以及其扩展、cothcore的mod）并删除cofh文件夹（记得删除前备份！）\n\n\nUnsupported major.minor version 52.0\n\n解决方法：请使用java8\n\n\njava.lang.IllegalArgumentException: Could not get provider type for dimension -xxx, does not exist\n\n解决方法：维度ID xxx冲突导致无法加载对应世界，请在配置文件进行维度ID的修改\n\n\n更新日志：\n\n2019-8-20\n1.删除了字节码崩溃中的误导内容\n2.补充了例子的解决办法\n\n2019-8-4\n\n1.大幅添加内容，完成剩余内容的更新\n2.使用了更准确的翻译\n\n2019-6-10\n\n初次发布\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "xmdhs",
+            "timestamp": 1560147720,
+            "txt_content": " 本帖最后由 xmdhs 于 2019-6-10 14:35 编辑 \n\n很详细，我一直是靠着观察别人答题的答案，然后从中找出的一点规律来答题的。\n\n所以经常闹笑话\n\n人气还没好呢"
+        },
+        {
+            "author": "ItIsEnderman",
+            "timestamp": 1560148140,
+            "txt_content": "最好有点典例"
+        },
+        {
+            "author": "文豪小绝",
+            "timestamp": 1560148380,
+            "txt_content": "看啦是个巨佬没错了。。。我完全不懂报错问题和解决方法"
+        },
+        {
+            "author": "35348626@qq.com",
+            "timestamp": 1560149460,
+            "txt_content": "这也太帅了吧"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1560152460,
+            "txt_content": "sqlitejdbc指的是和Java和SQLite这个数据库通信用的JDBC接口。"
+        },
+        {
+            "author": "Оil",
+            "timestamp": 1560155580,
+            "txt_content": "我感觉这个可以去申请茶馆精华帖系列的说.jpg\nhttp://www.mcbbs.net/thread-856425-1-1.html"
+        },
+        {
+            "author": "吕不才",
+            "timestamp": 1560155880,
+            "txt_content": "萌新表示，看不懂呢"
+        },
+        {
+            "author": "小cheng",
+            "timestamp": 1560156060,
+            "txt_content": "个个都成dalao，要问答版干嘛，但是还是感谢楼主给出教程。"
+        },
+        {
+            "author": "mine新时代xs",
+            "timestamp": 1560156660,
+            "txt_content": " 本帖最后由 mine新时代xs 于 2019-6-10 17:08 编辑 \n\n2个小时更新这么多？！\n从入门到放弃真的强\n启动日志分析那里不应该还有Error吗，并不是7个等级吧"
+        },
+        {
+            "author": "2331837537",
+            "timestamp": 1560158040,
+            "txt_content": "坚持，初心不变。。哈哈希望大佬坚持下去。。。"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560158220,
+            "txt_content": " 本帖最后由 a1294790523 于 2019-6-10 17:22 编辑 \nmine新时代xs 发表于 2019-6-10 16:51\n2个小时更新这么多？！\n从入门到放弃真的强\n启动日志分析那里不应该还有Error吗，并不是7个等级吧[: ...\n这个是Java自带的Logger的等级\n我忘了MC的日志记录是log4j2333\nlog4j是六个等级\n我去改改"
+        },
+        {
+            "author": "Zapic",
+            "timestamp": 1560158700,
+            "txt_content": "这东西丢在茶馆里可惜了...\n你可能需要找一个能够发教程的地方,而不是放在这种\"随便一个没有意义但不过很符合大众口味的破事水就能把真正有意义的帖子压下去的茶馆\"里...\n创作者就要有创作者的尊严,决不让自己的聪明才智泯灭在鸡毛堆里."
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560158880,
+            "txt_content": "Zapic 发表于 2019-6-10 17:25\n这东西丢在茶馆里可惜了...\n你可能需要找一个能够发教程的地方,而不是放在这种\"随便一个没有意义但不过很符 ...\n但是有一个事实：技巧版没人看\n而本指南就是为了扫盲的，茶馆我感觉很合适2333"
+        },
+        {
+            "author": "XY__MengXing",
+            "timestamp": 1560158880,
+            "txt_content": "看不懂看不懂"
+        },
+        {
+            "author": "xiaopangju",
+            "timestamp": 1560160740,
+            "txt_content": "巨佬，，，，，，"
+        },
+        {
+            "author": "xiaopangju",
+            "timestamp": 1560160860,
+            "txt_content": "a1294790523 发表于 2019-6-10 17:28\n但是有一个事实：技巧版没人看\n而本指南就是为了扫盲的，茶馆我感觉很合适2333 ...\n确实，我一般不会看技巧版的。。"
+        },
+        {
+            "author": "。—。",
+            "timestamp": 1560161940,
+            "txt_content": "我想我电脑里那几十个crash-report和十几个hs_err_pid有用了……"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560162120,
+            "txt_content": "ItIsEnderman 发表于 2019-6-10 14:29\n最好有点典例\n欢迎提供233\n写的时候死活找不到"
+        },
+        {
+            "author": "eee12367",
+            "timestamp": 1560162240,
+            "txt_content": "大佬，8或9年的大佬才写的出"
+        },
+        {
+            "author": "lasooooobra",
+            "timestamp": 1560162480,
+            "txt_content": "别问   给好评就对了（一看就是个julao"
+        },
+        {
+            "author": "ItIsEnderman",
+            "timestamp": 1560162540,
+            "txt_content": "a1294790523 发表于 2019-6-10 18:22\n欢迎提供233\n写的时候死活找不到\n爱心申请帖里面翻我的或者MOD大佬的回复，里面还多XD\n电脑上还攒了一堆\n\n马上有事出去一下"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1560162960,
+            "txt_content": "大佬还是猛啊。\n不过我有一个问题，如果这篇教程是写给一般通过服主和想混问答版爱心的萌新玩家，\n在教程里包含这么多的编程专业术语真的好吗？\n可能可读性会比较差吧。\n不过专业性是绝对没问题的，这毕竟是只有大佬才能写出来的东西，我佛了。\n支持一下大佬，建议申请精华。"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560163320,
+            "txt_content": "NoName德里奇 发表于 2019-6-10 18:36\n大佬还是猛啊。\n不过我有一个问题，如果这篇教程是写给一般通过服主和想混问答版爱心的萌新玩家，\n在教程里 ...\n这些东西是必须要了解的，我已经最大限度简化了"
+        },
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1560163380,
+            "txt_content": "a1294790523 发表于 2019-6-10 18:42\n这些东西是必须要了解的，我已经最大限度简化了\n行叭，大佬已经写得很强了，加油。"
+        },
+        {
+            "author": "幽儿~",
+            "timestamp": 1560165960,
+            "txt_content": "可以可以 \n来申请帖申精不？\nXDD\nhttp://www.mcbbs.net/thread-856425-1-1.html"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560167280,
+            "txt_content": "九幽之帝 发表于 2019-6-10 19:26\n可以可以 \n来申请帖申精不？\nXDD\n这个帖子能申精Σ(っ °Д °;)っ？\n申请了0.0"
+        },
+        {
+            "author": "west.myth",
+            "timestamp": 1560174960,
+            "txt_content": "xmdhs 发表于 2019-6-10 14:22\n很详细，我一直是靠着观察别人答题的答案，然后从中找出的一点规律来答题的。\n\n所以经常闹笑话[:lost_soul: ...\n为什么突然多出这么多金粒？！"
+        },
+        {
+            "author": "hummm",
+            "timestamp": 1560177660,
+            "txt_content": "好贴好贴"
+        },
+        {
+            "author": "mohuang521",
+            "timestamp": 1560211920,
+            "txt_content": "楼主很强啊，这都能列出来"
+        },
+        {
+            "author": "Zapic",
+            "timestamp": 1560414180,
+            "txt_content": "提示: 该帖被管理员或版主屏蔽"
+        },
+        {
+            "author": "妹妹大人",
+            "timestamp": 1560417540,
+            "txt_content": "看不懂看不懂！但是我觉得看上去很厉害awa"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1560423780,
+            "txt_content": "这里最终的原因是Liteloader和Optifine不能以库文件挂载的方式共存，需要将Optifine放在mods文件夹内以mod形式加载\nminecraft参数中去掉OptiFine的tweakClass参数即可，库文件挂载的方式可以共存的\n\n以及欢迎发在编程开发版块"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560424560,
+            "txt_content": "gooding300 发表于 2019-6-13 19:03\nminecraft参数中去掉OptiFine的tweakClass参数即可，库文件挂载的方式可以共存的\n\n以及欢迎发在编程开 ...\n\n但是看报错是weight参数重复 不是tweakClass参数的问题啊233\n求解惑233"
+        },
+        {
+            "author": "東風",
+            "timestamp": 1560424800,
+            "txt_content": "对于无法判断的信息，可通过查看mod列表中状态有无E\n这个恐怕是最适合新人的方法了/笑哭"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1560425100,
+            "txt_content": "a1294790523 发表于 2019-6-13 19:16\n但是看报错是weight参数重复 不是tweakClass参数的问题啊233\n求解惑233\nLaunchWrapper(https://github.com/Mojang/Legacy ... wrapper/Launch.java)\nfinal OptionSpec<String> tweakClassOption = parser.accepts(\"tweakClass\", \"Tweak class(es) to load\").withRequiredArg().defaultsTo(DEFAULT_TWEAK);\n...\nfinal List<String> tweakClassNames = new ArrayList<String>(options.valuesOf(tweakClassOption));复制代码\n简而言之，无论有多少个tweakClass参数，LW均能正确获取参数，并会依次调用这些Tweaker，所以tweakClass参数加多了不会重复。\n\n但是，LW不出问题不代表这些Tweaker不出问题。\n以LiteLoader的Tweaker（http://develop.liteloader.com/li ... eLoaderTweaker.java）为例，它会在LW启动时接受应该传入游戏的参数，并在游戏启动的时候返回给LW使这些参数真正传入游戏。\n而OptiFine也会做同样的事情，这才是真正导致参数重复的原因。\n\n因此，我们只需要移除除了传递参数没有其他意义的OptiFine的Tweaker即可解决这一问题。"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1560426840,
+            "txt_content": "gooding300 发表于 2019-6-13 19:25\nLaunchWrapper(https://github.com/Mojang/LegacyLauncher/blob/master/src/main/java/net/minecraft/lau ...            for (final ITweaker tweaker : allTweakers) {\n                argumentList.addAll(Arrays.asList(tweaker.getLaunchArguments()));\n            }\n复制代码\n懂了\n也就是说Tweaker传回参数的时候出现了重复对吧0.0\n感谢解惑"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1560498300,
+            "txt_content": "\n\n\n\n\nimage.png (27.9 KB, 下载次数: 3)\n\n下载附件\n\n2019-6-14 15:44 上传\n\n\n\n\n 告诉我，为什么不发联机教程\n"
+        },
+        {
+            "author": "Coptimistic",
+            "timestamp": 1560500460,
+            "txt_content": "为大佬献上我的膝盖，完全看不懂的说。"
+        },
+        {
+            "author": "Yao_Mei",
+            "timestamp": 1560500700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "无心人书屋",
+            "timestamp": 1562175480,
+            "txt_content": "据说看完整篇，学习后可以看懂奔溃报告？"
+        },
+        {
+            "author": "jiruitao",
+            "timestamp": 1575216960,
+            "txt_content": "在人类的历史中问题总是会出现，我们几乎可以确定的说问题是必然出现的。\n山洞居住起来并不舒适，所以我们学会建造居所。\n石头做的工具并不好用，于是我们学会冶炼金属。\n手工进行生产缓慢且没有效率，于是我们发明了机械。\n人在历史上总是不断发现问题并且解决他们，我不确定我们为什么这么善于发现问题，也许生命本身具有寻求更高效率的倾向，又也许我们与其他生命与众不同，虽然原因不得而知，但问题的解决却必定带来效率的提升，解决问题这个行为本身对人类来说是伟大的，而乐意把他解决问题的方法和经验无私的教授别人是高尚的。\n愿造物主总是使阳光洒在你的前路上，高尚的人。"
+        },
+        {
+            "author": "1416868137",
+            "timestamp": 1575352980,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1575353220,
+            "txt_content": "1416868137 发表于 2019-12-3 14:03\n真全，不过一般崩服大多数区块/实体问题吧，这些崩服分析难度太大了\n这些问题想要真正解决的话得从代码级别上看了 根本不具有普适的解决方法"
+        },
+        {
+            "author": "1985544594",
+            "timestamp": 1575406320,
+            "txt_content": "崩溃发生的原因这块写的挺仔细的"
+        },
+        {
+            "author": "灼热小太阳",
+            "timestamp": 1583996940,
+            "txt_content": "爱了哈哈哈哈哈，最近一直想学习看崩溃日志来着，找了一天多翻到了这条，太感谢了！"
+        },
+        {
+            "author": "Rhythm",
+            "timestamp": 1583997240,
+            "txt_content": "这个教程写的比较尴尬\n看得懂的人不需要看\n需要看的看不懂"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1583998980,
+            "txt_content": "Rhythm 发表于 2020-3-12 15:14\n这个教程写的比较尴尬\n看得懂的人不需要看\n需要看的看不懂\n那欢迎你写一篇（"
+        },
+        {
+            "author": "一拿林你和",
+            "timestamp": 1585923600,
+            "txt_content": "我貌似在这篇帖子里找到了蝙蝠二字"
+        },
+        {
+            "author": "22743932",
+            "timestamp": 1585987620,
+            "txt_content": "谢谢楼主 学会了"
+        },
+        {
+            "author": "2414091029",
+            "timestamp": 1588920960,
+            "txt_content": "看不懂，但感觉很nb的样子"
+        },
+        {
+            "author": "FinDream",
+            "timestamp": 1588934100,
+            "txt_content": "妙阿，这不就好起来这不就可以直接丢链接了嘛"
+        },
+        {
+            "author": "Monsterssss",
+            "timestamp": 1589804160,
+            "txt_content": "谢谢楼主分享，学到了"
+        },
+        {
+            "author": "wunaimzy",
+            "timestamp": 1606408260,
+            "txt_content": "谢谢楼主教程"
+        },
+        {
+            "author": "凛夜丶雨月",
+            "timestamp": 1607218260,
+            "txt_content": "我居然学会了一点！！\n如果是模组导致的崩溃就在里面找模组名称，看错误类型，尝试更新或者卸载模组，有需要时向作者反馈\n还不行就把MC卸了！\n自己用大概够用了"
+        },
+        {
+            "author": "shenren3-f",
+            "timestamp": 1607226360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

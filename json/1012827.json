@@ -1,0 +1,44 @@
+{
+    "title": "【CBL|00ll00】[1.16 (20w12a) +] 原版模组：臭憨批——命令高亮模组",
+    "author": "00ll00",
+    "replyCount": 7,
+    "timestamp": 1586415060,
+    "txt_content": " 本帖最后由 00ll00 于 2020-4-10 16:20 编辑 \n\n原版模组：臭憨批  Command Highlighter Plus\nMC中最好用的命令高亮（大嘘\n适用于MC快照版本20w12a及以上\n\n图片展示\n\n\n\n\n\n\n   无高亮CHP高亮参考\n\n相信各位CBer在MC中用书与笔编写mcfunction时会遇到诸多问题：没有高亮，没有查错，没有自动补全，导致编写效率低下。\n现在，有了CHP，你可以在书中写好命令保存，使用命令/function chp:run_mcf，等待几秒到几十秒就能快速得到高亮+语法查错结果，如果没有问题，就可以把书与笔中的文本复制到mcf文件中，方便快捷。\n\n什么？没有自动补全？你怎么不去问问神奇的大憨批呢\n\n\n\n\n安装方法\n\n正常地安装数据包，reload\n\n\n如何使用\n\n1. mcfunction格式\n\n摸出一本书与笔，像这样写入mcf格式的文本，可以换行与换页\n\n  \n\n手持书与笔，输入命令：\n/function chp:run_mcf复制代码等待输出结果，这个过程可能会持续很久\n\n\n\n\n2. mccommand格式\n\n这个格式是指命令方块的格式要求，不能换行换页，不能注释，命令后不能有多余空格\n使用方法类似，在书与笔中写入命令\n\n\n手持书与笔，输入命令：\n/function chp:run_mcc复制代码等待输出\n\n\n\n\n如果是多人游戏，可能会遇到 “解析器被占用.” 的提示，这代表有玩家正在解析，请稍后再尝试\n\n\n3.作为前置\n\n现在chp可以作为前置模组使用了，提供mcc和mcf字符列表的高亮接口\n使用方法：\n\n将拆解好的命令字符串（字符列表）放到 storage chp:cache hl.in 里，然后根据语言调用 function chp:hl/mcc(mcf)/run\n结果在 storage chp:cache hl.out ，是高亮后的Json文本\n你可以把它tellraw给玩家，或者写到成书里，或者想干啥干啥\n\n\n字符串的拆解也提供有接口，只是顺便\n\n使用方法：\n\n将真·字符串放到 storage chp:cache str2ca.in 里，然后执行 function chp:str2ca/run\n需要注意的是这个过程并不会在1tick内完成，所以如果你想在拆解完成时再调用某个函数进行下一步操作的话，请在执行run之前执行 data modify storage chp:cache str2ca.callback set value \"{你的回调函数}\"\n最终的拆解结果在 storage chp:cache str2ca.out\n\n\n相信这个前置能帮到更多的CBer     呢!\n\n注意事项\n\n0.老规矩，字符串不能有英文字符以外的字符\n1.使用这个数据包请务必确保游戏规则sendCommandFeedback为true，否则会影响字符串拆解\n2.数据包命名空间为chp\n3.会更改世界边界外29999999 3999所在区块的方块并强制加载该区块\n4.会占用实体UUID：[I;0,17828987,0,1] [I;0,17828987,0,2]\n\n\n有BUG？这么认真干嘛，真有人用书与笔写数据包吗\n\n目前已知的bug：\n\n1. 部分命令（如tp）可能解析不正确  这是一开始设计的解析方法的问题，都要写完了才发现，懒得改了\n2. 对Json格式的数据要求变宽松了  那么复杂的解析器不会写\n3. 但是Json文本的转义不能识别\n4. 整数范围写成 max..min 不会报错  懒\n5. 因为直接舍弃了parser的属性，所以没有各种范围限制  懒\n6. 更多有趣的bug有待读者自行体验\n\n\n感谢\n\n1. 土球球和SPG的老帖让这个数据包的思路和数据来源有了着落\n2. pca说“解析一行代码怎么着也要不了这么多句（指1w+）命令吧”，后来确实发现是一个严重的逻辑bug，现在只需要2k~4k+；以及一些改进建议\n3. 玄素素：“快去填坑坑”\n\n\n下载\n\n\n\n\nCHP v1.0.1.zip\n(1.42 MB, 下载次数: 16)\n\n\n\n2020-4-10 16:00 上传\n点击文件名下载附件\n臭憨批阅读权限: 10\n\n\n\n\n\n\n\n\n\n\n\n你发现了第二页\n\n那就说一下这个包的相关的原理吧\n\n\nMC命令结构的处理\n\n首先要理解的是根目录下的 commands.json 和 generator.py ,这负责主要的命令解析逻辑结构的生成。数据包中commands.json是使用20w14a服务端的，怎么搞出来的看这里，怎么看懂看这里\n\ngenerator.py里主要是定义了mc中的parser与数据包里仅存的几个parser的对应关系，然后就是根据commands.json的内容生成解析逻辑。默认解析逻辑是放在data\\chp\\functions\\hl\\mcc\\root里，这里每个文件夹相当于一个解析节点，有this和next两个函数，这个之后讲。\n\n\n高亮的工作流程\n\n1. 先把输入的真·字符串（书与笔的内容）拆成字符列表，然后把这个列表作为总输入（storage chp:cache hl.in）\n\n2. 修修补补，把总输入弄成纯净的命令（就是去掉'/'之类掐头去尾的工作）\n\n3. 用解析逻辑的根节点来开始匹配，就是root/next中那一串，让root的所有子节点（即命令头）判断输入的是不是自己\n\n4. 如果某个节点匹配成功，就提交这段（从总输入中取出这段，上色并存入告示牌），然后再让这个节点匹配子节点\n\n5. 如果所有子节点都匹配不了，那就说明输入的命令有问题，于是退出匹配，提交剩余字符为错误\n\n6. 如果在某个节点总输入读取完了，则要判断这个命令节点是不是‘executable’的，如果是，那就是正确的命令结尾，如果不是，那就是命令没输完\n\n\n可以看出，this是用来匹配输入是否符合这个节点的，其中可能会用到解析器（parser），而next是定义这个节点之后可以去尝试匹配哪些节点，如果某个命令解析出了问题，可以参照这这个顺藤摸瓜找出来是哪个(堆)文件的错\n\n\n而tp命令的解析错误也就是在这个逻辑的4，5\n比如命令为 “tp @p xuan_su”时，按匹配顺序就会先尝试这个结构\nteleport->destination\n到destination那里，解析出@p，没问题，然后发现输入里还有xuan_su，于是尝试匹配子节点\n但是\nteleport->destination后面没有子节点了\n于是认为命令错了\n\n\n如果要彻底避免这个问题就需要返回到上一个节点去匹配，以下是正确的逻辑\n\nteleport->destination   正确\nteleport->destination->   错误，destination后面没有子节点，返回teleport\nteleport->location  错误，期望vec3，却匹配到@p，返回teleport\nteleport->targets  正确，匹配子节点\nteleport->targets->destination 正确，剩余字符为0，‘executable’为真，命令正确，匹配结束\n\n而要完成这个过程会导致解析错误命令时命令数量暴增(大概)，所以不打算修\n\n\n如何进一步搞事情\n\n修改命令\n\n在commands,json里改好然后运行generator.py就好\n按理说是可以用mc命令的格式编写自定义的命令，然后读取并执行\n\n\n修改高亮的颜色主题\n\n查看data\\chp\\functions\\hl\\submit.mcfunction，里面定义了每个token对应的颜色\n\n\n修改parser\n\n查看data\\chp\\functions\\hl\\mcc\\parser\n这里的每个parser要在generator.py的映射字典中存在\n以run函数为入口， 计分板CHP.hl.parser.out chp.mem为输出\n输出数值代表匹配了多少个字符，为0则代表解析失败\n\n\n添加python语言支持\n\n做梦\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "a109495574",
+            "timestamp": 1586415300,
+            "txt_content": "火钳刘明，支持！"
+        },
+        {
+            "author": "rooke_zb",
+            "timestamp": 1586415780,
+            "txt_content": "我曾经是一个恶臭的cber，命令十分钟，debug一小时那种，自从用了臭憨批，臭憨批能帮我找到命令中的语法错误，我再也不用因为自己的恶臭行为而迷茫彷徨了，臭憨批就像指引前路的光明一样，再次激起了我写命令的激情和自信。感谢臭憨批，感谢00ll00，感谢各位臭可爱们！"
+        },
+        {
+            "author": "Y制杖杖",
+            "timestamp": 1586417760,
+            "txt_content": " 本帖最后由 Y制杖杖 于 2020-4-9 15:38 编辑 \n\nsendCommandFeedback有什么影响吗?\n（难道可以读取命令反馈的字符串\n哦 我懂了是CB"
+        },
+        {
+            "author": "xwjcool123",
+            "timestamp": 1586418720,
+            "txt_content": "我之前一直用VSCode写mcf，自从用了CHP，我腰不酸了，腿不疼了，还能一边写mcf一边高喊mjsb \n在MC里写mcf挺神奇的。然后我又用回了VSCode"
+        },
+        {
+            "author": "不笑君",
+            "timestamp": 1586418960,
+            "txt_content": "在MC中用纸和笔写MCF非常方便，不需要vscode切来切去了，非常有用！"
+        },
+        {
+            "author": "⭐✔️",
+            "timestamp": 1586444640,
+            "txt_content": "孩子很喜欢"
+        },
+        {
+            "author": "Ruainbow_",
+            "timestamp": 1587869280,
+            "txt_content": "谁会用书和笔写mcf啊喂！"
+        }
+    ]
+}

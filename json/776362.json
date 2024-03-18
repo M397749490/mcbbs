@@ -1,0 +1,69 @@
+{
+    "title": "【18w03b】实现实体与方块间的弹性碰撞",
+    "author": "pineapple_",
+    "replyCount": 12,
+    "timestamp": 1516618620,
+    "txt_content": " 本帖最后由 pineapple_ 于 2018-2-2 05:07 编辑 \n\n大家好我是菠萝，这里是我在1.13快照水的第二贴:实现实体与方块的弹性碰撞。\n弹性碰撞是什么？高中物理应该会学到，看百科：\n\nhttps://baike.baidu.com/item/%E5%AE%8C%E5%85%A8%E5%BC%B9%E6%80%A7%E7%A2%B0%E6%92%9E\n\n(气氛突然物理起来)\n就是无能量损失地碰撞而可能使速度大小或方向发生改变的一个过程，\n\n常见的碰撞大都是非弹性碰撞（有能量损失，转化成热能等），非弹性碰撞也是可以实现的。\n\n效果,先看几张GIF：\n\n\n玩家向前走会使比较器输出信号，激活发射器击退村民，村民撞墙后弹回一段距离\n\n\n村民从高处落下，像落到粘液块上一样向上弹起一段距离\n（打了这个村民三箭又从这么高掉地上摔伤两次居然没死）\n\n\n命令方块被激活后生成了一个有初速度的盔甲架，在某狭小空间内发生了若干次碰撞\n\n\n命令方块被激活后生成了一个有初速度的盔甲架，在广阔空间内发生了若干次碰撞\n\n原理：\n\n经过多次实验，玩家类型的非特殊实体，\n\n在水平方向上（xz轴确定的平面），实体在撞墙后，垂直于墙面方向的Motion会归零，平行于墙面的Motion不变，\n\n在竖直方向上（y轴方向），实体在碰到撞到方块上后，y方向的Motion会变为-0.0785（保留四位小数），xz方向上的Motion不变，\n\n而实际上，如果要满足弹性碰撞，应该是这样的，\n\n在水平方向上，实体撞墙后，垂直于墙面方向的Motion大小不变，方向反过来，也就是垂直墙面方向的Motion变为相反数，平行于墙面的Motion不变，\n\n在竖直方向，实体在撞到方块上后，y方向的Motion变为(y方向的Motion+0.0785)的相反数，xz方向上的Motion不变，\n\n想要实现弹性碰撞，就要先检测实体撞墙，然后把Motion反过来，\n\n怎么检测撞墙？前一刻这个方向的Motion还不是0（对于y来说是-785），而这一刻这个方向Motion变成0了，就可以判定它撞墙了。\n\n实现这个需要的命令也是很简单的，看下面的function：\n\n该function的tag为load（在第一次加载或使用reload时会自动加载一次）：\nscoreboard objectives add MotionX dummy\nscoreboard objectives add MotionY dummy\nscoreboard objectives add MotionZ dummy\nscoreboard objectives add MotionXL dummy\nscoreboard objectives add MotionYL dummy\nscoreboard objectives add MotionZL dummy复制代码该function的tag为tick（每tick执行一次，也就是高频执行）：\nexecute as @e store result score @s MotionX run data get entity @s Motion[0] 10000\nexecute as @e store result score @s MotionY run data get entity @s Motion[1] 10000\nexecute as @e store result score @s MotionZ run data get entity @s Motion[2] 10000\nexecute as @e if entity @s[scores={MotionX=0}] unless entity @s[scores={MotionXL=0}] store result entity @s Motion[0] double -0.00008 run scoreboard players get @s MotionXL\nexecute as @e if entity @s[scores={MotionY=-785}] unless entity @s[scores={MotionYL=-785}] run scoreboard players add @s MotionYL 785\nexecute as @e if entity @s[scores={MotionY=-785}] unless entity @s[scores={MotionYL=-4000..0}] store result entity @s Motion[1] double -0.00008 run scoreboard players get @s MotionYL\nexecute as @e if entity @s[scores={MotionZ=0}] unless entity @s[scores={MotionZL=0}] store result entity @s Motion[2] double -0.00008 run scoreboard players get @s MotionZL\nexecute as @e store result score @s MotionXL run data get entity @s Motion[0] 10000\nexecute as @e store result score @s MotionYL run data get entity @s Motion[1] 10000\nexecute as @e store result score @s MotionZL run data get entity @s Motion[2] 10000复制代码\n\n第一部分就是创建一堆dummy型的记分板，\n\n第二部分就是主要原理部分了，\n按照这个顺序：\n把实体的Motion输出到MotinoA（A代表X或Z），倍数为10000\n如果MotionAL（上一gt的motion）不是0，且这MotionA（这一gt的motion）是0，就把上一gt的Motion负过来，赋给实体本身，\n（这里的写-0.00008代表这是非弹性碰撞（能量损失20%），如果想改成弹性碰撞就写-0.0001）\n把实体的Motion输出到MotinoAL（A代表X或Z），倍数为10000，\n\n效果就是MotionAL代表上1gt的motion，MotionA代表这一gt的motion，中间检测是否碰撞，如果碰撞，反转Motion，\n（是否损失能量可以自定义，如果想的话，你甚至可以增加能量）\n\n上面只说了xz方向，y方向比较特殊，需要先+785再负过来，所以中间只多了个add 785的命令，\n那个4000的限制是因为如果不加这个限制，由于mc的客户端和服务端不同步，到最后的弹的那几下看起来会很鬼畜，\n鉴于高度很低，完全没有弹起的必要，就直接忽略这部分的碰撞了。\n\n原理真是太简单了是吧:)\n我是不会告诉你就这玩意我研究了四天！！！！！\n\n应用：弹力球等抛掷物品\n\n\n\nmotion.zip\n(2.51 KB, 下载次数: 46)\n\n\n\n2018-1-22 18:54 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n附上数据包方便研究。食用方法就不用说了吧\n\n\n有时间把实体与实体的碰撞补上好算出某萝和空白撞车后的速度",
+    "replies": [
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1516622040,
+            "txt_content": "动量守恒上线"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1516801020,
+            "txt_content": "利用motion还能做反重力，应该比弹性还简单吧"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1516803780,
+            "txt_content": "林扬骐 发表于 2018-1-24 21:37\n利用motion还能做反重力，应该比弹性还简单吧\n把y的motion加速度反过来\n再加个Gummy应该看起来应该不错"
+        },
+        {
+            "author": "雷鸣·翾鹗",
+            "timestamp": 1516962840,
+            "txt_content": "打砖块.jpg"
+        },
+        {
+            "author": "Stray51",
+            "timestamp": 1517027580,
+            "txt_content": "你们怎么上传图片的？"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1517029440,
+            "txt_content": "！？ 发表于 2018-1-27 12:33\n你们怎么上传图片的？\n在http://sm.ms上传\n然后添加网络图片"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1519383960,
+            "txt_content": "1.13execute没学看个卵系列\n菠萝逼死新床系列\n（这里的写-0.00008代表这是非弹性碰撞（能量损失20%），如果想改成弹性碰撞就写-0.0001）\n何解?"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1519395780,
+            "txt_content": "天狼星black 发表于 2018-2-23 19:06\n1.13execute没学看个卵系列\n菠萝逼死新床系列\n0.0001×10000=1而0.00008×10000=0.8（也就是换向后的Motion的大小变为原来的1倍还是0.8倍）0.8比1小所以就算非弹性碰撞啦\n（玩家还不能弹23333）"
+        },
+        {
+            "author": "Sairos",
+            "timestamp": 1553335800,
+            "txt_content": "好东西.........可以用这个做个更加逼真的打乒乓球（以前在1.8有外国dalao做过比较粗糙的）"
+        },
+        {
+            "author": "灬忘却灬",
+            "timestamp": 1585898640,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "1930805723",
+            "timestamp": 1585898820,
+            "txt_content": "saowiudiso"
+        },
+        {
+            "author": "自闭君",
+            "timestamp": 1585901040,
+            "txt_content": "那说不定可以用TNT打乒乓球awa（打到一半爆炸）"
+        }
+    ]
+}

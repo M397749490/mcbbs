@@ -1,0 +1,89 @@
+{
+    "title": "怎么制作火焰弹",
+    "author": "t1546542",
+    "replyCount": 16,
+    "timestamp": 1578415740,
+    "txt_content": "版本:1.12.2或1.14.4\n如题\n在玩家处生成火焰弹(fireball)，并沿着玩家朝向的方向直线飞行\n碰到实体或者方块爆炸",
+    "replies": [
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578415740,
+            "txt_content": " 本帖最后由 Chelove_C60 于 2020-1-9 16:57 编辑 \n\n你是说火焰弹（small_fireball）还是说恶魂火球（fireball）\n1.12需要穷举，或者如果是火球的话，可以像楼上那样用雪球\n\n1.14有两种方法，一种是计分板配合marker计算direction和power的值，然后配合execute store保存；另一种方案是借助0,0,0点利用局部坐标做替换（偷懒做法）\n这里我就偷个懒吧，因为要复习，时间不多\n\n首先给需要发射火球（或火焰弹）的玩家加标签（此处假设标签为fireball），然后循环\nexecute as @a[tag=fireball] at @s run function fun\n\nfun.mcfunction\ntag @s add summoning\nexecute anchored eyes run summon fireball ^ ^ ^ {direction:[0d,0d,0d],Tags:[\"mark\"]}\nsummon armor_stand ~ ~ ~ {Tags:[\"mark\"]}\nexecute as @e[type=armor_stand,tag=mark] rotated as @a[tag=summoning] run tp 0.0 0.0 0.0\nexecute as @e[type=armor_stand,tag=mark] at @s run tp ^ ^ ^0.1\ndata modify entity @e[type=fireball,tag=mark,limit=1] power set from entity @e[type=armor_stand,limit=1,tag=mark] Pos\nexecute as @e[type=armor_stand,tag=mark] at @s run tp ^ ^ ^1.5\ndata modify entity @e[type=fireball,tag=mark,limit=1] direction set from entity @e[type=armor_stand,limit=1,tag=mark] Pos\nkill @e[type=armor_stand,tag=mark]\ntag @e[type=fireball,tag=mark] remove mark\ntag @s remove summoning复制代码\n\n如果要求是火焰弹（small_fireball）的话，还需要一个marker时刻跟着火焰弹，然后检测到火焰弹消失后，生成一个瞬间爆炸的苦力怕或tnt即可\n\n\n补充:如果要用这种方法，记得把0,0点附近的4个区块设为强制加载区块"
+        },
+        {
+            "author": "crfst99936484",
+            "timestamp": 1578443640,
+            "txt_content": "可以用雪球吗？\n1.12.2execute @e[type=snowball] ~ ~ ~ summon fireball ~ ~ ~ {direction:[0.0,0.0,0.0]}朝雪球方向生成火球"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578559440,
+            "txt_content": "Chelove_C60 发表于 2020-1-8 16:47\n你是说火焰弹（small_fireball）还是说恶魂火球（fireball）\n1.12需要穷举，或者如果是火球的话，可以像楼 ...\n第四条指令是什么意思"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578559980,
+            "txt_content": "t1546542 发表于 2020-1-9 16:44\n第四条指令是什么意思\nexecute as @e[type=armor_stand,tag=mark] rotated as @a[tag=summoning] run tp 0.0 0.0 0.0\n这一条？\n就是将盔甲架的朝向调整与玩家朝向相同，同时传送至0.0 0.0 0.0坐标"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578560160,
+            "txt_content": "Chelove_C60 发表于 2020-1-9 16:53\n这一条？\n就是将盔甲架的朝向调整与玩家朝向相同，同时传送至0.0 0.0 0.0坐标 ...\nexecute as @e[type=armor_stand,tag=mark] rotated"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578560340,
+            "txt_content": "t1546542 发表于 2020-1-9 16:56\nexecute as @e[type=armor_stand,tag=mark] rotated\n调整朝向\n ... rotated as <实体> ...\n会将当前命令执行的朝向调整为指定实体的朝向。这里就是调整盔甲架的命令的执行朝向为玩家朝向，具体效果在tp后才会看到"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578560520,
+            "txt_content": "Chelove_C60 发表于 2020-1-8 16:47\n你是说火焰弹（small_fireball）还是说恶魂火球（fireball）\n1.12需要穷举，或者如果是火球的话，可以像楼 ...\n为什么要tp到0 0 0\n还要tp到 ~ ~ ~0.1才能data记录"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578561240,
+            "txt_content": " 本帖最后由 Chelove_C60 于 2020-1-9 17:17 编辑 \nt1546542 发表于 2020-1-9 17:02\n为什么要tp到0 0 0\n还要tp到 ~ ~ ~0.1才能data记录\n\n这里用了个偷懒的做法，因为常规要做的话，需要通过计分板依据坐标差计算出火球或火焰弹的direction和power，然后借助execute store储存进去。稍麻烦。\n然后我就想到了利用实体的坐标标签Pos，配合局部坐标可以直接得到结果(是局部坐标^，不是相对坐标~)。这样就可以免去复杂的计分板计算。\n我估算了一下，power的模大概是0.1左右，这是向前tp 0.1格的原因。direction的模大概是1.6，因此后面在0.1的基础上又tp了1.5格。这样得到的Pos就会是想要的power和direction值。\n\n\n总体思路差不多就是把要得出的结果通过Pos这个关于实体坐标的nbt输出，然后获取保存到其他地方。这里所有的tp都是为了修改Pos这个标签"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578561480,
+            "txt_content": "Chelove_C60 发表于 2020-1-9 17:14\n这里用了个偷懒的做法，因为常规要做的话，需要通过计分板依据坐标差计算出火球或火焰弹的direction和pow ...\nem\n为什么不直接让火焰弹的direction和power=盔甲架的direction和power(或者直接等于玩家的？)\n直接原地进行"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578561840,
+            "txt_content": "t1546542 发表于 2020-1-9 17:18\nem\n为什么不直接让火焰弹的direction和power=盔甲架的direction和power(或者直接等于玩家的？)\n直接原地 ...\ndiredtion和power是火球和火焰弹独有的nbt"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578562080,
+            "txt_content": "Chelove_C60 发表于 2020-1-9 17:24\ndiredtion和power是火球和火焰弹独有的nbt\n让火焰弹的朝向用rotated as等于玩家的\n行吗"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578562440,
+            "txt_content": " 本帖最后由 Chelove_C60 于 2020-1-9 17:36 编辑 \nt1546542 发表于 2020-1-9 17:28\n让火焰弹的朝向用rotated as等于玩家的\n行吗\n\n火球的运动方向不由朝向决定，只由direction和power决定，所以改火球的朝向没用\n\n好吧，严格来讲任何实体的运动方向都不由朝向决定，改朝向只会影响局部坐标"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578564000,
+            "txt_content": "Chelove_C60 发表于 2020-1-9 17:34\n火球的运动方向不由朝向决定，只由direction和power决定，所以改火球的朝向没用\n\n好吧，严格来讲任何实体 ...\n大概知道了\n那如果我只改火球的power,不改direction会怎么样"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578564240,
+            "txt_content": "t1546542 发表于 2020-1-9 18:00\n大概知道了\n那如果我只改火球的power,不改direction会怎么样\n从静止开始加速运动\n如果只改direction，那就会慢慢减速直到停止\nmj这是什么逻辑"
+        },
+        {
+            "author": "t1546542",
+            "timestamp": 1578572220,
+            "txt_content": "Chelove_C60 发表于 2020-1-9 17:14\n这里用了个偷懒的做法，因为常规要做的话，需要通过计分板依据坐标差计算出火球或火焰弹的direction和pow ...\n怎么估算"
+        },
+        {
+            "author": "Chelover_C60",
+            "timestamp": 1578578700,
+            "txt_content": "t1546542 发表于 2020-1-9 20:17\n怎么估算\n就是正常生成一个火球，然后打一下，这一瞬间获取其nbt，看它的direction和power，然后计算器勾股定理算一下，看数值大概是多少"
+        }
+    ]
+}

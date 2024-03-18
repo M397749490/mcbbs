@@ -1,0 +1,169 @@
+{
+    "title": "【CBL|SPG】让钓鱼竿真的能够钓鱼",
+    "author": "SPGoding",
+    "replyCount": 32,
+    "timestamp": 1531493940,
+    "txt_content": " 本帖最后由 SPGoding 于 2019-7-24 23:56 编辑 \n\nHello，好久不见，我是 SPGoding。\n\n众所周知，Minecraft 1.13 中新增加了鸽了许久的实体鱼，并出现了用水桶捕鱼的新操作。但是！原先的钓鱼系统一点没变，想象一下：在满是鱼的鱼塘当中抛出钓鱼竿，等待片刻，一串诡异的气泡冲向浮标，然后…钓上来了一个木碗！\n\n太匪夷所思了，是的。于是，本人制作了这么一个 datapack。使用的是截止2018年7月13日最稳定的1.13-pre5版本。该 datapack 并没有什么技术含量，可供的参考点有（本帖不会详细讲述该钓鱼系统本身的原理，更多只是提供一些能够复用的思路。这部分思路都已加粗。本帖同时假设你已经熟悉了所有命令与 Chunk Format 页面，只提供思路，不进行用法的说明）：脑洞覆盖 Vanilla data兼容多人操纵实体运动fishing_bobber\n\n\n\n\n为了制作我们自己的钓鱼系统，我们首先需要屏蔽 Minecraft 原版【官方称其为 Vanilla（香草）】对于钓鱼的处理。由于我们不能操作代码层面的东西，只能通过覆盖 Vanilla 中的钓鱼的战利品表为空。于是，我们首先在自己的 datapack 中把 minecraft:gameplay/fishing 覆盖为空（即{}）。但这样仍有一个缺点，虽然钓鱼竿钓不上东西了，但是仍然会有“鱼上钩”了的音效声。不要紧，通过高频命令 stopsound @a * minecraft:entity.fishing_bobber.splash 即可停止这个音效。\n\n接下来需要整理下自己的钓鱼系统的需求：抛出鱼竿需要消耗鱼饵（暂定为曲奇）因为有了鱼饵，所以浮标会吸引周边的鱼上钩鱼碰到浮标即判定为“上钩”，自动收回鱼竿与鱼（的尸体）聪慧的鱼会在即将上钩的时候把自己换成水里的杂物因为每次钓鱼已经会消耗鱼饵了，就不再掉鱼竿耐久了\n\n为了方便以后拓展，我们使用一个物品标签（spgoding:better_fishing/bait）来储存所有能作为鱼饵的物品。如何判定玩家有无鱼饵呢？以前我们会使用 clear 与 cond 结合，而使用函数只须用命令 execute store success 替代 cond 即可。\n\n至于吸引鱼儿上钩，换句话说就是要控制鱼儿的运动，最开始我想的是通过设置鱼儿的 Motion 标签，但总是会出各种莫名其妙的 Bug，使我不得不抛弃这种方式。当然，现在用的方法也不复杂，首先用teleport facing命令让鱼儿面向浮标，然后teleport ^ ^ ^0.1使鱼儿向浮标游动。但是，这样做的缺点是在命令两次执行之间（1tick）鱼会尝试转向，会造成鱼十分鬼畜地原地转圈圈。想要解决，就需要让鱼乖乖听我们的话——没错，NoAI:1b！（当然，如果玩家收回了鱼竿，需要恢复鱼的状态。为了帖子思路简洁不再赘言）\n\n为了让这个系统兼容多人，有些地方需要麻烦一下下。兼容多人的非常常用的思路就是给每个玩家分配一个 UID，把与这个玩家相关联的所有实体也都给上相同的 UID，分批对所有相同 UID 的实体进行处理。我们给每个玩家抛出的钓鱼竿赋上这个玩家的 UID，然后再给钓鱼竿正在吸引的鱼同样的 UID（设定是钓鱼竿每次只吸引一条鱼）。接下来只需要execute as @a分批处理即可。以下是一段很常用的、用于找到和自己某个分数相同的玩家的命令：tag @s add executor\nexecute as @a if score @s uid = @e[tag=executor,limit=1] uid run tag @s add player\ntag @s remove executor\n# @p[tag=player] 即是与自身 uid 相同的玩家\ntag @a remove player复制代码有了这段命令，我们就可以让浮标碰到一条鱼时，找到自己的拥有者是哪位玩家，然后把鱼传送到该玩家身边并杀死。此时播放一个音效也是不错的，我选择的是 minecraft:item.bucket.fill_fish 这个音效。那么如何收回鱼竿呢？fishing_bobber 作为一个特殊的实体，你只要把它杀死，玩家就会自动收回钓鱼竿，并且这种做法不会让掉鱼竿的耐久掉落。\n\n怎么让鱼死后有几率出现宝藏/垃圾？其实有两条解决思路。一是制作自己的战利品表，在杀死鱼前修改它的 DeathLootTable 标签以修改它死亡掉落的物品。二是直接覆盖 minecraft:entities/foo 中对应的战利品表。这里我选择了第二种做法，因为我认为杀死鱼会掉宝藏/垃圾这种特性本身就很 cool。\n\n基本就讲这么多啦，对这个 datapack 有兴趣的我已经把它放在了GitHub上，可以去看看~\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "Оil",
+            "timestamp": 1531495200,
+            "txt_content": "鱼：你以为我是鱼？其实我是DIO哒！"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1531495260,
+            "txt_content": "还行，挺好玩的……"
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1531503360,
+            "txt_content": "钩子有点着急了，鱼还没上来呢"
+        },
+        {
+            "author": "Animalworld",
+            "timestamp": 1531503900,
+            "txt_content": "粘兽sama 发表于 2018-7-14 01:36\n钩子有点着急了，鱼还没上来呢\n鱼...他进包里了"
+        },
+        {
+            "author": "SMFX阜星",
+            "timestamp": 1531524960,
+            "txt_content": "我觉得如果给新人看，他们大概会看不懂吧。。"
+        },
+        {
+            "author": "SMFX阜星",
+            "timestamp": 1531526100,
+            "txt_content": " 本帖最后由 SMFX阜星 于 2018-7-14 07:56 编辑 \n\n论cb玩家草稿般的教程，我自己写给自己的也是这样看不懂\n补充，负40金粒什么鬼\n"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1531531080,
+            "txt_content": "测试版那么多虫子，直接用它钓鱼不就好了"
+        },
+        {
+            "author": "BlackCB.",
+            "timestamp": 1531531200,
+            "txt_content": "emm\n想象一下，用lz的钓鱼系统，\n如果满池都是鱼，都在缓缓向鱼竿挪动，不会很诡异吗"
+        },
+        {
+            "author": "小星耀",
+            "timestamp": 1531562700,
+            "txt_content": "动一下鱼会跑吗qwq"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1531621740,
+            "txt_content": "能钓海豚吗?"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1531623840,
+            "txt_content": "⊙v⊙ 发表于 2018-7-15 14:29\n能钓海豚吗?\n如果你想的话只要在 spgoding:better_fishing/tag_fishes (我到现在才突然意识到鱼没有复数，不管了) 里加上海豚就行\n但是，海豚那么可爱，为什么要钓它"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1531623960,
+            "txt_content": "小星耀 发表于 2018-7-14 22:05\n动一下鱼会跑吗qwq\n似乎是个好主意…"
+        },
+        {
+            "author": "13555555",
+            "timestamp": 1531624320,
+            "txt_content": "强势.这个很棒棒."
+        },
+        {
+            "author": "uhuichongfu",
+            "timestamp": 1531628100,
+            "txt_content": "聪明的鱼，因为聪明，所以学会了替身术。\n水平超过了木叶村忍者，他们一般都换成木头，而鱼能换成木碗。"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1531628220,
+            "txt_content": "buhuichongfu 发表于 2018-7-15 16:15\n聪明的鱼，因为聪明，所以学会了替身术。\n水平超过了木叶村忍者，他们一般都换成木头，而鱼能换成木碗。 ...\n其实我后续改成了鱼会在掉落自身的前提下，有几率掉别的东西【这样就能解释为鱼吃了水里奇怪的东西了"
+        },
+        {
+            "author": "uhuichongfu",
+            "timestamp": 1531628400,
+            "txt_content": "SPGoding 发表于 2018-7-15 12:17\n其实我后续改成了鱼会在掉落自身的前提下，有几率掉别的东西【这样就能解释为鱼吃了水里奇怪的东西了 ...\n好不容易弄了个解释，又被楼主推翻了。"
+        },
+        {
+            "author": "aa676863258aa",
+            "timestamp": 1531657200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "hjcdmmwy",
+            "timestamp": 1531661640,
+            "txt_content": "你这个插件之前有个类似的"
+        },
+        {
+            "author": "13665374636",
+            "timestamp": 1531763580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "13665374636",
+            "timestamp": 1531763580,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Argon_gas",
+            "timestamp": 1531876980,
+            "txt_content": "所以说鱼漂现在有实体名称了？"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1531881300,
+            "txt_content": "Argon_gas 发表于 2018-7-18 13:23\n所以说鱼漂现在有实体名称了？\nfishing_bobber"
+        },
+        {
+            "author": "1502064645",
+            "timestamp": 1532074980,
+            "txt_content": "水一下 水一下水一下 水一下水一下 水一下水一下 水一下水一下 水一下"
+        },
+        {
+            "author": "ColorPencil",
+            "timestamp": 1532099220,
+            "txt_content": "SPGoding 发表于 2018-7-15 11:04\n如果你想的话只要在 spgoding:better_fishing/tag_fishes (我到现在才突然意识到鱼没有复数，不管了) 里 ...\n顺便钓到海豚时激怒附近海豚"
+        },
+        {
+            "author": "川又伽椰子",
+            "timestamp": 1532141820,
+            "txt_content": "还可以,感觉挺好的"
+        },
+        {
+            "author": "-色狗",
+            "timestamp": 1532221380,
+            "txt_content": "挺好玩的样子....."
+        },
+        {
+            "author": "Futrue",
+            "timestamp": 1532241660,
+            "txt_content": "大神,膜拜."
+        },
+        {
+            "author": "mengxiaoxue",
+            "timestamp": 1532273460,
+            "txt_content": "支持作者，希望作者加油，"
+        },
+        {
+            "author": "徐钦猪",
+            "timestamp": 1532573220,
+            "txt_content": "表示楼主的智商，不是我能懂得。"
+        },
+        {
+            "author": "1746080459",
+            "timestamp": 1532676060,
+            "txt_content": "你真的是很棒"
+        },
+        {
+            "author": "Plants-Stars",
+            "timestamp": 1538907180,
+            "txt_content": "我下载了一个压缩包，但是不管怎么解压都用不了..."
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1538908140,
+            "txt_content": "Plant-star 发表于 2018-10-7 18:13\n我下载了一个压缩包，但是不管怎么解压都用不了...\n放到地图存档下面的 datapacks 文件夹"
+        }
+    ]
+}

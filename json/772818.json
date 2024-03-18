@@ -1,0 +1,129 @@
+{
+    "title": "---===从零基础开始，到精通插件===---#10.1在MC里吃鸡玩绝地求生!",
+    "author": "erry64",
+    "replyCount": 24,
+    "timestamp": 1514120100,
+    "txt_content": " 本帖最后由 berry64 于 2018-6-23 16:41 编辑 \n\n回到目录\n-------------------------------------------------------------------------------------------------教程 X —— 在MC里也能吃鸡!?第一部分：设计&加入系统↑好尬由于本教程是我的插件-SteadyShot的拓展开发教程，所以先厚颜无耻打一波广告:前置插件地址: [管理|综合|编程|机制]SteadyShot——可以自定义的小游戏竞技场插件![全版本]\n如何吃鸡：打开物品栏拿出熟鸡肉右键 ——tada成功吃鸡教程到此结束本教程将依照我深(mo)思(ming)熟(qi)虑(miao)的思考顺序分步骤开发（所以会非常乱QwQ）\n\n\n\n于是乎, 先从创建一个java工程开始这里由于我是导入的工程而并非jar包，但是效果差不多，eclipse→右键→新建→java工程，之后右键java工程→属性→Java Build path 导入2个，分别是服务器主文件(我的是paperspigot 1.12.2) 以及SteadyShot jar (我的是工程文件)\n\n\n\n\n0.png (77.19 KB, 下载次数: 16)\n\n下载附件\n\n2017-12-24 15:11 上传\n\n\n\n\n\nP.S 我的拓展命名为MCBG(MineCraft BattleGrounds)\n因为本拓展是已需要前置插件的插件写成的，所以理所当然的有个plugin.yml以及继承JavaPlugin的主类主类里的onEnable我也加了一个检测前置插件的机制（虽然plugin.yml里面如果有写服务端会自动识别）以及在SteadyShot里面注册本竞技场的代码（详情请看SteadyShot发布贴）\n\n\n\n\n1.png (202.98 KB, 下载次数: 19)\n\n下载附件\n\n2017-12-24 15:11 上传\n\n\n\n\n\n本竞技场名为MCBG\n创建新类：MCBGArena，继承net.berry64.SteadyShot.Arena.ArenaBase类 《-手动划重点之后根据IDE提示自动添加方法，当然如果你的IDE没有提示也可以自己写\n\n\n\n\n2.png (190.84 KB, 下载次数: 20)\n\n下载附件\n\n2017-12-24 15:11 上传\n\n\n\n\n\n\nok，编程暂时告一段落，我们来规划一下设计，这时候就要用到祖传的windows画图了\n\n\n\n\ndesign0.png (250.49 KB, 下载次数: 13)\n\n下载附件\n\n2017-12-24 15:46 上传\n\n\n\n\n为了符合MC的方块，我们不用圆圈而用方块代替“毒”P.S本来想加个步骤规划一下机器语言和实践方式，不过不太符合我风格所以就算了\n于是乎! 我们开始写代码吧，先从玩家加入机制开始，ArenaBase已经定义好了minPlayers和maxPlayers变量，也帮我们从配置文件里面读取了，只需直接调用即可。稍微语言规划一下, 我们需要在edit里面实现设置主传送点和地图大小, 并且在玩家加入时判断玩家数量是否超过最大以及是否已经开始游戏，如果是return false 禁止加入。\n这里我希望定义一个全局位置（大厅传送点）以及一个全局timer, 因为本游戏只会拥有一个使用中的计时器。之后，我需要在addPlayer方法里写入这些东西:- 确认玩家数量是否超额&确认游戏不在进行中- 如果玩家是第一个，把竞技场状态从空设置到等待中- 向本部以及全局玩家列表里添加玩家- 开启倒计时于是乎，代码这样:package net.berry64.SteadyShotAddons.MCBG;\n\nimport java.io.File;\n\nimport org.bukkit.Location;\nimport org.bukkit.configuration.file.YamlConfiguration;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.Listener;\nimport org.bukkit.scheduler.BukkitRunnable;\nimport org.bukkit.scheduler.BukkitTask;\n\nimport net.berry64.SteadyShot.Arenas.ArenaBase;\nimport net.berry64.SteadyShot.Arenas.ArenaState;\n\npublic class MCBGArena extends ArenaBase implements Listener{\n        Location lobbyLocation = null;\n        BukkitTask timer = null;\n        \n        @Override\n        public boolean startUp() {\n                // TODO Auto-generated method stub\n                return false;\n        }\n\n        @Override\n        public void shutDown() {\n                // TODO Auto-generated method stub\n                \n        }\n\n        @Override\n        public boolean edit(Player editor, String[] args) {\n                // TODO Auto-generated method stub\n                return false;\n        }\n\n        @Override\n        public boolean addPlayer(Player p) {\n                if(players.size() >= maxPlayers || state == ArenaState.IN_GAME)  //检测玩家数量&竞技场状态\n                        return false;\n                \n                if(players.size() <= 0)  //更改状态\n                        state = ArenaState.WAITING;\n                \n                listAdd(p);\n                this.sendMessage(\"§6\"+p.getName()+\" §a加入了游戏，当前人数 §e\"+players.size()+\"§a/§6 \"+maxPlayers);\n                if(timer == null && players.size() >= minPlayers) {\n                        this.sendMessage(\"§a游戏将会在 §660 §a秒后开始\");\n                        timer = new BukkitRunnable() {\n                                int secsleft = 60; //一分钟\n                                \n                                @Override\n                                public void run() {\n                                        for(Player p : players) {\n                                                p.setLevel(secsleft);   //玩家经验条等级设置为倒计时器\n                                        }\n                                        if(secsleft <= 0) {   //到时间\n                                                beginGame();   //private方法\n                                                timer = null;    // 方便判断\n                                                this.cancel();     //取消计时器\n                                        }\n                                }\n                                \n                        }.runTaskTimer(MCBGMain.instance, 0L, 20L);  //每20ticks(约1秒)计时一次\n                }\n                p.teleport(lobbyLocation); //传送至大厅\n                p.getInventory().clear();\n                return true;\n        }\n        //其他一些系统默认没有更改的方法就没有写上了复制代码\n到此，已经实现了入场传送&计时器\n回看设计图，现在需要的功能就是设置地图四角，随机生成天空平台，以及给予玩家翅膀\n先从设置开始，找到继承的edit, 用处理类似指令的方法处理，这里我会使用我自己的风格，不好看/不实用请谅解\n地图四角不需要储存/读取y轴，只需X,Z即可，而且只需要2个点即可构成一个方块平面，配置文件大概这样吧:\nlobby:\n#bukkit自己直接储存location，将会包含X,Y,Z,世界和角度，这里是大厅传送点\n\nmap:\n    world:  世界名\n    1:\n      X:\n      Z:\n    2:\n      X:\n      Z:复制代码\n\n\n这里为了方便操作，我们创建两个class第一个是CornerArea, 也就是通过两个角落生成的长方形面积第二个是CenterArea，而这个就是以中心点和两个半径生成的长方形面积直接上代码:\nclass CornerArea {\n        int ax,az,bx,bz;\n        \n        public CornerArea(int x1,int z1,int x2,int z2) {\n                ax = x1;\n                az = z1;\n                bx = x2;\n                bz = z2;\n        }\n        public void setCorner(Location loc, int point) {\n                if(point == 1) {\n                        ax = loc.getBlockX();\n                        az = loc.getBlockZ();\n                } else {\n                        bx = loc.getBlockX();\n                        bz = loc.getBlockZ();\n                }\n        }\n        public void setCorners(int x1, int z1, int x2, int z2) {\n                ax = x1;\n                az = z1;\n                bx = x2;\n                bz = z2;\n        }\n        public int getBaseX() {\n                return Math.min(ax, bx);\n        }\n        public int getBaseZ() {\n                return Math.min(az, bz);\n        }\n        public int getSizeX() {\n                return Math.abs(ax-bx);\n        }\n        public int getSizeZ() {\n                return Math.abs(az-bz);\n        }\n        public int getRandomCenterX(int margins) {\n                return getBaseX()+margins+(int)(Math.random()*(getSizeX()-(2*margins)));\n        }\n        public int getRandomCenterZ(int margins) {\n                return getBaseZ()+margins+(int)(Math.random()*(getSizeZ()-(2*margins)));\n        }\n        public CenterArea getCenterArea() {\n                return new CenterArea(getBaseX()+(getSizeX()/2), getBaseZ()+(getSizeZ()/2), getSizeX()/2, getSizeZ()/2);\n        }\n        \n        public void paintEdges(paintType t) {\n                if(t == paintType.RED) {\n                        \n                }\n                else if(t==paintType.WHITE) {\n                        \n                }\n                else if(t == paintType.REMOVE) {\n                        \n                }\n        }\n        enum paintType{\n                RED,\n                WHITE,\n                REMOVE;\n        }\n}复制代码到这里应该很简单理解，就是以角落的长方形和附属的一些简易算法，之后是CenterArea\nclass CenterArea {\n        int cx,cz,xr,zr;\n        \n        public CenterArea(int centerx,int centerz, int rangex, int rangez) {\n                cx = centerx;\n                cz = centerz;\n                xr = rangex;\n                zr = rangez;\n        }\n        public void setCenter(int x, int z) {\n                cx = x;\n                cz = z;\n        }\n        public void setRange(int rangex,int rangez) {\n                xr = rangex;\n                zr = rangez;\n        }\n        public CornerArea getCornerArea() {\n                return new CornerArea(cx-xr,cz-zr,cx+xr,cz+zr);\n        }\n}复制代码这里应该更简单，因为CenterArea的目的只是为了方便计算，游戏的大部分操作都是在CornerArea里面进行的，所以这个class只要有能转换成CornerArea的方法应该就可以了\n然后编辑地图部分:\n@Override\npublic boolean edit(Player editor, String[] args) {\n                if(args.length <= 0) \n                        editor.sendMessage(\"§c错误：请输入可以识别的指令\");   //排除arrayindexoutofbounds\n                \n                else if(args[0].equalsIgnoreCase(\"setlobby\")) {\n                        lobbyLocation = editor.getLocation();       //免去设置后需要重读文件\n                        yml.set(\"lobby\", editor.getLocation());   //bukkit可以直接储存location信息\n                        save();     //刚刚写的储存文件的方法,可以直接用yml.save(f)代替\n                        editor.sendMessage(\"§a成功设置 §6大厅\");\n                }\n                \n                else if(args[0].equalsIgnoreCase(\"setWorld\")) {\n                        //设置世界\n                        if(args.length > 1) {\n                                yml.set(\"map.world\", args[1]);\n                                world = args[1];\n                                editor.sendMessage(\"§a成功设置，如果输入的世界不存在将会报错\");\n                        } else {\n                                yml.set(\"map.world\", editor.getWorld().getName());\n                                world = editor.getWorld().getName();\n                                editor.sendMessage(\"§a成功设置为当前世界\");\n                        }\n                        save();\n                }\n                \n                else if(args[0].equalsIgnoreCase(\"setmap\")) {\n                        if(args.length > 1) {\n                                int loc = 1;\n                                \n                                try { loc = Integer.valueOf(args[1]); } catch (NumberFormatException e) {editor.sendMessage(\"§c你必须输入一个数字!\"); return true;}\n                                if(loc <= 0 || loc >= 3) {editor.sendMessage(\"§c数字必须为1或2\"); return true;}\n                                \n                                gameboard.setCorner(editor.getLocation(), loc);\n                                yml.set(\"map.\"+loc+\".x\", editor.getLocation().getBlockX());\n                                yml.set(\"map.\"+loc+\".z\", editor.getLocation().getBlockZ());\n                                save();\n                                editor.sendMessage(\"§a设置成功\");\n                        } else {\n                                editor.sendMessage(\"§c使用方法: §esetmap [1/2]\");\n                        }\n                }\n                \n                else {\n                        editor.sendMessage(\"§c错误: 未识别的命令\");\n                }\n                return true;  //信仰:永不return false\n}\n复制代码于是乎，又完成了一个功能，下一个，在loadArena里面写上读取世界，大厅，以及几个点的位置(启动时加载)，直接代码:\n\n@Override\npublic boolean loadArena() {\n                lobbyLocation = (Location) yml.get(\"lobby\");    //大厅\n                \n                world = yml.getString(\"map.world\");      //变量world赋值（刚刚定义的一个string）\n                int x1 = yml.getInt(\"map.1.x\"); int z1 = yml.getInt(\"map.1.z\");\n                int x2 = yml.getInt(\"map.2.x\"); int z2 = yml.getInt(\"map.2.z\");\n                gameboard = new CornerArea(x1,z1,x2,z2);\n                return true;\n        }复制代码\n如果不理解请返回目录去看之前教程\n本部分最后，在刚刚定义的beginGame方法内写上随机生成天空平台&给予所有玩家翅膀private void beginGame() {\n        state = ArenaState.IN_GAME;       //设定状态为游戏中(至此游戏已经开始)\n        int x = x1+(x2-x1)/5+(int)(Math.random()*(x2-x1-(x2-x1)/5));      //x2-x1获取竞技场宽度，随机生成但不太靠边缘,距离边缘1/5距离\n        int z = z1+(z2-z1)/5+(int)(Math.random()*(z2-z1-(z2-z1)/5));      //同上，这部分可能有点复杂，仔细想想就好了\n        \n        //在y=175生成一个5*5的玻璃平台\n        World w = MCBGMain.instance.getServer().getWorld(world);\n        for(int i = x-2; i <= x+2; i++) {\n                for(int k = z-2; k <= z+2; k++) {\n                        w.getBlockAt(i,175,k).setType(Material.GLASS);\n                }\n        }\n        \n        for(Player p:players) {\n                p.teleport(new Location(w,x,176,z));  //传送所有玩家\n                p.getInventory().setChestplate(new ItemStack(Material.ELYTRA, 1));  //给予玩家翅膀并装备到胸甲栏\n        }\n}复制代码\n\n至此本部分已经完成，下一部分: 游戏机制的设计&实践, 敬请期待教程10.2如果有其他建议/意见 请在本帖回复\nP.S. 人气不要钱，给了又不会少块肉 ",
+    "replies": [
+        {
+            "author": "Yihc",
+            "timestamp": 1514172180,
+            "txt_content": "一脸懵逼的进来，一脸懵逼的出去\n收藏起来以后看~"
+        },
+        {
+            "author": "Soul-Tude",
+            "timestamp": 1514205300,
+            "txt_content": "插件的思路确实挺清晰，如果能做出来一定会在目前国内的游戏服火的，但是我还是想说一下插件的游戏性方面问题，如果lz真的想往下做，那我就提几个更新思路（可以日后完善）：\n1.毒圈应设计为圆圈缩小，且应该设计为几何角度随机选点缩圈，否则会引起游戏性问题，如果是矩形的圈那么玩家只要站在死角便可以看到圈内的任何角度（MC的广角设计），如果是圆形的话除非玩家丧心病狂广角开得很大，不然基本上只能看一定的角度，无法卡所谓的死角。\n\n\n\n\n0009534T7-0.png (9.16 KB, 下载次数: 19)\n\n下载附件\n\n2017-12-25 20:22 上传\n\n\n\n\n PS:不要在意水印233 这是张PUBG的缩圈规律图。2.声音的判断/血液可用粒子/枪械的设计/mc的辣鸡第三人称/组队(扶队友233)/可以利用矿车的特性做开局的飞机/可用掉落物设置为装备等，然后控制玩家捡取掉落物的时间（否则箱子太多真的= =）/死亡玩家的gamemode 3不应干扰到游戏，视角应控制在存活队友的身上/对外挂的防范/\n\n总而言之，如果想作出MCBG肯定是mod最为合适，不过插件也可以极大程度上的还原，不过工作量还是挺大的，游戏可没那么好做！\n"
+        },
+        {
+            "author": "ROF",
+            "timestamp": 1514810520,
+            "txt_content": " 本帖最后由 ROF 于 2018-1-1 20:44 编辑 \n\nemmm很好的想法，楼主辛苦了此外，那天鄙人看了下楼主的教程，在第五章的时候，我复制了楼主的代码\npackage com.github.berry64;下面的一连串复制代码然后eclipse就在getName下面显示错误了（只有这一个报错）\n然而我是萌新不知道怎么回事，emmm\n所以求指导\n\n"
+        },
+        {
+            "author": "Soul-Tude",
+            "timestamp": 1514812200,
+            "txt_content": "ROF 发表于 2018-1-1 20:42\nemmm很好的想法，楼主辛苦了\n没导入getname方法的包？"
+        },
+        {
+            "author": "弱鸡绿毛怪",
+            "timestamp": 1516960620,
+            "txt_content": "哦666\n大佬什么时候又出新帖子了"
+        },
+        {
+            "author": "凌云轩雅",
+            "timestamp": 1517584200,
+            "txt_content": "这个教程看起来不错，我去目录看下"
+        },
+        {
+            "author": "董开和天哥",
+            "timestamp": 1517800320,
+            "txt_content": "我想知道为什么报错一堆，明明什么包都导入了，代码基本是复制来的（除了修改类名和包名），可还是出现“z1 cannot be resolved to a variable”\"x1 cannot be resolved to a variable\"\"lobbyLocation cannot be resolved to a variable\"\"无法解析yml\"\"minPlayers cannot be resolved to a variable\"之类的\n\n\n\n\n\n\njavalz2.PNG\n(170.62 KB, 下载次数: 0)\n\n\n\n\n下载附件\n\n\n2018-2-5 11:11 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\njavalz2.PNG\n(170.62 KB, 下载次数: 1)\n\n\n\n\n下载附件\n\n\n2018-2-5 11:11 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\njavalz3.PNG\n(139.88 KB, 下载次数: 1)\n\n\n\n\n下载附件\n\n\n2018-2-5 11:11 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "弑魂腐竹",
+            "timestamp": 1517969580,
+            "txt_content": "真是的很适合新手的帖子废话不多说还是支多多支持也希望作业尽快更新"
+        },
+        {
+            "author": "sOta_cCc",
+            "timestamp": 1517986380,
+            "txt_content": "从国外服玩完吃鸡来看这个，我觉得挺有想法。支持"
+        },
+        {
+            "author": "lg0812",
+            "timestamp": 1529305980,
+            "txt_content": "楼主厉害。跟着楼主学习。"
+        },
+        {
+            "author": "erry64",
+            "timestamp": 1530326220,
+            "txt_content": "董开和天哥 发表于 2018-2-5 11:12\n我想知道为什么报错一堆，明明什么包都导入了，代码基本是复制来的（除了修改类名和包名），可还是出现“z1 ...\n因为我定义的全局变量没有放到代码里....可以的话尽量不要直接复制黏贴而要自己学习"
+        },
+        {
+            "author": "leich123",
+            "timestamp": 1535082300,
+            "txt_content": "谢谢大佬分享了  已经让服务器的技术来这里看看 然后防止做出了一款吃鸡的插件  目前还有一些bug技术已经在修复了  修复后会过来反馈的  总的来说 还是谢谢楼主分享这个思路"
+        },
+        {
+            "author": "ROF",
+            "timestamp": 1535707380,
+            "txt_content": "emmm我想知道eclipse怎么弄像LZ那样\n代码值得学习一下\n新手开发者路过"
+        },
+        {
+            "author": "george2005",
+            "timestamp": 1554434820,
+            "txt_content": "        十分感谢！"
+        },
+        {
+            "author": "AlbusDumbledor",
+            "timestamp": 1562222460,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "智闪",
+            "timestamp": 1567176900,
+            "txt_content": "加油＾０＾~"
+        },
+        {
+            "author": "anyiying",
+            "timestamp": 1567193880,
+            "txt_content": "哪位大佬知道忘记正版账号怎么办"
+        },
+        {
+            "author": "adger.plus",
+            "timestamp": 1572540360,
+            "txt_content": "顶一下 顺便问一下api哪里有的看"
+        },
+        {
+            "author": "辞音",
+            "timestamp": 1596476160,
+            "txt_content": "非常完美 nice"
+        },
+        {
+            "author": "TZ2009",
+            "timestamp": 1612784700,
+            "txt_content": "要是能把工程文件发一下就更好了，求发一下，谢谢！"
+        },
+        {
+            "author": "TZ2009",
+            "timestamp": 1612784760,
+            "txt_content": "前置讲的那一波完全看不懂，太含糊了"
+        },
+        {
+            "author": "whatfilmae",
+            "timestamp": 1612784940,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "弓鱼",
+            "timestamp": 1613304900,
+            "txt_content": "        MCBBS有你更精彩~"
+        },
+        {
+            "author": "xiaoxiaozhu@",
+            "timestamp": 1613826000,
+            "txt_content": "我同学早就想玩了"
+        }
+    ]
+}

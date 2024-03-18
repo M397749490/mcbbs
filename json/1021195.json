@@ -1,0 +1,44 @@
+{
+    "title": "[干货]在开发中UUID和String(playername)之间应该怎么取舍",
+    "author": "Karlatemp",
+    "replyCount": 7,
+    "timestamp": 1587097560,
+    "txt_content": " 本帖最后由 Karlatemp 于 2020-4-17 13:36 编辑 \n\n\n写在前面： 没有排版，也不想排版\n\nUUID Yes\n本章使用 JDK 13 进行分析，其他JDK版本大同小异\n\n性能分析:\n一般我们存储玩家信息， 都是使用类似Map<UUID, (DataClass)>, 高级点的就 Cache<UUID, (DataClass)>\n但是无论哪种存储方式，都会执行对应的 equals, 以及大部分会执行的 hashCode(), 这里从这两个为入口分析其效率\n\n首先是 hashCode\nUUID: \n\n\n\n\n5.png (132.33 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-17 12:04 上传\n\n\n\n\n\nString: \n\n\n\n\n7.png (177.29 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-17 12:05 上传\n\n\n\n\n\n可以明显看到 String的hashCode操作比UUID多很多\n(然后就有人说: String只会在第一次执行hashCode的时候进行判断啊, 你这不严谨)\n最重要的equals还没说呢，先看看 JDK 是怎么写的\n\nString: \n\n\n\n\n8.png (168.59 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-17 12:09 上传\n\n\n\n\n\nUUID: \n\n\n\n\n9.png (110.2 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-17 12:09 上传\n\n\n\n\n\n\nUUID指判断是否一样类型, 然后直接判断两个long就可以了\nString得判断每一个字节. 执行效率String是没UUID快的\n\n唯一性(最重要)\n首先我们来说下UUID的全写 Universally Unique Identifier(通用唯一识别码)\n是的, UUID这是唯一的, Minecraft的每个实体都有自己的UUID, 包括玩家也有自己的UUID, 无论玩家怎么改名，他的UUID也是不变的(仅限正版, 盗版不在此范围之内)\n当我们改名后, 如果使用playername作为存储主键，那么改名的玩家他的数据将会丢失, 但是如果我们使用UUID. 这个问题也就不存在了. 在存储中，应该优先使用UUID, 而不是String(playername)\n\n对于盗版\n正版和盗版的数据本来就不是互通的! 使用正版登录服务器，随便拿几个物品放入背包，然后退出服务器，把服务器的正版验证关闭，重新登录。\n这时候原来存在于背包的物品见会消失不见。。。\n这是因为UUID变化导致的! 正版号和盗版号不是同一个号，即使你并没有重新打开MC客户端！所以这种情况的数据互通本来就不在考虑范围之内！\n\n盗版服务器使用客户端提供的用户名生成一个UUID, 而正版是直接从Mojang查询登录玩家的UUID\n\n所以盗版的UUID会因为用户名的改变而变化，正版不会,\n也就是你盗版改了个名啥数据都没了，然而正版啥事都没有\n\n赠品：盗版服生成UUID的代码\nUUID uuid = UUID.nameUUIDFromBytes((\"OfflinePlayer:\" + playerName).getBytes(StandardCharsets.UTF_8));复制代码\n\n\n如果我使用了UUID我怎样才能反过来拿玩家id\n首先，既然已经记录了UUID, 也就证明玩家曾经登录过, 服务器有记录，不用担心会卡线程\n\nString name = Bukkit.getOfflinePlayer(uniqueId).getName();\n\n请使用以上方法获取玩家的名字\n\n补充\n这个帖子是关于数据存储的！不是关于命令的！命令还请用Bukkit.get(Offline)Player(String name), 然后获取uuid\n",
+    "replies": [
+        {
+            "author": "九仞",
+            "timestamp": 1587099180,
+            "txt_content": "不错的干货，学到了\n就是有个新的疑问，\n盗版服务器中如何识别更换了正版ID的用户呢"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1587100200,
+            "txt_content": "九仞 发表于 2020-4-17 12:53\n不错的干货，学到了\n就是有个新的疑问，\n盗版服务器中如何识别更换了正版ID的用户呢 ...\n盗版服务器本身就不会识别正版登录的玩家, 这方面是没法考虑的, 另外说句, 随便开关online-mode都是属于没事找事的行为"
+        },
+        {
+            "author": "九仞",
+            "timestamp": 1587100320,
+            "txt_content": "Karlatemp 发表于 2020-4-17 13:10\n盗版服务器本身就不会识别正版登录的玩家, 这方面是没法考虑的, 另外说句, 随便开关online-mode都是属于 ...\n也就是说只能使用string来作为识别玩家的字段喽"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1587100440,
+            "txt_content": " 本帖最后由 Karlatemp 于 2020-4-17 13:16 编辑 \n九仞 发表于 2020-4-17 13:12\n也就是说只能使用string来作为识别玩家的字段喽\n盗版服务器使用客户端提供的用户名生成一个UUID, 而正版是直接从Mojang查询登录玩家的UUID\n\n所以盗版的UUID会因为用户名的改变而变化，正版不会,\n也就是你盗版改了个名啥数据都没了，然而正版啥事都没有\n\n\n而且盗版为什么要考虑用户名变化呢，这个是正版服考虑的, 而且插件都使用UUID也不会有那么多麻烦事，不太明白你为啥会这么问\n"
+        },
+        {
+            "author": "九仞",
+            "timestamp": 1587100680,
+            "txt_content": "Karlatemp 发表于 2020-4-17 13:14\n盗版服务器使用客户端提供的用户名生成一个UUID, 而正版是直接从Mojang查询登录玩家的UUID\n\n所以盗版的UUI ...\n因为刚才我误以为盗版的UUID是随机生成的，原来也是根据用户名生成的QWQ"
+        },
+        {
+            "author": "HotPe_e",
+            "timestamp": 1587101040,
+            "txt_content": "感谢楼主 学到了 "
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1587140640,
+            "txt_content": "我一般习惯String的"
+        }
+    ]
+}

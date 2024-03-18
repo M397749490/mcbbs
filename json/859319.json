@@ -1,0 +1,44 @@
+{
+    "title": "怎样才能让种子种在指定方块上",
+    "author": "CHHBlock",
+    "replyCount": 7,
+    "timestamp": 1555811520,
+    "txt_content": "public class SeedGreenCrystalFlower extends ItemSeeds\n{\n        public SeedGreenCrystalFlower()\n        {\n            super(RegisterBlock.cropgreencrystalflower, RegisterBlock.crystal);\n                this.setRegistryName(\"seedgreencrystalflower\");\n                this.setUnlocalizedName(\"SeedGreenCrystalFlower\");\n                this.setCreativeTab(CreativeTabs.MATERIALS);\n        }\n}复制代码这个种子还是只能种在耕地上，不能种在我的水晶块上\n不知道该怎么解决\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1555812060,
+            "txt_content": "你的水晶块需要实现canSustainPlant()方法。"
+        },
+        {
+            "author": "muyuxiaofensi",
+            "timestamp": 1555812420,
+            "txt_content": "玉玉玉，这个谁不知道"
+        },
+        {
+            "author": "CHHBlock",
+            "timestamp": 1555815480,
+            "txt_content": "森林蝙蝠 发表于 2019-4-21 10:01\n你的水晶块需要实现canSustainPlant()方法。\n请教一下，这个方法具体如何实现呢"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1555817820,
+            "txt_content": "CHHBlock 发表于 2019-4-21 10:58\n请教一下，这个方法具体如何实现呢\n直接return true呗，你可以跳转到Block类，和耕地方块类里面看看耕地是怎么做的。"
+        },
+        {
+            "author": "CHHBlock",
+            "timestamp": 1555822200,
+            "txt_content": "森林蝙蝠 发表于 2019-4-21 11:37\n直接return true呗，你可以跳转到Block类，和耕地方块类里面看看耕地是怎么做的。 ...\n现在这个种子还是可以种在普通的耕地上，该如何解决？"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1555830720,
+            "txt_content": "CHHBlock 发表于 2019-4-21 12:50\n现在这个种子还是可以种在普通的耕地上，该如何解决？\n你又没说要取消耕地种植。\n监听一个RightClickBlock事件，若是玩家手上是你的种子，方块是耕地，就把这个事件取消。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1555881900,
+            "txt_content": "森林蝙蝠 发表于 2019-4-21 15:12\n你又没说要取消耕地种植。\n监听一个RightClickBlock事件，若是玩家手上是你的种子，方块是耕地，就把这个 ...\n为什么一遇到这样的问题就老想着事件？这样的需求根本不需要监听任何事件。\n\n方案一：\n\n// 你的作物种子类覆写 onItemUse 方法\n@Override\npublic EnumActionResult onItemUse(EntityPlayer player, World world, BlockPos pos, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {\n  ItemStack held = player.getHeldItem(hand);\n  IBlockState targetState = world.getBlockState(pos);\n  // 用 targetState.getBlock() == RegisterBlock.crystal 强制检查被右击的方块是不是你的“土壤”方块，以及上方是不是空气\n  // 如此一来只有你的“土壤”方块能合理地种植此作物\n  if (facing == EnumFacing.UP && player.canPlayerEdit(pos.offset(facing), facing, held) && targetState.getBlock() == RegisterBlock.crystal && worldIn.isAirBlock(pos.up())) {\n    world.setBlockState(pos.up(), this.crops.getDefaultState());\n    if (player instanceof EntityPlayerMP) { // 原版进度触发器\n      CriteriaTriggers.PLACED_BLOCK.trigger((EntityPlayerMP)player, pos.up(), held);\n    }\n    held.shrink(1); // 种植成功，种子数量减一\n    return EnumActionResult.SUCCESS;\n  } else {\n    return EnumActionResult.FAIL;\n  }\n}复制代码\n\n\n方案二：\n\n虽然是个 Hack，但对其他 Mod 的兼容性稍微好一点。\n利用 Forge 的 EnumPlantType 这套系统即可。\n首先你的作物种子类 SeedGreenCrystalFlower 需要有如下声明：\npublic static final EnumPlantType GREEN_CRYSTAL_FLOWER_PLANT_TYPE = EnumPlantType.getPlantType(\"green_crystal_flower\");\n@Override\npublic EnumPlantType getPlantType(IBlockAccess world, BlockPos pos) {\n  return GREEN_CRYSTAL_FLOWER;\n}\n复制代码\n然后在你的“土壤”方块类中，覆写 canSustainPlant：\n@Override\npublic boolean canSustainPlant(IBlockState state, IBlockAccess world, BlockPos pos, EnumFacing direction, IPlantable plantable) {\n  return plantable.getPlantType(world, pos.offset(direction)) == SeedGreenCrystalFlower.GREEN_CRYSTAL_FLOWER_PLANT_TYPE;\n}复制代码\n\n"
+        }
+    ]
+}

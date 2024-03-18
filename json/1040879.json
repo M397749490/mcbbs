@@ -1,0 +1,34 @@
+{
+    "title": "[LWJGL]Minecraft渲染图片覆盖窗口",
+    "author": "冰冷冷",
+    "replyCount": 5,
+    "timestamp": 1588905540,
+    "txt_content": " 本帖最后由 冰冷冷 于 2020-5-8 12:14 编辑 \n\n我现在先将BufferedImage画到Canvas上\n之后使用Display.setParent(canvas) Display.update();\n没有任何效果不知道怎么才能渲染图片覆盖住整个窗口\n对opengl不是很了解，求各位大佬轻点喷",
+    "replies": [
+        {
+            "author": "阴阳师元素祭祀",
+            "timestamp": 1588912260,
+            "txt_content": "标题: 是forge还是fabric？具体版本？ 本帖最后由 阴阳师元素祭祀 于 2020-5-8 12:35 编辑 \n\n具体mc版本？forge还是fabric？\n\n我的fabric （应该无关）\n依赖的mc 依赖的lwjgl\n没有BufferedImage和Canvas和Display\n\n如果你要渲染图片覆盖窗口\n直接glViewport(0, 0, w, h)\n然后从-1, -1画纹理到1 1这个地方即可(cost 6个顶点) (渲染纹理..如果有轮子就用轮子?  没有就用我的方法)\n\nhttps://learnopengl-cn.github.io/\n\n(-1, 1)      (1, 1)\n----------------\n|                 |\n----------------\n(-1,-1)      (1, -1)\n\n"
+        },
+        {
+            "author": "冰冷冷",
+            "timestamp": 1588918560,
+            "txt_content": "阴阳师元素祭祀 发表于 2020-5-8 12:31\n具体mc版本？forge还是fabric？\n\n我的fabric （应该无关）\n我这用的forge-1.12.2-14.23.5.2847，谢谢大佬指导"
+        },
+        {
+            "author": "冰冷冷",
+            "timestamp": 1588930620,
+            "txt_content": "Caused by: java.lang.IllegalArgumentException: Number of remaining buffer elements is 1125387, must be at least 1229760. Because at most 1229760 elements can be returned, a buffer with at least 1229760 elements is required, regardless of actual returned element count\n\nGL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGB, Minecraft.getMinecraft().displayWidth, Minecraft.getMinecraft().displayHeight, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE, allocate);\n"
+        },
+        {
+            "author": "冰冷冷",
+            "timestamp": 1588938600,
+            "txt_content": " 本帖最后由 冰冷冷 于 2020-5-8 20:01 编辑 \n阴阳师元素祭祀 发表于 2020-5-8 12:31\n具体mc版本？forge还是fabric？\n\n我的fabric （应该无关）int i1 = GL11.glGenTextures();\nGL11.glBindTexture(GL11.GL_TEXTURE_2D,i1);\nGL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);\nGL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);\nGL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);\nGL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);\nGL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGB,frame.imageWidth, frame.imageHeight, 0, GL11.GL_RGB, GL11.GL_UNSIGNED_BYTE,frame.data);\nGL11.glViewport(-1,-1,frame.imageWidth, frame.imageHeight);复制代码\n\n我这样写入材质之后要怎么才能渲染到窗口上"
+        },
+        {
+            "author": "阴阳师元素祭祀",
+            "timestamp": 1588939380,
+            "txt_content": "冰冷冷 发表于 2020-5-8 19:50\n我这样写入材质之后要怎么才能渲染到窗口上\nmojang应该有轮子吧\n你可以翻一下MinecraftClient相关的field\n然后从你的mod加载图片 然后直接交给forge或者mojang渲染即可\n没人无聊会拿lwjgl写吧\n\n你只是绑定了纹理\n没有画出来\n而且我还不知道有没有删除纹理\n这个是我的大概的流程\n    public Texture2D(float[] vertices, float[] texCoords, String imagePath) throws IOException {\n        Util.checkGlError();\n        this.count = vertices.length >> 1;\n        this.vertices = vertices;\n        this.texCoords = texCoords;\n\n        texture = glGenTextures();\n        glBindTexture(GL_TEXTURE_2D, texture);\n        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);\n        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);\n        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);\n        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);\n        IntBuffer width = BufferUtils.createIntBuffer(1);\n        IntBuffer height = BufferUtils.createIntBuffer(1);\n        IntBuffer channels = BufferUtils.createIntBuffer(1);\n        STBImage.stbi_set_flip_vertically_on_load(true);\n        ByteBuffer data = STBImage.stbi_load_from_memory(Util.ioResFromJar(imagePath, 1024 * 1024), width, height, channels, 0);\n        glTexImage2D(GL_TEXTURE_2D, 0, channels.get(0) == 4 ? GL_RGBA : GL_RGB,\n                width.get(0), height.get(0), 0, channels.get(0) == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);\n        if (data != null) {\n            STBImage.stbi_image_free(data);\n        }\n        glGenerateMipmap(GL_TEXTURE_2D);\n\n        vbo = glGenBuffers();\n        vsh = ShaderManager.getVertexShader(\"commonTexture.vsh\");\n        fsh = ShaderManager.getFragmentShader(\"commonTexture.fsh\");\n        glBindBuffer(GL_ARRAY_BUFFER, vbo);\n        program = glCreateProgram();\n        glAttachShader(program, vsh.shader);\n        glAttachShader(program, fsh.shader);\n        glLinkProgram(program);\n        FloatBuffer floatBuffer = BufferUtils.createFloatBuffer(vertices.length + texCoords.length);\n        floatBuffer.put(vertices).put(texCoords).flip();\n        glBufferData(GL_ARRAY_BUFFER, floatBuffer, GL_STATIC_DRAW);\n\n        pPos = glGetAttribLocation(program, \"pos\");\n        pCoord = glGetAttribLocation(program, \"aTexCoord\");\n        pAlpha = glGetUniformLocation(program, \"alpha\");\n        Util.checkGlError();\n    }复制代码\n\n上面这个是创建\n\n下面的是渲染\n        glBindBuffer(GL_ARRAY_BUFFER, vbo);\n        glBindTexture(GL_TEXTURE_2D, texture);\n        glVertexAttribPointer(pPos, 2, GL_FLOAT, false, 2 * 4, 0);\n        glEnableVertexAttribArray(pPos);\n        glVertexAttribPointer(pCoord, 2, GL_FLOAT, false, 2 * 4, vertices.length << 2);\n        glEnableVertexAttribArray(pCoord);\n        glUseProgram(program);\n        glUniform1f(pAlpha, alpha);\n        glDrawArrays(GL_**S, 0, count);\n\n        glBindBuffer(GL_ARRAY_BUFFER, 0);复制代码\n\n因为要支持奇怪的gl版本 所以没有用inout（\nvsh\n\n\nattribute vec2 pos;\nattribute vec2 aTexCoord;\n\nvarying vec2 TexCoord;\n\nvoid main() {\n    gl_Position = vec4(pos, 0.0, 1.0);\n    TexCoord = aTexCoord;\n}复制代码\n\n\nfsh\nvarying vec2 TexCoord;\n\nuniform sampler2D ourTexture;\nuniform float alpha;\nvoid main() {\n    vec2 coord = vec2(TexCoord.x, TexCoord.y);\n    vec4 color = texture2D(ourTexture, coord);\n    color.a = alpha * color.a;\n    gl_FragColor = color;\n}复制代码"
+        }
+    ]
+}

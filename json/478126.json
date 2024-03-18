@@ -1,0 +1,504 @@
+{
+    "title": "Minecraft服务器优化教程 —— 让多带50%的玩家不再是梦",
+    "author": "jiongjionger",
+    "replyCount": 99,
+    "timestamp": 1438266060,
+    "txt_content": " 本帖最后由 jiongjionger 于 2018-8-22 16:11 编辑 \n\n* 零 - 系统的选择 *\n（网页后台可以跳过本段）关于系统的选择，Linux类系统（Centos、Redhat等）固然高效、稳定，但选择系统也一定要考虑到自己的熟悉程度和学习能力。不要盲目为了高效而选择一个自己完全不熟悉甚至从未使用过的系统，一旦出现了突发的情况，原本只需要几分钟解决的问题由于不熟悉系统的操作用几个小时来解决，这样真的合适么？对于规模不大的服务器，在内存足够使用的情况下，Windows和Linux开服的性能差距几乎可以忽略。但是如果你熟悉Linux的操作，我依然会推荐你使用Linux系统，毕竟大服需要的Bungeecord、Haproxy、Mysql、Redis等在Linux下的性能往往高过Windows不少。如果你有较强的学习能力，打算入坑Linux开服，我会推荐你使用Centos或者Redhat（稳定性突出、可靠性不俗、大量教程和文档）。\n\n* 一 - JVM版本的选择 *\n（网页后台可以跳过本段）JVM（Java Virtual Machine）也就是Java虚拟机，俗称Java运行环境。关于选择JRE还是JDK的选择，我推荐使用JDK，JDK包括运行环境（JRE），在此基础上增加了一些性能调优工具如VisualVM。而JVM的版本，非常不推荐使用Java6，因为有不少插件已经放弃了Java6的支持。Java7和Java8则是不错的选择，如果不是模组服务器，推荐使用Java8，Java8相比Java7主要的性能提升便在于HashMap上，而无论Minecraft服务端本身还是不少插件都大量使用了HashMap。所以对于Minecraft服务器来说，使用Java8带来的性能提升还是比较可观的。对于比较新的Java9和Java10目前来说并不建议使用，因为很多插件并没有兼容。\n* 二 - 服务端的选择 *\n从服务端的选择开始就注定了性能优劣的起步水平，现在依然有不少人认为CraftBukkit（水桶服）的兼容性、稳定性要远远好于Spigot（水龙头）。然而这是一个误区，Spigot是在CraftBukkit基础上优化而来的，几乎100%兼容原有的插件API，所以可以认为只要同版本水桶服能用的插件就可以在Spigot上运行。如果你选择使用1.7.10以下的版本开服（纯净服），强烈推荐你使用Spigot服务端，Spigot相比水桶服拥有近百项的优化，例如异步加载、读取区块，限制实体的活动范围，修复一些内存泄露的问题等等。所以同版本下可以很容易感受到Spigot有着更出色的性能和更低的内存占用。如果你开服的版本在1.8+，我会推荐你使用PaperSpigot服务端，这款服务端是在Spigot基础上优化而来的，相比Spigot有着显著的性能提升，并且有许多可自定义项目（船损坏依然掉落船，各种地形生成的开关等等）。在最后需要提醒的是，如果没有特殊原因，建议使用最新版本的服务端，最新版本的服务端往往修复了目前已知的绝大多数BUG和有着更多的性能提升。例如目前的1.8.8版本就比1.8.7多修复了数个可以卡服、蹦服的BUG（利用旗帜样式堆叠卡服等），1.12.2相比1.12就修复了合成书刷物品的问题。\n* PaperSpigot 服务端已经整理到网盘：http://pan.baidu.com/s/1eQpTqO6\n\n* 三 - 启动脚本 *\n\n（网页后台可以跳过本段）越多的启动参数反而导致越多的性能损耗。在不了解JVM工作原理的情况下，不要随随便便增加一大堆无用的启动参数。一般情况下指定最小内存、最大内存即可，Java7还需要指定一个大于等于128MB的MaxPermSize。GC回收模式等等参数都应该由JVM自动选择，例如国外论坛流传的使用G1GC可以优化MC性能，的确，G1GC减少了Full GC的时间，但是会额外增加10%~30%的CPU时间占用，完全得不偿失。还有流传很广的设置MaxGCPauseMillis参数。这个参数的含义是控制GC垃圾回收的最大时间。设置一个很小的数值的确从表面来看服务器没有瞬卡的问题了，但是这样会导致每次垃圾回收都不够深入和全面，这样的结果就是服务端运行时间越久越卡，而且很可能出现OOM（内存不够了）直接蹦服。\n例如Java7的开服参数可以是（大型插件非常多，MaxPermSize可以设置得更高）：-Xms最小内存 -Xmx最大内存 -XX:MaxPermSize=128M -XX:+AggressiveOpts\nJava8的参数可以是：-Xms最小内存 -Xmx最大内存 -XX:+AggressiveOpts\n* -XX:+AggressiveOpts的含义是尽可能的使用更多对性能有帮助的优化功能* -XX:+UseCompressedOops的含义是指针压缩，可以减少一定的内存占用（64位才支持）* 如果分配的内存大于等于4GB，建议使用 -XX:+UseG1GC 使用G1GC，并且把最小和最大内存设置为相同的大小\n* 四 - 参数的优化 *不要小瞧参数的修改带来的优化空间，有时候只修改一个参数，就是在线100人TPS19和TPS16的差距。参数的调整分别为server.properties(原版服务器就有)，bukkit.yml（水桶服或者衍生版就有），spigot.yml（Spigot或者衍生版就有），paper.yml(PaperSpigot才有)。\nserver.properties中可以优化性能的参数：\n view-distance，视距，默认值是10（对性能影响很大）。含义是玩家的视距也就是加载的区块范围，默认是10个区块，视距10加载的区块是视距5的四倍。加载更多的区块则需要更多的内存和运算能力。推荐将这个值设置在5或者6，如果在线人数非常多可以设置为4。降低视距可以有效减少内存的占用，也能有效提高TPS，还可以减少宽带的使用量。这个参数对性能提升是立竿见影的。\ngenerate-structures，默认值是true（对性能影响略大）。含义是生成和计算一些特殊的环境，例如女巫塔、村民到达数量生成铁傀儡等等。设置为false可以减少这些特殊环境生成和周期性检查带来的开销。这个参数很少被提起，但是对性能的提升有着不少的帮助。例如我的服务器生存子服有130人左右在线，TPS在17左右，关闭这个功能后提高到了19左右。需要彻底关闭这个参数，还需要在spigot.yml中把save-structure-info设置为false。并且关服后手动删除每个世界（例如world、world_nether、world_the_end）下的data文件夹里的Fortress.dat、Mineshaft.dat、Stronghold.dat、Temple.dat、Village.dat等文件。\nnetwork-compression-threshold，默认值是256（对性能影响视情况而定）。这个参数只有1.8的服务端才有，含义是网络封包压缩的阀值。例如设置为16，代表封包大于16才被压缩，设置成256代表着封包大于256才被压缩。设置的值越小则会压缩更多的封包，可以使得宽带使用减少，提高网络流畅程度，但是也会增加性能的开销。如果性能够用可以设置为128，使得更多通讯封包被压缩，一定程度上减少宽带使用率又不会带来太多的性能开销。设置的值太小，例如小于等于32会明显增加对性能的开销，不建议这么做。如果是Bungeecord服务器，并且子服都在内网下，可以把这个参数设置为-1，彻底关闭压缩，节约CPU使用量。\nbukkit.yml中可以优化性能的参数：\nspawn-limits，意思是限制实体的生成（对性能影响较大）。这个并不是限制一个区块生成多少实体，而是针对一个人可以生成多少实体。例如monsters: 70，在线人数只有10个人，则最多只能生成700个怪物实体（僵尸、骷髅、蜘蛛等等），适当的设置这些参数可以减少实体对性能的影响。一般建议生存服设置monsters为45~60，animals设置为10~15，water-animals设置为3，ambient设置为3。\nchunk-gc，控制着区块的回收（对性能影响一般），单位是Tick（1/20秒），period-in-ticks是指每过多少tick回收一次需要回收的区块，设置的太小会导致回收过于频繁而影响性能，设置的太大会导致需要回收的区块迟迟不回收使得内存占用过大。合理的数值一般是300~400。load-threshold是指达到多少需要回收的区块的时候才进行回收。例如设置成300，只有当需要回收的区块到达300以上才进行回收，合理的设置这个数值可以使得额外只多占用一丁点内存却使得区块回收的性能开销可以被无视。一般设置为300~600比较合适。\nautosave，自动保存存档（地图、玩家数据等）的周期，单位是Tick（1/20秒），如果你使用了定时保存的插件，例如Saveit、AutoSave等等，你可以将他设置为0，即关闭这个功能。这样可以减少服务器瞬卡发生的可能。如果您使用的是paper服务端，建议你使用服务端自带的定时保存功能，不要使用其他的保存插件，因为paper对自动保存做了很多优化，性能是目前最好的。\nspigot.yml中可以优化性能的参数：\nuser-cache-size，1.7.5以上版本才有，其控制用户缓存的大小（保存玩家名字和UUID的对应关系），如果你的服务器玩家很多，可以设置的更大一些，例如5000。如果你是离线模式的服务器，可以设置为0，关闭这个功能。\nsave-user-cache-on-stop-only，1.7.5以上版本才有，其含义是是否只在服务器关闭/重启的时候保存用户缓存，设置为true可以提高性能，但是中途蹦服可能导致数据丢失，所以不建议生存模式的服务器开启。\nview-distance，同server.properties里的view-distance一样。对性能影响很大，建议生存服设置为4或者5。\nchunks-per-tick，是指每tick（1/20秒）扫描计算多少区块，计算的内容是作物的生长。对性能影响较大，默认值是650，可以设置成350来提高性能。**的情况可以设置成150，但是会使得作物生长的速度明显变慢。在新版内已经被删除，但是你依然可以合理设置/gamerule randomTickSpeed的大小来提升性能，例如/gamerule randomTickSpeed 2（默认值为3）。\n* max-tick-time:  （仅较新的版本有该参数，如1.8.3+）是指每tick，实体和tile最多可以用的时间（单位是毫秒），对性能影响很大。要明白其含义首先要解释什么是TPS，TPS的意思是每秒有多少tick，最大值是20，也就是每秒tick20次，每次50毫秒。如果运算量过大导致每tick计算了超过了50毫秒，那么TPS就会下降，一旦TPS低于15就会产生明显的卡顿。在这参数中tile代表着熔炉、箱子、牌子、骷髅头等等所能占用的最大时间，entity是指的实体，例如动物、怪物、村民、展示框、掉落物、船、矿车等等。设置tile和entity的总和小于等于30则能明显降低tile和entity对TPS的影响，而服务器运算资源几乎一大半都是由这两者消耗的。设置tile为10，entity为20比较合适，如果实体非常多，还可以设置tile为6，entity为24。需要注意的是，新版的paper服务端设置max-tick-time是无效的，如果实体对你服务器的性能占用很大，你可以选择自己加回这个功能，或者直接使用spigot服务端。\nanti-xray，服务端自带的反透视功能，俗称假矿。对性能影响较大。这个功能相比插件版的假矿来说，额外内存占用极少，少到可以忽略，并且矿物的变动计算是异步进行的，对TPS的影响很小。engine-mode为1则是隐藏矿物，engine-mode为2则是将非矿物也伪装成矿物，engine-mode设置为2的效果最好，但是会额外吃一定的性能和宽带，但是engine-mode设置为1无法防御矿追。具体如何权衡请自行决定。如果你不需要本功能，例如你是纯RPG服务器，可以直接把enabled设置为false关闭这个功能，提高性能。新版的spigot已经不自带这个功能了，但是在1.12+的paper中自带本功能，并且是完全异步实现的，你不必担心对性能的影响（影响非常轻微）。\nnerf-spawner-mobs，简单来说就是让刷怪笼生成的怪物变成白痴，直观感受就是刷怪笼刷出的怪不能攻击了。默认为false，意思是不开启。设置为true可以获得一定的性能提升。如果你的服务器有很多利用刷怪笼做的刷怪场，设置为true可以带来不少的性能提升。\nentity-activation-range，这个参数是控制实体的活跃范围（性能影响很大），例如monsters: 32意思是在玩家附近32格范围内的怪物才会活跃（被计算AI等），减少这个数值可以明显提升性能，但是设置得过小会使得游戏难度大幅降低。一般可以把monsters设置为24，animals设置为12，misc设置为2（misc主要是掉落物，设置2可以使得掉落物几乎不再卡服）。\nentity-tracking-range，这个参数是控制实体的可见范围，这个参数不会影响性能，对宽带的影响也极小。不建议修改这个参数，但是适当的降低数值可以减少客户端的卡顿。\nrandom-light-updates，随机的光照更新（对性能影响略大），设置为true的话服务器会随机更新光照，并且在区块加载的第一个tick运算光照逻辑。设置为false可以提高不少性能。\nsave-structure-info，在前面已经介绍了。\nmax-bulk-chunks，1.7.10+才有这个参数，意思是每个数据封包里塞多少个区块。适当提高这个数值，例如从10提高到15可以减少网络卡顿和客户端读取区块的速度，但是设置得过高会导致客户端崩溃。\nmax-entity-collisions，实体碰撞箱的阀值。建议设置为1或者0，可以减少密集卡服的问题。（设置为0则直接关闭实体碰撞箱）\nmax-tnt-per-tick，每tick（1/20秒）最多计算多少TNT爆炸，设置为20可以显著防御TNT蹦服。\nticks-per：内有hopper-transfer、hopper-check控制漏斗的运算周期，如果你的服务器有大量的漏斗红石设备，都设置为8可以显著解决漏斗带来的卡顿问题。\nint-cache-limit：设置Integer的缓存，默认为1024，生存服特别是使用了其他的地形生成器的，设置为4096会有一定的性能提升。\nmerge-radius：掉落物、经验值的合并范围，建议把item设置为5.0，exp设置为6.0。如果你的服务器有一些自动化的刷怪设备，增大经验值和掉落物的合并范围可以减少掉落物的数量，一定程度上可以提升性能。\n\npaper.yml中可以优化性能的参数：\nkeep-spawn-loaded，spawn区块是否常驻内存，设置为false可以减少一定的内存占用和计算量\n* tick-next-tick-list-cap，每tick最大的运算量，减少数值可以提高TPS，例如设置为8000（新版已删除）\n* tick-next-tick-list-cap-ignores-redstone，达到上面的运算阀值是否无视红石运算，设置为true可以显著减少红石对服务器性能的影响。（新版已删除）\n* optimize-explosions，是否开启爆炸算法优化，设置为true可以提升一定的服务器性能\n* use-async-lighting，是否让光照的逻辑运算异步化，设置为true可以使得光照运算不再影响TPS，强烈推荐设置为true（新版已删除）\n* cache-chunk-maps，是否缓存chunkmaps，可以让区块的数据更多得被复用，可以一定程度提高性能，推荐设置为true（新版已删除）\nbungee-online-mode：离线服务器请关闭这个选项，否则可能导致玩家登陆、切换子服务器的时候卡顿几秒（服务器并不卡，只是玩家被阻塞）\nregion-file-cache-size：可以简单理解为存档文件的缓存大小，增大这个值并不会显著增加内存占用，生存服可以设置为512。\nqueue-light-updates：光照更新队列化，开启后可以减少光照计算对性能的影响，建议开启。\nhopper：cooldown-when-full，当漏斗链接的容器满了以后是否冷却一段时间，建议开启。disable-move-event，是否关闭InventoryMoveEvent事件，如果你没有漏斗保护等插件，可以关闭，但是还是建议不要关闭，可能带来一些兼容性的问题。push-based控制是掉落物自己找漏斗，还是漏斗找掉落物，建议开启。\ndelay-chunk-unloads-by：需要卸载的区块等待X秒以后再卸载。例如A玩家在自己领地种田，然后去主城售出，然后又回自己领地。这样延迟卸载就可以避免玩家领地的区块被卸载，又被加载。生存模式的服务器可以设置为30秒（30s）。\nallow-permanent-chunk-loaders：是否允许区块被永久加载，村民的一些计算会导致区块不被卸载，或者反复被加载、卸载。建议设置为false以避免卡顿。\ndisable-chest-cat-detection：开启箱子的时候，服务端会检测箱子上是否蹲着猫。建议设置为true关闭这个检测，以提高性能。\ncontainer-update-tick-rate：可以设置为2，来减缓容器刷新的周期，轻微提升性能\ngrass-spread-tick-rate：生存服务器总有一些人喜欢使用泥土和草方块铺地然后再建造房屋，你可以设置为4，减缓草方块在泥土中的扩散速度，减少卡顿。\nmob-spawner-tick-rate：控制刷怪笼的运算周期，建议设置为2~5以提高性能。\n\n* 五 - 优化插件的选择和一些插件建议 *\n服务器的主要性能开销在于实体的运算（往往占用了一半的CPU时间），所以定时清理实体（怪物、动物等）和限制密集卡服的插件对性能的帮助是最大的。我在这里厚颜无耻的推荐下自己的插件——NeverLag。具体功能请在此查看：http://www.mcbbs.net/thread-415779-1-2.html\n很多插件都支持使用Mysql来存储数据，例如CoreProtect、QucikShop、LWC等等，如果条件允许的话，请使用Mysql来代替文本数据库和Sqlite。这么做可以一定程度的提高服务器的流畅程度。\n安装插件的时候也不要太懒使用网页后台现成的插件或者使用论坛上搬运的网盘地址下载。请到bukkit或者spigot官网看看插件有无新版本。举个例子，RPG服常用插件MythicMobs很多服务器还在使用1.*的版本，然而目前最新版本为2.0.6。2.0.0相比1.*就有着不少的性能提升。2.0.5版本相比老版本的改动在于修复bug和大幅提高性能，2.0.6更是使得怪物技能和扫描异步化，明显提高了性能。所以说往往新版本的插件都意味着性能的提升和bug的修复，如果版本兼容，尽可能使用最新稳定版的插件。\n* 六 - 玩法也对性能有帮助 *\n官方设置一些玩家的聚居点（类似新手村）可以让一部分玩家集中在一起，可以使得加载的区块数量减少（玩家共享了视野），也能减少玩家跑图带来的性能开销。提供公共的刷怪场也能减少玩家自建刷怪场的几率，可以一定程度上使得服务器更为流畅，提供公共的农场饲养动物也有类似的效果。\n\n七 - 找出卡服的真凶\n1. 如何使用TimingTiming是Bukkit和其衍生服务端版本（Spigot、MCPC+、PaperSpigot等）自带的一种性能诊断工具，可以很方便的查看服务端的性能是由那些部分所消耗的，以图表形式还能直观的查看重点性能消耗大户，对于腐竹来说可以很方便的定位卡服的插件或者卡服的原因，对于插件开发者来说可以直接定位到性能不佳的程序方法（Function），方便优化插件性能。为了确保真实性，下面的演示全部在真实的服务器上操作，为了保护玩家隐私和密码安全，已**处理。\n要使用这个功能，首先你需要在服务器内或者直接在后台内输入指令 —— timings on 开启统计，具体如图所示：\n\n\n为了得到准确的统计结果，建议等待至少15分钟，如果是在瞬间卡顿的峰值附近，建议至少等待5分钟。\n在等待足够的时间后，输入指令 —— timings paste 稍等片刻，会生成一串网址，记下这个网址（图片已**）\n\n\n\n\n现在打开图中的网址，即可查看服务端的『性能分析报告』了。需要注意的时候，不需要使用的时候请使用 timings off 指令关闭性能统计，否则会带来不必要的性能损耗。\n\n2. 如何读懂Timing\n首先，我们打开刚刚生成的网址，我们先从基础的信息开始阅读。\n\n\n（点击可以查看大图）\n\nTotal是指从统计开始一共服务端运行的时间（由Ticks推算），Sample Time是指统计总时长。后面紧跟着的是服务端的版本信息，例如我的是PaperSpigot1.8.8，Average Entitys是平均实体的数量，表示形式是 活跃实体数量/总实体数量。一般而言只有活跃实体才会消耗CPU时间。Average Players是统计时间内平均这个服务端在线的人数（注意，是单个服务端的在线人数），例如我的是105.81人。Average TPS是统计时段内平均的TPS，例如我的是19.44。Server Load是指服务端负载水平。超过100%则意味着TPS会开始低于20的水平，一般超过150%就会有明显卡顿了。\n\n\n未完待续。。\n\n\n\n\n八 - 服务器硬件的选择待续...\n[afd]jiongjionger[/afd]\n\n\n",
+    "replies": [
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438306080,
+            "txt_content": "持续更新中。2楼占位备用"
+        },
+        {
+            "author": "denggezuishuai",
+            "timestamp": 1438308600,
+            "txt_content": "支持支持，教程特别有用！！！！{:10_492:}"
+        },
+        {
+            "author": "梦~",
+            "timestamp": 1438308660,
+            "txt_content": "支持膝盖 手撸辛苦啦！！！"
+        },
+        {
+            "author": "coby_Cola",
+            "timestamp": 1438308720,
+            "txt_content": "顶一个.刚好需要用下，楼主能叫我java8脚本具体咋写么"
+        },
+        {
+            "author": "Sakura小樱花",
+            "timestamp": 1438308720,
+            "txt_content": "好评的教程\n加油"
+        },
+        {
+            "author": "491960546",
+            "timestamp": 1438311720,
+            "txt_content": "前排支持！火钳刘明=-="
+        },
+        {
+            "author": "star_lord",
+            "timestamp": 1438313280,
+            "txt_content": "能. ..问个问题吗..\n16.07 18:15:54 [Server] WARNING Dimension:1\n16.07 18:15:54 [Server] WARNING Tiles Last Tick: 0\n16.07 18:15:54 [Server] WARNING Entities Last Tick: 0\n16.07 18:15:54 [Server] WARNING Loaded Chunks: 0 Active Chunks: 0 Entities: 0 Tile Entities: 0\n16.07 18:15:54 [Server] WARNING Dimension:0\n16.07 18:15:54 [Server] WARNING [TPS]: 19.3 Server Tick #650000\n16.07 18:15:54 [Server] WARNING Last Tick: 1437041731765 Current Time: 1437041754993 Warning: 20000 Timeout: 60000\n16.07 18:15:54 [Server] WARNING The server is going slow. Last server tick was 23228ms ago\n人多的时候经常蹦，后台输出这样的信息..\n请问是哪里出了问题"
+        },
+        {
+            "author": "SmartMadio",
+            "timestamp": 1438314300,
+            "txt_content": "好评占位，话说楼主的NeverLag还更新不？"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438317120,
+            "txt_content": "star_lord 发表于 2015-7-31 11:28\n能. ..问个问题吗..\n\n人多的时候经常蹦，后台输出这样的信息..\n这是你服务器卡了。 Last server tick was 23228ms ago 意思是你服务器运算上一个Tick是23秒以前的事情了，而正常的是1/20秒左右"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438318140,
+            "txt_content": "SmartMadio 发表于 2015-7-31 11:45\n好评占位，话说楼主的NeverLag还更新不？\n一直更新中。"
+        },
+        {
+            "author": "kqn2",
+            "timestamp": 1438319640,
+            "txt_content": "感谢楼主...真的..."
+        },
+        {
+            "author": "音乐家七月天",
+            "timestamp": 1438319700,
+            "txt_content": "看来是很辛苦才能写成这样。\n格式设计得不错。\nLZ辛苦了。\n希望更多服主可以看到这个。"
+        },
+        {
+            "author": "shenmadetoufa",
+            "timestamp": 1438323000,
+            "txt_content": "非常棒的教程\n有些问题我想咨询一下大神。\n关于PaperSpigot，在Spigot论坛上也有用户咨询. 说和spigot比起来怎么样。\n但spigot的开发人员回复说，不建议作为公共服务器使用，因为他的稳定性没有保证\nMD_5页回复说，不会对它提供任何支持和援助。\n那是否意味着目前来说，PaperSpigot仍是不稳定的服务端,不建议广泛使用呢\n附链接https://www.spigotmc.org/threads ... ey-different.45353/"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438324140,
+            "txt_content": "shenmadetoufa 发表于 2015-7-31 14:10\n非常棒的教程\n有些问题我想咨询一下大神。\n关于PaperSpigot，在Spigot论坛上也有用户咨询. 说和spigot比起 ...\nmd_5回复更多的含义是：这不是Spigot官方的一个分支，Spigot不会为其提供技术支持。\nPaperSpigot是在Spigot优化而来的。稳定性还是不错的。毕竟国外不少大服也开始从Spigot转到PaperSpigot了。"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438324380,
+            "txt_content": "音乐家七月天 发表于 2015-7-31 13:15\n看来是很辛苦才能写成这样。\n格式设计得不错。\nLZ辛苦了。\n感谢支持"
+        },
+        {
+            "author": "shenmadetoufa",
+            "timestamp": 1438324440,
+            "txt_content": "jiongjionger 发表于 2015-7-31 14:29\nmd_5回复更多的含义是：这不是Spigot官方的一个分支，Spigot不会为其提供技术支持。\nPaperSpigot是在Spig ...\n好的，十分感谢"
+        },
+        {
+            "author": "chencth",
+            "timestamp": 1438325100,
+            "txt_content": "强烈支持，又学到东西了"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438347600,
+            "txt_content": "chencth 发表于 2015-7-31 14:45\n强烈支持，又学到东西了\n感谢支持。"
+        },
+        {
+            "author": "SmartMadio",
+            "timestamp": 1438349580,
+            "txt_content": "shenmadetoufa 发表于 2015-7-31 14:34\n好的，十分感谢\npaperspigot搭建了个试了下，兼容性还不错。"
+        },
+        {
+            "author": "shenmadetoufa",
+            "timestamp": 1438349940,
+            "txt_content": "SmartMadio 发表于 2015-7-31 21:33\npaperspigot搭建了个试了下，兼容性还不错。\n根据spigot改的兼容性当然不错....主要看稳定性"
+        },
+        {
+            "author": "wjk13720041",
+            "timestamp": 1438351620,
+            "txt_content": "楼主好。。。求一个paperspigot，谢谢"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438352640,
+            "txt_content": "wjk13720041 发表于 2015-7-31 22:07\n楼主好。。。求一个paperspigot，谢谢\nhttp://tcpr.ca/files/paperspigot ... SNAPSHOT-latest.jar"
+        },
+        {
+            "author": "wjk13720041",
+            "timestamp": 1438352820,
+            "txt_content": "jiongjionger 发表于 2015-7-31 22:24\nhttp://tcpr.ca/files/paperspigot/PaperSpigot-1.8.7-R0.1-SNAPSHOT-latest.jar\n有没有1.8.1的。。。现在好多插件只支持1.8.1.。。。谢谢"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438353060,
+            "txt_content": "wjk13720041 发表于 2015-7-31 22:27\n有没有1.8.1的。。。现在好多插件只支持1.8.1.。。。谢谢\nhttp://tcpr.ca/files/paperspigot ... 1-SNAPSHOT-b235.jar"
+        },
+        {
+            "author": "wjk13720041",
+            "timestamp": 1438353120,
+            "txt_content": "jiongjionger 发表于 2015-7-31 22:31\nhttp://tcpr.ca/files/paperspigot/PaperSpigot-1.8-R0.1-SNAPSHOT-b235.jar\n{:10_512:}没1.8.1的么"
+        },
+        {
+            "author": "网络摆渡客",
+            "timestamp": 1438354140,
+            "txt_content": "又做贡献了！"
+        },
+        {
+            "author": "wjk13720041",
+            "timestamp": 1438354680,
+            "txt_content": "网络摆渡客 发表于 2015-7-31 22:49\n又做贡献了！\n{:10_493:}摆渡客。。。你那表情真是够了。。。。"
+        },
+        {
+            "author": "jin7568866",
+            "timestamp": 1438393680,
+            "txt_content": "非常棒的教程，囧囧乃服主福音"
+        },
+        {
+            "author": "jin7568866",
+            "timestamp": 1438393680,
+            "txt_content": "如何查找插件的占用 我记得有个网站可以查， 怎么查可以讲一下- -"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1438394700,
+            "txt_content": " 本帖最后由 liach 于 2015-8-1 10:10 编辑 \n\n话说mod服务器为什么不能用Java8?我记得那个bug1.6.4和1.7.10都修复了，1.7.2只要一个tweaker，在https://github.com/LexManos/LegacyJavaFixer/"
+        },
+        {
+            "author": "clovisk",
+            "timestamp": 1438398240,
+            "txt_content": "长知识了~233333"
+        },
+        {
+            "author": "clovisk",
+            "timestamp": 1438398360,
+            "txt_content": "长知识了~23333333"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438401120,
+            "txt_content": "liach 发表于 2015-8-1 10:05\n话说mod服务器为什么不能用Java8?我记得那个bug1.6.4和1.7.10都修复了，1.7.2只要一个tweaker，在https://g ...\n一部分MOD在Java8下无法工作。所以对于Mod服来说，选择Java7比较稳妥。"
+        },
+        {
+            "author": "cc58c58",
+            "timestamp": 1438401180,
+            "txt_content": "莫非那些付费优化是这么优化的？"
+        },
+        {
+            "author": "hj7332337",
+            "timestamp": 1438405020,
+            "txt_content": "非常棒的介绍"
+        },
+        {
+            "author": "WhiteGX",
+            "timestamp": 1438408260,
+            "txt_content": "jiongjionger 发表于 2015-7-31 09:28\n持续更新中。2楼占位备用\n膝盖在我胯下"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1438434180,
+            "txt_content": "强烈支持！特别有用！金粒和人气无法表达我的赞！\n我代表我的服务器全体玩家感谢你！！！\n支持支持！\n要求版主加精并放到版主推荐栏！！"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438437180,
+            "txt_content": "andylizi 发表于 2015-8-1 21:03\n强烈支持！特别有用！金粒和人气无法表达我的赞！\n我代表我的服务器全体玩家感谢你！！！\n支持支持！\n感谢支持。如果方便可以提供优化前后的TPS对比，在教程全部写完后会列举一些真实的数据。"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1438437420,
+            "txt_content": "jiongjionger 发表于 2015-8-1 21:53\n感谢支持。如果方便可以提供优化前后的TPS对比，在教程全部写完后会列举一些真实的数据。 ...\ntps我到是没发现有什么变化。。但是改了max-bulk-chunks为15后，地图区块的加载速度明显快了很多！之前如果随机传送到一个没加载的区块，那么肯定会先卡进虚空一会，再慢慢显示地图。现在，传送到的那个区块立刻就显示了，并且周围的也在1.5秒内加载完成。明显快了很多\n帖子里说，max-bulk-chunks、user-cache-size、 save-user-cache-on-stop-only这个设置是1.7.10+或1.7.5+服务器才有的，但是我的Spigot1.7.2-R0.4为何也有呀。。"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438437540,
+            "txt_content": "andylizi 发表于 2015-8-1 21:57\ntps我到是没发现有什么变化。。但是改了max-bulk-chunks为15后，地图区块的加载速度明显快了很多！之前如 ...\n可能有误，我等会下全部版本的spigot测试下。"
+        },
+        {
+            "author": "黄总",
+            "timestamp": 1438440120,
+            "txt_content": "感谢螺柱，大好人啊"
+        },
+        {
+            "author": "larsan",
+            "timestamp": 1438451100,
+            "txt_content": "缓解带宽压力除了视野、假矿之外，还有吗？"
+        },
+        {
+            "author": "linevil",
+            "timestamp": 1438486740,
+            "txt_content": "囧哥。。"
+        },
+        {
+            "author": "995473841",
+            "timestamp": 1438492680,
+            "txt_content": "跪谢大神"
+        },
+        {
+            "author": "KK44KK",
+            "timestamp": 1438529280,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438568100,
+            "txt_content": "KK44KK 发表于 2015-8-2 23:28\n楼主你的NeverLag插件装来没有用啊，没生成出配置文件。@jiongjionger\n为什么别人可以用呢。请从自身找原因，一般是下错编码版本"
+        },
+        {
+            "author": "KK44KK",
+            "timestamp": 1438569480,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438569540,
+            "txt_content": "KK44KK 发表于 2015-8-3 10:38\n服务器系统是windows server 2012的 \n下的是windows 1.3.0版本的插件\n装上后什么反应都没有，服务端也没 ...\n有两个编码的版本请下载合适的版本，也请注意前置插件"
+        },
+        {
+            "author": "cai1999627",
+            "timestamp": 1438576620,
+            "txt_content": "从Anti_Nightvision到Neverlag 再到这个教程\n谢谢LZ 你的几个帖子 我都受益匪浅"
+        },
+        {
+            "author": "RuiFen",
+            "timestamp": 1438599000,
+            "txt_content": "\n楼主加油"
+        },
+        {
+            "author": "cs1000",
+            "timestamp": 1438604220,
+            "txt_content": "就差服务器选择了  楼主在写吗  VPS的"
+        },
+        {
+            "author": "s915039544",
+            "timestamp": 1438609440,
+            "txt_content": "太棒了，已保存，都是新手腐竹所不知道的"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438612620,
+            "txt_content": "cs1000 发表于 2015-8-3 20:17\n就差服务器选择了  楼主在写吗  VPS的\n下次更新得到8号了。这几天要去外地"
+        },
+        {
+            "author": "cs1000",
+            "timestamp": 1438612740,
+            "txt_content": "jiongjionger 发表于 2015-8-3 22:37\n下次更新得到8号了。这几天要去外地\n楼主 neverlag 那个帖子我回复个图片 您看看对服务器有没有影响"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438613940,
+            "txt_content": "cs1000 发表于 2015-8-3 22:39\n楼主 neverlag 那个帖子我回复个图片 您看看对服务器有没有影响\n你下错编码版本了"
+        },
+        {
+            "author": "cs1000",
+            "timestamp": 1438614180,
+            "txt_content": "jiongjionger 发表于 2015-8-3 22:59\n你下错编码版本了\n行吧 谢了 期待vps挑选教程  "
+        },
+        {
+            "author": "star_lord",
+            "timestamp": 1438682340,
+            "txt_content": "jiongjionger 发表于 2015-7-31 12:32\n这是你服务器卡了。 Last server tick was 23228ms ago 意思是你服务器运算上一个Tick是23秒以前的事情了 ...\n这个问题很奇葩的困扰了我很久..\n在昨天更新了NeverLag之后似乎就解决掉了.."
+        },
+        {
+            "author": "18245386101",
+            "timestamp": 1438692180,
+            "txt_content": "{:10_516:}........"
+        },
+        {
+            "author": "quanueilun",
+            "timestamp": 1438695600,
+            "txt_content": "楼主，cauldron的服务端能介绍一下吗？"
+        },
+        {
+            "author": "asd4512132",
+            "timestamp": 1438745100,
+            "txt_content": "WhiteGX 发表于 2015-8-1 13:51\n膝盖在我胯下\n抢经验走啊"
+        },
+        {
+            "author": "没名字取了",
+            "timestamp": 1438746600,
+            "txt_content": "服务器ID错乱了 本来应该是钻石箱子变成了铜矿石之类的 求救 急求啊"
+        },
+        {
+            "author": "ne_star",
+            "timestamp": 1438747380,
+            "txt_content": "强帖，学习了，跟进更新。感谢分享。"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438764300,
+            "txt_content": "没名字取了 发表于 2015-8-5 11:50\n服务器ID错乱了 本来应该是钻石箱子变成了铜矿石之类的 求救 急求啊\nMOD导致的"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1438791660,
+            "txt_content": "jiongjionger 发表于 2015-7-31 09:28\n持续更新中。2楼占位备用\n我想问一下那个参数怎么用-XX:+AggressiveOpts -XX:+UseCompressedOops"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438826700,
+            "txt_content": "lumingjie98 发表于 2015-8-6 00:21\n我想问一下那个参数怎么用-XX:+AggressiveOpts -XX:+UseCompressedOops\n直接加在启动参数后面"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1438828080,
+            "txt_content": "jiongjionger 发表于 2015-8-6 10:05\n直接加在启动参数后面\n可是感觉启动出来怪怪的可否直接给个实例"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1438857780,
+            "txt_content": "我想问一下楼主关于有时候会卡在uuid然后导致服务器连接超时是什么情况"
+        },
+        {
+            "author": "幼猫",
+            "timestamp": 1438858260,
+            "txt_content": "国内大部分服务器是网页后台的\n服务器硬件的选择这我相信肯定都选性能高的= =\n对于国内来讲，这个教程的好几部分基本没什么用"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438860840,
+            "txt_content": "ty123456 发表于 2015-8-6 18:51\n国内大部分服务器是网页后台的\n服务器硬件的选择这我相信肯定都选性能高的= =\n对于国内来讲，这个教程的好 ...\n那只能你没接触过大服的圈子"
+        },
+        {
+            "author": "幼猫",
+            "timestamp": 1438860840,
+            "txt_content": "jiongjionger 发表于 2015-8-6 19:34\n那只能你没接触过大服的圈子\n只对一些群组服（云服务器）有效\n而且有的还是租VPS的……\n自己购买服务器的很少"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1438863960,
+            "txt_content": "ty123456 发表于 2015-8-6 19:34\n只对一些群组服（云服务器）有效\n而且有的还是租VPS的……\n自己购买服务器的很少 ...\n参数部分对所有服务器有效，其他部分除开没有写的硬件选择，对VPS和云服务器均有效"
+        },
+        {
+            "author": "mcbbs2050",
+            "timestamp": 1438922460,
+            "txt_content": "求更新！"
+        },
+        {
+            "author": "zhouchengzhe",
+            "timestamp": 1438942740,
+            "txt_content": "很好的帖子"
+        },
+        {
+            "author": "cc58c58",
+            "timestamp": 1438946400,
+            "txt_content": "PaperSpigot服务端没有1.8么  只有1.8.3以上？"
+        },
+        {
+            "author": "cs1000",
+            "timestamp": 1438959180,
+            "txt_content": "楼主 就差服务器硬件问题了 希望明天您能休息下来"
+        },
+        {
+            "author": "疯狂熊",
+            "timestamp": 1439012040,
+            "txt_content": "楼主，mcpc +的服务端能介绍一下吗？\n"
+        },
+        {
+            "author": "CREALANE",
+            "timestamp": 1439075100,
+            "txt_content": "很想开一个自己的服务器，以前和一个不认识麦友一起开被黑了好多钱，现在想想好心塞。"
+        },
+        {
+            "author": "LK520",
+            "timestamp": 1439077080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1439128680,
+            "txt_content": "cc58c58 发表于 2015-8-7 19:20\nPaperSpigot服务端没有1.8么  只有1.8.3以上？\n有啊。不是给了一个网盘地址么"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1439135820,
+            "txt_content": "jiongjionger 发表于 2015-8-6 20:26\n参数部分对所有服务器有效，其他部分除开没有写的硬件选择，对VPS和云服务器均有效 ...\n我想问一下楼主关于有时候会卡在uuid然后导致服务器连接超时是什么情况"
+        },
+        {
+            "author": "樱殇Sakura",
+            "timestamp": 1439139360,
+            "txt_content": "神贴不顶还是人？"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1439172240,
+            "txt_content": "lumingjie98 发表于 2015-8-9 23:57\n我想问一下楼主关于有时候会卡在uuid然后导致服务器连接超时是什么情况\n转换UUID和获取UUID有时候需要请求MC官方服务器的API，有时候超时很正常"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1439173500,
+            "txt_content": "jiongjionger 发表于 2015-8-10 10:04\n转换UUID和获取UUID有时候需要请求MC官方服务器的API，有时候超时很正常\n可是整个服务器的人都因为一个人卡在那里导致全服玩家弹出"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1439174280,
+            "txt_content": "lumingjie98 发表于 2015-8-10 10:25\n可是整个服务器的人都因为一个人卡在那里导致全服玩家弹出\n应该是插件获取UUID吧。服务端获取UUID是异步的，不会导致其他玩家弹出去或者影响TPS"
+        },
+        {
+            "author": "lumingjie98",
+            "timestamp": 1439177760,
+            "txt_content": "jiongjionger 发表于 2015-8-10 10:38\n应该是插件获取UUID吧。服务端获取UUID是异步的，不会导致其他玩家弹出去或者影响TPS ...\n好吧，我查查看吧。。。。"
+        },
+        {
+            "author": "wudi980238234",
+            "timestamp": 1439300040,
+            "txt_content": "lumingjie98 发表于 2015-8-10 11:36\n好吧，我查查看吧。。。。\n本人的服务器也有类似此问题 能否请您发一下贵服的插件列表和Mod列表(如有)。我对应这边对照一下 试试能不能找出根源"
+        },
+        {
+            "author": "xie__bi",
+            "timestamp": 1439309580,
+            "txt_content": "好赞，真有用，顶顶顶顶顶"
+        },
+        {
+            "author": "Tanglok",
+            "timestamp": 1439321520,
+            "txt_content": "感谢分享。。"
+        },
+        {
+            "author": "KK44KK",
+            "timestamp": 1439341680,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "百里—周哥",
+            "timestamp": 1439373960,
+            "txt_content": "我咋没paper.yml"
+        },
+        {
+            "author": "z魔",
+            "timestamp": 1439374380,
+            "txt_content": "看不懂\n昂昂昂昂昂"
+        },
+        {
+            "author": "Sue_",
+            "timestamp": 1439391780,
+            "txt_content": "\n\n我按照Timing的方法结果打不开网址。。\n这个要怎么办？"
+        },
+        {
+            "author": "sd_leilei@163.c",
+            "timestamp": 1439426280,
+            "txt_content": "非常支持！！！"
+        },
+        {
+            "author": "海牛的麻烦",
+            "timestamp": 1439475840,
+            "txt_content": "虽然已经不开服了，但是良心贴必须收藏"
+        },
+        {
+            "author": "远V远",
+            "timestamp": 1439688720,
+            "txt_content": "好在看到这个帖子，不然服务器一直很卡"
+        },
+        {
+            "author": "远V远",
+            "timestamp": 1439701380,
+            "txt_content": "昨天刚试了一下，真心不错，再加上Ess插件，太棒了"
+        },
+        {
+            "author": "力挽狂澜99v",
+            "timestamp": 1439709000,
+            "txt_content": "学到了不少的东西"
+        },
+        {
+            "author": "风中小筑",
+            "timestamp": 1439907480,
+            "txt_content": "楼主好帅~~~~我好崇拜~~"
+        },
+        {
+            "author": "TheFishing",
+            "timestamp": 1439961180,
+            "txt_content": "默默地点了收藏……"
+        }
+    ]
+}

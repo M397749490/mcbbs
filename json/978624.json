@@ -1,0 +1,109 @@
+{
+    "title": "另一种熔炉NBT配方的解决方案",
+    "author": "ruhuasiyu",
+    "replyCount": 20,
+    "timestamp": 1583500260,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2020-3-16 11:06 编辑 \n\n之前，我们可以通过添加相应配方，然后检测物品将要烧炼完毕时来替换产物并清理待烧炼物。这种做法的局限性一是若要求待烧炼物含指定NBT，则必须添加该物品的的烧炼配方，这就导致即使没有相应的NBT也会烧炼，个人建议为原物品也添加合理的烧炼配方，或者烧炼配方的产物和待烧炼物相同，同时不奖励经验值；二是即使产物应当可堆叠也无法正常堆叠，这时需配合漏斗等设备传输方可持续烧炼。\n情形添加配方注意事项原版物品A->NBT物品BA->B在烧炼即将完成时生成产物。NBT物品A->原版物品BA->B同上一条。对于原版物品A，还需要清理产物或添加其它合适的烧炼效果。A->C同上一条。产物无法堆叠，需配合漏斗等设备传输方可持续烧炼。NBT物品A->NBT物品BA->B同上上条。若有其它烧炼配方可以得到原版物品B，则进行相应配方烧炼时的产物会直接变为NBT物品B，因此要排除这种情形。A->C同前两条。\n然后 @chaoren019 提醒我应该可以通过“检测待烧炼槽位为指定nbt时，用计分板储存烧炼刻数和燃料剩余时间，模拟烧炼过程，而跳过添加配方”，我便试着做了一下。\n\n检测燃料的燃烧值需要生成一个放置有铁矿石的熔炉，然后等待1tick获取其BurnTime。我们将熔炉原有物品信息记录在盔甲架主手上，只是在计算时会导致熔炉内物品闪烁一下。此外该方法在更换不同燃烧值物品时，燃烧火焰条会有所变化，这和通常烧炼配方有差异。\n\n首先在放置熔炉时为标记的盔甲架添加手持物来记录燃料的变化。\ncpp:tickexecute as @e[type=armor_stand,tag=cpp_furnace] at @s run function cpp:furnace/check\ncpp:furnace/tickexecute unless block ~ ~ ~ furnace run kill @s\nexecute as @s[tag=cpp_check_fuel] run function cpp:furnace/fuel_get\nexecute unless predicate cpp:furnace/outfull if predicate cpp:furnace/furnace run function cpp:furnace/type\ncpp:furnace/type# 燃料改变\nexecute as @s[tag=cpp_check_fuel] run function cpp:furnace/fuel_get\nexecute if data block ~ ~ ~ Items[{Slot:1b}] run function cpp:furnace/fuel_change_check\n# 消耗燃料\nexecute as @s[tag=!cpp_check_fuel] if block ~ ~ ~ furnace{BurnTime:0s,Items:[{Slot:1b}]} run function cpp:furnace/fuel_use\n# 进度 高炉、烟熏炉每次加2\nexecute unless block ~ ~ ~ furnace{BurnTime:0s} store result block ~ ~ ~ CookTime short 1 run scoreboard players add @s cppTick 1\nexecute if score @s cppTick matches 200.. run function cpp:furnace/done\n# 停止\nexecute if block ~ ~ ~ furnace{BurnTime:0s} run scoreboard players reset @s cppTick\n# 发光\nexecute as @e[type=armor_stand,tag=cpp_furnace] at @s if block ~ ~ ~ furnace[lit=false] unless block ~ ~ ~ furnace{BurnTime:0s} run function cpp:furnace/lit_true\nexecute as @e[type=armor_stand,tag=cpp_furnace] at @s if block ~ ~ ~ furnace[lit=true]{BurnTime:0s} run function cpp:furnace/lit_false\n当检测到燃料改变时，重新计算燃烧值。\ncpp:furnace/fuel_gettag @s remove cpp_check_fuel\nexecute store result score @s cppValue run data get block ~ ~ ~ BurnTime\nreplaceitem block ~ ~ ~ container.0 air\ndata modify block ~ ~ ~ {} merge from entity @s HandItems[0].tag.storage\ncpp:furnace/fuel_change_checkexecute store result score #change cppValue run data modify entity @s HandItems[0].tag.id set from block ~ ~ ~ Items[{Slot:1b}].id\nexecute if score #change cppValue matches 1 run function cpp:furnace/fuel_change\ncpp:furnace/fuel_changedata modify entity @s HandItems[0].tag.storage set from block ~ ~ ~\nreplaceitem block ~ ~ ~ container.0 iron_ore\nreplaceitem block ~ ~ ~ container.2 air\ntag @s add cpp_check_fuel\ncpp:furnace/fuel_useexecute store result block ~ ~ ~ BurnTime short 1 run scoreboard players get @s cppValue\nexecute store result block ~ ~ ~ Items[{Slot:1b}].Count byte 1 run data get block ~ ~ ~ Items[{Slot:1b}].Count 0.9999\n烧炼完毕时，通过战利品表生成产物，注意不能直接 loot replace 进熔炉的输出槽。烧炼完成时添加获取经验的配方记录，这里我们统一设定为每次0.15点，可以根据需要实现不同配方不同经验值。\ncpp:furnace/doneexecute if data block ~ ~ ~ Items[{Slot:2b}] store result block ~ ~ ~ Items[{Slot:2b}].Count byte -1 run data get block ~ ~ ~ Items[{Slot:2b}].Count -1.0001\nexecute unless data block ~ ~ ~ Items[{Slot:2b}] run function cpp:furnace/done_loot\nexecute store result block ~ ~ ~ Items[{Slot:0b}].Count byte 1 run data get block ~ ~ ~ Items[{Slot:0b}].Count 0.9999\nscoreboard players reset @s cppTick\ndata modify block ~ ~ ~ CookTime set value 0s\nexecute store result score #t cppValue run data get block ~ ~ ~ RecipesUsed.\"minecraft:charcoal\"\nexecute store result block ~ ~ ~ RecipesUsed.\"minecraft:charcoal\" int 1 run scoreboard players add #t cppValue 1\ncpp:furnace/done_lootclone ~ ~ ~ ~ ~ ~ ~ 255 ~\nloot replace block ~ 255 ~ container.0 loot cpp:furnace/furnace\ndata modify block ~ 255 ~ Items[{Slot:0b}].Slot set value 2b\ndata modify block ~ ~ ~ Items append from block ~ 255 ~ Items[{Slot:2b}]\nsetblock ~ 255 ~ air\n修改熔炉的火焰外观。\ncpp:furnace/lit_truedata modify storage cpp:furnace {} merge from block ~ ~ ~ {}\nexecute if block ~ ~ ~ furnace[facing=east] run setblock ~ ~ ~ furnace[lit=true,facing=east]\nexecute if block ~ ~ ~ furnace[facing=west] run setblock ~ ~ ~ furnace[lit=true,facing=west]\nexecute if block ~ ~ ~ furnace[facing=south] run setblock ~ ~ ~ furnace[lit=true,facing=south]\nexecute if block ~ ~ ~ furnace[facing=north] run setblock ~ ~ ~ furnace[lit=true,facing=north]\ndata modify block ~ ~ ~ {} merge from storage cpp:furnace {}\ncpp:furnace/lit_falsedata modify storage cpp:furnace {} merge from block ~ ~ ~ {}\nexecute if block ~ ~ ~ furnace[facing=east] run setblock ~ 255 ~ furnace[lit=false,facing=east]\nexecute if block ~ ~ ~ furnace[facing=west] run setblock ~ 255 ~ furnace[lit=false,facing=west]\nexecute if block ~ ~ ~ furnace[facing=south] run setblock ~ 255 ~ furnace[lit=false,facing=south]\nexecute if block ~ ~ ~ furnace[facing=north] run setblock ~ 255 ~ furnace[lit=false,facing=north]\ndata modify block ~ ~ ~ {} merge from storage cpp:furnace {}\n使用断言和战利品表来记录配方。这里断言需要分输出栏空和输出栏为相应产物两种情形。\ncpp/loot_tables/furnace/outfull.json{\n        \"condition\": \"minecraft:location_check\",\n        \"predicate\": {\n                \"block\": {\n                        \"nbt\": \"{Items:[{Slot:2b,Count:64b}]}\"\n                }\n        }\n\ncpp/loot_tables/furnace/furnace.json{\n        \"pools\": [\n                {\n                        \"rolls\": 1,\n                        \"entries\": [\n                                {\n                                        \"type\": \"minecraft:alternatives\",\n                                        \"children\": [\n                                                {\n                                                        \"conditions\": [\n                                                                {\n                                                                        \"condition\": \"minecraft:location_check\",\n                                                                        \"predicate\": {\n                                                                                \"block\": {\n                                                                                        \"nbt\": \"{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}}]}\"\n                                                                                 }\n                                                                         }\n                                                                 }\n                                                         ],\n                                                         \"type\": \"minecraft:loot_table\",\n                                                         \"name\": \"cpp:cooked_bear_meat\"\n                                                }\n                                        ]\n                                }\n                        ]\n                }\n        ]\n}\ncpp/predicates/furnace/furnace1.json{\n        \"condition\": \"minecraft:alternative\",\n        \"terms\": [\n                {\n                        \"condition\": \"minecraft:location_check\",\n                        \"predicate\": {\n                                \"block\": {\n                                        \"nbt\": \"{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}}]}\"\n                                }\n                        }\n                }\n        ]\n}\ncpp/predicates/furnace/furnace.json{\n        \"condition\": \"minecraft:alternative\",\n        \"terms\": [\n                {\n                        \"condition\": \"minecraft:inverted\",\n                        \"term\": {\n                                \"condition\": \"minecraft:alternative\",\n                                \"terms\": [\n                                        {\n                                                \"condition\": \"minecraft:inverted\",\n                                                \"term\": {\n                                                        \"condition\": \"minecraft:reference\",\n                                                        \"name\": \"cpp:furnace/furnace1\"\n                                                }\n                                        },\n                                        {\n                                                \"condition\": \"minecraft:location_check\",\n                                                \"predicate\": {\n                                                        \"block\": {\n                                                                \"nbt\": \"{Items:[{Slot:2b}]}\"\n                                                        }\n                                                }\n                                        }\n                                ]\n                        }\n                },\n                {\n                        \"condition\": \"minecraft:location_check\",\n                        \"predicate\": {\n                                \"block\": {\n                                        \"nbt\": \"{Items:[{Slot:0b,tag:{id:'cpp:bear_meat'}},{Slot:2b,tag:{id:'cpp:cooked_bear_meat'}}]}\"\n                                }\n                        }\n                }\n        ]\n}\n\n \n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1583505900,
+            "txt_content": "对不起 不想动脑子了\n但是输出槽满64会出错吗？"
+        },
+        {
+            "author": "Ph-苯",
+            "timestamp": 1583506560,
+            "txt_content": "（小白发言）\n放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？\n我通常在远处强加载一个区块用来放方块，所有我开发的模组都使用同一个区块。"
+        },
+        {
+            "author": "聖夢韜",
+            "timestamp": 1583543640,
+            "txt_content": "厉害厉害啊"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1583577900,
+            "txt_content": "七刀月复 发表于 2020-3-6 22:56\n（小白发言）\n放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？\n我通常在远处强加载一个 ...\n放置的时候会卡一下"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1583578560,
+            "txt_content": "由于没有实测，只能在这里理论推理一下（顺便占个楼）：\n1、类比于潜影盒戏法，为什么放置熔炉会卡，放潜影盒不卡？\n2、如果不在高处放置熔炉，直接将熔炉输入、输出、烧炼进度用数据暂存起来，直接在原熔炉上搞个铁矿石（为避免视觉上有差错，可设置空白材质），然后将上述数据存回去，是否可以避免问题？"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1583632740,
+            "txt_content": "chaoren019 发表于 2020-3-7 18:56\n由于没有实测，只能在这里理论推理一下（顺便占个楼）：\n1、类比于潜影盒戏法，为什么放置熔炉会卡，放潜影 ...\n1 因为潜影盒是即用即毁，而熔炉会存在1tick\n\n2 我试试吧"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1583632740,
+            "txt_content": "七刀月复 发表于 2020-3-6 22:56\n（小白发言）\n放置方块很卡？是指在255放置方块会导致亮度变化吗？放基岩层如何？\n我通常在远处强加载一个 ...\n放置方块就是会卡，除非方块在1tick内就处理完了销毁了"
+        },
+        {
+            "author": "沈念6",
+            "timestamp": 1583633880,
+            "txt_content": "dddddddddddddddddddddddddd"
+        },
+        {
+            "author": "Ph-苯",
+            "timestamp": 1583641320,
+            "txt_content": "ruhuasiyu 发表于 2020-3-8 09:59\n放置方块就是会卡，除非方块在1tick内就处理完了销毁了\n那可以专门使用一个特殊位置的方块吗？不需要每次检测都放置，只要在模组加载时放置就行。"
+        },
+        {
+            "author": "非酋longes",
+            "timestamp": 1583652180,
+            "txt_content": "虽然看不懂但是666666就完事了"
+        },
+        {
+            "author": "dv123321",
+            "timestamp": 1583661540,
+            "txt_content": "感觉用处不是恒大  主要是卡服就是最大的弊病 如果整改搭配其他插件 应该能有更大的发挥作用"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1583719020,
+            "txt_content": "dv123321 发表于 2020-3-8 17:59\n感觉用处不是恒大  主要是卡服就是最大的弊病 如果整改搭配其他插件 应该能有更大的发挥作用 ...\n命令并不多，并不卡"
+        },
+        {
+            "author": "ZYXZH",
+            "timestamp": 1583722140,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "基哥Grumm",
+            "timestamp": 1584335040,
+            "txt_content": "也就是说\n能够自定义熔炉的烧炼配方以及产物吗\n例如把腐肉丢进去烧成泥土也可以实现吗"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1584415500,
+            "txt_content": " 本帖最后由 隐退 于 2020-3-17 11:33 编辑 \n之前，我们可以通过添加相应配方，然后检测物品将要烧炼完毕时来替换产物并清理待烧炼物。u1s1，我觉得之前的方法挺好的，连接口都不用 \n这种做法的局限性二是即使产物应当可堆叠也无法正常堆叠。我觉得这个问题应该可以修，直接用 scoreboard 和 execute store 命令改数量（"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1584417120,
+            "txt_content": "隐退 发表于 2020-3-17 11:25\nu1s1，我觉得之前的方法挺好的，连接口都不用 \n我觉得这个问题应该可以修，直接用 scoreboard 和 e ...\n你说的我都考虑过，熔炉有一个特性，如果a烧成b，那么无论输出栏的b有什么nbt都会烧a然后输出栏数量直接+1"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1584419400,
+            "txt_content": " 本帖最后由 隐退 于 2020-3-17 13:27 编辑 \n\n想了一下，问题应该是在熔炼过程中更换物品（将带 NBT 的物品换成不带 NBT 或带不同 NBT 的 id 相同的物品）并不会更换产物。我觉得接口还是让（原版模组）整合包作者来写比较好（"
+        },
+        {
+            "author": "zzl2010",
+            "timestamp": 1584691500,
+            "txt_content": "谢谢            "
+        },
+        {
+            "author": "qiuyang0191",
+            "timestamp": 1585053180,
+            "txt_content": "我只能说666来表示对大佬的敬佩之情"
+        },
+        {
+            "author": "知雨晓雨",
+            "timestamp": 1585073880,
+            "txt_content": "喜欢喜欢we全文"
+        }
+    ]
+}

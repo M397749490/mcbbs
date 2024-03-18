@@ -1,0 +1,184 @@
+{
+    "title": "[1.7.2-1.7.10][AnnotationRegistry][API]刷新你的mod的注册方式！",
+    "author": "DeathWolf96",
+    "replyCount": 35,
+    "timestamp": 1426277280,
+    "txt_content": " 本帖最后由 C似水流年 于 2016-11-7 21:46 编辑 \n\n\nLambda Innovation，专注开发黑科技100年（雾\n\nAnnotation Registry 是一个辅助型的Coremod API。这个Mod可以让其他Mod使用一种全新的基于Annotation的注册方式。\n先别被上面的这个说明吓到，AnnoReg的开发意图十分明确：帮助modder提高代码效率，减少boilerplate（重复代码）。\n\n在Minecraft的Mod开发中，需要注册很多不同种类的对象，包括物品(Item)、方块(Block)、实体(Entity)等等。对于小型Mod，这些对象的定义和注册可以很方便地放在主类中。但对于大型Mod而言，集中放置的大量的注册信息会使代码难以维护。而Annotation Registry就是为了解决这个集中注册的问题而编写的。使用Annotation Registry，各个物品、方块可以用更加简短的代码进行注册，并且可以分散在多个class中。\n\n使用Annotation Registry的好处包括：\n短而清晰的代码。优化的注册接口（如Block可以和OreDict一同注册）。注册可以分散在不同的class中而无需集中处理，使得大型Mod真正实现模块化。（去耦合）可以使用一些MC和Forge没有直接提供的接口，譬如对象序列化传输以及远程函数调用。\n\n\nAnnoReg支持的注册类型包括：\n·物品 （自定义oreDict、自定渲染器、自动分配贴图和名称）\n·方块 （自定义oreDict、自定渲染器、自动分配贴图和名称）\n·实体（自定渲染器）\n·GUI（内部管理GuiID，使用GuiHandlerBase实例打开GUI）\n·设置对象（从设置读取某个值，然后加载到某个实例里）\n·合成表\n·地牢生成（ChestContent）\n·地图生成（WorldGen）\n·……\n\n\n总之，AnnoReg基本完成了对MC所有类型的内容的注册，在覆盖范围方面应该没什么问题。\n如果没有找到你想要的注解，你还可以自己定义注册注解！AnnoReg的注解索引会帮你省去非常多的工作。\n\nAnnoReg现在正处于beta测试阶段，其功能和特性还在不断完善中。\n\n还不太确定这个Mod能干什么？那么我们来看几个使用AnnoReg的代码实例吧。\n*前方大量代码预警，如果你是来下载依赖的玩家请直接转下载区=w=\n\nI、批量注册物品\n\nmodder一般都会用一个类存放自己的所有静态物品实例，方便在运行时从其他地方引用，同时会在里面放置一个用于加载所有物品实例的init函数，从mod主类调用：\npublic class MyModItems {\npublic static ItemA itemA;\npublic static ItemB itemB;\n\npublic static ItemC itemC;\n\npublic static ItemD itemD;\n\n......\n\n\npublic static void init() {\n//加载实例\nitemA = new MyItemA();\nitemB = new MyItemB();\n.....\n\n\n//注册物品实例\nGameRegistry.registerItem(itemA);\nGameRegistry.registerItem(itemB);\n....\n}\n}\n注意到麻烦的地方了吧？没加载一个物品居然都得顺带调用一次GameRegistry.registerItem()，为了添加一个功能，需要维护4处的代码。\n\n使用了AnnoReg以后，我们的MyModItems类是这样写的：\n@RegistrationClass\npublic class MyModItems {\n@RegItem\npublic static ItemA itemA;\n@RegItem\npublic static ItemB itemB;\n@RegItem\npublic static ItemC itemC;\n...\n}\n只需要在你的静态域上加上＠RegItem注解，AnnoReg就会在注册阶段自动接管这个域并且加载你的物品。\n\n\nII、注册GUI\n\n丢掉你的IGuiHandler和一长串的switch吧，这可是有面向对象的java语言！使用了AnnoReg以后，你可以用我们的GuiHandlerBase对象来打开GUI，你只需要实现一个GuiHandlerBase对象，并且覆盖其打开gui的方法即可。\n例如，以下是AnnoReg中用方块打开GUI的实现：\n@RegistrationClass\npublic class GuiBlock extends Block {\n//...\n@RegGuiHandler\npublic static GuiHandlerBase guiHandler = new GuiHandlerBase() {\n@Override\npublic getClientGui() { return new MyGui(); }\n}\npublic void onBlockActivated(World world, Block block, EntityPlayer player, ...) {\nif(...) return; //检查能否打开gui\nif(world.isRemote) {\nguiHandler.openClientGui(); //打开gui!\n}\n}\n}\n\n\nIII、注册IMessage（发包）\n\nAnnoReg可以自动为你接管Forge提供的SimpleChannelWrapper, 并且为你管理每个IMessage的标识符（discriminator），前提是你在服务端和客户端注册的信息严格一致。\n@RegistrationClass\npublic class SomeMessage implements IMessage {\n//...\n@RegMessageHandler(msg = SomeMessage.class, side = Side.CLIENT)\npublic static class Handler implements IMessageHandler<SomeMessage, IMessage> {\n//...\n}\n}\n\n\n以下是一些使用或即将使用AnnoReg的mod：\n\nLambdaCraft  \nAcademyCraft\n\n\n下载\n\n当前版本：1.0beta\n适用版本：MC1.7.2/1.7.10\n*1.7.10未经测试，请谨慎使用w\n\n下载地址：主要 (*)    dev (*)\nGithub tag：https://github.com/LambdaInnovation/AnnotationRegistry/tree/1.0beta\n\n\n历史版本\n\nN/A\n\n\n开源信息和开发者文档\n作为一个API，AnnoReg是完全开源的。你可以在https://github.com/LambdaInnovation/AnnotationRegistry 查看和参考它的源代码，也可以在GPL开源协议的适用条件内复用这些源代码。\n开发者文档已经存放在同一个repo中，然而现在内容稍显不完善。我们会尽快完善中文的API文档，还请作为开发者的你也积极的为我们提出建议=3=\n\n团队和其他\n以下成员参与了AnnoReg的设计、编写和维护：\nacalyWeAthFolDKSkun\n如果你是一位modder，也希望能在使用AnnoReg的过程中给我们提供反馈和建议，让AnnoReg变得更好用（更黑科技）！\n",
+    "replies": [
+        {
+            "author": "qiu1995",
+            "timestamp": 1426278180,
+            "txt_content": "非常赞~另外能否透露一下AcademyCraft预计什么时候发布吗？"
+        },
+        {
+            "author": "xiaope",
+            "timestamp": 1426280640,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "zx8673",
+            "timestamp": 1426280760,
+            "txt_content": "这是Forge？"
+        },
+        {
+            "author": "zx8673",
+            "timestamp": 1426281540,
+            "txt_content": "总之看了看好像就是优化MOD加载代码的东东？可以减少服务器崩溃和增加流畅吗。。。"
+        },
+        {
+            "author": "超平坦之王",
+            "timestamp": 1426292940,
+            "txt_content": "嗯嗯嗯，如果我把这东西放到服务器上会怎么样？"
+        },
+        {
+            "author": "王JW",
+            "timestamp": 1426293540,
+            "txt_content": "这个就是减少mod冲突的么？"
+        },
+        {
+            "author": "天端服务器",
+            "timestamp": 1426293660,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "超平坦之王",
+            "timestamp": 1426294080,
+            "txt_content": "天端服务器 发表于 2015-3-14 08:41\nDuang的一下人变少了\n哈哈哈\n其实我已经放了……"
+        },
+        {
+            "author": "LFG",
+            "timestamp": 1426294080,
+            "txt_content": "期待AcademyCraft~我顶~"
+        },
+        {
+            "author": "HC20011015",
+            "timestamp": 1426295160,
+            "txt_content": "顶AcademyCraft!"
+        },
+        {
+            "author": "DeathWolf96",
+            "timestamp": 1426300500,
+            "txt_content": "zx8673 发表于 2015-3-14 05:19\n总之看了看好像就是优化MOD加载代码的东东？可以减少服务器崩溃和增加流畅吗。。。 ...\n稍微解释一下，AR主要是一个针对开发者的mod。这个API只会对使用它的mod产生效果，对于使用forge原本接口的mod，AR并不管理。所以虽然有点遗憾，增加流畅度的功能的大概是做不到的=- ="
+        },
+        {
+            "author": "Haoming_xu",
+            "timestamp": 1426301640,
+            "txt_content": "支持原创+期待超能力mod快点出QAQ"
+        },
+        {
+            "author": "1523464360",
+            "timestamp": 1426302300,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "zx8673",
+            "timestamp": 1426303080,
+            "txt_content": "DeathWolf96 发表于 2015-3-14 10:35\n稍微解释一下，AR主要是一个针对开发者的mod。这个API只会对使用它的mod产生效果，对于使用forge原本接口 ...\n不明觉厉~~装上有什么用吗？"
+        },
+        {
+            "author": "琳_琅",
+            "timestamp": 1426305840,
+            "txt_content": "好厉害的样子"
+        },
+        {
+            "author": "RuneCraft",
+            "timestamp": 1426347240,
+            "txt_content": "虽然看不懂不过好像很厉害的样子……0A0"
+        },
+        {
+            "author": "yezixm",
+            "timestamp": 1426399740,
+            "txt_content": "不明觉厉                        "
+        },
+        {
+            "author": "龙腾猫跃",
+            "timestamp": 1426407360,
+            "txt_content": "很少有人做这种辅助开发的MOD了……必须顶=w=\n（如果PE有一个就好了……）"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1426420440,
+            "txt_content": "看起来好高能的样子，可是比还是弄不懂"
+        },
+        {
+            "author": "Yy星人",
+            "timestamp": 1427062920,
+            "txt_content": "Ssss.\n楼主没朋友了几年。"
+        },
+        {
+            "author": "夜暗伤",
+            "timestamp": 1427278200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "sulu",
+            "timestamp": 1427950800,
+            "txt_content": "这个挺酷的."
+        },
+        {
+            "author": "夜暗伤",
+            "timestamp": 1428096360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Terracraft",
+            "timestamp": 1428107580,
+            "txt_content": "希望这个能解决我mod物品覆盖冲突的问题"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1428115680,
+            "txt_content": "那么这个就是用annotation处理挂annotation的东西就像forge的SubscribeEvent/Mod Annotation?这个里面注册包的功能特别好！[diamond_gem]"
+        },
+        {
+            "author": "zmdd",
+            "timestamp": 1428151560,
+            "txt_content": "不明自觉= =。。。。"
+        },
+        {
+            "author": "xcc",
+            "timestamp": 1428182400,
+            "txt_content": "太高端看不懂"
+        },
+        {
+            "author": "undefined",
+            "timestamp": 1428184140,
+            "txt_content": "感觉好高级的样子"
+        },
+        {
+            "author": "李小马",
+            "timestamp": 1429007340,
+            "txt_content": "academycraft mod好像就是基于这个的吧"
+        },
+        {
+            "author": "87277272",
+            "timestamp": 1439810880,
+            "txt_content": "不错，支持原创{:10_512:}，楼主加油！！！！！！！！！！！！！！！！！"
+        },
+        {
+            "author": "qyf19710614",
+            "timestamp": 1439841300,
+            "txt_content": "正好在玩超能力者,支持一下~"
+        },
+        {
+            "author": "wjr_youhu~",
+            "timestamp": 1478236200,
+            "txt_content": "批量注册物品那啥的不能弄一个针对class的Annotation吗，这样整一个类里的物品都注册不用一个一个写不也挺好吗"
+        },
+        {
+            "author": "1546244979",
+            "timestamp": 1484425500,
+            "txt_content": "楼主好 一年了"
+        },
+        {
+            "author": "西柠",
+            "timestamp": 1575949860,
+            "txt_content": "很方便的小mod"
+        },
+        {
+            "author": "临郢夏望",
+            "timestamp": 1575950280,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

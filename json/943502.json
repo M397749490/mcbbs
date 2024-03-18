@@ -1,0 +1,169 @@
+{
+    "title": "【前置】自定义耐久损耗系统",
+    "author": "CR_019",
+    "replyCount": 32,
+    "timestamp": 1579428540,
+    "txt_content": " 本帖最后由 CR_019 于 2020-11-13 20:48 编辑 \n【一个简陋的新人帖】前置类原版模组（datapack）：自定义耐久损耗系统\n适用版本：1.14.x及以上\n适用范围：自定义耐久扣除，适用于设计中应当扣除耐久却不被游戏判定为物品损耗的情况，如弓的近战\n接口：给需要应用此功能的物品加上一个nbt标签：\"CustomDamage:1b\"，在需要消耗耐久时在计分板 Customdamage上增加所需点数即可注意：此前置不提供消耗耐久的判断，使用时，判断完后请依照你的想法把相关判断数据（如另一个计分板）关联到Customdamage计分板上。\n                          特色功能：1、生存模式玩家若主手持有带有上述nbt的物品，且该玩家的CustomDamage计分板分数大于1，其耐                                            久将会扣除<其计分板上的分数>点\n                                          2、若该武器带有耐久附魔，可以按照游戏中的耐久计算，有概率不掉耐久，此功能最高支持等级为                              65536（2^16）\n                          图片展示：                                                 \n\n\n\n\nfile_1579428407000.jpg (216.37 KB, 下载次数: 0)\n\n下载附件\n\n2020-1-19 18:06 上传\n\n\n\n\n                                                                                                                         \n\n\n\n\nfile_1579428407000.jpg (170.47 KB, 下载次数: 0)\n\n下载附件\n\n2020-1-19 18:06 上传\n\n\n\n\n        \n                                  下载：\n\n\n\ncustomdamage v1.2.zip\n(7.03 KB, 下载次数: 10)\n\n\n\n2020-7-13 22:27 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n                                                                                                                                                              \n                                   鸣谢：ruhuasiyu的前置数据包：战利品表随机数（数据包应用，已内置）\n                                            ruhuasiyu：[技巧] 修改玩家背包物品信息(免穷举)    （灵感提供）                    \n原理：\n    Random前置的内容不再赘述。\n    计分板设置：customdamage v1.2\\data\\customdamage\\functions\\load:\nscoreboard objectives add Customdamage dummy\nscoreboard objectives add Duriable dummy\nscoreboard objectives add Unbreaking dummy\nscoreboard objectives add DamageMax dummy复制代码共4个计分板，均为虚拟型。\n分别将储存的信息：\nCustomdamage：要消耗的耐久；\n\nDuriable：损害值；\n\nUnbreaking：耐久等级；\nDamageMax：该物品耐久的最大值。\n\n\n超频执行函数：customdamage v1.2\\data\\customdamage\\functions\\tick:\n     #对造成伤害的玩家执行“function”\nexecute as @a[scores={Customdamage=1..},nbt={SelectedItem:{tag:{CustomDamage:1b}}},gamemode= !creative] run function customdamage:function复制代码检测有相应计分板数据，手上拿有对应物品，且不处于创造模式的玩家执行损耗命令。\n\n执行函数：customdamage v1.2\\data\\customdamage\\functions\\function:\n   #初始化数据\nscoreboard players set @s Unbreaking 0\n#放置潜影盒并获取玩家手中物品信息\nsetblock ~ 255 ~ shulker_box{Items:[{Slot:0b,id:\"minecraft:stone\",Count:1b}]}\ndata modify block ~ 255 ~ Items[0].id set from entity @s SelectedItem.id\ndata modify block ~ 255 ~ Items[0].tag set from entity @s SelectedItem.tag\nfunction customdamage:max\n#耐久附魔模块\nexecute as @s store result score @s Unbreaking run data get entity @s SelectedItem.tag.Enchantments.[{id:\"minecraft:unbreaking\"}].lvl\nscoreboard players add @s Unbreaking 1\nscoreboard players set #random_min random 1\nscoreboard players set #random_max random 65536\nfunction random:random\nscoreboard players operation @s random = #result random\nscoreboard players operation @s random *= @s Unbreaking\n#在潜影盒内扣除耐久\nexecute as @s store result score @s Duriable run data get entity @s SelectedItem.tag.Damage 1\nscoreboard players add @s[scores={random=1..65536}] Duriable 1\nexecute store result block ~ 255 ~ Items[0].tag.Damage short 1 run scoreboard players get @s Duriable\n#将潜影盒内物品调包到玩家手上并清除潜影盒\nreplaceitem entity @s weapon.mainhand air\nexecute if score @s Duriable > @s DamageMax run data remove block ~ 255 ~ Items\nloot replace entity @s weapon.mainhand 1 mine ~ 255 ~ minecraft:diamond_pickaxe{isShulkerMarker:1b}\nsetblock ~ 255 ~ air\n#检测是否需要更多次消耗耐久\nscoreboard players remove @s Customdamage 1\nexecute if entity @s[scores={Customdamage=1..}] run function cam:magic/weapon/customdamage/function复制代码#放置潜影盒并获取玩家手中物品信息，#将潜影盒内物品调包到玩家手上并清除潜影盒：这两块内容与修改玩家物品栏信息的方法相同，不再赘述。\n\n只有一个问题，这里获取了手上物品的最大耐久值，后面还会讲到。\n#耐久附魔模块：\n\n原版耐久附魔计算机制如下：\n对于多数物品，每次使用时消耗耐久度的概率将降至(100/(等级+1))%。物品的期望寿命为原来的(等级+1)倍。\n\n对于盔甲，每次使用时消耗耐久度的概率将降至(60+(40/(等级+1)))%（即耐久度每次都有20%/27%/30%的概率不会减少）。盔甲的期望寿命为原来的125%/136%/143%。\n\n当物品单次承受的耐久度损耗超过1点时（例如使用钓鱼竿拉扯生物，或带有荆棘魔咒的盔甲造成反伤时），每1点损耗都将应用以上规则进行减免。\n这里不涉及盔甲。\n计算原理：\n1、获取耐久附魔等级并加1，便于计算；\n2、设置一个1到65536的随机数值，将这个数乘以耐久等级，若这个数还在1到65536的范围内，则扣除耐久。\n（在一个范围内取任意值，将其乘以一个数n，数据还在原范围的概率为1/n）\n因为计分板只支持整型（int，-2147483648~2147483647），所以要达到乘的效果只能在65536（2147483647开方）内计算，因此最多支持到耐久65536级。\n\n#在潜影盒内扣除耐久：\n\n获取一下物品损耗值，若满足上述条件，扣除1耐久。计算完后，储存到潜影盒里，再在下面返还给玩家。\n\n最大耐久获取：customdamage v1.2\\data\\customdamage\\functions\\max:\n<div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:bow\"}]} run scoreboard players set @s DamageMax 384</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:iron_sword\"}]} run scoreboard players set @s DamageMax 250</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:stone_sword\"}]} run scoreboard players set @s DamageMax 131</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:wooden_sword\"}]} run scoreboard players set @s DamageMax 59</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:diamond_sword\"}]} run scoreboard players set @s DamageMax 1561</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:golden_sword\"}]} run scoreboard players set @s DamageMax 32</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:netherite_sword\"}]} run scoreboard players set @s DamageMax 2031</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:iron_axe\"}]} run scoreboard players set @s DamageMax 250</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:stone_axe\"}]} run scoreboard players set @s DamageMax 131</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:wooden_axe\"}]} run scoreboard players set @s DamageMax 59</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:diamond_axe\"}]} run scoreboard players set @s DamageMax 1561</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:golden_axe\"}]} run scoreboard players set @s DamageMax 32</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:netherite_axe\"}]} run scoreboard players set @s DamageMax 2031</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:iron_pickaxe\"}]} run scoreboard players set @s DamageMax 250</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:stone_pickaxe\"}]} run scoreboard players set @s DamageMax 131</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:wooden_pickaxe\"}]} run scoreboard players set @s DamageMax 59</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:diamond_pickaxe\"}]} run scoreboard players set @s DamageMax 1561</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:golden_pickaxe\"}]} run scoreboard players set @s DamageMax 32</div><div>execute if data block ~ 255 ~ {Items:[{Slot:0b,id:\"minecraft:netherite_pickaxe\"}]} run scoreboard players set @s DamageMax 2031</div>复制代码这里穷举了原版所有工具、武器的最大耐久值，用于在该物品耐久消耗到0时清除物品。\n若要添加模组适配，请自行扩展此列表。\n（我不确定mod物品是否有对应的可侦测的数据值，对mod一窍不通，所以就交给你们了）\n\n讲解到此结束。\n\n\n\n更新日志：\n20.7.13 v1.2 修复了耐久无限扣除的问题（计分板没改干净）\n                   避免了storage使得其在1.14也可使用\n20.3.17 v1.1 改为使用接口，使其应用范围更广泛\n                   修复耐久消耗到一半变为满耐久的bug\n                   修复无法清除0耐久物品的bug\n20.1.19 v1.0 发布\n\n\n\n\n↓有一说一，确实\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1579532940,
+            "txt_content": "实际上你可以根据玩家手持物的耐久附魔来直接设定战利品表物品的出现几率，来达到一步到位的效果而不用进行计算"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1579579920,
+            "txt_content": "ruhuasiyu 发表于 2020-1-20 23:09\n实际上你可以根据玩家手持物的耐久附魔来直接设定战利品表物品的出现几率，来达到一步到位的效果而不用进行 ...\n是在random战利品表里吗？如果是，那么是利用的哪一个function或condition？"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1579581000,
+            "txt_content": "chaoren019 发表于 2020-1-21 12:12\n是在random战利品表里吗？如果是，那么是利用的哪一个function或condition？\nhttps://www.mcbbs.net/thread-831542-1-1.html\n\n应该用 entity_properties 就可以判断, 应该也可以用fishing类型然后match_tool"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1579590540,
+            "txt_content": " 本帖最后由 chaoren019 于 2020-1-21 15:43 编辑 \nruhuasiyu 发表于 2020-1-21 12:30\nhttps://www.mcbbs.net/thread-831542-1-1.html\n\n应该用 entity_properties 就可以判断, 应该也可以用fis ...\n貌似需要穷举。。。（我太菜了）（我可能应该先研究一下教程11.3再发帖）"
+        },
+        {
+            "author": "wshycaa",
+            "timestamp": 1579601760,
+            "txt_content": "没懂，耐久展示的效果也会改变吗？"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1579611420,
+            "txt_content": "wshycaa 发表于 2020-1-21 18:16\n没懂，耐久展示的效果也会改变吗？\n应该和教程的11.3差不多的效果。\n（我瞎搞的。。。）"
+        },
+        {
+            "author": "破碎の琉璃",
+            "timestamp": 1594344360,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "土豆马拉松",
+            "timestamp": 1594397760,
+            "txt_content": "都是大佬在说话  萌新只能默默看着QAQ"
+        },
+        {
+            "author": "2073005342",
+            "timestamp": 1594516740,
+            "txt_content": "这个可以扣除MOD的东西比如植物魔法的森林法杖么"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1594545540,
+            "txt_content": "2073005342 发表于 2020-7-12 09:19\n这个可以扣除MOD的东西比如植物魔法的森林法杖么\n不行，（我）拆包后发现，在max的函数里，穷举的只有原版中的盔甲，及武器......，说这么多，你也听不懂，总之，就是不行"
+        },
+        {
+            "author": "卡时间段aa4",
+            "timestamp": 1594549680,
+            "txt_content": "看不懂..."
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1594554480,
+            "txt_content": "卡时间段aa4 发表于 2020-7-12 18:28\n看不懂...\n看不懂，别看"
+        },
+        {
+            "author": "lackho",
+            "timestamp": 1594568520,
+            "txt_content": "谢谢大佬！感激大佬！为大佬打call"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1594632120,
+            "txt_content": "2073005342 发表于 2020-7-12 09:19\n这个可以扣除MOD的东西比如植物魔法的森林法杖么\n原版模组只考虑原版物品，不考虑mod物品。\n如果数据标签相同(Damage标签)，版本支持(见正文)，可以"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1594632240,
+            "txt_content": "12tianxun 发表于 2020-7-12 17:19\n不行，（我）拆包后发现，在max的函数里，穷举的只有原版中的盔甲，及武器......，说这么多，你也听不懂 ...\n你好，这个原版模组没有用穷举原版物品，用的是计分板检测，只要模组物品支持计分板检测玩家造成伤害且版本适合，就可以使用，使用方法见正文。"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1594639740,
+            "txt_content": "CR_019 发表于 2020-7-13 17:24\n你好，这个原版模组没有用穷举原版物品，用的是计分板检测，只要模组物品支持计分板检测玩家造成伤害且版 ...\n我差不多就这个意思，那，那个那为啥我看到一个穷举物品耐久的积分板，对了，那好像是除武器外的东西"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1594639740,
+            "txt_content": "CR_019 发表于 2020-7-13 17:24\n你好，这个原版模组没有用穷举原版物品，用的是计分板检测，只要模组物品支持计分板检测玩家造成伤害且版 ...\n我也是没看仔细，sorry"
+        },
+        {
+            "author": "CR_019",
+            "timestamp": 1594650660,
+            "txt_content": "12tianxun 发表于 2020-7-13 19:29\n我差不多就这个意思，那，那个那为啥我看到一个穷举物品耐久的积分板，对了，那好像是除武器外的东西 ...\n草，自己的帖子自己忘记了。\n那个max函数穷举的是各武器耐久最大值，如果不在此范围内的物品在耐久被消耗到0时不会被清除，其他不受影响。\n对模组的兼容就交给你们了，过会我会在原理部分附上修改方法"
+        },
+        {
+            "author": "woaibaihu",
+            "timestamp": 1594692360,
+            "txt_content": "额额额额鹅鹅鹅鹅鹅鹅饿鹅鹅鹅鹅鹅鹅饿"
+        },
+        {
+            "author": "周则安",
+            "timestamp": 1594707840,
+            "txt_content": "谢谢了，很喜欢，谢谢谢谢"
+        },
+        {
+            "author": "周则安",
+            "timestamp": 1594707960,
+            "txt_content": "blackho 发表于 2020-7-12 23:42\n谢谢大佬！感激大佬！为大佬打call\n+1我也这么觉得（顺便刷一点积分）"
+        },
+        {
+            "author": "爱你么么...",
+            "timestamp": 1594907880,
+            "txt_content": "原版模组只考虑原版物品，不考虑mod物品。"
+        },
+        {
+            "author": "kunkun520",
+            "timestamp": 1596025860,
+            "txt_content": "mcbbs有你更精彩！！"
+        },
+        {
+            "author": "清风空末云",
+            "timestamp": 1596178920,
+            "txt_content": " 谢谢楼主分享"
+        },
+        {
+            "author": "永爱不忘",
+            "timestamp": 1597898280,
+            "txt_content": "自定义耐久  看看我发现了什么  这个NB啊"
+        },
+        {
+            "author": "胖虎123",
+            "timestamp": 1598000400,
+            "txt_content": "活到老学到老,真实用"
+        },
+        {
+            "author": "gjz13211024162",
+            "timestamp": 1604666580,
+            "txt_content": "        MCBBS有你更精彩~"
+        },
+        {
+            "author": "764301935",
+            "timestamp": 1604853300,
+            "txt_content": "Mcbbs有你更精彩~"
+        },
+        {
+            "author": "917hhhh",
+            "timestamp": 1604870100,
+            "txt_content": "看不懂，这大概就是大佬吧"
+        },
+        {
+            "author": "CNMqwq",
+            "timestamp": 1608632700,
+            "txt_content": "就看看吧，也不懂"
+        },
+        {
+            "author": "gdzl",
+            "timestamp": 1609911360,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "2814434181",
+            "timestamp": 1609921260,
+            "txt_content": "rpg必备，爱了"
+        }
+    ]
+}

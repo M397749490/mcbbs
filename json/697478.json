@@ -1,0 +1,109 @@
+{
+    "title": "[Tutorial][Bukkit][UD]如何给物品增加NBT数据",
+    "author": "602723113",
+    "replyCount": 20,
+    "timestamp": 1497141600,
+    "txt_content": " 本帖最后由 602723113 于 2020-4-15 12:04 编辑 \n\n2020/4/15 更新对1.13.2以上BukkitAPI对Attribute的相关操作\nNBT目录:\n导读NBT是啥子（如果已经知道了的可以直接跳到下一章）代码实例Attribute\n\n导读本教程使用的是 Spigot1.10.2-R0.1-SNAPSHOT 核心\n和 Spigot1.15.2 的核心\n在阅读之前请确保你具有NMS与Java基础知识\n\n首在教程开始之前我们需要知道其实BukkitAPI提供了几个可以“设置”NBT的方法，当然其实就只有DisplayName和Lore\n//实例化一个物品\nItemStack item = new ItemStack(Material.DIAMOND_SWORD);\nItemMeta im = item.getItemMeta();\nim.setDisplayName(\"§6[ §e§l钻石剑 §6]\");\nim.setLore(Arrays.asList(\"展示剑..\", \"第二行Lore\"));\nitem.setItemMeta(im);复制代码输出其NBT：\n\n那么既然BukkitAPI没有给我们包装NBT相关的方法那么我们就只能去NMS底层操作啦=w=\n\n什么是NBTNBT (Named Binary Tag) 是一种基于标签的二进制格式设计，携带大量与少量的附加数据的二进制数据。格式被设计成将数据存储在由各种标记组成的树结构中。\n在Minecraft所有的物品中每一项都有一个NBTCompound它包含了[lore(描述), name(展示名), damage value(伤害值), attack_speed(攻击速度), 应该放在哪个物品栏当中(如头盔只能放头部), amount(数量)]\n代码实例那么既然我们要给一个物品增加NBT数据那么我们首先需要一个item\nItemStack item = new ItemStack(Material.DIAMOND_SWORD);复制代码之后呢我们需要获取这个物品的nms对象\nnet.minecraft.server.v1_10_R1.ItemStack nmsItem \n= CraftItemStack.asNMSCopy(item);复制代码之后我们需要获取该物品的NBT对象，下面我使用了三元运算符\nNBTTagCompound compound = (nmsItem.hasTag()) ? nmsItem.getTag()\n : new NBTTagCompound();复制代码那么我们获取到了物品的NBT对象，我们就可以对其进行set数据了\n//下面这个是set的一个使用方法\n//我们需要填入一个String和一个NBTBase的实例\ncompound.set(String dataName, NBTBase data);\n\n//我们可以使用NBT来做一个类似绑定的效果\ncompound.set(\"绑定\", new NBTTagString(\"May_Speed\"));\n//NBTTagString是什么？我给你指条路吧=w=\n//拿着反编译工具去nms包下查询NBTTagString这个类所继承了的类\n//(好吧其实就是NBTBase)\n复制代码那么我们set好之后只是在一个NBT上set了数据，我们还要把这个NBT给set进物品\nnmsItem.setTag(compound);\n//之后将nmsItem转换为BukkitAPI中的ItemStack\nItemStack hasNBTItem = CraftItemStack.asBukkitCopy(nmsItem);复制代码输出其NBT数据: (图小的可以点开来看)\n\n完整代码:\nItemStack item = new ItemStack(Material.DIAMOND_SWORD);\n  net.minecraft.server.v1_10_R1.ItemStack nmsItem = CraftItemStack.asNMSCopy(item);\n  compound.set(\"绑定\", new NBTTagString(\"May_Speed\"));\n  nmsItem.setTag(compound);\n  ItemStack hasNBTItem = CraftItemStack.asBukkitCopy(nmsItem);复制代码\n\nAttribute与NBTTag在一些RPG地图中我们有时会看到这样的武器\n\n\n这个就是一把利用Attribute与NBTTag制造的一把武器=w=\n那么我们要怎么利用代码做出这样的效果呢？\n\n这里我要补充的是，在1.13.2版本的时候，BukkitAPI更新了对物品的Attribute的相关操作，相关的commit请点这个链接：点我\n\n此外，如果你事先是不清楚BukkitAPI下 org.bukkit.attribute 的使用方法，我建议你可以看看这个教程\nhttps://www.mcbbs.net/thread-792576-1-1.html\n或者看我下面的一些操作，看你能不能看懂吧哈哈哈哈哈哈啊哈哈哈\n\n1.13.2以下的版本//和往常一样我们实例化一个物品\nItemStack item = new ItemStack(Material.DIAMOND_SWORD);\nItemMeta im = item.getItemMeta();\nim.setDisplayName(\"§6[ §e§l战火 §6]\");\nitem.setItemMeta(im);复制代码之后获取这个物品的NBT \nNBTTagCompound compound = \n(nmsItem.hasTag()) ? nmsItem.getTag() : new NBTTagCompound();复制代码那么之后我们需要新建一个NBT集合\nNBTTagList modifiers = new NBTTagList();复制代码之后我们再实例化一个NBT数据出来\nNBTTagCompound damage = new NBTTagCompound();复制代码之后往里面写入一些数据\n\n//AttributeName指该修改的位置也就是 属性名 (17-8-18修订 嘻嘻嘻)\n//Name指该Attribute的名字 可以通过NBTCompound.get(String name)得到\n//Amount指该Attribute的属性所修改的的值\n//Operation值该Attribute的值是百分比还是数值来算 \n//  数值为0 百分比为1(7-2号修订=w=)\n//UUID是用于区分这些Attribute的建议可以设置大一些\n//Slot值该Attribute在玩家的哪个 部位 才会生效，不填写则所有部位都会生效\ndamage.set(\"AttributeName\", new NBTTagString(\"generic.attackDamage\"));\ndamage.set(\"Name\", new NBTTagString(\"Damage\"));\ndamage.set(\"Amount\", new NBTTagInt(20));\ndamage.set(\"Operation\", new NBTTagInt(0));\ndamage.set(\"UUIDLeast\", new NBTTagInt(20000));\ndamage.set(\"UUIDMost\", new NBTTagInt(1000));\ndamage.set(\"Slot\", new NBTTagString(\"mainhand\"));\n复制代码将刚刚写入好数据的damageNBT给放入NBT集合当中\nmodifiers.add(damage);复制代码之后将此NBT集合数据放入总NBT数据中\ncompound.set(\"AttributeModifiers\", modifiers);复制代码之后和上面的一样进行NBT保存\nnmsItem.setTag(compound);复制代码看不懂我在说啥？来看图吧=w=\n\n\n1.13.2以上的版本\n怎么说呢，早在1.13.2版本的时候BukkitAPI就已经更新了，并且相较于上面的方式来说，这种方法更为快捷，方便，同时也不用反射\n但是要注意的是，只能编辑Attribute，而不是NBT这一点是要注意的\n引入案例：我们现在需要做一个物品，这个物品名字叫 加速火把 当玩家手持它的时候它可以给玩家加速！那么在以前的时候，我们都是 使用Lore或者DisplayName 监听器，然后设置玩家的移速\n那么现在我们可以不用这样了！因为好用的API增加了！\n首先我们实例化一个火把ItemStack torch = new ItemStack(Material.TORCH);复制代码之后我们获取它的 ItemMetaItemMeta itemMeta = torch.getItemMeta();复制代码为了让它更美观，这里增加一些修饰itemMeta.setDisplayName(\"§f§l[ §a§l加速火把 §f§l]\");\nitemMeta.setLore(Lists.newArrayList(\"§fPY又痒了? 我来给你加加速!\"));;复制代码重点来了，啪啪啪AttributeModifier modifier = new AttributeModifier(UUID.randomUUID(), \"我是加速火把\", 0.2D, Operation.ADD_NUMBER, EquipmentSlot.OFF_HAND);\nitemMeta.addAttributeModifier(Attribute.GENERIC_MOVEMENT_SPEED, modifier);在上方的代码里，我们使用了ItemMeta下的方法 addAttributeModifier，它的参数是长这样的 addAttributeModifier(Attribute attribute, AttributeModifier modifier)\n第一个参数 attribute，其实是一个枚举，你可以直接在IDE里 Attribute. 就可以看到所有可以操作的属性了第二个参数 modifier，这个就是属性修改器，我们可以在这里设置\n这个attribute的UUID（UUID.randomUUID()）这个attitude的名字（\"我是加速火把\"）这个attribute所增加或减少的值（0.2D）增加的方式（Operation）限定物品指定的位置才能生效（EquipmentSlot）\n\n那么在上面我写的是，当这个加速火把是在副手手持的时候，就增加 0.2 的速度\n\n最后我们需要把itemMeta设置回物品\ntorch.setItemMeta(itemMeta);复制代码现在让我们来看看成品的效果！\n\n\n\n\n\n加速火把.png (9.97 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-15 11:12 上传\n\n\n\n\n\n完整代码:ItemStack torch = new ItemStack(Material.TORCH);ItemMeta itemMeta = torch.getItemMeta();itemMeta.setDisplayName(\"§f§l[ §a§l加速火把 §f§l]\");itemMeta.setLore(Lists.newArrayList(\"§fPY又痒了? 我来给你加加速!\"));\nAttributeModifier modifier = new AttributeModifier(UUID.randomUUID(), \"我是加速火把\", 0.2D, Operation.ADD_NUMBER, EquipmentSlot.OFF_HAND);itemMeta.addAttributeModifier(Attribute.GENERIC_MOVEMENT_SPEED, modifier);\ntorch.setItemMeta(itemMeta);\n那么同样的我们也可以利用这种方式给其他的物品增加attribute\n下面我写了一个测试代码，方便读者用以测试，代码你可以随意CV\nhttps://github.com/602723113/Temp/blob/master/CommandHandler.java论坛又吞代码了，那我就丢垃圾到github好了\n具体使用方法:为了方便起见，这只是一个测试代码，请使用者在玩家状态下使用这个指令，如果你的指令是其他名字可以自己改成别的，默认指令是test使用方法:/test 1 获得所有的物品/test 2 查询玩家身上所有的物品的attribute\n使用效果:\n\n\n\n\n\n憨憨.png (100.57 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-15 11:34 上传\n\n\n\n\n\n\n 一些资源可以用于ItemStack的 属性名\ngeneric.attackDamage \ngeneric.attackSpeed\ngeneric.maxHealth\ngeneric.movementSpeed\ngeneric.armor\ngeneric.luck\n\n\n所有部位的Slot名\nmainhand(主手)\noffhand(副手)\nfeet(脚部)\nlegs(腿部)\nchest(身体)\nhead(头部)\n\n\n\n想要设置无法破坏？只需要在主NBTTagCompound里面写上\ncompound.set(\"Unbreakable\", new NBTTagByte((byte) 1));\n//1就是开启无法破坏 0就是关闭复制代码\n其实在1.11以上的版本，ItemMeta增加了 unbreakable 的api\n你可以直接  ItemMeta.setUnbreakable(true) 来设置\n这里是相关的commit记录\n\n本教程完工于2017/6/11 11:30\n在2020/4/15 更新!\n如需转载请站内PM我\n[groupid=1181]Unknown Domain[/groupid]",
+    "replies": [
+        {
+            "author": "YPXxiaoK",
+            "timestamp": 1497142380,
+            "txt_content": "楼主快点更新啊，我们都等着呢"
+        },
+        {
+            "author": "PHontdoge棒冰",
+            "timestamp": 1497142380,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "炎黄始祖",
+            "timestamp": 1497144660,
+            "txt_content": "萌新一脸懵逼"
+        },
+        {
+            "author": "SmallFatCYW",
+            "timestamp": 1497153480,
+            "txt_content": " 本帖最后由 SmallFatCYW 于 2017-6-11 12:05 编辑 \n\n请教一下，\"NMS\"是？谢谢\n好吧。。。刚刚找到了老外的解释帖子。原来是net.minecraft.server这个包啊"
+        },
+        {
+            "author": "Bryan33",
+            "timestamp": 1497189240,
+            "txt_content": "本来之前不会用插件的NBT 看完帖子才会 \n但是这样写必须对应版本\n所以我自己改成了用反射执行方法的泛用工具包"
+        },
+        {
+            "author": "w_cn",
+            "timestamp": 1497614700,
+            "txt_content": "ItemStack可以存储NBT么？\n1.7.2R的包"
+        },
+        {
+            "author": "kqn3",
+            "timestamp": 1498522080,
+            "txt_content": "好帖，写强化去了～"
+        },
+        {
+            "author": "Arobcher",
+            "timestamp": 1502093460,
+            "txt_content": "反馈:\n1.9版本以下 AttributeName 的名字必须填写为类型名,不然会无效!"
+        },
+        {
+            "author": "dust_of_heart",
+            "timestamp": 1502887080,
+            "txt_content": "感谢楼主，非常有用，但是有个小地方似乎写错了把//AttributeName指该Attribute的名字,可以随意填写复制代码这一段里面的\ndamage.set(\"AttributeName\", new NBTTagString(\"Damage\"));damage.set(\"Name\", new NBTTagString(\"generic.attackDamage\"));这两个似乎写反了把#（滑稽）难道是防伸手党#（坏笑）"
+        },
+        {
+            "author": "2280761425",
+            "timestamp": 1504871160,
+            "txt_content": "属性有更简单的添加方法QWQ"
+        },
+        {
+            "author": "343362619",
+            "timestamp": 1505060940,
+            "txt_content": "请问有没有正版版本加入nbt标签的教程"
+        },
+        {
+            "author": "陋室铭",
+            "timestamp": 1505359080,
+            "txt_content": "支持版主 期待更新 萌新一脸萌萌~"
+        },
+        {
+            "author": "jiangzizhong",
+            "timestamp": 1505543820,
+            "txt_content": "版主大大莫老，求该java文件。"
+        },
+        {
+            "author": "神奇的滑稽",
+            "timestamp": 1521719100,
+            "txt_content": "generic.attackDamage    伤害\ngeneric.attackSpeed      攻击速度\ngeneric.maxHealth        生命值上线\ngeneric.movementSpeed   移动速度\ngeneric.armor  护甲\ngeneric.luck  新云\n\n装备的韧性的那个属性是那个"
+        },
+        {
+            "author": "狡诈师",
+            "timestamp": 1526038200,
+            "txt_content": "有一个问题，可以回答吗？\n这个显示\n+ 100伤害（新增）\n而不是 100伤害（固定，非新增）\n我想实现 固定默认的属性，而不是 +"
+        },
+        {
+            "author": "思念丶···",
+            "timestamp": 1526105820,
+            "txt_content": "好难。头晕眼花"
+        },
+        {
+            "author": "quantumyao",
+            "timestamp": 1586054760,
+            "txt_content": "我现在看起来还不太懂.......单我总有一天会懂的！"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1587027060,
+            "txt_content": "1.15.2的请看这里\nhttps://www.mcbbs.net/thread-1020301-1-1.html\n教程内代码不完全适用"
+        },
+        {
+            "author": "2418013844@qq",
+            "timestamp": 1595320500,
+            "txt_content": "请问1.7.2的Bukkit的ItemStack不包含nbt数据 那么用CraftItemStack.asBukkitCopy()的时候转**ukkit的ItemStack的时候造成NBT数据丢失(修改无效) 该怎么办?"
+        },
+        {
+            "author": "折纸不知",
+            "timestamp": 1595323680,
+            "txt_content": "大佬啊好厉害，虽然有的地方还是看不懂，前面还好后面就蒙了"
+        }
+    ]
+}

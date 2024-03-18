@@ -1,0 +1,204 @@
+{
+    "title": "[SCT][贺兰の开服经验]浅谈Java版与基岩版服务器互通",
+    "author": "贺兰兰",
+    "replyCount": 39,
+    "timestamp": 1573228680,
+    "txt_content": " 本帖最后由 贺兰星辰 于 2020-3-30 10:31 编辑 \n\n2020/3/20 注:有一个新的操作，https://github.com/GeyserMC/Geyser 间歇泉，支持到了最新版的基岩版和java版1.15.2，我试了一下，差不多比DragonProxy稳，但还是有其弊端，如果还有人看这个帖子的话我就更新一下233\n\n\n前言：\n    最近有好多圈子里的人问“怎么让基岩版进Java版服务器”或是“怎么让Java版和基岩版互通”这样的问题，因为鄙人恰巧有一段时间一直在研究这一方面的技术，因此今天拿出来跟大家分享一下，如果你觉得这篇帖子对你有一定帮助的话，欢迎评分+回复哦\n\n目前已经存在的开源项目：\n    听说网易或者其他大服自造轮子实现过这类操作，但是我们也不可能拿到那种东西，所以这篇帖子将只讨论已经存在的开源项目。那么目前已有的互通开源项目有两个，分别是：\n0.DragonProxy（Proxy）：DragonetMC/DragonProxy branch \"rewrite\"\n1.ProtocolSupport（BukkitPlugin）：ProtocolSupport/ProtocolSupport branch \"mcpenew\"\n    先说说这俩玩意有何异同点：首先，架构不同，DragonProxy是一套代理，类似于BungeeCord，他通过代理协议向下游服务器发送数据包实现；而ProtocolSupport则是一个Bukkit插件，他在服务端层面拓展了naknet对外进行UDP广播并接受相应的数据包传入以实现。\n其次，连接方式设计不同，DragonProxy更偏向于关联你的基岩版账户和你的Java版账户，使你的基岩版游戏进服时实际上是通过Java版账户连接的；而ProtocolSupport则直接继承了来自基岩版的所有数据，包括你的游戏ID，XUID（即Xbox-UUID）（因此这种设计引发了服务端的一大票兼容性问题，下面将会详细论述）\n最后，兼容的版本不同，这个是最浅层的了，兼容什么版本取决于作者的代码功底，于是，DragonProxy（截止至目前的最新构建版本）只支持基岩版1.12.0.X连接到Java版1.14.4服务器，而ProtocolSupport（截止至目前的最新构建版本）则支持基岩版1.8.0.X-1.14.0.X(?)连接到Java版1.14.4服务器\n\n好，讲完了异同点，我们来详细讲讲这两个项目具体怎么操作，都有哪些优劣\n\nDragonProxy\n测试环境：\n服务器环境：\n    CPU：E5-2680V2 @2.80Ghz    操作系统：Windows Server 2016\n    代理服务端： HotSpot JVM8 内存未指定\n    下游服务端（仅参与测试的）：[Waterfall]Adopt OpenJDK8-JVM9 512MB\n                                                 [Paper1.14.4]Adopt OpenJDK8-JVM9 10240MB\n客户端环境：\n    手机型号： MI 8 SE 6+64G\n    基岩版版本：1.12.0 已登入Xbox Live\n    其实这玩意原作者很早就发到过MCBBS里，但是因为其github长期不发布release总让普通服主感觉这玩意已经不更新了，其实作者一直在更新，现在是支持1.12.0.X连接至1.14.4，因为我手机上的基岩版是1.13.0正式版，所以网上找了个破解版1.12.0装上了来测试\n\n首先先看服务端操作\n因为DragonProxy作者使用了CodeMC提供的Jenkins CI自动构建，所以我很容易就下载到了最新版本的DragonProxy\n\n\n\n\nDP1.PNG (80.79 KB, 下载次数: 3)\n\n下载附件\n\n2019-11-8 22:51 上传\n\n\n\n\n\n下载完成了以后编写CMD并启动代理服务器，可以看到很快就开好了，基本指令只有一个就是stop关闭\n\n\n\n\nDP2.PNG (52.25 KB, 下载次数: 0)\n\n下载附件\n\n2019-11-8 22:55 上传\n\n\n\n\n\n关闭服务器，可以看到生成了很多文件，每个文件的意义不言而喻，所以这里我们光看看config.yml\n（懒得在贴内一一解释了，就直接贴配置文件代码吧，仅针对部分重要内容进行了汉化）\n\n# -----------------------------------------------\n#   DragonProxy 配置文件 (05/08/19)\n#   https://github.com/DragonetMC/DragonProxy\n#   汉化：贺兰星辰\n# -----------------------------------------------\n\nlocale: 'EN'\n\n# 代理服务器所需监听（映射到）的IP地址和端口号\n# '0.0.0.0' will bind to all IP addresses available on your device\nbind-address: '0.0.0.0'\nbind-port: 13118\n\n# 基岩版游戏将会看到的MOTD标语\nmotd: 'DragonProxy'\nmotd2: 'https://github.com/DragonetMC/DragonProxy'\n\n# 可以加入该代理服务器的最大玩家数\nmax-players: 100\n\n# 所需要连接到的下游服务器的IP地址和端口号\n# TODO: Add support for multiple servers\nremote-address: '127.0.0.1'\nremote-port: 13108\n\n# TODO\n#remote-servers:\n#  local:\n#    address: '127.0.0.1'\n#    port: 25566\n#    default: true\n\n# 连接到下游服务器的验证方法.\n# 支持的值:\n#   credentials   : 连接到代理服务器后将会弹出一个窗口让你输入你的Java版账户密码，验证通过后使用该账户连接下游服务器\n#   offline       :  不进行正版验证，无法连接到正版服务器\nremote-auth: credentials\n\n# 基岩版客户端是否要求已经登录Xbox Live（即微软账户）？\nxbox-auth: true\n\n# 是否应该绕过代理服务器，直接显示下游服务器的MOTD标语和在线玩家数？（功能同BungeeCord的ping-passthrough）\nping-passthrough: true\n\n# 是否从Mojang服务器获取玩家皮肤\nfetch-player-skins: true\n\n# 并发线程数.\n# Only change if you know what you are doing\nthread-pool-size: 8\n复制代码这里我将下游服务器设置成了一个BC服务器，透过BC代理连接到一个Paper子端这里注意一下，基岩版使用的是UDP协议，所以确保你的防火墙没有拦截UDP协议的访问\n实际上我这里刚开始登入到服务器时的正版验证流程还是很流畅的，但是连接到下游服务器以后我就注意到很多问题了\n0.首先，自你打开这个代理以后，你的下游服务器就将会持续不断的收到来自代理服务器的不同套接字的连接请求（如图）\n\n\n\n\nDP3.PNG (11.88 KB, 下载次数: 4)\n\n下载附件\n\n2019-11-8 23:11 上传\n\n\n\n\n\n1.其次，这个玩意目前不支持任何形式的IP转发，也就是说你的子端收到的IP地址永远是你的本地代理服务器地址\n2.奇妙的方块贴图问题：进去服务器以后我的基岩版客户端是这个样子的\n\n\n\n\nfile_1573226217000.jpg (111.55 KB, 下载次数: 3)\n\n下载附件\n\n2019-11-8 23:16 上传\n\n\n\n\n\n首先正版皮肤加载出来了可喜可贺\n然后就是BOSS血条映射过来了（截图未体现）\n然后就什么都没有了\n你会发现：出现了奇怪的氧气条；你根本没法移动；头顶上一堆怪物不知道啥情况；仔细看右边，树叶显示出来是基岩？？？\n到此，对DragonProxy的评测结束\n可以说这玩意确实还很原始，作者在Github上列的Todo也说明了这么一点\n那么，好处是什么呢？其实这个东西因为是代理服务器，所以不需要下游服务器去兼容他，你甚至可以用这个东西去玩Hypixel什么的\n\n那么接下来\n\nProtocolSupport（较早前测试）\n\n测试环境：\n服务器环境：\n    CPU：E5-2680V2 @2.80Ghz    操作系统：Windows Server 2016\n    服务端（仅参与测试的）：[Waterdog]Hotspot JVM8 512MB\n                                           [akarin1.13.2]Hotspot JVM8 2048MB\n客户端环境：\n    手机型号： MI 8 SE 6+64G\n    基岩版版本：1.12.0 已登入Xbox Live\n\n    提前说明一下，这个测试我是在今年上半旬进行的测试，当时这个项目只更新到了1.13.2，最高支持基岩版到1.12.0.X，因此和现在不太一样了，仅具有参考意义\n    ProtocolSupport这个玩意大家以前应该就听说过，对就是那个跨版本插件，其实他们一直在研究基岩版互通之类的玩意，位于其仓库的mcpenew分支下（截止至发帖日，这个分支似乎停止维护了，作者表示他们将会在另一个地方重构代码？）\n    首先，ProtocolSupport（下称PSPE）没有自动官方构建平台（很多老外自己搭了一个，你或许可以去Discord碰碰运气），所以你得自行编译项目\n    这是一个Gradle项目，且编译时需要手动置入一份Vanilla服务端（即minecraft_server服务端）以完成编译，完成以后你将会获得一份足足有近30MB的文件\n\n\n\n\nPS1.PNG (2.62 KB, 下载次数: 6)\n\n下载附件\n\n2019-11-8 23:36 上传\n\n\n\n\n\n这是一个Bukkit插件，因此将他放入plugins文件夹开服即可\n与DragonProxy不同的是，你不需要单独开一个端口给基岩版玩家，基岩版和Java版玩家都可以通过默认的服务器端口进服，因此就很舒服，进服了以后，所有的地方都非常流畅，感觉就和玩基岩版服务器一样，除了......\n    0.没有转发皮肤，因此你看别人（基岩版看Java版）有皮肤，别人看你（Java版看基岩版）是史蒂夫，你自己看你自己也是史蒂夫\n    1.没有转发BossBar血条\n    2.因为1.13神奇的水下更新，在水下游泳很难上岸（咋跳都跳不上去，一直在游泳姿态）\n    3.第一次输入指令会卡（奇怪的问题，客户端会卡很长一阵子）\n    4.头颅永远是史蒂夫\n    5.UUID和玩家ID引起插件强烈不适\n        这个实际上是最恶心的，因为按照PSPE的协议，你的玩家名和你的UUID全部继承基岩版的玩家名和XUID，然而这俩玩意都特别鸡肋\n             你会发现基岩版的XUID是这个样子的：\n\n\n\n\nPS2.PNG (5.22 KB, 下载次数: 3)\n\n下载附件\n\n2019-11-8 23:52 上传\n\n\n\n\n（左边是我的Java版游戏ID，右边是基岩版游戏ID，全是0打头）\n             你会发现基岩版的玩家名可以是“Hello World”这种样子的（可以带空格）\n        如果你的基岩版用户名和Java版用户名恰巧相同而且都进过服务器（比如我），那么你的各种插件就会向你诉苦表示UUID不同步（如Luckperms，CMI等）；如果对面基岩版用户名带空格，那么结果就不用我说了吧\n    6.大箱子被显示为两个末影箱（ProtocolSupport传统）\n基本上我遇到的就是这些，其中很多BUG是可以被修复的，具体下面再说\n\n继续更新\n账号互通：\n那么很显然，我们不希望沙雕网友们东一个账号西一个账号的胡乱注册，然后基岩版一个账号Java版又一个账号，这样不仅数据不互通，而且还很不方便，因此在这里我们就需要这个玩意：\nProtocolSupportAccountsLinkBungee（看名字你就知道了这玩意仅支持BC）将这玩意下载下来，扔到BC的插件文件夹里，重启BC，boom！\n你可以叫你的玩家在主账号（比如Java版账号）下输入/accountslink code，服务器会发给玩家一串代码\n然后叫你的玩家在子账号（比如基岩版账号）上线，输入.accountslink link [code]，轰的一声，子账号的UUID就会同步到主账号上（子账号UUID消失）\n是不是很棒呢\n\n\n兼容性优化：\n前面说了很多原生PSPE的BUG，但其实这些BUG有第三方插件修复，那就是\nProtocolSupportStuff\n编译起来有点繁琐，需要把你编译好的PSPE扔进指定文件夹里再运行gradle，编译好以后你可以获得一个插件\n将这个插件扔进你的Bukkit服务器内，即可看到在plugins/ProtocolSupportStuff生成了config.yml，里面不仅有很多修复选项，也有像是skin.PC_to_PE这种互通优化的功能，因为我手头没文件了所以就不详细讲了\n\n   令群组服服主流泪的进 阶 讨 论\n    搞完这个以后我其实有两个感觉\n      对于单端腐竹来说：woc，漂亮\n      对于群组腐竹来说：淦！\n    原因很简单，这是一个Bukkit插件\n    你会发现你的BungeeCord根本映射不出去raknet协议请求\n    去Discord问了一大圈以后我得到了两个解决方法：\n1.使用Waterdog（https://github.com/yesdog/Waterdog）\n2.使用ProtocolSupportBungee（https://github.com/ProtocolSupport/ProtocolSupportBungee）\n前者是一个Proxy，fork自Bungeecord，后者是一个Bungee插件\n安装好了以后都可以令基岩版玩家透过BungeeCord代理端连接到子端\n个人还是偏向于使用前者，很稳定\n于是我们来看看前者具体怎么使用\n搭建好Waterdog以后，你应该能找到istener.naknet选项，开启以后便可以接受naket协议连接\n但是注意了，开了这个以后你的Java版玩家就没法进了\n所以你需要创建两个listener，端口不同，一个打开naknet一个关掉，这样的话所有人就都可以进了wwwwwww\n\nTips：基岩版协议进服很容易导致反作弊误判，本人的解决方法是使用ProtocolSupportAPI提供的isBedrock()方法判断玩家是否为基岩版，如果是的话那么在进服时就给予aac.bypass（AAC权限，其他插件大同小异）权限，退出的时候再撤销（以免有人用基岩版刷bypass，再用Java版作弊）\n\n那么至此，《浅谈Java版与基岩版服务器互通》的内容就全部结束了，如果本帖对你有什么启发的话，欢迎评分+回复哦\n[groupid=1511]Server CT[/groupid]",
+    "replies": [
+        {
+            "author": "1252503331",
+            "timestamp": 1573282800,
+            "txt_content": "沙发，"
+        },
+        {
+            "author": "1252503331",
+            "timestamp": 1573282860,
+            "txt_content": "这个对于腐竹的话，很适合在学校做服务器，但是你要拿去开服\n我觉得，没啥必要的，不过你开快餐，我百分百推荐你用这些插件\n毕竟他们喜欢新的东西，"
+        },
+        {
+            "author": "pc85",
+            "timestamp": 1573283700,
+            "txt_content": "写，赶紧写多一点。我要好好学习学习这些深谋大论。"
+        },
+        {
+            "author": "LightiNike",
+            "timestamp": 1573311600,
+            "txt_content": "支持一波贺兰"
+        },
+        {
+            "author": "RedCarl",
+            "timestamp": 1573321980,
+            "txt_content": "感谢楼主这么细心的讲解,很复杂,我很希望手机玩家能和电脑玩家一起,这种方式还是不够完美,但他是一个开始,很棒!"
+        },
+        {
+            "author": "海东喵",
+            "timestamp": 1573546260,
+            "txt_content": "兼容服最大的问题是没模组！！！\n\n没模组留不住很多老玩家！！！"
+        },
+        {
+            "author": "空城离歌",
+            "timestamp": 1573887060,
+            "txt_content": "支持一波贺兰"
+        },
+        {
+            "author": "121zm",
+            "timestamp": 1575869820,
+            "txt_content": "所以现在ProtocolSupportPE有什么进展了吗，一直找不到最新的插件，很需要开个JE和BE互通的服务器"
+        },
+        {
+            "author": "xmdhs",
+            "timestamp": 1576313880,
+            "txt_content": "拿 Cloud Studio 编译哈哈，虽然下一堆库下了半天，但是也不是用我的电脑。\n\n\n不过编译完只有 10mb ，手上也没得 1.12 的客户端了，不知道能不能用。\n"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1576335540,
+            "txt_content": "xmdhs 发表于 2019-12-14 16:58\n拿 Cloud Studio 编译哈哈，虽然下一堆库下了半天，但是也不是用我的电脑。\n\n\n\n\n确定是mcpenew分支吗，另外最新构建应该支持到1.14.4了而不是1.12.2"
+        },
+        {
+            "author": "enen",
+            "timestamp": 1582356240,
+            "txt_content": "waterdog在基岩版可以连接可是进不去世界，卡在正在生成世界"
+        },
+        {
+            "author": "enen",
+            "timestamp": 1582358940,
+            "txt_content": "而且mcpenew停更了"
+        },
+        {
+            "author": "dudududu2004",
+            "timestamp": 1582645260,
+            "txt_content": "mcpenew为啥编译出来只有10m。。还没测试。\n还有最新构建的是1.14.3版本的，有啥办法能让他支持1.12.2"
+        },
+        {
+            "author": "冯天语_Danny",
+            "timestamp": 1582691580,
+            "txt_content": "那个PSPE能发下地址吗？适用1.14.4版本"
+        },
+        {
+            "author": "冯天语_Danny",
+            "timestamp": 1582802280,
+            "txt_content": "xmdhs 发表于 2019-12-14 16:58\n拿 Cloud Studio 编译哈哈，虽然下一堆库下了半天，但是也不是用我的电脑。\n可以给个编译教程吗？对这方面不太懂"
+        },
+        {
+            "author": "dugulp",
+            "timestamp": 1583042760,
+            "txt_content": "感谢作者"
+        },
+        {
+            "author": "冯天语_Danny",
+            "timestamp": 1583217720,
+            "txt_content": "Geyser会更好"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1583227320,
+            "txt_content": "冯天语_Danny 发表于 2020-3-3 14:42\nGeyser会更好\nGeyser我也注意到了，这几天进行了一下测试，但是感觉还行，比DragonProxy完善度高，但没有PSPE那么好，而且说实话有的问题和DragonProxy如出一辙"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1583227380,
+            "txt_content": "冯天语_Danny 发表于 2020-3-3 14:42\nGeyser会更好\n这俩原理都是靠Nukkit服务端做转接的，所以其实都一样"
+        },
+        {
+            "author": "冯天语_Danny",
+            "timestamp": 1583229060,
+            "txt_content": "贺兰星辰 发表于 2020-3-3 17:23\n这俩原理都是靠Nukkit服务端做转接的，所以其实都一样\nhttps://www.mcbbs.net/thread-971013-1-1.html\n我测试了不行啊"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1583229300,
+            "txt_content": "冯天语_Danny 发表于 2020-3-3 17:51\nhttps://www.mcbbs.net/thread-971013-1-1.html\n我测试了不行啊\nProtocolSupport官方停止更新mcpenew分支在github上了，那个应该用不了\n另外按道理应该至少20MB的"
+        },
+        {
+            "author": "冯天语_Danny",
+            "timestamp": 1583562780,
+            "txt_content": "贺兰星辰 发表于 2020-3-3 17:55\nProtocolSupport官方停止更新mcpenew分支在github上了，那个应该用不了\n另外按道理应该至少20MB的 ...\n你说的置入一份Minecraftserver服务端，指的是把Server的源码文件复制进去吗？"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1583644020,
+            "txt_content": "冯天语_Danny 发表于 2020-3-7 14:33\n你说的置入一份Minecraftserver服务端，指的是把Server的源码文件复制进去吗？ ...\n不，编译后的jar"
+        },
+        {
+            "author": "fengyanlin",
+            "timestamp": 1588131660,
+            "txt_content": "emmmm\n那java可以进基岩版的服务器吗。。。。。\n最近在研究这个。。。。"
+        },
+        {
+            "author": "310749832",
+            "timestamp": 1592556720,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "一只鸽纸",
+            "timestamp": 1592581440,
+            "txt_content": "楼主能再详细介绍一下waterdog的用法吗，，，虽然和BC差不多但是依然有些和BC的差异看不懂"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1592631120,
+            "txt_content": "一只鸽纸 发表于 2020-6-19 23:44\n楼主能再详细介绍一下waterdog的用法吗，，，虽然和BC差不多但是依然有些和BC的差异看不懂 ...\n怎么说呢，waterdog你只要把需要基岩版链接的那个口的raknet改成true就成了"
+        },
+        {
+            "author": "一只鸽纸",
+            "timestamp": 1592631780,
+            "txt_content": "贺兰星辰 发表于 2020-6-20 13:32\n怎么说呢，waterdog你只要把需要基岩版链接的那个口的raknet改成true就成了\n比如说我创建两个listner\n一个端口是19132，开启了raknet\n一个端口是25565，关闭了raknet\n基岩版玩家就需要用19132端口进服，电脑版玩家需要用25565端口进服\n两个玩家进的是同一个服吗"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1592665080,
+            "txt_content": "一只鸽纸 发表于 2020-6-20 13:43\n比如说我创建两个listner\n一个端口是19132，开启了raknet\n一个端口是25565，关闭了raknet\n\n没错，是这样，他们进的是一个服"
+        },
+        {
+            "author": "一只鸽纸",
+            "timestamp": 1592673420,
+            "txt_content": "贺兰星辰 发表于 2020-6-20 22:58\n没错，是这样，他们进的是一个服\nokkk，差不多明白了，感谢"
+        },
+        {
+            "author": "zdy000608",
+            "timestamp": 1593079920,
+            "txt_content": "想请教一下楼主，有哪些插件可以实现玩家上下线事件监听并做出反应的"
+        },
+        {
+            "author": "Hyc123451",
+            "timestamp": 1593089220,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "lrc123250",
+            "timestamp": 1595236980,
+            "txt_content": "我当时BC服务器使用Geyser 间歇泉 进行互通 在本地没有问题。  一把服务端放在vps上就出现[com.nukkitx.network.raknet.RakNetServer]: An exception occurred in RakNet 我就蒙了"
+        },
+        {
+            "author": "2498625549",
+            "timestamp": 1595846580,
+            "txt_content": "贺兰星辰 发表于 2020-6-20 13:32\n怎么说呢，waterdog你只要把需要基岩版链接的那个口的raknet改成true就成了\n基岩版一直处于生成世界中,这个怎么解决呀"
+        },
+        {
+            "author": "sxwx043800zym",
+            "timestamp": 1597576740,
+            "txt_content": "看完感觉DragonProxy基本不用考虑了XD，Geyser和ProtocolSupport都在选择范围内；目前只知道ProtocolSupport的优缺点，并且国内Geyser的相关评测基本可以说没有..期待更新Geyser的评测吧XD"
+        },
+        {
+            "author": "sxwx043800zym",
+            "timestamp": 1597576980,
+            "txt_content": "sxwx043800zym 发表于 2020-8-16 19:19\n看完感觉DragonProxy基本不用考虑了XD，Geyser和ProtocolSupport都在选择范围内；目前只知道ProtocolSuppor ...\n想问一下，Geyser说是进行数据包转换，它的工作原理是不是和ProtocolSupport一样呢？"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1597622700,
+            "txt_content": "sxwx043800zym 发表于 2020-8-16 19:19\n看完感觉DragonProxy基本不用考虑了XD，Geyser和ProtocolSupport都在选择范围内；目前只知道ProtocolSuppor ...\nProtocolSupportPE目前直接闭源了所以基本没得用的，现在唯一的选择只能是Geyser\nGeyser我长期用过一段时间，至少在1.15.2时期是非常稳的，绝对能用\n就是不支持BC的IP转发，其实BC有一个前端代理协议允许像是HAProxy这样的代理前端转发真实IP给BC，如果Geyser兼容一下那基本就完美了"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1597622760,
+            "txt_content": "sxwx043800zym 发表于 2020-8-16 19:23\n想问一下，Geyser说是进行数据包转换，它的工作原理是不是和ProtocolSupport一样呢？ ...\n恐怕不是完全相同，反倒说Geyser和DragonProxy像一点，都用了Nukkit(X)的基岩版协议，而ProtocolSupport应该是自造的协议"
+        },
+        {
+            "author": "sxwx043800zym",
+            "timestamp": 1597646100,
+            "txt_content": "贺兰星辰 发表于 2020-8-17 08:05\nProtocolSupportPE目前直接闭源了所以基本没得用的，现在唯一的选择只能是Geyser\nGeyser我长期用过一段时 ...\n好吧，最新版1.16.2我测试之后晕了，皮肤没有不说，音频还是错误的（玩家A撸草，A听起来是石头的声音，而B听起来是正常的，并且win10基岩操作还会有BUG，坐等作者更新了XD"
+        }
+    ]
+}

@@ -1,0 +1,49 @@
+{
+    "title": "如何动态注册物品",
+    "author": "纪华裕",
+    "replyCount": 8,
+    "timestamp": 1593305580,
+    "txt_content": " 本帖最后由 纪华裕 于 2020-6-28 08:53 编辑 \n\n如何动态注册物品\n\n通常我们会在RegistryEvent中注册我们的物品，但是我们真的只能在这个事件中注册物品吗？\n\n今天，我们将从不带forge污染的代码（Fabric1.15.2）出发，探索，这个问题的答案。\n\n动态注册\n\n首先，我们打开了原版用于注册物品的文件net.minecraft.item.Items。我们可以看到所有的物品都是通过这个方法注册的。\n\n\nprivate static Item register(Identifier id, Item item) {\n  if (item instanceof BlockItem) {\n     ((BlockItem)item).appendBlocks(Item.BLOCK_ITEMS, item);\n  }\n\n  return (Item)Registry.register(Registry.ITEM, (Identifier)id, item);\n}复制代码\n查看这个方法的实现，其实就是向Registry.ITEM里add了后面两个参数。现在我们看一下，Registry.ITEM有啥。这东西是一个叫做DefaultedRegistry的类。通过检查这个类，我们惊奇的发现，似乎没有任何一个东西给注册表加锁，那是不是意味着我们可以在任何时候注册这个物品？\n\n话不多说试一下就知道了。\n\n做一个如下的物品B：\n\n\npublic static final Item B = new Item(new Item.Settings().group(ItemGroup.MISC)) {\n    public boolean postMine(ItemStack stack, World world, BlockState state, BlockPos pos, LivingEntity miner) {\n        if (miner instanceof PlayerEntity) {\n            Registry.register(Registry.ITEM, new Identifier(Reference.MOD_ID, \"a\"), A);\n        }\n        return true;\n    }\n};复制代码\n这个物品的作用，就是在玩家挖掘一个方块之后注册物品A。\n\n立刻，我们启动游戏开始实验。的确如此，在我们使用物品B挖掘完一个方块中，物品A**了，不过很遗憾，物品A没有任何材质。F3+H重载却依旧没有。\n\n为什么？ 我们明明注册了这个物品？不急仔细寻找一番。\n\n加载材质\n\n我们发现所有的物品材质都会通过ItemModels#getModel方法获取，时候我们这个物品的材质没有加载进这个model集中呢？事不宜迟，现在我们打一个断点试一下。\n\n的确，我们无论我们怎么重载，这个物品A都没有加入models，我们可能需要想一个办法将其加入集合中。很简单，putModel方法可以帮到我们，只需要调用这个方法我们就可以完成工作了。\n\n在客户端调用该方法。\n\n\nMinecraftClient.getInstance().getItemRenderer().getModels().putModel(ExampleMod.A,new ModelIdentifier(Registry.ITEM.getId(ExampleMod.A),\"inventory\"));\n复制代码\n当然，你可能需要使用网络发包来解决这个调用问题。之后我们发现，动态注册的物品依旧没有材质，但是我们使用 F3+H 重载后出现了材质。\n\n更进一步\n\n有没办法让材质直接出现，而不通过重载？\n\n我们发现，Minecraft 只会加载需要的模型，也就是说，在材质加载时如果我们有这个物品，那么这个物品就能被加载模型，这也就是为什么我们需要在游戏启动时那个事件加载物品。所以说让材质直接出现可能需要魔改更多的内容。\n\n回到开始\n\n我们讨论了这么多在 Fabric 下，可以动态注册物品吗？那在 Forge 下呢？ 我们注意到 Forge 魔改了原版的注册，而 Forge 的注册表里有一个 isFrozen 的字段。 我们很遗憾的看到 Forge 会自我封闭这个注册表，但是这也不是代表我们没有可能动态注册，我们注意到有一个unfreeze的方法，这个应该可以让注册表解冻。大家可以在有空的时候探索一二。\n\n你可以在这里找到代码。Github\n",
+    "replies": [
+        {
+            "author": "kiritorr",
+            "timestamp": 1593307860,
+            "txt_content": "顶一顶~~~~~"
+        },
+        {
+            "author": "many先生",
+            "timestamp": 1596524040,
+            "txt_content": "这么好的贴子没人顶吗？"
+        },
+        {
+            "author": "月杀233",
+            "timestamp": 1597234560,
+            "txt_content": "支持jihuayu"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1597242720,
+            "txt_content": "那么如果运行一半移除个物品"
+        },
+        {
+            "author": "洞穴夜莺",
+            "timestamp": 1597242780,
+            "txt_content": "那如果运行一半移除个方块"
+        },
+        {
+            "author": "many先生",
+            "timestamp": 1597554660,
+            "txt_content": "many先生 发表于 2020-8-4 14:54\n这么好的贴子没人顶吗？\n我支持一下算灌水？到底是谁没读版规？"
+        },
+        {
+            "author": "13314367057",
+            "timestamp": 1613875140,
+            "txt_content": "洞穴夜莺 发表于 2020-8-12 22:32\n那么如果运行一半移除个物品\n如果你想动态移除一个物品，首先，你需要将所有关于这个物品的引用赋值null，然后等待gc销毁对象，最后还要解决序列化异常，所以几乎不可能"
+        },
+        {
+            "author": "董继晨",
+            "timestamp": 1613880000,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

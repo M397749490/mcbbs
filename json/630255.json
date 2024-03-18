@@ -1,0 +1,124 @@
+{
+    "title": "[修复][上古之石]LajiAAC —— AAC启动完成前为什么禁止玩家进入|配合Reconnect[1.8+]",
+    "author": "DGK2",
+    "replyCount": 23,
+    "timestamp": 1472817840,
+    "txt_content": "，毁青春",
+    "replies": [
+        {
+            "author": "andylizi",
+            "timestamp": 1472818200,
+            "txt_content": "标题: [修复][上古之石]LajiAAC —— AAC启动完成前为什么禁止玩家进入|配合Reconnect[1.8+] 本帖最后由 1582952890 于 2017-9-17 11:28 编辑 \n辣鸡标题字数限制害死人了\n\n听说发原创插件有绿宝石耶。。。\n听说绿宝石可以卖钱耶。。。。。。\n\n注意：此贴内会有一些技术细节（我的习惯），如果遇到看不懂的部分可直接跳过。\n这个插件极其轻量级，没有配置文件、命令、权限，安装上去就可以用的。\n灰色字体是给想知道细节的人看的。\n\n最近发现个很棒的BC插件叫“Reconnect”，可以让玩家在服务器stop时不必退出服务器，而是可以留在游戏里等待重启完成，然后自动连接（详情请看上面那个链接，mcbbs的转载贴）。\n这个插件判断“服务器是否重启完成”是通过连接服务器所在的IP看看是不是超时来完成的。\n\n可AAC有一个特点就是，启动时必须联网进行更新检测+盗版检测才能正常启动（这个估计使用AAC的用户肯定发现了）（如果发现是盗版就会拒绝启动，我到现在也没搞懂它到底是怎么判断盗版的。。这不科学啊），而这个用于检测的网站。。。Installation\nDownload both AAC and the correct version of ProtocolLib and put both in your plugins folder. AAC requires an active internet connection, and the ability to connect to cloudflare to start up correctly.\n\n\n\n\nQQ图片20160902192929.gif (25.75 KB, 下载次数: 7)\n\n下载附件\n\n2016-9-2 19:22 上传\n\n\n\n\n居然是CloudFlare。。。\n\n所以一般在服务器启动完毕后玩家不能立即进入，而要等AAC检查完毕才能进入。在这之前进入会被AAC以理由“Server still starting up”踢出。\n而这样问题就产生了。刚刚我提到Reconnect是通过判断连接是否超时，只要不超时都算连接成功了，而AAC把玩家踢出是不算“超时”的，所以Reconnect认为重连成功了，而实际上没有，于是玩家最后还是会连接超时（因为并未真正进入服务器）然后掉线。\n\n所以Reconnect插件在装有AAC的子服上几乎完全无法发挥作用。\n\n\n此插件的原理？\n通过反编译AAC的主类得知（我十分庆幸AAC作者把用于踢出玩家的监听器放在了主类，并且也十分庆幸这个方法能被jd-gui反编译，更十分庆幸AAC是通过Event来实现的并且优先级还不是HIGHEST）它是在 NORMAL 优先级拦截了 PlayerLoginEvent 事件。于是我这个插件里使用了 HIGHEST 优先级来检测如果玩家被disallow（不允许）进入的理由是“Server still starting up”那么就覆盖AAC的设置，允许玩家进入。\n\n但这样又产生了一个新的问题——AAC的作者并不是吃饱了撑着禁止启动完成前玩家进入的，而是因为启动完成前AAC还没完全初始化，这个时候玩家进入会导致后台报错的。\n于是又不能让玩家真的进去。\n正在山穷水复疑无路时，我柳暗花明又一村的想到了一个新的办法（别喷哈233）。\n为什么不让玩家进去一定得通过踢出玩家的方式进行？让玩家在AAC加载前一直等着（停在“登入中”界面），等到AAC加载完毕后才放进去不就ok了吗？这样Reconnect也不会认为玩家连接成功了。\n\n但怎样才能让玩家延迟加入呢，暂停主线程肯定是不行的，那样会大幅掉tps。\n反编译MC官服用于控制Login Phase的LoginListener类，在里面发现，要完成进入服务器的过程，必须先等待AsyncPlayerPreLoginEvent执行完毕，并且这个事件还恰好是异步的，是新开线程执行，在里面阻塞不会影响主线程。\n嘿嘿嘿\n\n这是最终的代码（仅供学习与交流之用，严禁未经允许二次创作）\n（24行，破纪录了呢233）package net.andylizi.lajiaac;\n\nimport me.konsolas.aac.api.AACAPIProvider;\nimport org.bukkit.event.*;\n\npublic final class LajiAAC extends org.bukkit.plugin.java.JavaPlugin implements Listener{\n    @Override public void onEnable() {\n        getServer().getPluginManager().registerEvents(this, this);\n    }\n\n    @EventHandler(priority = EventPriority.HIGHEST)\n    public void onLogin(org.bukkit.event.player.PlayerLoginEvent event){\n        if(\"Server still starting up\".equals(event.getKickMessage()))   // 如果踢出理由是AAC的提示\n            event.allow();    // 允许玩家进入\n    }\n\n    @EventHandler(priority = EventPriority.HIGHEST)\n    public void onAsyncLogin(org.bukkit.event.player.AsyncPlayerPreLoginEvent event){\n        while(!AACAPIProvider.isAPILoaded())     // 如果AAC的API还没加载完成\n            try {\n                Thread.sleep(10);  // 就不断 Thread.sleep 暂停线程，拖延玩家进入服务器的时间一直到AAC加载完为止\n            } catch(InterruptedException ex) { }\n    }\n}复制代码看不懂代码？没关系，那我告诉你效果吧：\n\n\n当AAC还没启动完成时，Reconnect（或客户端正常进入服务器）的请求会被拖延，玩家会一直停在“登录中”界面，而不是粗暴的踢出。\n等AAC加载完成，玩家就可以正常进入了。\n\n在这个过程中玩家只需要执行连接服务器的操作一次就够，而不是被踢后“稍后再试”（这样玩家体验很差的），于是Reconnect插件可以正常发挥了。\n\n不会对TPS有任何影响，性能与内存占用极低完全可以忽视。\n\n\n扩展阅读如果想在使用Reconnect插件时（注意前提）更好的增加玩家体验，可以打开 spigot.yml 里的 late-bind 选项（减少“连接中”的时间，增加“正在等待服务器启动”的时间）。\n\n这个选项在生产环境具体会造成什么副作用不清楚，我记得有个插件是需要关闭它才能正常使用的（是Viaversion还是ProtocolSupport还是其他的什么来着的。。忘了）。不过对绝大部分插件应该都不会有影响（如果插件只使用了bukkitapi那肯定不会有影响，而Viaversion，ProtocolLib这类明显的hack类插件就不好说咯，，因为其更依赖于底层系统。）\n\n注意：我并没有说“Viaversion或ProtocolSupport或ProtocolLib不能打开这个选项”，我记不清了，也可能是我记错了呢？在此不给出任何保证，use at your own risk\n\n\n关于Reconnect的使用里的一个。。怎么说呢，小技巧吧。\n跟此插件没有直接联系\n很多人可能不知道Reconnect配置文件里的 shutdown.text 项是干嘛用的，从而乱填写一个或保持默认值。\nReconnect在玩家掉线时重连，但有时候玩家掉线可能并不是因为“服务器重启”而是因为“玩家被踢出游戏”，在这个时候重连就没啥意义了，所以需要一个方法来区分掉线与服务器主动踢出。\n在这里大公无私的分享一下自己服务器使用的正则表达式。\nReconnect配置文件（部分）# This block is necessary for the plugin to differentiate whether a kick happened because of a shutdown or not.\n# 翻译: 这一部分配置让插件用来区分玩家掉线是不是由于服务器关闭导致的。\nshutdown:\n  # When regex is set to false, the kick message must be equal to the following text if the player should be reconnected to that server. (Formatting codes will be ignored though.)\n  # 翻译: 当 regex 项设为 false，掉线消息必须与 text 项设置的文字完全相等，玩家才会重连到服务器。（颜色代码不参与比较）\n\n  # When regex is set to true, the regex must match the kick message if the player should be reconnected to that server.\n  # 翻译: 当 regex 项被设为 true，掉线消息必须与 text 项设置的正则表达式完全匹配，玩家才会重连到服务器。\n\n  # Leaving the text empty will lead the plugin to always reconnect the players, no matter what the actual kick-reason was.\n  # 翻译: 把 text 项留空会导致插件总是执行重连，不管掉线的理由是什么。\n\n  # You can still use the \"ServerReconnectEvent\" as a plugin developer to decide on your own whether the user should be reconnected automatically\n  # or not.\n  # 翻译: 如果你是插件开发者，你仍然可以通过 ServerReconnectEvent 这个事件来控制玩家应不应该自动重连。\n\n  # 掉线原因里必须含有“关闭”, “重启”，“稍后”，“再进入”，“close”，“restart”，“reload”，“server”，“rejoin”关键字中的任意（不区分大小写），才判定为需要重连。\n  text: \"(?i).*(关闭|重启|稍后|再进入|close|restart|reload|server|rejoin).*\"\n\n  # text 项是一个正则表达式，插件应该把它 （text 项）作为正则表达式解析\n  regex: true复制代码\n\n\n下载\n\n\n\nLajiAAC.jar\n(1.86 KB, 下载次数: 252)\n\n\n\n2016-9-2 19:44 上传\n点击文件名下载附件\n阅读权限: 1\n\n\n\n\n\n听说外国人在自己网站里挂个“Donate”按钮都可以得到不少真实货币的收入，而在国内你们拿了东西就走难道连个不用花钱也什么都不会消耗的人气都不肯给吗？\n\n听说插件必须带图？那就用这个吧↓\n\n\n\n\n6442.png (7.23 KB, 下载次数: 6)\n\n下载附件\n\n2016-9-2 20:36 上传\n\n\n\n\n\n啊居然还必须是效果图。\n好吧好吧在这\n\n\n\n\nQQ截图20160902203707.jpg (113.29 KB, 下载次数: 4)\n\n下载附件\n\n2016-9-2 20:42 上传\n\n\n\n\n\n\n\n\nQQ截图20160902203732.jpg (111.21 KB, 下载次数: 5)\n\n下载附件\n\n2016-9-2 20:42 上传\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1472818380,
+            "txt_content": "啊我怎么瞎了"
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472818560,
+            "txt_content": "表示AAC不是付费插件吗.."
+        },
+        {
+            "author": "浅念哥",
+            "timestamp": 1472819280,
+            "txt_content": "强行省略import\n姿势+1\n滋瓷"
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472819640,
+            "txt_content": "不不不，我是说这个是付费插件很多人都没有\n(比如我)我不是想要插件..."
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472821620,
+            "txt_content": "表示只是1.98烂大街了\n然而1.8的没把...\n表示楼主你去超越他算了(我就说说qaq)"
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472823660,
+            "txt_content": "QQ1357288463 发表于 2016-9-2 21:07\n表示只是1.98烂大街了\n然而1.8的没把...\n表示楼主你去超越他算了(我就说说qaq) ...\n表示不明白，还有楼主你别老是用加分的形式..\n搞的我跟水帖子的似的"
+        },
+        {
+            "author": "⑨",
+            "timestamp": 1472824440,
+            "txt_content": "辣鸡AAC，毁我战绩\n你应该弄一个断（被）线（踢）重连插件 我在某mc家园战争围城里玩的时候别人一直对我丢雪球，辣鸡AAC就给我T了，你应该弄断（被）线（踢）重连插件！！"
+        },
+        {
+            "author": "QQ1357288463",
+            "timestamp": 1472824860,
+            "txt_content": "QQ1357288463 发表于 2016-9-2 21:41\n表示不明白，还有楼主你别老是用加分的形式..\n搞的我跟水帖子的似的\n编辑到一起？\n编辑成什么...我语文不好..."
+        },
+        {
+            "author": "xiaodobi2333",
+            "timestamp": 1472875920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "andylizi",
+            "timestamp": 1472876100,
+            "txt_content": "xiaodobi2333 发表于 2016-9-3 12:12\nAAC在哪里购买 \n能丢个链接么 \n我想买\nhttps://www.spigotmc.org/resourc ... -aura-blocker.6442/"
+        },
+        {
+            "author": "gyalo",
+            "timestamp": 1472904480,
+            "txt_content": "这个插件是安装到BC端还是每个子服？"
+        },
+        {
+            "author": "xRPQx",
+            "timestamp": 1472905860,
+            "txt_content": "我很好奇\naac原名是啥"
+        },
+        {
+            "author": "HotPe_e",
+            "timestamp": 1472908320,
+            "txt_content": "qq1812538626 发表于 2016-9-3 20:31\n我很好奇\naac原名是啥\nAdvanced Anti Cheat = AAC"
+        },
+        {
+            "author": "larsan",
+            "timestamp": 1472909040,
+            "txt_content": "建议楼主插件改个名字，这个名字感觉对aac作者很不尊重"
+        },
+        {
+            "author": "超平坦之王",
+            "timestamp": 1472999400,
+            "txt_content": "插件标题有点233 - -辣鸡AAC 233\n表示AAC我都不用。玩家一用，手速快的就被T了…… = ="
+        },
+        {
+            "author": "__li_zhi",
+            "timestamp": 1473520020,
+            "txt_content": "没有AAC这个付费插件好像就没用QAQ"
+        },
+        {
+            "author": "Fisherman_wcz",
+            "timestamp": 1473581400,
+            "txt_content": "嘿嘿。。先收藏。。。等开的起BC再来吧"
+        },
+        {
+            "author": "1632394382",
+            "timestamp": 1481098860,
+            "txt_content": "插件不错我抱走了楼主"
+        },
+        {
+            "author": "Minecraft_cloud",
+            "timestamp": 1481103300,
+            "txt_content": "下载了~~~~~"
+        },
+        {
+            "author": "1374004609",
+            "timestamp": 1485044700,
+            "txt_content": "AAC更新到3.0.0以上玩家一上线就会报错，求修复更新lajiaac插件"
+        },
+        {
+            "author": "UltraPanda",
+            "timestamp": 1485047460,
+            "txt_content": "然后梨子在这个“细节”的方面装了一个B"
+        },
+        {
+            "author": "zykool",
+            "timestamp": 1504298760,
+            "txt_content": "感谢分享 不过还是没看懂"
+        }
+    ]
+}

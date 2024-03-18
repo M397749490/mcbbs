@@ -1,0 +1,34 @@
+{
+    "title": "開發模組的小問題，創建方塊",
+    "author": "King28003027",
+    "replyCount": 5,
+    "timestamp": 1529908860,
+    "txt_content": "package net.snowcate.techcrystallization;\n\nimport cpw.mods.fml.common.registry.GameRegistry;\nimport net.minecraft.block.Block;\nimport net.minecraft.block.material.Material;\nimport net.minecraft.creativetab.CreativeTabs;\nimport net.minecraft.item.ItemBlock;\n\npublic class Crystallization  extends Block{\n                public Crystallization (Material M) {\n                super (M);\n                \n                final String myModId = \"Crystallization\";\n                final String myBlockId = \"Crystallization\";\n                myBlock = (Crystallization)GameRegistry.register(\n                    new Crystallization(Material.rock).setUnlocalizedName(myModId+\".\"+myBlockId)\n                                .setRegistryName(myModId, myBlockId)\n                                .setCreativeTab(CreativeTabs.BUILDING_BLOCKS));\n                \n                \n                GameRegistry.register(new ItemBlock(Crystallization).setRegistryName(myModId, myBlockId));\n                \n}\n\n                private Object setUnlocalizedName(String string) {\n                        // TODO 自動產生的方法 Stub\n                        return null;\n                }}\n复制代码我上面這些有錯誤嗎?\n\n要怎麼樣註冊方塊?\n\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1529909520,
+            "txt_content": "主类里也要调用这个注册。"
+        },
+        {
+            "author": "King28003027",
+            "timestamp": 1529911740,
+            "txt_content": "森林蝙蝠 发表于 2018-6-25 14:52\n主类里也要调用这个注册。package net.snowcate.techcrystallization;\n\nimport cpw.mods.fml.common.Mod;\nimport cpw.mods.fml.common.Mod.EventHandler;\nimport cpw.mods.fml.common.event.FMLInitializationEvent;\nimport cpw.mods.fml.common.event.FMLPostInitializationEvent;\nimport cpw.mods.fml.common.event.FMLPreInitializationEvent;\n\n@Mod(modid=\"techcrystallization\", name=\"techcrystallization\", version=\"1.0.0\")\npublic class Techcrystallization {\n\n\n\n@EventHandler\npublic void preLoad(FMLPreInitializationEvent event)\n{\n        Crystallization myModId;\n        \n}\n \n@EventHandler\npublic void load(FMLInitializationEvent event)\n{\n}\n \n@EventHandler\npublic void postLoad(FMLPostInitializationEvent event)\n{\n}}复制代码\n\n\n我的主類是這樣子寫的"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1529912340,
+            "txt_content": "event.getRegistry().register(new YourItem().setRegistryName(\"youritem\"));"
+        },
+        {
+            "author": "SilverMing",
+            "timestamp": 1529920860,
+            "txt_content": "整個都很有問題。\n1.你使用的注冊方法是GameRegistry.register(Block), 是Forge for MC1.8以後的方法，可是你導入的包是cpw.mods.fml這個只有在1.7.10或以前才出現的包，究竟你是用甚麼版本開發mod?\n2.你在Crystallization建構方法(Constructor method)裡又new了一次Crystallization自身，恐怕會無限遞歸引致棧溢出；new Crystallization時調用的setUnlocalizedName實際上會調用Crystallization.setUnlocalizedName (return null那個)而非Block.setUnlocalizedName，並且Crystallization.setUnlocalizedName return null會引致後面拋NullPointerException\n3.Crystallization本身不存在myBlock變量，主類preLoad的區域變量實際上也沒有初始化\n結論：你根本沒有注冊到Block\n改正：\n0.移除那害己的private setUnlocalizedName方法\n1.先把myBlock = GameRegistry....那段移到主類的preLoad，再：\n2.拆分register和new Crystallization，先初始化myBlock為new Crystallization，再注冊myBlock\n2(1).如果是1.8.9或以下：\n你根本不需要再額外注冊ItemBlock；把register(myBlock)改成registerBlock(myBlock)；如果是1.7.10或以下請移除setRegistryName並將注冊名放入registerBlock作第二個參數\n2(2).如果是1.9或以上：\n將GameRegistry.register(new ItemBlock(Crystallization).setRegistry......)的Crystallization改成上面的myBlock \n  (類名Crystallization並不能直接作參數使用)\n\n\n我甚至都不想吐槽Crystallization這繼承了Block的類名"
+        },
+        {
+            "author": "King28003027",
+            "timestamp": 1529992080,
+            "txt_content": "    package net.snowcate.techcrystallization;\n\n    import cpw.mods.fml.common.Mod;\n    import cpw.mods.fml.common.Mod.EventHandler;\n    import cpw.mods.fml.common.event.FMLInitializationEvent;\n    import cpw.mods.fml.common.event.FMLPostInitializationEvent;\n    import cpw.mods.fml.common.event.FMLPreInitializationEvent;\nimport cpw.mods.fml.common.registry.GameRegistry;\n\n    @Mod(modid=\"techcrystallization\", name=\"techcrystallization\", version=\"1.0.0\")\n    public class Techcrystallization {\n\n\n\n    @EventHandler\n    public void preLoad(FMLPreInitializationEvent event)\n    {\n            \n            GameRegistry.registerItem(new Crystallization(),\"crystallization\");\n           \n    }\n\n    @EventHandler\n    public void load(FMLInitializationEvent event)\n    {\n    }\n\n    @EventHandler\n    public void postLoad(FMLPostInitializationEvent event)\n    {\n    }}复制代码package net.snowcate.techcrystallization;\n\nimport net.minecraft.creativetab.CreativeTabs;\nimport net.minecraft.item.Item;\n\npublic class Crystallization extends Item {\n    public Crystallization(){\n        this.setUnlocalizedName(\"crystallization\"+\"modid\");\n        this.setTextureName(\"Crystallization:aItem\");\n        this.setCreativeTab(CreativeTabs.tabTools);\n        this.setMaxStackSize(64000000);\n\n}}\n复制代码\n\n我換了另一個方法，可是材質導不進去\n材質地址:\nC:\\Users\\King2\\Desktop\\minecraftmod4\\src\\main\\resources\\assets\\techcrystallization\\textures\\items\\Crystallization"
+        }
+    ]
+}

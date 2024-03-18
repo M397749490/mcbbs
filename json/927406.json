@@ -1,0 +1,34 @@
+{
+    "title": "请问一下怎么创建一个冷却方法啊？",
+    "author": "醉倾梦",
+    "replyCount": 5,
+    "timestamp": 1574222160,
+    "txt_content": "请问一下怎么创建一个冷却方法啊？\n就是当玩家执行了这个方法体时，创建一个1分钟的冷却时间\n时间到了才可以继续执行这个方法体，然后再次创建冷却时间~",
+    "replies": [
+        {
+            "author": "1609089074",
+            "timestamp": 1574223420,
+            "txt_content": "https://hub.spigotmc.org/javadoc ... n.Plugin-long-long-"
+        },
+        {
+            "author": "醉倾梦",
+            "timestamp": 1574223600,
+            "txt_content": "1609089074 发表于 2019-11-20 12:17\nhttps://hub.spigotmc.org/javadocs/spigot/org/bukkit/scheduler/BukkitRunnable.html#runTaskTimerAsynch ...\n请问一下可以给一下具体的写法吗？~"
+        },
+        {
+            "author": "1609089074",
+            "timestamp": 1574224020,
+            "txt_content": "xiao_sgyg 发表于 2019-11-20 12:20\n请问一下可以给一下具体的写法吗？~\n实现BukkitRunnable，方法体内容写进 run() 里，执行的时候就用 runTaskLaterAsynchronously?(@NotNull Plugin plugin, long delay) 方法调用，delay 填延迟执行的 tick数。1秒 = 20tick\n\n论坛内已经有很多关于BukkitRunnable 的帖子，去搜一下看看吧"
+        },
+        {
+            "author": "6922100qwaszx",
+            "timestamp": 1574248080,
+            "txt_content": "6666666666666666666666666666"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1574262540,
+            "txt_content": "如果需要精准的冷却时间判断的话，可以用这个评分评分\npackage cn.mcres.karlatemp.mxlib.test;\n\nimport java.util.Map;\nimport java.util.Optional;\nimport java.util.UUID;\nimport java.util.concurrent.ConcurrentHashMap;\nimport java.util.concurrent.TimeUnit;\n\n/**\n * Create at 2019/11/20 22:30\n * Copyright Karlatemp\n * MXLib $ cn.mcres.karlatemp.mxlib.test\n */\npublic class TimedTask {\n    private static final Map<\n            UUID, // 玩家UUID\n            Map<\n                    String, // 辨认用, task唯一ID, 用于多task多冷却\n                    Long // 存储冷却结束时间\n                    >\n            > GLOBAL_TIME_STORE = new ConcurrentHashMap<>(); // 定义全局冷却\n\n    /**\n     * 清除存储的全部延迟几率, 在PlayerQuitEvent里调用一次解除内存占用\n     *\n     * @param uniqueId 玩家UUID\n     */\npublic static void clearAllTimeDelay(UUID uniqueId) {\n        GLOBAL_TIME_STORE.remove(uniqueId);\n    }\n\n    /**\n     * 判断目标Task是否在冷却中\n     *\n     * @param uniqueId 玩家UUID\n     * @param taskId   Task的唯一ID\n     * @Return 是否在冷却时间\n*/\npublic static boolean isInDelay(UUID uniqueId, String taskId) {\n        return Optional.ofNullable(GLOBAL_TIME_STORE.get(uniqueId))\n                .map(tasks -> tasks.get(taskId))\n                .map(\n                        time -> System.currentTimeMillis() < time // 判断是否冷却没结束, 如果系统当前时间没超过存储时间那么还在冷却期内\n                ).orElse(false); // 如果没有存储几率那么不在冷却时间内\n    }\n\n    /**\n     * 获取冷却时间\n*\n     * @param uniqueId 玩家UUID\n     * @param taskId   Task的唯一ID\n     * @return 冷却时间(毫秒), 如果为-1的话表示目标Task不在冷却中\n*/\npublic static long getDelayingTime(UUID uniqueId, String taskId) {\n        return Optional.ofNullable(GLOBAL_TIME_STORE.get(uniqueId))\n                .map(tasks -> tasks.get(taskId))\n                .map(end -> end - System.currentTimeMillis())\n                .filter(delay -> delay >= 0).orElse(-1L);\n    }\n\n    /**\n     * 使目标Task进入冷却期\n     *\n     * @param uniqueId 玩家UUID\n     * @param taskId   唯一 Task ID\n     * @param delays   冷却时间(毫秒)\n     */\npublic static void startDelay(UUID uniqueId, String taskId, long delays) {\n        Map<String, Long> tasks;\n        if (GLOBAL_TIME_STORE.containsKey(uniqueId)) {\n            tasks = GLOBAL_TIME_STORE.get(uniqueId);\n        } else {\n            GLOBAL_TIME_STORE.put(uniqueId, tasks = new ConcurrentHashMap<>());\n        }\n        tasks.put(taskId, System.currentTimeMillis() + delays);\n    }\n\n    /**\n     * 强行结束目标Task的冷却\n     *\n     * @param uniqueId 玩家UUID\n     * @param taskId   唯一 Task ID\n     */\npublic static void endDelay(UUID uniqueId, String taskId) {\n        if (GLOBAL_TIME_STORE.containsKey(uniqueId)) {\n            GLOBAL_TIME_STORE.get(uniqueId).remove(taskId);\n        }\n    }\n\n    /**\n     * 示例\n     */\npublic static void main(String[] args) throws Throwable {\n        UUID playerUUID = new UUID(0xCED25DD238D94E00L, 0xA0A6B22946BD0D8FL);\n        String taskId = \"Example Task\";\n        System.out.println(\"0: 目标冷却时间:\" + TimeUnit.MILLISECONDS.toSeconds(getDelayingTime(playerUUID, taskId)));\n        if (isInDelay(playerUUID, taskId)) {\n            System.out.println(\"1: 还在冷却期中, 拒绝访问\");\n            return;\n        }\n        startDelay(playerUUID, taskId, TimeUnit.SECONDS.toMillis(5)); // 5 秒\n        if (isInDelay(playerUUID, taskId)) {\n            System.out.println(\"2: 进入了冷却期\");\n        }\n        System.out.println(\"3: 目标冷却时间:\" + TimeUnit.MILLISECONDS.toSeconds(getDelayingTime(playerUUID, taskId)));\n        TimeUnit.SECONDS.sleep(7); // 停止6 秒\n        System.out.println(\"4: 是否在冷却期: \" + isInDelay(playerUUID, taskId));\n        System.out.println(\"5: 目标冷却时间:\" + TimeUnit.MILLISECONDS.toSeconds(getDelayingTime(playerUUID, taskId)));\n        startDelay(playerUUID, taskId, TimeUnit.SECONDS.toMillis(50));\n        endDelay(playerUUID, taskId);\n        System.out.println(\"6: 目标冷却时间:\" + TimeUnit.MILLISECONDS.toSeconds(getDelayingTime(playerUUID, taskId)));\n    }\n}\n\n\n"
+        }
+    ]
+}

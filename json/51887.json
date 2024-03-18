@@ -1,0 +1,84 @@
+{
+    "title": "【弃坑】【求测试】Minecraft Linux平台中文输入解决办法",
+    "author": "yinseny",
+    "replyCount": 15,
+    "timestamp": 1347341340,
+    "txt_content": " 本帖最后由 yinseny 于 2013-1-7 11:54 编辑 \n\n1.4.2/1.3.2/1.3.1已有使用相同思路实现的成熟mod了 详见@Zhuogu 的帖子（由于@jjkppo表示@Zhuogu的MOD可能造成游戏无故退出，所以这里不提供链接了）\n\n貌似算不上mod，只能算是个workaround，在自己的机器上成功了，但不知道通不通用，于是来求测试。。。我的环境是Fedora 17 x86_64，KDE桌面环境，oracle java 1.7.0_07，fcitx输入法，LANG=en_US.UTF-8\n\n之前用ibus时一直都需要先kill掉ibus进程才能启动mc，后来换了fcitx输入法之后发现和mc无冲突，键盘可正常使用，但是还是没办法输入中文，大致看了一下mc和lwjgl的源码，mc的文本输入框GuiTextField的按键事件从lwjgl获得，而lwjgl直接从底层获取事件，无视了ime。。。如果正常的修改方式貌似工程量有点大，所以想了个比较取巧的解决办法，在窗口下方加入一个java.awt.TextField，使用java自身的文本框而不是mc自己的GuiTextField，这样代码量也小，改动的文件也少\n\n步骤：\n卸载ibus，安装fcitx（使用apt-get、yum等指令即可）下载补丁\n\n\n\nmc132_ch_input_workaround.zip\n(23.17 KB, 下载次数: 57)\n\n\n\n2012-9-11 12:53 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\nmc125_ch_input_workaround.zip\n(23.63 KB, 下载次数: 15)\n\n\n\n2012-9-11 12:53 上传\n点击文件名下载附件\n\n\n\n\n\n压缩包内文件拖入minecraft.jar中，即net/minecraft/client/Minecraft.class和Minecraft$1.class\n\n\n副作用：\nMinecraftSP无法使用。。。需要自己直接使用指令启动minecraft.jar\ncd ~/.minecraft/bin;java -Xms1024m -Xmx2048m -cp jinput.jar:lwjgl.jar:lwjgl_util.jar:minecraft.jar -Djava.library.path=\"./natives\" net.minecraft.client.Minecraft YOUR_ID复制代码把YOUR_ID改为自己的ID\n源码（1.3.2）\npublic static void main(String[] par0ArrayOfStr) {\n        ......\n        final Frame var12 = new Frame();//需要把frame设置成final\n        var12.setTitle(\"Minecraft\");\n        var12.setBackground(Color.BLACK);\n        JPanel var11 = new JPanel();\n        var12.setLayout(new BorderLayout());\n        var11.setPreferredSize(new Dimension(854, 480));\n        var12.add(var11, \"Center\");\n        var12.pack();\n        var12.setLocationRelativeTo((Component) null);\n        var12.setVisible(true);\n        var12.addWindowListener(new GameWindowListener());\n        MinecraftFakeLauncher var9 = new MinecraftFakeLauncher(var1);\n        MinecraftApplet var13 = new MinecraftApplet();\n        var13.setStub(var9);\n        var9.setLayout(new BorderLayout());\n        var9.add(var13, \"Center\");\n        var9.validate();\n        var12.removeAll();\n        var12.setLayout(new BorderLayout());\n        var12.add(var9, \"Center\");\n        var12.validate();\n        var13.init();\n        var13.start();\n        Runtime.getRuntime().addShutdownHook(new ThreadShutdown());\n \n        //以下为添加的代码\n        final java.awt.TextField chatline = new java.awt.TextField();\n        var12.add(chatline, BorderLayout.PAGE_END);\n        chatline.setPreferredSize(new Dimension(854, 20));\n        chatline.addKeyListener(new java.awt.event.KeyListener() {\n                @Override\n                public void keyPressed(java.awt.event.KeyEvent arg0) {\n                        if (arg0.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER) {\n                                String tmp = chatline.getText();\n                                if (tmp != null && !tmp.isEmpty()) {\n                                        theMinecraft.getSendQueue().addToSendQueue(\n                                                        new Packet3Chat(tmp));\n                                        chatline.setText(\"\");\n                                }\n                        } else if (arg0.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {\n                                chatline.setText(\"\");\n                        }\n                }\n                @Override\n                public void keyTyped(java.awt.event.KeyEvent e) {}\n                @Override\n                public void keyReleased(java.awt.event.KeyEvent e) {}\n        });\n        var12.pack();\n        var12.validate();\n        // 结束\n}复制代码\n\nPS. 吐槽一下国内大部分添加了汉化补丁外挂文本的服务器。。。汉化文件全都使用只在windows上使用的gbk编码，默认使用国际通用的utf-8编码的linux内牛满面啊。。。每次下载下来新的客户端之后都要自己手动转换编码。。。\nmcbbslauncher、mclauncher、yolauncher都是Windows的exe可执行文件格式。。。bililauncher倒是jar的，可实际上仍然只是生成cmd指令。。。只能在win下运行。。。\n\n\n",
+    "replies": [
+        {
+            "author": "WuProem",
+            "timestamp": 1347341400,
+            "txt_content": "ubuntu 表示不会装oracle java。{:10_524:}"
+        },
+        {
+            "author": "indeed",
+            "timestamp": 1347342240,
+            "txt_content": "有这么麻烦吗？\n直接在游戏进入之前杀掉输入法的deamon进程即可。"
+        },
+        {
+            "author": "yinseny",
+            "timestamp": 1347342600,
+            "txt_content": "WuProem 发表于 2012-9-11 13:30 \nubuntu 表示不会装oracle java。\nubuntu oracle java 7 安装步骤，http://ubuntudaily.net/2012/06/i ... 7-in-ubuntu-via-ppa\n\n【fedora跪了。。。ppa源什么的最可恶了。。。】"
+        },
+        {
+            "author": "yinseny",
+            "timestamp": 1347342660,
+            "txt_content": "indeed 发表于 2012-9-11 13:44 \n有这么麻烦吗？\n直接在游戏进入之前杀掉输入法的deamon进程即可。\n杀掉输入法进程的话就没办法输入中文了啊。。。"
+        },
+        {
+            "author": "indeed",
+            "timestamp": 1347343620,
+            "txt_content": "yinseny 发表于 2012-9-11 13:51 \n杀掉输入法进程的话就没办法输入中文了啊。。。\n装上输入MOD，从别处复制。"
+        },
+        {
+            "author": "yinseny",
+            "timestamp": 1347344520,
+            "txt_content": "indeed 发表于 2012-9-11 14:07 \n装上输入MOD，从别处复制。\n我也试过这样。。。但是由于输入法已经被kill，所以只能使用网页端的云输入法或者虚拟机，即不好用又降低性能，而且复制粘贴好麻烦的。。。"
+        },
+        {
+            "author": "神ID",
+            "timestamp": 1347354900,
+            "txt_content": "看到linux我就进来了0 0"
+        },
+        {
+            "author": "chenchenalex",
+            "timestamp": 1347548820,
+            "txt_content": "这个必须顶啊！！ 福利啊 太感谢了"
+        },
+        {
+            "author": "qgymib",
+            "timestamp": 1348110120,
+            "txt_content": " 本帖最后由 qgymib 于 2012-9-20 11:02 编辑 \n\n有一种略微简单一点的办法，写一个脚本，在游戏启动前声明此进程禁止使用输入法即可\n\n#!/bin/bash\n\necho \"Launching game\"\n\nXMODIFIERS='' java -Xmx1024M -Xms512M -cp ~/Apps/MinecraftSP.jar net.minecraft.LauncherFrame\n\nrm ~/hs_err_pid*.log\n\n最后一行是为了删除错误日志\nXMODIFIERS='' 中‘’为两个单引号\n\n这种方法唯一的缺点在于不能在游戏中输入中文，但是在其他程序中可以"
+        },
+        {
+            "author": "yinseny",
+            "timestamp": 1348134960,
+            "txt_content": "qgymib 发表于 2012-9-20 11:02 \n有一种略微简单一点的办法，写一个脚本，在游戏启动前声明此进程禁止使用输入法即可\n\n#!/bin/bash\n是的，而我这个半吊子mod的目的就是为了在游戏中输入中文。。。"
+        },
+        {
+            "author": "jjkppo",
+            "timestamp": 1357076700,
+            "txt_content": "yinseny 发表于 2012-9-20 17:56 \n是的，而我这个半吊子mod的目的就是为了在游戏中输入中文。。。\n测试过了。。。。fcitx一样进去走不动。。。。蛋疼"
+        },
+        {
+            "author": "jjkppo",
+            "timestamp": 1369844400,
+            "txt_content": "WuProem 发表于 2012-9-11 13:30 \nubuntu 表示不会装oracle java。\nsudo apt-get install openjdk-7-jre openjdk-7-jre-headless openjdk-7-jre-lib default-jre default-jre-headless\n\n复制以上命令,终端粘贴敲回车输入你的用户密码,然后等他完事"
+        },
+        {
+            "author": "jjkppo",
+            "timestamp": 1369844460,
+            "txt_content": "indeed 发表于 2012-9-11 13:44 \n有这么麻烦吗？\n直接在游戏进入之前杀掉输入法的deamon进程即可。\n你妹闹懂,楼主这玩意可以让你直接在里面打汉字,不是那种外挂式的每次打完字敲一下回车屏幕还会闪一下调整大小."
+        },
+        {
+            "author": "jjkppo",
+            "timestamp": 1369845180,
+            "txt_content": "一直都没说....测试了很不错的东西,现在已经1.5.2了,求更新...我已经开始尝试用你的代码修改了.看结果吧....我是个ubuntu用户.."
+        },
+        {
+            "author": "笨猫丶爱你",
+            "timestamp": 1560758040,
+            "txt_content": "为啥 显示过期 啥意思啊？"
+        }
+    ]
+}

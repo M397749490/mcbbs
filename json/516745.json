@@ -1,0 +1,74 @@
+{
+    "title": "[15w43c|TML|乾坤]LootTable在新版本的一些改动及具体运用详解",
+    "author": "乾.坤",
+    "replyCount": 13,
+    "timestamp": 1445868780,
+    "txt_content": " 本帖最后由 乾.坤 于 2015-10-28 19:31 编辑 \n\n大家好，我是The Minecraft Lover小组的乾坤，LootTable在43c又有了一些改进，我就来概述一下新的内容以及关于它的具体运用。\n首先比较重要的一点是：LootTable现在可通过在存档中增加文件来代替之前修改.jar的做法：\n\n(英文Minecraft Wiki）\n\n\n（中文Minecraft Wiki，另外说一句，这次中文的Wiki跟进速度比以往快很多，感谢各位翻译者做出的努力）\n举个例子：\n\n\n在上面的路径中，大家可以看到，这些文件都位于地图文件（Test for Loot Table）\\data\\loot_tables\\test 文件夹内，那这些文件就可以在游戏中被读取了：\n\n\n\n/summon Zombie ~ ~ ~ {DeathLootTable:test:test1}复制代码\n\n\n\n/blockdata ~ ~1 ~ {LootTable:test:test2}复制代码\n\n读取的方式详见上面的Wiki截图，还有一点：\n命名空间名字可以为minecraft或者是自定义的名字。如果该文件夹的名字为minecraft，minecraft就会用里面的文件来取代.jar的loot_tables里的特定可抢夺物品表(存档/data/loot_tables/minecraft路径等于.jar里的assets/minecraft/loot_tables/，同路径和名字的可抢夺物品表会取代.jar里相对的文件)比如存档里的data/loot_tables/minecraft/entities/zombie.json就会被认作预设的僵尸可抢夺物品表，地图中所有僵尸都会根据该表掉落。而存档里的data/loot_tables/除minecraft以外的命名空间/zombie.json或者是data/loot_tables/minecraft/zombie.json也不会替换掉预设的可抢夺物品表，而是需要用NBT标签来指定实体使用此自定义的可抢夺物品表。\n------中文Minecraft Wiki\n可见，也可通过修改存档文件达到覆盖.jar掉落表的目的，本文不再赘述。\n----------------------------------------------------------------分割线---------------------------------------------------------------------------------\n另外还有一些需要引起注意的地方：\n\n\n这里重点讲一下set_damage（这个中文Wiki还未更新）：\n\n\n其实这个选项也是一个懒人选项，同样提供两种选择，一种是固定数值，一种是范围数值，这个选项用于设定工具的耐久值，值得一提的是，耐久值在此标签内以百分值计算，方便了懒人，1.0代表满耐久，0.0代表无耐久，min和max均为其耐久值的剩余百分比。\n还有一点：\n\n\nfunctions: 决定了对这个物品进行的特殊举动。如果没有被设置，它将不会被使用。必须顺序排放，比如looting_enchant必须放在set_count之后以正常运作。\n-----中文Minecraft Wiki\n而这个顺序就是排列表上的功能顺序，可参考SYL的LootTables翻译和实例讲解及Wiki，这里有个错误例子（当时还没更新43c时我编写的）：\n{\n    \"pools\": [\n        {\n            \"rolls\": 3,\n            \"entries\": [\n                {\n                                        \"type\":\"item\",\n                    \"name\": \"minecraft:iron_ingot\",\n                    \"weight\": 5,\n                    \"functions\": [\n                        {\n                            \"function\": \"set_count\",\n                            \"count\": {\n                                \"min\": 1,\n                                \"max\": 3\n                            }\n                        },\n                        {\n                            \"function\": \"looting_enchant\",\n                            \"count\": {\n                                \"min\": 1,\n                                \"max\": 3\n                            }\n                        }\n                    ]\n                },\n        {\n                                        \"type\":\"item\",\n                    \"name\": \"minecraft:diamond_sword\",\n                    \"weight\": 1,\n                                        \"conditions\":\n                [\n                        {\n                                \"condition\": \"killed_by_player\"\n                        }\n                ],:\n                    \"functions\": [\n                        {\n                            \"function\": \"set_count\",\n                            \"count\": {\n                                \"min\": 0,\n                                \"max\": 1\n                            }\n                        },\n                                                {        \n                                                        \"function\":\"enchant_with_levels\",\n                                                        \"levels\":{\n                                                                \"min\":15,\n                                                                \"max\":30\n                                                        },\n                                                        \"conditions\":[\n                                                                {\n                                                                \"condition\":\"random_chance_with_looting\",\n                                                                \"chance\":0.02,\n                                                                \"looting_multiplier\":0.02        \n                                                                }\n                                                        ]                                                                                                                        \n                                                }\n                    ]\n                }\n            ]\n        }\n    ]\n}复制代码\n而这里就没有按照顺序编写，导致此function失效（注意，格式编写错误会导致全部失效，而function顺序错误仅导致此function失效）\n还有一个细节补充一下，大部分条件不适用于箱子调用Loot Table，比如killed_by_player,大多数标签无法使用的原因都是因为不存在玩家（生物）攻击箱子这一行为。\n=================================分割线============================\n就此，一些新版本的特性应该也讲的差不多了，现在来看看如何动手DIY这个神奇的玩意\n我先来抛砖引玉：（下面是两段Loot Table代码，大家可以自己玩玩看）\n仅适合实体的Loot Table：\n{\"pools\":[{\"rolls\":{\"min\":3,\"max\":3},\"entries\":[{\"type\":\"item\",\"name\":\"minecraft:iron_ingot\",\"weight\":5,\"functions\":[{\"function\":\"looting_enchant\",\"count\":{\"min\":1,\"max\":3}},{\"function\":\"set_count\",\"count\":{\"min\":0,\"max\":2}}]},{\"type\":\"item\",\"name\":\"minecraft:diamond_sword\",\"weight\":1,\"functions\":[{\"function\":\"enchant_with_levels\",\"treasure\":false,\"levels\":{\"min\":20,\"max\":30},\"conditions\":[{\"condition\":\"random_chance_with_looting\",\"chance\":0.05,\"looting_multiplier\":0.03}]},{\"function\":\"set_count\",\"count\":{\"min\":1,\"max\":1}},{\"function\":\"set_damage\",\"damage\":{\"min\":0,\"max\":0.25}}],\"conditions\":[{\"condition\":\"killed_by_player\",\"inverse\":false}]}]}]}复制代码\n\n\n\n\n适合箱子的代码（也适用于实体）：\n\n{\"pools\":[{\"rolls\":{\"min\":3,\"max\":5},\"entries\":[{\"type\":\"item\",\"name\":\"minecraft:diamond\",\"weight\":2,\"functions\":[{\"function\":\"set_count\",\"count\":{\"min\":1,\"max\":3}}]},{\"type\":\"item\",\"name\":\"minecraft:cookie\",\"weight\":5},{\"type\":\"item\",\"name\":\"minecraft:enchanted_book\",\"weight\":2,\"functions\":[{\"function\":\"set_nbt\",\"tag\":\"{StoredEnchantments:[{lvl:3s,id:35s}]}\"}]},{\"type\":\"item\",\"name\":\"minecraft:iron_pickaxe\",\"weight\":3,\"functions\":[{\"function\":\"enchant_with_levels\",\"treasure\":false,\"levels\":{\"min\":10,\"max\":30}},{\"function\":\"set_damage\",\"damage\":{\"min\":0,\"max\":1}}]},{\"type\":\"item\",\"name\":\"minecraft:iron_ingot\",\"weight\":6}]}]}复制代码\n\n\n\n模拟出了一种自然生成的感觉（虽然比自然生成的好一些233）\n\n\n具体内容我就不多说了，这两组代码也算是做了一个如何自定义的范例吧。\n==========================分割线================================\n接下来说说如何给Loot Table添加额外的启动条件：\n实体类（玩家杀死实体以后要满足某个与杀和被杀双方无关的Scoreboard的值是否满足条件，不满足就不掉指定物品）\n思路：给要被杀死的怪物一个自定义掉落物----探测是否存在这种掉落物----如果存在，即探测分数是否满足条件---若符合条件，则entitydata原掉落物品为想要玩家获得的掉落物（若不符合，则不执行）----杀死原标记掉落物---结束系统\n\n至于箱子也有类似之处，大家可以自己想一想，我就不多说了，接下来做个总结：\nLoot Table 作为可被调用的游戏文件，大大简化了地图作者的工作量，而且带来了很多新的看点，例如可以做像雪屋一样的天然建筑（Loot Table和CB配合），当然，Loot Table用途肯定不止于此，我还有很多相关内容没有研究，总之，Loot table前途一片光明，让我们继续期待Mojang的新特性（bug）吧！\n\n=====================分割线================================\n感谢好友：@pca006132 @kongbaiyo @syl 等 对我的帮助和建议\n以及The Minecraft Lover 小组（@lzs1234 @握地师兄 @10 等）提供的技术支持\n感谢各位浏览本帖\n来自群组：The Minecraft Lover\n\n",
+    "replies": [
+        {
+            "author": "lzs1234",
+            "timestamp": 1445870640,
+            "txt_content": "然而最开始我还傻傻的找了半天loot table在哪里……\n我竟然还有技术支持smg……\n让我们继续期待Mojang的新bug吧+1"
+        },
+        {
+            "author": "PotatoMaster101",
+            "timestamp": 1445871420,
+            "txt_content": "你要的回复在这里。"
+        },
+        {
+            "author": "Cth_Can阿残",
+            "timestamp": 1445871720,
+            "txt_content": "楼上吉祥物+1 233 （我才不会告诉你我根本看不懂）"
+        },
+        {
+            "author": ":spgbigfan:",
+            "timestamp": 1445873940,
+            "txt_content": "虽然等字里面包含了三个贡献者，但我还是想提一句:\n乙烯是可抢夺物品表的主要翻译者"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1445899980,
+            "txt_content": "mcbbs应该对命名空间提出规范"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1445901300,
+            "txt_content": "chyx 发表于 2015-10-27 06:53\nmcbbs应该对命名空间提出规范\n然而命名空间为何需要规范？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1445902680,
+            "txt_content": "pca006132 发表于 2015-10-27 07:15\n然而命名空间为何需要规范？\n避免比如一个人想用两个存档 再合到一起时发现撞车了的情况啊"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1445907960,
+            "txt_content": "有空慢慢学，你们太超前了:-P"
+        },
+        {
+            "author": "RD_Z",
+            "timestamp": 1445920380,
+            "txt_content": "顶起                                   "
+        },
+        {
+            "author": "122qweswd",
+            "timestamp": 1445922480,
+            "txt_content": "你要的迟来的回复get"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1445937480,
+            "txt_content": "chyx 发表于 2015-10-27 07:38\n避免比如一个人想用两个存档 再合到一起时发现撞车了的情况啊\n然而记分板那些也是可能会相撞的。而且我不认为规范化就可以避免这种情况，即使命名空间是用玩家id，你也可能会需要更改预设的掉落表，那么如果两个地图也需要更改相同掉落表，那么也会出现冲突的情况。更何况名字规范化一般都是为了增加可读性而不是用来避免冲突的，如果要避免冲突不如用uuid作命名空间名字？\n然而我觉得避免冲突这东西的确要做到，因为原版模组这东西很大的一个问题就在于很难同时使用几个模组，因为某些名字/属性是不同模组都会经常用到的，比如实体名称，而这种情况下就可能会出现两个模组用同一个名字的属性，导致冲突。这可能就需要一些命令方块玩家去把这些系统“整合”，或者让原版模组发布者列出他们所使用的属性名字啊scb名字啊之类，然而这些都需要模组作者来实行而不是我们能劝告的。\n而且我觉得掉落表如果能用在资源包里会更好，因为资源包能同时使用几个，而存档则需要手动“整合”。或者当修改到预设物品表/同一物品表的时候问玩家保留哪个？\n所以我觉得要避免撞车的情况，只规范命名空间是没有什么用的，毕竟你也得手动整合，而且其他地方也可能会出现冲突。"
+        },
+        {
+            "author": "乾.坤",
+            "timestamp": 1446030720,
+            "txt_content": "lzs1234 发表于 2015-10-26 22:44\n然而最开始我还傻傻的找了半天loot table在哪里……\n我竟然还有技术支持smg……\n让我们继续期待Mojang的新b ...\n有收获就行XD"
+        },
+        {
+            "author": "唔咩",
+            "timestamp": 1469341320,
+            "txt_content": "我遇到一个问题，请问如何解决？\n原代码是这样的：\n                {\"type\":\"item\",\"name\":\"minecraft:leather_boots\",\"weight\":13,\n                        \"functions\":[\n                                {\"function\":\"set_nbt\",\"tag\":\"{display:{Name:\"弹跳鞋\",Lore:[\"[脚部装备]\",\"跳跃后获得跳跃提升\"],color:7377883}}\"}\n                                ]}复制代码\n然而在箱子里变成了这样：\n\n{:10_522:}求解决方法！"
+        }
+    ]
+}

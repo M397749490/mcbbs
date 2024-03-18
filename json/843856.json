@@ -1,0 +1,54 @@
+{
+    "title": "1.13开门动画函数及材质分享",
+    "author": "Sairos",
+    "replyCount": 9,
+    "timestamp": 1549812060,
+    "txt_content": " 本帖最后由 Sairos 于 2019-2-10 23:21 编辑 \n\n先上图：装材质前：\n\n\n\n\nY(]2N9@$Z@C~~S(4OZ~]VLM.png (105.57 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-10 22:03 上传\n\n\n\n\n\n装材质后：\n\n\n\n\nF%_PC0EJBFYQK@HTR`7[IHM.png (184.24 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-10 22:03 上传\n\n\n\n\n\n动画效果：\n\n\n\n\n20190210_215622_20190210220707.gif (928.73 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-10 22:16 上传\n\n\n\n\n\n\n\n\n\n20190210_221451_20190210221558.gif (968.83 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-10 22:16 上传\n\n\n\n\n\n\n\n       开门动画在很多地图都是有的，尤其是歪果大佬的地图，我记得有那么个恐怖地图用的开门动画是在1.12.....我看他的function，真是头皮发麻.......因为没有store这玩意儿，他的门转角度都是一度一度穷举过来......所幸，我这个开门动画是1.13的，在此分享给各位对此有需要的懒癌玩家或者大佬萌新，以提供方便\n       这个function有两种门，南北朝向和东西朝向，这个做法想必应该好理解，大致讲一下思路：\n计分板用了两个：\n/scoreboard objectives add angle dummy\n/scoreboard objectives add facing dummy复制代码正如其id，angle是角度，也就是门转角度，facing就是玩家的朝向，故有：\nexecute as @a[y_rotation=46..135] at @s run scoreboard players set @s facing 1\nexecute as @a[y_rotation=136..225] at @s run scoreboard players set @s facing 2\nexecute as @a[y_rotation=226..315] at @s run scoreboard players set @s facing 3\nexecute as @a[y_rotation=316..405] at @s run scoreboard players set @s facing 4复制代码\n     在选择器里面有一个y_rotation，分别在四个范围，且对应四个分数，也就是玩家分别在朝向东南西北的朝向时大致的大致范围并记分。每一个范围都是90度，一圈360度，每一个朝向90度也应该不难理解\n\n东西朝向的门：\n/summon minecraft:armor_stand ~ ~3 ~ {HandItems:[{}],Invulnerable:1b,CustomName:\"\"door1\"\",CustomNameVisible:0b,Pose:{Head:[0F,0F,0F]},NoBasePlate:1b,ShowArms:1b,NoGravity:1b,ArmorItems:[{},{},{},{id:\"minecraft:blue_wool\",Count:1b,Damage:0s}],Invisible:0b,Rotation:[0f,0f],Tags:[\"init\"]}复制代码\n南北朝向的门：\n/summon minecraft:armor_stand ~ ~3 ~ {HandItems:[{}],Invulnerable:1b,CustomName:\"\"door2\"\",CustomNameVisible:0b,Pose:{Head:[0F,0F,0F]},NoBasePlate:1b,ShowArms:1b,NoGravity:1b,ArmorItems:[{},{},{},{id:\"minecraft:blue_wool\",Count:1b,Damage:0s}],Invisible:0b,Rotation:[90f,0f],Tags:[\"init1\"]}复制代码\n     看nbt知其区别，除名字不同外就是Rotation[0]的不同，东西朝向0f，南北朝向90f。\n\nTags:[\"init\"]与Tags:[\"init1\"]用处：\n#南北朝向复制代码\n     初始化盔甲架分数，因为在这个函数里面我将把记分板的分数赋值到盔甲架的朝向，所以对于两个不同的门一开始summon出来自然要进行一次初始化\n\n     接下来就是开门的动画了，一共有四个方向，当玩家朝向南的时候，当玩家朝向北的时候，当...所以会有四个开门动画，在这里以玩家朝向南为例：\n当门是南北朝向的时候，门的角度是0，玩家朝向南面开门，那门就要从0度转向-90度，当玩家穿过门后，关门则需要从-90度加到0度\n那么，关门：\nexecute as @e[name=door1] at @s unless entity @a[distance=..3,scores={facing=4}] run scoreboard players add @e[tag=!south,name=door1,scores={angle=..-1}] angle 5复制代码\n就这一条指令就行了，在这里用的unless就是表示当玩家不在开门范围（distance=..3）时，门就会自动关上\n\n做个标记：\nexecute as @e[name=door1] at @s if entity @a[dz=-2,dy=-3,dx=-1,scores={facing=4}] run tag @s add south复制代码\n当玩家facing=4也即朝向南面，在盔甲架相对z轴-2格，y轴-3格，x轴-1格范围时，加上一个south的tag\n\n\n\n\nIQFDPC[K)0@OICL6UE`IW}M.jpg (382.34 KB, 下载次数: 0)\n\n下载附件\n\n2019-2-10 22:47 上传\n\n\n\n\n\n如图，现在是朝南，鼠标准星红色线就是x轴，蓝色线为z轴\n\n做好以上工作就可以开始写开门动画了：\n<b>/scoreboard players remove @e[tag=south,name=door1,scores={angle=-90..}] angle 5\n/execute as @e[name=door1,tag=south,scores={angle=..-90}] at @s run scoreboard players set @s angle -90\n/execute as @e[type=minecraft:armor_stand,name=door1] at @s store result entity @s Rotation[0] float 1 run scoreboard players get @s angle\n/execute as @e[name=door1,scores={angle=0..10}] at @s run fill ~-0.5 ~ ~ ~-0.5 ~-1 ~ minecraft:barrier\n/execute as @e[name=door1,scores={angle=-54..-44}] at @s run fill ~-0.5 ~ ~ ~-0.5 ~-1 ~ minecraft:air replace minecraft:barrier\n/execute as @e[name=door1] at @s unless entity @a[distance=..3,scores={facing=4}] run tag @s remove south</b>复制代码     第一条加上第三条自然就是开门动画了，它会从0度减到-90度，每一帧就转动5度，第二条则是当记分值小于-90度的时候，让角度停在-90度，避免门旋转多余角度。\n     为什么每次转动要用五度呢。因为90度除以5度除得清啊，否则用其他比如每次转4度6度7度，你会发现，门虽然一样会动会开门关门，但是关门后的位置就不那么准确了，\n比如每次转7度：\n开门：-7 -14 -21 -28 -35 -42 -49 -56 -63 -70 -77 -84 -91 -90 -90，\n关门：-83 -76 -69 -62 -55 -48 -41 -34 -27 -20 -13 -6 1\n     好吧我列举的7度只有1度的偏差或许看不出来，但这只是单方向开关门，但如果你是如同第二个gif图一样，开门，门还没完全关上立马转身又换个方向开门....你会发现最后关门角度就有明显的偏移...也就是门歪了.....\n     综上所述，既然要能被90度整除，5可以，3也可以9也可以，但是，3度开门太慢了。9度开门又太快了...5度适中（这个看个人需求吧）\n     开门动画第四五条，也就是放不放屏障的问题，当门转到一定角度，取消屏障，玩家可以通过，就是这么简单，当门不满足某一定条件时，放置屏障，不让玩家通过。这个做法其实就是实际化一点，要是没这个操作....你直接穿墙啊不，穿门了啊老铁！\n\n其他三个方向的开关门动画同理可得\n在fun and resourcepack.zip里面，有对应的材质包，这个门就是蓝色羊毛，记得把他戴盔甲架头上使用！然后盔甲架的位置....自行调整吧....同时记得给盔甲架Invisible:1b。\n里面的opendoor.mcfunction，也即开门动画相关函数，设置一下计分板直接食用即可,支持多人\n\n百度网盘：链接：https://pan.baidu.com/s/113PnneH20LHMRnkae07r_A  提取码：im86 \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "BlackCB.",
+            "timestamp": 1549813560,
+            "txt_content": " 本帖最后由 天狼星black 于 2019-2-10 23:47 编辑 \n\n其实1.13mc有很多有趣的东西等着我们发掘\n另外，门好像有点小，会不会撞到头\n"
+        },
+        {
+            "author": "princess01",
+            "timestamp": 1549819440,
+            "txt_content": "感觉蛮秀的"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1549876020,
+            "txt_content": "可6（自从1.13快照出来后就列在了我的todo里，然后拖到了现在...）\n\n提议把门拆成上下两半，mc的实体渲染很让人头大"
+        },
+        {
+            "author": "1454733504",
+            "timestamp": 1549954020,
+            "txt_content": "woc好酷炫的门"
+        },
+        {
+            "author": "12tianxun",
+            "timestamp": 1601776800,
+            "txt_content": "BlackCB. 发表于 2019-2-10 23:46\n其实1.13mc有很多有趣的东西等着我们发掘\n另外，门好像有点小，会不会撞到头\n 会的（邦—— 某人撞死）"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1601824380,
+            "txt_content": "不愧是你，秀啊"
+        },
+        {
+            "author": "Minecraft098765",
+            "timestamp": 1601855760,
+            "txt_content": "哇哦，这就是真实的mc吗"
+        },
+        {
+            "author": "夕阳红熊猫",
+            "timestamp": 1608432300,
+            "txt_content": "\n不愧是你，秀啊"
+        },
+        {
+            "author": "烟雨苍穹",
+            "timestamp": 1608512760,
+            "txt_content": "MCBBS有你更精彩~"
+        }
+    ]
+}

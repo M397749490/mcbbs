@@ -1,0 +1,34 @@
+{
+    "title": "[1.7.10-1.12.2][CNPC]NPC监听forge提供的事件",
+    "author": "Hueihuea",
+    "replyCount": 5,
+    "timestamp": 1560691140,
+    "txt_content": " 本帖最后由 Hueihuea 于 2020-7-30 19:59 编辑 \n\n技术有限 仅供参考\n\n感谢193楼老哥提醒 1.12.2 推荐使用npc提供Forge脚本 而不是使用本方法注册监听器\n\n经过半天的努力\n我搞出了监听forge提供事件的办法\n嘛 我们先上干货\n(好久没发帖了 那就不要排版了)\n/**\n*void listenEvent(String eventType,String priority,function listener)\n*-eventType:你要监听的事件的类路径 如net.minecraftforge.event.ServerChatEvent\n*-priority:你的事件优先级 从低到高LOW LOWEST NORMAL HIGHEST HIGH\n*-listener:事件方法\n*监听事件\n*/\nfunction listenEvent(eventType,priority,listener){\n var Event=Java.type(eventType);\n    try{\n     var IEventListener=Java.type(\"net.minecraftforge.fml.common.eventhandler.IEventListener\");\n     var EventPriority=Java.type(\"net.minecraftforge.fml.common.eventhandler.EventPriority\");\n    }catch(err){\n     var IEventListener=Java.type(\"cpw.mods.fml.common.eventhandler.IEventListener\");\n     var EventPriority=Java.type(\"cpw.mods.fml.common.eventhandler.EventPriority\");\n    }\n var MinecraftForge=Java.type(\"net.minecraftforge.common.MinecraftForge\");\n var event=new Event();\n    if(priority==\"LOW\"){\n     priority=EventPriority.LOW;\n    }\n    if(priority==\"HIGH\"){\n     priority=EventPriority.HIGH;\n    }\n    if(priority==\"NORMAL\"){\n     priority=EventPriority.NORMAL;\n    }\n    if(priority==\"LOWEST\"){\n     priority=EventPriority.LOWEST;\n    }\n    if(priority==\"HIGHEST\"){\n     priority=EventPriority.HIGHEST;\n    }\n var EventListener=Java.extend(IEventListener,{\n  invoke:listener\n });\n listener=new EventListener();\n var busID=MinecraftForge.EVENT_BUS.class.getDeclaredField(\"busID\");\n busID.setAccessible(true);\n busID=busID.getInt(MinecraftForge.EVENT_BUS);\n event.getListenerList().register(busID,priority,listener);\n}\n/**\n*@author Hueihuea\n*著作权属于Hueihuea 2019/6/16起生效\n*/复制代码嘛 再放一个示例\nlistenEvent(\"net.minecraftforge.event.ServerChatEvent\",\"HIGH\",function(event){\nevent.setCanceled(true);\n});\n//让玩家闭嘴了ahhhhh复制代码\n然后我们来说说思路吧\n好像也没什么思路 我们先看看register这个方法好吧\n可以看到我是这样子写的\nevent.getListenerList().register(busID,priority,listener);\n前两个参数都比较容易理解并且很容易获得\n我们来说说第三个参数\n第三个参数的类型是IEventListener\nIEventListener是一个接口\n也就是说 我们需要实现了IEventListener的类\n那么怎么做到呢？\n我们的Java对象有一个extend方法\n他不仅是extends(继承) 还可以implements(实现)\n那么我这样子写\nvar EventListener=Java.extend(IEventListener,{\n  invoke:listener\n});复制代码就是实现IEventListener\n这样子我们就获得了一个实现了IEventListener的Class对象\n而这个Class的invoke方法.会调用listener函数(wsm要屏蔽5555)\n然后我们实例化这个Class对象的类(好像有点绕)\n最后把他当作参数传过去 就成功用它连监听xx事件了\n\n然后下面是升级版哒！\n\nfunction Listener(eventType, listener, bus) {\n  var MinecraftForge = Java.type(\"net.minecraftforge.common.MinecraftForge\");\n  this.eventType = eventType;\n  this.listener = listener;\n  this.bus = (bus == null) ? MinecraftForge.EVENT_BUS : bus;\n  this.getEventType = function () {\n    return this.eventType;\n  }\n  this.getListener = function () {\n    return this.listener;\n  }\n  this.getBus = function () {\n    return this.bus;\n  }\n}\n/**\n*EventListener listenEvent(String eventType,String priority,function listener)\n*-eventType:你要监听的事件的类路径 如net.minecraftforge.event.ServerChatEvent\n*-priority:你的事件优先级 从低到高LOWEST LOW NORMAL HIGH HIGHEST\n*-listener:事件方法\n*-bus:你可以指定EventBus\n*Return:\n*-Listener:监听器\n*监听事件并返回监听对象\n*/\nfunction listenEvent(eventType, priority, listener, bus) {\n  var Event = Java.type(eventType);\n  try {\n    var IEventListener = Java.type(\"net.minecraftforge.fml.common.eventhandler.IEventListener\");\n    var EventPriority = Java.type(\"net.minecraftforge.fml.common.eventhandler.EventPriority\");\n  } catch (err) {\n    var IEventListener = Java.type(\"cpw.mods.fml.common.eventhandler.IEventListener\");\n    var EventPriority = Java.type(\"cpw.mods.fml.common.eventhandler.EventPriority\");\n  }\n  var MinecraftForge = Java.type(\"net.minecraftforge.common.MinecraftForge\");\n  var event = new Event();\n  if (priority == \"LOW\") {\n    priority = EventPriority.LOW;\n  }\n  if (priority == \"HIGH\") {\n    priority = EventPriority.HIGH;\n  }\n  if (priority == \"NORMAL\") {\n    priority = EventPriority.NORMAL;\n  }\n  if (priority == \"LOWEST\") {\n    priority = EventPriority.LOWEST;\n  }\n  if (priority == \"HIGHEST\") {\n    priority = EventPriority.HIGHEST;\n  }\n  var EventListener = Java.extend(IEventListener, {\n    invoke: listener\n  });\n  listener = new EventListener();\n  var bus = (bus == null) ? MinecraftForge.EVENT_BUS : bus;\n  var busID = bus.class.getDeclaredField(\"busID\");\n  busID.setAccessible(true);\n  busID = busID.getInt(bus);\n  event.getListenerList().register(busID, priority, listener);\n  return new Listener(eventType, listener, bus);\n}\n/**\n*void unListenEvent(String eventType,IEventListener listener,EventBus bus)\n*-eventType:事件的类路径 如net.minecraftforge.event.ServerChatEvent\n*-listener:事件方法\n*-bus:你可以指定EventBus\n*取消监听事件\n*/\nfunction unListenEvent(eventType, listener, bus) {\n  var Event = Java.type(eventType);\n  var MinecraftForge = Java.type(\"net.minecraftforge.common.MinecraftForge\");\n  var event = new Event();\n  var bus = (bus == null) ? MinecraftForge.EVENT_BUS : bus;\n  var busID = bus.class.getDeclaredField(\"busID\");\n  busID.setAccessible(true);\n  busID = busID.getInt(bus);\n  event.getListenerList().unregister(busID, listener);\n}\n/**\n*@Author Hueihuea\n*著作权属于Hueihuea 2019/6/16起生效\n*/\n复制代码\n[groupid=1595]CNPC Script Studio[/groupid]",
+    "replies": [
+        {
+            "author": "秋灯Lantern",
+            "timestamp": 1560694140,
+            "txt_content": "看不懂 吹就是了。。最近正想学脚本魔杖。。"
+        },
+        {
+            "author": "ttc_V",
+            "timestamp": 1560730680,
+            "txt_content": "斯国一，谢谢分享"
+        },
+        {
+            "author": "老天锅",
+            "timestamp": 1561042380,
+            "txt_content": "谢谢分享 谢谢"
+        },
+        {
+            "author": "Heer_Kaisair",
+            "timestamp": 1562762580,
+            "txt_content": "很好的技术贴\n掌握新知识\n！！！！！！"
+        },
+        {
+            "author": "小学妹",
+            "timestamp": 1566556980,
+            "txt_content": "这个有什么用？？？？看不懂qwq\n"
+        }
+    ]
+}

@@ -1,0 +1,124 @@
+{
+    "title": "画Bezier（贝塞尔）曲线",
+    "author": "ruhuasiyu",
+    "replyCount": 23,
+    "timestamp": 1471199940,
+    "txt_content": " 本帖最后由 ruhuasiyu 于 2016-8-16 20:45 编辑 \n在文章结尾新增了单指令工具，这样不用计算只需要输入控制点即可得到命令。\n本文受 http://www.mcbbs.net/thread-565887-1-1.html @林扬骐 启发，但是我觉得原来的作者原理上讲的可能不是很清楚，而且算法（速度）也慢了。\n\nBezier曲线\n首先我就不贴那两张图了。这样的曲线叫做Bezier曲线，n+1个点控制的我们称为n阶Bezier曲线，因为这条曲线的方程式n次的。\n例如 n=2 时，对应的曲线一定是抛物线。\n\n\n\n\n2016-08-15_02.41.14.png (194.12 KB, 下载次数: 7)\n\n下载附件\n\n2016-8-15 02:35 上传\n\n\n\n\n\n\n过程我不作推导，n次Bezier曲线的方程以向量形式为\n\n\n特别地, n=2 时为\n\n\n例子和命令\n以 P_0=(0,0,0), P_1=(7,6,-10), P_2=(10,1,-3) 为例\nP=(-4t^2+14t, -11t^2+12t, 17t^2-20t)\n令步数为 N=100, s=100 t, 则\nP(s)-P(s-1)=(-0.0008,-0.0022,0.0034)s+(0.1404,0.1211,-0.2017).\n\n我们现在来实现它。首先召唤两个雪球 a 和 b： \nsummon Snowball ~10 ~5 ~10 {CustomName:\"a\",CustomNameVisible:1,NoGravity:1}\nsummon Snowball ~10 ~5 ~10 {CustomName:\"b\",CustomNameVisible:1,NoGravity:1}复制代码\n然后放置 3 个命令方块, 依次为循环型、连锁型条件保持开启、连锁型条件保持开启并输入命令\ntp @e[name=a] ~0.1404 ~0.1211 ~-0.2017\nexecute @e[name=b] ~ ~ ~ tp @e[name=a] ~-0.0008 ~-0.0022 ~0.0034\nexecute @e[name=a] ~ ~ ~ summon Snowball ~ ~ ~ {CustomName:\"b\",CustomNameVisible:1,NoGravity:1}复制代码\n\n如此第 s 步的时候有 s 个雪球 b，每个雪球 b 将雪球 a 移动 (-0.0008，-0.0022，0.0034)，再加上第一个命令的 (0.1404，0.1211，-0.2017)， 因此共移动\n(-0.0008,-0.0022,0.0034)s+(0.1404,0.1211,-0.2017)=P(s)-P(s-1)。\n所以从开始到第 s 步共移动 P(s)-P(0)=P(s)，我们成功将雪球 a 移动至 Bezier 曲线上的第 s 的拟合点。\n\n\n\n\n\n2016-08-15_02.26.17.png (103.19 KB, 下载次数: 6)\n\n下载附件\n\n2016-8-15 02:43 上传\n\n\n\n\n\n\n计算公式\n对于一般的3个控制点 P_0=(0,0,0), P_1=(a,b,c), P_2=(d,e,f),  设步数为 N，计算出\n(2a(N+1)-d)/N^2, (2b(N+1)-e)/N^2, (2c(N+1)-f)/N^2, \n(2d-4a)/N^2, (2e-4b)/N^2, (2f-4c)/N^2, 复制代码\n将其代入上述两个 execute 命令的相对坐标即可。\n\n如果需要的话可以加一个循环次数的限制，利用计分板即可，原帖中有提及，这里回忆一下：先生成一个记分板\nscoreboard objectives add temp dummy复制代码\n再设置循环次数为 100 次\nscoreboard players set #n temp 100复制代码\n在原来的命令方块前方和后方各添加\nscoreboard players test #n temp 1 10000\nscoreboard players remove #n temp 1复制代码\n设置命令方块模式如图\n\n\n\n\n2016-08-15_03.45.30.png (70.68 KB, 下载次数: 4)\n\n下载附件\n\n2016-8-15 03:47 上传\n\n\n\n\n\n\n对于n阶Bezier曲线，设步长为 N，将s=Nt 代入公式中计算出 P(s)，\n然后计算 P(s)-P(s-1) 得到 s 的 n-1 阶多项式，将其从低次到高次的坐标依次代入\ntp @e[name=a] ~这里 ~这里 ~这里\nexecute @e[name=b] ~ ~ ~ tp @e[name=a] ~这里 ~这里 ~这里\nexecute @e[name=b] ~ ~ ~ execute @e[name=b] ~ ~ ~ tp @e[name=a] ~这里 ~这里 ~这里\n……\n直到 n-1 个 execute @e[name=b] ~ ~ ~ …… execute @e[name=b] ~ ~ ~ tp @e[name=a] ~这里 ~这里 ~这里复制代码\n即可。算法速度为 O(N^n)，上述例子大约需执行5000次，时长约数秒。\n\n这是用4条Bezier曲线拟合得到的圆\n\n\n\n\n2016-08-15_03.40.36.png (148.53 KB, 下载次数: 5)\n\n下载附件\n\n2016-8-15 03:43 上传\n\n\n\n\n\n\n\n\nOOC生成器\n\n如果你觉得上述过程不能理解，你可以直接打开下面的网页，输入控制点的绝对坐标和拟合点的个数，即可生成一条命令，然后将该命令复制到命令方块中执行即可，最后敲到多余的方块。\nhttp://zsx.blog.ustc.edu.cn/wp-c ... 2016/08/bezier.html\n\n\n每次画完之后请输入\nentitydata @e[type=Snowball] {CustomName:\"\"}复制代码\n将雪球的名字去掉，然后再进行下一条曲线的生成。删除上一次生成的曲线只需\nkill @e[type=Snowball,name=a]\nkill @e[type=Snowball,name=b]复制代码\n删除所有曲线输入\nkill @e[type=Snowball]复制代码\n因为这几条命令比较简单我就没加到OOC里面了。\n\n以下是利用OOC得到的控制点为 (0,20,0),  (0,20,20),  (20,20,20) 得到的近似1/4圆。\n\n\n\n\n2016-08-16_20.33.00.png (25.91 KB, 下载次数: 12)\n\n下载附件\n\n2016-8-16 20:35 上传\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "pylsdani",
+            "timestamp": 1471218060,
+            "txt_content": "这玩意可以拿来当装饰，并木有实际意义~"
+        },
+        {
+            "author": "kuangwenxin",
+            "timestamp": 1471218840,
+            "txt_content": "这都是高科技,"
+        },
+        {
+            "author": "woshisong12",
+            "timestamp": 1471221120,
+            "txt_content": "{:10_496:}虽然我用不到 但是好厉害"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1471227120,
+            "txt_content": "把雪球换成带着方块的盔甲架就能做彩虹了23333\n初三表示看不懂乱七八糟的公式了"
+        },
+        {
+            "author": "乙烯_中国",
+            "timestamp": 1471227600,
+            "txt_content": "我看了一下这个帖子，难道说这个数字，是你自己打进去而不是通过cb阵列自行计算的吗？"
+        },
+        {
+            "author": "42142特防",
+            "timestamp": 1471230000,
+            "txt_content": "初二党表示智商不够。\n敢问Lz学历几何？"
+        },
+        {
+            "author": "WD_水前",
+            "timestamp": 1471230960,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "kevinming",
+            "timestamp": 1471231080,
+            "txt_content": "都用到高中的知识了= ="
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1471235880,
+            "txt_content": "pylsdani 发表于 2016-8-14 16:41\n这玩意可以拿来当装饰，并木有实际意义~\n你可以将雪球替换成方块来盖建筑"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1471235940,
+            "txt_content": "乙烯_中国 发表于 2016-8-14 19:20\n我看了一下这个帖子，难道说这个数字，是你自己打进去而不是通过cb阵列自行计算的吗？ ...\n首先我觉得只是小学数学，拿计算器算一下就好了嘛\n当然也可以用计分板算，不过总得有一个初始的输入，将曲线的参数带进去"
+        },
+        {
+            "author": "42142特防",
+            "timestamp": 1471246740,
+            "txt_content": "ruhuasiyu 发表于 2016-8-15 12:39\n首先我觉得只是小学数学，拿计算器算一下就好了嘛\n当然也可以用计分板算，不过总得有一个初始的输入，将 ...\n向量都用矩阵表示了还是小学数学？"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1471260180,
+            "txt_content": " 本帖最后由 林扬骐 于 2016-8-15 19:26 编辑 \n\n其实意思都差不多，不过这个这个帖子貌似更清楚明了些XD\nlz你家什么电脑啊为什么二次曲线只要数秒啊我家电脑都要将近一分钟我当初为了更易理解改过一次自己结果发现好像更不容易理解了然而改不回来了"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1471260540,
+            "txt_content": "林扬骐 发表于 2016-8-15 04:23\n其实意思都差不多，不过这个这个帖子貌似更清楚明了些XD\nlz你家什么电脑啊为什么二次曲线只要数秒啊我家 ...\n你每次都在原点召唤a，而我是在b处召唤a，因此我每次只需要平移\nP(s)-P(s-1)\n这么多就可以了，这样做一次差分后就从二次变为线性，总复杂度就从 O(n^3) 变成了 O(n^2)，自然快多了。\n\n不过我试了三次曲线的情形也没有你说的那么慢，难道是因为你用的药水云导致的？\n\nps 我用的是陈年老笔记本电脑，装两个 mod 就卡的那种。"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1471273080,
+            "txt_content": "ruhuasiyu 发表于 2016-8-15 19:29\n你每次都在原点召唤a，而我是在b处召唤a，因此我每次只需要平移\nP(s)-P(s-1)\n这么多就可以了，这样做一次 ...\n（回去继续看了下自己的帖子，然后又自己算了一下）嘛，的确，如果是“n-(n-1)”的方法可以少一个次方\n（当时也有想过使用从n-1到n的方法，但是发现:太！难！算！了！于是就没有再考虑，现在才发现可以降阶）"
+        },
+        {
+            "author": "2503180246",
+            "timestamp": 1471310940,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1471350480,
+            "txt_content": "乙烯_中国 发表于 2016-8-15 10:20\n我看了一下这个帖子，难道说这个数字，是你自己打进去而不是通过cb阵列自行计算的吗？ ...\n我在结尾加了一个计算工具来得到OOC，这样就不用计算啦"
+        },
+        {
+            "author": "林扬骐",
+            "timestamp": 1471753380,
+            "txt_content": "咳咳，突然想到，如果有生成器的话，直接在生成器内部运算后直接summon就可以了吧（这样只要1秒）"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1471753560,
+            "txt_content": "林扬骐 发表于 2016-8-21 12:23\n咳咳，突然想到，如果有生成器的话，直接在生成器内部运算后直接summon就可以了吧（这样只要1秒） ...\n哈哈，确实。\n\n但其实我觉得可以不用外部工具，直接在内部检测实体坐标，加入记分板做运算，再直接在内部绘制。"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1492253820,
+            "txt_content": "是OOC有BUG还是我版本不对\n\n\nOOC指令summon FallingSand ~ ~1 ~ {Block:stone,Time:1,Passengers:[{id:FallingSand,Block:redstone_block,Time:1,Passengers:[{id:FallingSand,Block:activator_rail,Time:1,Passengers:[{id:MinecartCommandBlock,Command:summon Snowball 757 4 -161 {CustomName:\"a\",CustomNameVisible:1,NoGravity:1}},{id:MinecartCommandBlock,Command:summon Snowball 757 4 -161 {CustomName:\"b\",CustomNameVisible:1,NoGravity:1}},{id:MinecartCommandBlock,Command:scoreboard objectives add temp dummy},{id:MinecartCommandBlock,Command:scoreboard players set #n temp 100},{id:MinecartCommandBlock,Command:setblock ~4 ~-3 ~1 repeating_command_block 5 replace {Command:scoreboard players test #n temp 1 10000}},{id:MinecartCommandBlock,Command:setblock ~5 ~-3 ~1 chain_command_block 13 replace {auto:1, Command:tp @e[name=a] ~0.6065 ~0.1813 ~0.0003}},{id:MinecartCommandBlock,Command:setblock ~6 ~-3 ~1 chain_command_block 13 replace {auto:1, Command:execute @e[name=b] ~ ~ ~ tp @e[name=a] ~-0.013 ~-0.0026 ~-0.0006}},{id:MinecartCommandBlock,Command:\"setblock ~7 ~-3 ~1 chain_command_block 13 replace {auto:1, Command:\\\"execute @e[name=a] ~ ~ ~ summon Snowball ~ ~ ~ {CustomName:\\\\\\\"b\\\\\\\",CustomNameVisible:1,NoGravity:1}\\\"}\"},{id:MinecartCommandBlock,Command:setblock ~8 ~-3 ~1 chain_command_block 13 replace {auto:1, Command:scoreboard players remove #n temp 1}},{id:MinecartCommandBlock,Command:setblock ~3 ~-3 ~1 redstone_block},{id:MinecartCommandBlock,Command:setblock ~ ~ ~1 command_block 0 replace {Command:fill ~ ~-2 ~-1 ~ ~ ~ air}},{id:MinecartCommandBlock,Command:setblock ~ ~-1 ~1 redstone_block},{id:MinecartCommandBlock,Command:kill @e[type=MinecartCommandBlock,r=1]}]}]}]}"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1492254240,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2017-4-15 19:05 编辑 \nFHC红石 发表于 2017-4-15 18:57\n是OOC有BUG还是我版本不对\n额，不清楚啊！网页没维护，代码可能有误。\n最好自己算一下吧\n\n我现在没时间，等迟些我看看代码测试一下"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1492254780,
+            "txt_content": "ruhuasiyu 发表于 2017-4-15 19:04\n额，不清楚啊！网页没维护，代码可能有误。\n最好自己算一下吧\n好吧可能是无重力标签失效了……换成1.10就好了"
+        },
+        {
+            "author": "2251886714",
+            "timestamp": 1492317120,
+            "txt_content": "什么东西看不懂啊"
+        },
+        {
+            "author": "逝去丶shiqu",
+            "timestamp": 1500189720,
+            "txt_content": "看到这里，我不禁潸然泪下，拿起了小学数学课本..."
+        }
+    ]
+}

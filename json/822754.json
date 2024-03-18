@@ -1,0 +1,99 @@
+{
+    "title": "Coremod导论—从切比雪夫多项式说起",
+    "author": "森林蝙蝠",
+    "replyCount": 18,
+    "timestamp": 1538669880,
+    "txt_content": " 本帖最后由 森林蝙蝠 于 2019-7-27 23:11 编辑 \n\n所谓的coremod，是forge提供的代码注入机制，用来方便开发者修改原版代码或者控制mod加载用的，要实现coremod，首先应该实现IFMLLoadingPlugin接口：\n\npublic class WarhammerLoader implements IFMLLoadingPlugin {\n    public String[] getASMTransformerClass(){\n        //代码注入需要用到asm，你的asm操作一般在IClassTransformer中进行，这个类用来获取实现了IClassTransformer的类\n        //LaunchClassLoader.registerTransformer()中IClassTransformer的实现会被ClassLoader加载\n\n        return new String[]{\n            \"com.forestbat.warhammer.asm.ChebishevTransformer\",\"com.forestbat.warhammer.asm.ParentTransformer\"\n         };\n    }\n    public String getModContainerClass(){\n        //用来获取实现了ModContainer的类\n        return \"com.forestbat.warhammer.asm.WarhammerModContainer\";\n    }\n    public String getSetupClass(){\n        //用来获取实现了IFMLCallHook的类\n        return null;\n    }\n    public void injectData(Map<String,Object> data){\n        //注入一些重要的数据，例如MC路径\n        data.put(\"mcLocation\", File mcDir);//MC路径\n        data.put(\"coremodList\", List loadPlugins);//coremod表单\n        data.put(\"runtimeDeobfuscationEnabled\", !deobfuscatedEnvironment);//确认运行时反混淆开启\n        data.put(\"coremodLocation\", File location);//coremod路径        \n    }\n    public String getAccessTransformerClass()\n    {\n        //AccessTransformer用来改变类的访问权限，例如从public改成private，forge已经自带\n        return \"net.minecraftforge.fml.common.asm.transformers.AccessTransformer\";\n    }\n}\n\ngetASMTransformerClass()\n众所周知，Optifine的快速渲染是使用了自己的sin和cos算法，但可惜optifine是不开源的，那我们能不能实现自己的算法，以图对原版的算法实现优化呢？答案是肯定的。\n在这里跟大家介绍一下切比雪夫逼近：切比雪夫多项式（百度百科）\n比起泰勒公式，切比雪夫的优势在于可以以更低的次数逼近目标函数，降低运算量。出于简洁，使用第一类切比雪夫多项式去逼近sin（x），也就是sin（x）=aT0（x）+bT1(x)+cT2(x)+……这样的形式。\n为了保证精度，我们选用六次切比雪夫逼近式，可以达到误差限4e-7，远高于原版算法的精度1e-6级别，最后的公式如下：\n<font color=\"Black\">sin = (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)\n         * value - 0.0002715666) * value + 1.000026227) * value;\n//value是传入的弧度参数，范围为（0，π/2），其他角度都可以通过诱导公式变过来\n</font>复制代码什么你问我怎么算出来的？取特殊点（例如sin（pi/6）=1/2）带入你的逼近多项式，得到一个7元一次方程组，然后求解这个方程组对应的矩阵（如何用Excel求逆矩阵和矩阵相乘可百度），即可得出a，b，c等相应系数。\n\n好的，式子得到了，那么是时候将其置入游戏体验一下了。\n如果你只是给自己的mod用一下，就不会有接下来的东西，直接声明一个static方法调用即可；如果你像我一样的“大公无私”，想让原版游戏的算法也变成这样大家一起用，下面的内容或许就很重要了。\n准备好的了话，请看下面↓↓↓或这里<font color=\"Black\">public class ChebishevTransformer implements IClassTransformer {\n//IClassTransformer：MC自带的launchwrapper工具所提供的类转换接口\n    @Override\n    public byte[] transform(String name, String transformedName, byte[] basicClass) {\n        if (transformedName.equals(\"net.minecraft.util.math.MathHelper\")) {\n        FMLLog.log.warn(\"[Transforming...]\");\n        //在这里输出一个告警信息，告诉大家你在做什么，可选项\n        ClassNode classNode=new ClassNode(ASM5);\n        //声明一个ASM5的classNode\n        ClassReader classReader=new ClassReader(basicClass);\n        //声明一个读取basicClass的classReader\n        classReader.accept(classNode,0);\n        //让classReader接收到要修改的classNode/classVisitor，以产生事件\n        List<MethodNode> methodNodeList=new ArrayList<>(classNode.methods);\n        //由于我们的目标是要修改方法，因此要遍历一下MethodNode，将其保存在list中\n        for(MethodNode methodNode:methodNodeList)\n            if (methodNode.name.equals(\"func_76126_a(F)F\")) {\n            //上文的transformedName是转换后的类名，因为你看到的代码是根据notch name反混淆出来的，methodName是它的srg name，              //(F)F指参数为float，返回float\n                methodNode.instructions.clear();\n                //清除methodNode下的结构\n                methodNode.instructions.add(new InsnNode(FLOAD))\n                //添加你自己的实现，FLOAD代表传入float参数，其在ASM中规定的操作码（Opcode）是23\n                methodNode.instructions.add(new MethodInsnNode\n                        (ACC_PUBLIC + ACC_STATIC, \"Lcom/forestbat/warhammer/asm/ChebishevTransformer\", \"sin\", \"(F)D\", false));\n                //添加上你自己的实现，ACC_PUBLIC，ACC_STATIC是ASM中public和static的操作码（分别是0x0001和0x0008）；\n                //“Lcom/forestbat/warhammer/asm/ChebishevTransformer”是owner参数，表明方法的源头类；\n                //“sin”是name参数，表明我们的方法名；\n                //“(F)D”是“float形参，返回double”的description（描述符）；\n                //false表明了owner类（不是）一个接口，若是，则为true\n                methodNode.instructions.add(new InsnNode(DRETURN));\n                //DRETURN代表返回double值，其操作码是175\n            }\n            ClassWriter classWriter = new ClassWriter(2); \n            //声明一个classWriter写入内容，参数2的意义是COMPUTE_FRAMES，自动计算局部变量与操作数栈\n            //每当方法被调用一次栈上就会生成一个帧，帧又被分为局部变量和操作数栈，COMPUTE_FRAMES会帮你自动计算，但会拖慢性能\n            classNode.accept(classWriter);\n            //classNode接收classWriter做参数，向方法内部生成二进制代码\n            return classWriter.toByteArray();\n        }\n        return basicClass;\n        //返回被修改的basicClass\n}\n</font>复制代码//我们自己的sin方法\npublic static double sin(float value){\n    if(value>=0&&value<=PI/2)\n        return  (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)\n                * value - 0.0002715666) * value + 1.000026227) * value;\n\n    if(value<0){\n        return -sin(-value);\n    }\n    else{\n       return sin((float)(value%PI));\n    }\n}\n首先解释下，为什么basicClass的类型是byte[]——因为basicClass在这里指的是未加载的类字节码，字节码本质上还是一串字节，因此类型是byte[]。\nasm修改字节码的步骤是固定的，ClassReader读取basicClass（使之可被修改），接收ClassNode（来自asm的tree api）/ClassVisitor（来自asm的core api），而ClassNode/ClassVisitor又会接受ClassWriter，将开发者的改动通过ClassWriter写入Class中，最后返回修改后的basicClass。\n\ntree api的性能低于core api，我们不妨康康core api的写法：\npublic class ParentTransformer implements IClassTransformer {//一个修改父类的轮子\n    private static String parentName;\n    private static String[] baseInterfaces;\n\n    @Override\n    public byte[] transform(String name, String transformedName, byte[] basicClass) {\n      if(baseInterfaces!=null && parentName!=null){\n        ClassReader classReader = new ClassReader(basicClass);\n        ClassWriter classWriter = new ClassWriter(2);//2代表自动计算栈帧\n        ClassVisitor classVisitor = new ClassVisitor(ASM5, classWriter) {\n            @Override\n            public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {\n                super.visit(52, access, transformedName, null, null, null);\n                //52代表Java8，access代表public/private/protected，superName即父类，由于我们要修改父类，因此原类不应有父类，否则会发生错误\n            }\n        };\n        classReader.accept(classVisitor, 2);\n        classWriter.visit(52, 0x0001, transformedName, null,\n                setParentName(transformedName, parentName), setInterfacesName(transformedName, baseInterfaces));\n        classWriter.toByteArray();\n        return basicClass;\n    }\n    else return basicClass;\n\n    }\n    public static String setParentName(String transformedName,String parentName){\n        ParentTransformer.parentName=parentName;\n        return parentName;\n    }\n    public static String[] setInterfacesName(String transformedName,String[] baseInterfaces) {\n        ParentTransformer.baseInterfaces=baseInterfaces;\n        for (String baseInterface : baseInterfaces) {\n            try {\n                ClassReader classReader = new ClassReader(baseInterface);\n                    if (classReader.getItemCount() == 0)\n                        return baseInterfaces;\n                }catch (IOException e){FMLLog.bigWarning(\"No any interfaces!\");}\n            }\n            return null;\n        }\n}\n\ngetModContainerClass()\n每一个被@Mod注解标记从而被认为是mod的mod，都会有自己的ModContainer，如无意外将会在FMLModContainer类中进行处理，读取@Mod注解中的信息，但是开发者也可以自己改写ModContainer。\npublic class YourModContainer implements ModContainer {\n    private ModMetadata modMetadata;\n    private boolean enabled=true;\n    private VersionRange versionRange;\n    private ModContainer modContainer;\n    public String getModId(){\n        return MOD_ID;\n    }\n    public String getName(){\n        return MOD_NAME;\n    }\n    public String getVersion(){\n        return VERSION;\n    }\n    public File getSource(){\n        Path path= Paths.get(\".minecraft\",\"mods\",getName());\n        return path.toFile();\n    }\n    public ModMetadata getMetadata(){\n        return modMetadata; //ModMetaData就是mod的“标签”，由@Mod注解信息决定，也可以由玩家自己编写\n    }\n\n    @Override    \n    public void bindMetadata(MetadataCollection mc) {\n    try {\n        ModMetadata metadata = mc.getMetadataForId(\"Gregtech\", Maps.newConcurrentMap());\n        if (metadata != null & metadata.dependencies.contains(\"ic2\"))\n            getUpdateUrl().openConnection();\n    }catch (IOException e){LOGGER.info(\"IC2 WebSite Error!\");}}\n\n\n    @Override\n    public void setEnabledState(boolean enabled) {\n        this.enabled=enabled;\n    }\n    public Set<ArtifactVersion> getRequirements(){\n        return modMetadata.requiredMods;\n    }\n    public List<ArtifactVersion> getDependencies(){\n        return modMetadata.dependencies;\n    }\n    public List<ArtifactVersion> getDependants(){\n        return null;\n    }\n\n    @Override\n    public boolean registerBus(EventBus bus, LoadController controller) {        \n        bus.unregister(ForgeRegistries.BIOMES);//从EventBus移除所有生物群系，当然这么做很扯淡\n        controller.getActiveModList().remove(\"titan\");//从活跃加载mod列表中移除泰坦，换句话说，禁用了泰坦\n        return true;    }\n\n    @Override\n    public boolean shouldLoadInEnvironment() {\n        return false;\n    }\n\n    @Override\n    public String getSortingRules() {\n         //forge使用的是拓扑排序（TopologicalSort），当然你可以写一个自己的\n         return “com.yourmod.yourSortList\";\n    }\n\n    @Override\n    public boolean matches(Object mod) {\n        return mod.equals(YourMod.INSTANCE);\n    }\n\n    @Override\n    public Object getMod() {\n        return YourMod.INSTANCE;\n    }\n\n    @Override\n    public ArtifactVersion getProcessedVersion() {\n        return new DefaultArtifactVersion(YourMod.VERSION);\n    }\n    public boolean isImmutable(){\n        return false;\n    }\n\n    @Override\n    public String getDisplayVersion() {\n        return YourMod.VERSION;\n    }\n\n    @Override\n    public VersionRange acceptableMinecraftVersionRange() {\n        try {\n            versionRange=VersionRange.createFromVersionSpec(\"[1.12,1.12.2]\");//限定你的mod版本范围是1.12-1.12.2\n        }catch (InvalidVersionSpecificationException e){FMLLog.bigWarning(\"No 1.12!\");}\n        return versionRange;\n    }\n\n    @Nullable\n    @Override\n    public Certificate getSigningCertificate() {\n        Certificate[] certificates = getClass().getProtectionDomain().getCodeSource().getCertificates();\n        return certificates != null ? certificates[0] : null;\n    }\n\n    @Override\n    public Map<String, String> getCustomModProperties() {\n        return null;\n        //向description中添加自己的信息，forge本身不一定会作出处理，这一部分由开发者自行处理，与下文descriptor并不一样\n    }\n\n    @Override\n    public Class<?> getCustomResourcePackClass() {\n        return null;\n    }\n\n    @Override\n    public Map<String, String> getSharedModDescriptor() {Map<String, String> descriptor = Maps.newHashMap();\n        descriptor.put(\"modsystem\", \"FML\");\n        descriptor.put(\"id\", getModId());\n        descriptor.put(\"version\", getDisplayVersion());\n        descriptor.put(\"name\", getName());\n        descriptor.put(\"url\", modMetadata.url);\n        descriptor.put(\"description\", modMetadata.description);\n        return descriptor;\n    }\n\n    public Disableable canBeDisabled(){\n        return Disableable.NEVER;//设置其不会被禁用\n    }\n\n    @Override\n    public String getGuiClassName() {\n        return null;\n    }\n\n    @Override\n    public List<String> getOwnedPackages() {\n        return null;\n    }\n\n    @Override\n    public URL getUpdateUrl() {        \n        try {\n          return new URL(\"https://minecraft.curseforge.com/projects/botania/files/2524591\");//方便所以打了个botania的更新链接\n        }catch (MalformedURLException e){}   \n    }\n\n    @Override\n    public int getClassVersion() {\n        return 52;//52代表Java8\n    }\n    public void setClassVersion(int version){\n        \n    }\n}\n\ngetSetupClass（）\n由于IFMLCallHook这个接口的调用时间非常早，类似于.NET Core的startup接口，所以这里不应该出现MC本身的代码（因为MC代码的反混淆还在IFMLCallHook之后）\n    public class WarhammerHook implements IFMLCallHook {\n    @Override\n    public void injectData(Map<String, Object> data) {         \n         liveEnv = (Boolean)data.get(\"runtimeDeobfuscationEnabled\");\n         cl = (LaunchClassLoader) data.get(\"classLoader\");\n         File mcDir = (File)data.get(\"mcLocation\");\n         fmlLocation = (File)data.get(\"coremodLocation\");\n         ClassPatchManager.INSTANCE.setup(FMLLaunchHandler.side());\n         FMLDeobfuscatingRemapper.INSTANCE.setup(mcDir, cl, (String) data.get(\"deobfuscationFileName\"));    }\n\n    @Override\n    public Void call() throws Exception {        \n        Class<?> classTitan=Class.forName(\"titan(or its obfuscate name)\",false, (LaunchClassLoader)cl) //LaunchClassLoader是MC自带的类加载器        \n        CodeSource codeSource = classTitan.getProtectionDomain().getCodeSource();\n        Files.delete(Paths.get(codeSource.getLocation().toURI())); //探测到泰坦所在的类后删除它\n}\n}\n\n\n最后\n我们的东西已经写完了，应该加载到游戏中使之生效。\n打开你的build.gradle文件，向里面写入这样一段：\njar {\n    manifest {\n//实现了IFMLLoadingPlugin的类（你的coremod类）\n        attributes 'FMLCorePlugin': 'com.forestbat.warhammer.asm.WarhammerLoader'\n        attributes 'FMLCorePluginContainsFMLMod': 'true'\n//access transformer配置文件，一般是modid_at.cfg，放在resources/META_INF文件夹下\n        attributes 'FMLAT': 'warhammer_at.cfg'\n//https://github.com/Ipsis/Woot/blob/1_12/src/main/resources/META-INF/woot_at.cfg（woot的AT配置文件）\n    }\n}复制代码\n\n\n———————————————————————— 分割线 ——————————————————————————\n如有需要继续更新ITweaker相关\n\n[groupid=128]HAYO Studio[/groupid]",
+    "replies": [
+        {
+            "author": "NoName德里奇",
+            "timestamp": 1538694900,
+            "txt_content": "这很数学.jpg\n蝙蝠出品，必属精品。"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1538704200,
+            "txt_content": "完全可以只考虑0~pi/4，然后用ax+bx^3+cx^5逼近吧？"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1538704320,
+            "txt_content": "1.13 要换成用 JavaScript 写 Mod 了？太恐怖了……\n\n是不是还要再内嵌个 V8 和 Webkit……\n\n咳咳……\n\n\n\n切比雪夫我听都没听过，只能仰望"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1538705100,
+            "txt_content": "ruhuasiyu 发表于 2018-10-5 09:50\n完全可以只考虑0~pi/4，然后用ax+bx^3+cx^5逼近吧？\n可以，不过这样需要再推一遍cos（）的逼近，而且当时也没有考虑的太深。"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1538706180,
+            "txt_content": "langyo 发表于 2018-10-5 09:52\n1.13 要换成用 JavaScript 写 Mod 了？太恐怖了……\n\n是不是还要再内嵌个 V8 和 Webkit……\n是coremod，不是mod。\ntypescript会编译成JS，所以你也可以用TS去编。"
+        },
+        {
+            "author": "liach",
+            "timestamp": 1551608640,
+            "txt_content": "个人表示modcontainer类应该和coremod其他部分分开，与普通mod的代码放一起。不然和sponge有兼容问题。\n\n同时修改字节码的内容最好放独立的sourceset，和mod主体避免出现coremod导致classloading的现象。\n\n还有最好别在coremod写法中唐突地插入一段fast math，混淆了主题。"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1551609180,
+            "txt_content": "liach 发表于 2019-3-3 18:24\n个人表示modcontainer类应该和coremod其他部分分开，与普通mod的代码放一起。不然和sponge有兼容问题。\n\n同 ...\n前两者会注意，但第三条有必要说下，其实整篇文章是从fastmath那部分扩写出来的，所以会有切比雪夫多项式的论述。"
+        },
+        {
+            "author": "a1016746326",
+            "timestamp": 1552006260,
+            "txt_content": "很有用，收藏了"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1552405380,
+            "txt_content": "为什么我测试了却StackOverFlow\nsin输入的是啥？"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1552406700,
+            "txt_content": "roj234 发表于 2019-3-12 23:43\n为什么我测试了却StackOverFlow\nsin输入的是啥？\n你是不是输入了一个特别大的数？sin一般的参数是介于0-2pi的，如果太大就会无限递归，从而引发爆栈。"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1552452360,
+            "txt_content": "森林蝙蝠 发表于 2019-3-13 00:05\n你是不是输入了一个特别大的数？sin一般的参数是介于0-2pi的，如果太大就会无限递归，从而引发爆栈。 ...\n        for(float i=0;i<3.1;i+=0.0001f){\n        double a = sin(i);"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1552486440,
+            "txt_content": " 本帖最后由 森林蝙蝠 于 2019-3-13 22:36 编辑 \nroj234 发表于 2019-3-13 12:46\nfor(float i=0;i\npublic static double sin(float value){\n            //修复程序，直接return，恢复正常\n            //原因在于主公式sin= (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)\n                        * value - 0.0002715666) * value + 1.000026227) * value 处没有return，导致程序找不到出口就这么爆栈了\n            if(value>=0&&value<=PI/2)\n                return  (((((-0.000960664 * value + 0.0102697866) * value - 0.00198601997) * value - 0.1656067221)\n                        * value - 0.0002715666) * value + 1.000026227) * value;\n            if(value<0&&value>=-PI/2){\n                return sin(-value);\n            }\n            else{\n               return sin((float)(value-PI));\n            }\n        }"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1552560480,
+            "txt_content": " 本帖最后由 roj234 于 2019-3-14 18:56 编辑 \n森林蝙蝠 发表于 2019-3-13 22:14\npublic static double sin(float value){\n            //修复程序，直接return，恢复正常\n            // ...\n!Thank u    \n\n"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1552562220,
+            "txt_content": "roj234 发表于 2019-3-14 18:48\n!Thank u\n问一下，你这个origin time是哪个算法的？"
+        },
+        {
+            "author": "roj234",
+            "timestamp": 1552748460,
+            "txt_content": "森林蝙蝠 发表于 2019-3-14 19:17\n问一下，你这个origin time是哪个算法的？\nMath.sin()"
+        },
+        {
+            "author": "月杀233",
+            "timestamp": 1587299760,
+            "txt_content": "蝙蝠出品，必出精品（狗头）"
+        },
+        {
+            "author": "1373733703ld",
+            "timestamp": 1612864200,
+            "txt_content": "111111111111"
+        },
+        {
+            "author": "Calelitspt",
+            "timestamp": 1612960680,
+            "txt_content": "henyoukoazhi,xuedaol"
+        }
+    ]
+}

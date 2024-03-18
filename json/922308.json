@@ -1,0 +1,74 @@
+{
+    "title": "[未解决]如何重载所有配置文件",
+    "author": "Iverins",
+    "replyCount": 13,
+    "timestamp": 1572056100,
+    "txt_content": "如题，如何重载配置文件？\n莫非要setEnable(false)，然后再重新启动？\n如果是这样的话，如何重新启动呢？\n我不是要重载config，我还要重载所有的配置文件..\n或者重载指定的配置文件",
+    "replies": [
+        {
+            "author": "吕易天",
+            "timestamp": 1572057240,
+            "txt_content": "Bukkit.reload();"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1572059580,
+            "txt_content": "这个东西不是自己写重载吗....\n怎么读取的就怎么重载呗"
+        },
+        {
+            "author": "Iverins",
+            "timestamp": 1572060780,
+            "txt_content": "a1294790523 发表于 2019-10-26 11:13\n这个东西不是自己写重载吗....\n怎么读取的就怎么重载呗\n再读取一遍？\n具体思路说一下..\n我的思路是卸载然后重新载入"
+        },
+        {
+            "author": "hemp",
+            "timestamp": 1572061080,
+            "txt_content": "ShareFO 发表于 2019-10-26 11:33\n再读取一遍？\n具体思路说一下..\n我的思路是卸载然后重新载入\n就是重新读取配置文件中的配置信息。简单说在重载里把配置文件重新读取。"
+        },
+        {
+            "author": "cp666",
+            "timestamp": 1572063600,
+            "txt_content": "同问，我重载之后读取的数据还是之前的"
+        },
+        {
+            "author": "a1294790523",
+            "timestamp": 1572064740,
+            "txt_content": "ShareFO 发表于 2019-10-26 11:33\n再读取一遍？\n具体思路说一下..\n我的思路是卸载然后重新载入\n卸载然后重新载入还行\n只需要再读取一遍配置文件就行了"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1572066300,
+            "txt_content": "ShareFO 发表于 2019-10-26 11:33\n再读取一遍？\n具体思路说一下..\n我的思路是卸载然后重新载入\nboolean reloadlisteners = true;\nBukkit.getPluginManager().disablePlugin(this);\ntry {\nField pluginsField = Bukkit.getPluginManager().getClass().getDeclaredField(\"plugins\");\npluginsField.setAccessible(true);\nList<Plugin> plugins = (List<Plugin>)pluginsField.get(pluginManager);\nField lookupNamesField = Bukkit.getPluginManager().getClass().getDeclaredField(\"lookupNames\");\nlookupNamesField.setAccessible(true);\nMap<String, Plugin> names = (Map<String, Plugin>)lookupNamesField.get(pluginManager);\nMap<Event, SortedSet<RegisteredListener>> listeners = null;\ntry {\n                    Field listenersField =  Bukkit.getPluginManager().getClass().getDeclaredField(\"listeners\");\n                    listenersField.setAccessible(true);\n                    listeners = (Map<Event, SortedSet<RegisteredListener>>)listenersField.get(pluginManager);\n                }\n                catch (Exception e3) {\n                    reloadlisteners = false;\n                }\nField commandMapField = Bukkit.getPluginManager().getClass().getDeclaredField(\"commandMap\");\ncommandMapField.setAccessible(true);\nSimpleCommandMap commandMap = (SimpleCommandMap)commandMapField.get(pluginManager);\nField knownCommandsField = SimpleCommandMap.class.getDeclaredField(\"knownCommands\");\nknownCommandsField.setAccessible(true);\nMap<String, Command> commands = (Map<String,Command>)knownCommandsField.get(commandMap);\nif(plugins!=null)\n  plugins.remove(this);\nif(names!=null)\n  names.remove(this.getName());\nif (listeners != null && reloadlisteners) {\n            for (SortedSet<RegisteredListener> set : listeners.values()) {\n                Iterator<RegisteredListener> it = set.iterator();\n                while (it.hasNext()) {\n                    RegisteredListener value = it.next();\n                    if (value.getPlugin() == plugin) {\n                        it.remove();\n                    }\n                }\n            }\n        }\n\nif (commandMap != null) {\n            Iterator<Map.Entry<String, Command>> it2 = commands.entrySet().iterator();\n            while (it2.hasNext()) {\n                Map.Entry<String, Command> entry = it2.next();\n                if (entry.getValue() instanceof PluginCommand) {\n                    PluginCommand c = (PluginCommand)entry.getValue();\n                    if (c.getPlugin() != this) {\n                        continue;\n                    }\n                    c.unregister((CommandMap)commandMap);\n                    it2.remove();\n                }\n            }\n        }\n\nClassLoader cl = this.getClass().getClassLoader();\n        if (cl instanceof URLClassLoader) {\n            try {\n                Field pluginField = cl.getClass().getDeclaredField(\"plugin\");\n                pluginField.setAccessible(true);\n                pluginField.set(cl, null);\n                Field pluginInitField = cl.getClass().getDeclaredField(\"pluginInit\");\n                pluginInitField.setAccessible(true);\n                pluginInitField.set(cl, null);\n            }\n            catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex4) {\n                Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex4);\n            }\n            try {\n                ((URLClassLoader)cl).close();\n            }\n            catch (IOException ex2) {\n                Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex2);\n            }\n        }\n\nSystem.gc();\nPlugin target = null;\nFile pluginDir = new File(\"plugins\");\nif (!pluginDir.isDirectory())\n  return true;\nFile pluginFile = null;\ntry{\nField tempFile=this.getClass().getDeclaredField(\"file\");\ntempFile.setAccessible(true);\npluginFile=(File)tempFile.get(this);\n}catch(Throwable e){e.printStackTrace();return true;}\nif(!pluginFile.exists() || !pluginFile.isFile())  return true;\ntry {\n            target = Bukkit.getPluginManager().loadPlugin(pluginFile);\n        }\n        catch (InvalidDescriptionException e) {\n            e.printStackTrace();\n            return true;\n        }\n\n    catch (InvalidPluginException e2) {\n            e2.printStackTrace();\n            return true;\n        }\n\ntarget.onLoad();\nBukkit.getPluginManager().enablePlugin(target);\n\nreturn true;\n            }\n            catch (NoSuchFieldException e) {\n                e.printStackTrace();\n                return true;\n            }\n\n           catch (IllegalAccessException e2) {\n                e2.printStackTrace();\n                return true;\n            }\n\n"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1572066360,
+            "txt_content": "ShareFO 发表于 2019-10-26 11:33\n再读取一遍？\n具体思路说一下..\n我的思路是卸载然后重新载入\n我这个是直接把你整个插件都重载了，不仅仅是配置了"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1572066480,
+            "txt_content": "还有，我想问一下你那所谓的所有配置是所有插件的配置还是你的插件的所有配置"
+        },
+        {
+            "author": "Iverins",
+            "timestamp": 1572066540,
+            "txt_content": "吕易天 发表于 2019-10-26 13:08\n还有，我想问一下你那所谓的所有配置是所有插件的配置还是你的插件的所有配置 ...\n我的插件的所有配置\n但是这样会不会太麻烦了"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1572066540,
+            "txt_content": "ShareFO 发表于 2019-10-26 13:09\n我的插件的所有配置\n但是这样会不会太麻烦了\n写一个读取配置的方法，onEnable的时候调用，重载的时候调用就行了"
+        },
+        {
+            "author": "Iverins",
+            "timestamp": 1572066720,
+            "txt_content": "吕易天 发表于 2019-10-26 13:09\n写一个读取配置的方法，onEnable的时候调用，重载的时候调用就行了\n\n\n\n\nimage.png (119.9 KB, 下载次数: 0)\n\n下载附件\n\n2019-10-26 13:11 上传\n\n\n\n\n\n譬如这样？\n"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1572066780,
+            "txt_content": "ShareFO 发表于 2019-10-26 13:09\n我的插件的所有配置\n但是这样会不会太麻烦了\n举个例子:\npublic final Hashtable<String, ArrayList<Object>> Config = new Hashtable<String, ArrayList<Object>>();\npublic static byte[] readFile(File file) throws Throwable {\n                FileInputStream input = new FileInputStream(file);\n                byte[] t_ret = new byte[input.available()];\n                input.read(t_ret, 0, input.available());\n                input.close();\n                return t_ret;\n        }\n\n        public static boolean writeFile(File file, byte[] content) throws Throwable {\n                FileOutputStream output = new FileOutputStream(file);\n                output.write(content, 0, content.length);\n                output.flush();\n                output.close();\n                return true;\n        }\n\n        public static <T> T parseJson(String json, Class<T> Jsonclass) throws Throwable {\n                Gson parse = new GsonBuilder().setPrettyPrinting().enableComplexMapKeySerialization().create();\n                return parse.fromJson(json, Jsonclass);\n        }\n\n        public static String toJsonString(Object json) throws Throwable {\n                Gson parse = new GsonBuilder().setPrettyPrinting().enableComplexMapKeySerialization().create();\n                return parse.toJson(json);\n        }\n\n        public boolean SaveConfig() throws Throwable {\n                boolean result = true;\n                for (String key : Config.keySet()) {\n                        result = result & SaveConfig(key);\n                }\n                return result;\n        }\n\n        public boolean SaveConfig(String config) throws Throwable {\n                return writeFile(new File((String) Config.get(config).get(0)), toJsonString(config).getBytes(\"UTF-8\"));\n        }\n\n        public Object ReadConfig(String config) throws Throwable {\n                if (!new File((String) Config.get(config).get(0)).exists()\n                                || !new File((String) Config.get(config).get(0)).isFile()) {\n                        new File(new File((String) Config.get(config).get(0)).getParent()).mkdirs();\n                        new File((String) Config.get(config).get(0)).createNewFile();\n                        Object ret = ((Class<?>) Config.get(config).get(1)).newInstance();\n                        writeFile(new File((String) Config.get(config).get(0)), toJsonString(ret).getBytes(\"UTF-8\"));\n                        return ret;\n                } else {\n                        Object ret=parseJson(new String(readFile(new File((String) Config.get(config).get(0))), \"UTF-8\"),\n                                        (Class<?>) Config.get(config).get(1));\n                        if(ret==null)\n                        {\n                                ret = ((Class<?>) Config.get(config).get(1)).newInstance();\n                                writeFile(new File((String) Config.get(config).get(0)), toJsonString(ret).getBytes(\"UTF-8\"));\n                        }\n                        return ret;\n                }\n        }\n\n        public void loadConfig() throws Throwable {\n                for (String key : Config.keySet()) {\n                        Config.get(key).set(2, ReadConfig(key));\n                }\n        }"
+        }
+    ]
+}

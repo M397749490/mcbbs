@@ -1,0 +1,169 @@
+{
+    "title": "1.12.2 Bukkit 插件如何实现“第一次用坏铁镐就送物品”与“农作物加速生长”",
+    "author": "aa0307bb",
+    "replyCount": 32,
+    "timestamp": 1593083940,
+    "txt_content": "①查API看到应该是PlayerItemBreakEvent的getBrokenItem()，可是接下来该如何判断它是铁镐？\n②而且是每个玩家第一次用坏才赠送，该怎么实现\n③农作物加速生长的话 原版可以通过 增加每tick的RandomTick来实现（原版是每游戏刻在每区块产生3随机刻），但是这样会加速其它事件。我只想加快农作物生长（甚至只是部分种类的作物生长），该如何实现？",
+    "replies": [
+        {
+            "author": "落星雨",
+            "timestamp": 1593085920,
+            "txt_content": "我比较菜ww，记得可以通过获取玩家统计信息得到，\nint getStatistic(Statistic statistic, Material material)\n统计信息的enum在 https://bukkit.windit.net/javadoc/org/bukkit/Statistic.html\n例如用坏物品的统计信息应该是 BREAK_ITEM, 那么获得玩家铁镐的破坏次数用例应为：\nint count = getStatistic(org.bukkit.Statistic.BREAK_ITEM, Material.IRON_PICKAXE);\n这样的话，count就应该是玩家用坏铁镐的次数啦。\n\n加速农作物生长的话，我记得有帖子是问这个的，dalao回答了，之前看到过=.="
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593095400,
+            "txt_content": "落星雨 发表于 2020-6-25 19:52\n我比较菜ww，记得可以通过获取玩家统计信息得到，\nint getStatistic(Statistic statistic, Material materi ...\n这个该怎么保证“玩家第一次用坏才赠送”"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593098520,
+            "txt_content": "监听物品损坏事件 然后获取二楼那个count  如果count是0或者应该是1就是第一次破坏"
+        },
+        {
+            "author": "落星雨",
+            "timestamp": 1593099660,
+            "txt_content": " 本帖最后由 落星雨 于 2020-6-25 23:51 编辑 \naa0307bb 发表于 2020-6-25 22:30\n这个该怎么保证“玩家第一次用坏才赠送”\npublic static boolean checkFirstBroken(Player pl){\n  int count = pl.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);\n  return (count == 0);\n}\n把这个方法粘贴到你的类中\n然后需要的时候直接\nif( checkFirstBroken(player) ){ /* 是第一次用坏 */ }\n即可ww"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593108960,
+            "txt_content": " 本帖最后由 aa0307bb 于 2020-6-26 02:19 编辑 \n落星雨 发表于 2020-6-25 23:41\npublic static boolean checkFirstBroken(Player pl){\n  int count = pl.getStatistic(org.bukkit.Statist ...\n噢，原理就是需要用的时候通过checkFirstBroken(player)函数 把玩家数据传进函数 再检测玩家的统计信息！\n\n所以，最后就是\n玩家用坏镐子时会触发一次PlayerItemBreakEvent\n我只需要在PlayerItemBreakEvent的监听器里用这个checkFirstBroken()函数就行了（吧？\n\n有几个问题：\n①第一次损坏 count==0！？\n不会又是因为程序员喜欢从0开始数数吧？\n②统计信息应该不会因为服务器重启而清空吧？③最开始你的帖子说“别的dalao有解答农作物加速”，但我找不到orz"
+        },
+        {
+            "author": "落星雨",
+            "timestamp": 1593111240,
+            "txt_content": " 本帖最后由 落星雨 于 2020-6-26 02:58 编辑 \naa0307bb 发表于 2020-6-26 02:16\n噢，原理就是需要用的时候通过checkFirstBroken(player)函数 把玩家数据传进函数 再检测玩家的统计信息！\n ...\n啊哈哈，我的垃圾水平还称不上大佬orz\n1. 第一次损坏意味着玩家之前没有损坏过稿子，count 的含义是玩家在调用前损坏稿子的次数，所以要 count == 0。\n2. 不会，但应该会因为地图重置而清空。\n3. https://www.mcbbs.net/thread-1063245-1-3.html #2"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593111600,
+            "txt_content": "落星雨 发表于 2020-6-26 02:54\n啊哈哈，我的垃圾水平还称不上大佬orz\n1. 第一次损坏意味着玩家之前没有损坏过稿子，count 的含义是玩家在 ...应该会因为地图重置而清空\n啊，所以插件读取的玩家统计信息其实来自于地图文件？"
+        },
+        {
+            "author": "落星雨",
+            "timestamp": 1593111720,
+            "txt_content": "aa0307bb 发表于 2020-6-26 03:00\n啊，所以插件读取的玩家统计信息其实来自于地图文件？\n是的，相当于单人游戏里的那个统计信息，换地图就成新的了嘛orz"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593148080,
+            "txt_content": " 本帖最后由 aa0307bb 于 2020-6-26 13:32 编辑 \n落星雨 发表于 2020-6-25 23:41\npublic static boolean checkFirstBroken(Player pl){\n  int count = pl.getStatistic(org.bukkit.Statist ...public class PlayerItemBreakListener implements Listener{\n        \n        @EventHandler\n        void onBreakPickaxe(PlayerItemBreakEvent e) {\n                Player player = e.getPlayer();\n                if(checkFirstBroken(player)) {\n                        player.sendMessage(\"你镐爆了\");\n                }\n                \n        }\n\n        public static boolean checkFirstBroken(Player player){\n                  int count = player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);\n                  player.sendMessage(\"你铁镐用坏次数：\"+count);\n                  return (count == 0);\n        }\n\n}复制代码\n追问亿下：\n上面的代码发现一些小问题\n①\n player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);复制代码\n并不是玩家在调用【前】损坏稿子的次数，\n比如 如果我是第一次用坏铁镐，那么会显示\"你铁镐用坏次数：1\"（而不是0）\n（版本问题？我的调用姿势不对？）\n②\n如果玩家用坏了第一次铁镐，而第二第三第四次用坏的是其它镐，仍然能触发if(checkFirstBroken(player)) {}里面的事件\n\n（二次编辑：）\n嗯，似乎找到了解决的方法↓↓↓\n\n        void onBreakPickaxe(PlayerItemBreakEvent e) {\n                Player player = e.getPlayer();\n                boolean isIronPickaxe = e.getBrokenItem().getType() == org.bukkit.Material.IRON_PICKAXE;\n                //isIronPickaxe记录 当前事件损坏的是否为铁镐\n                player.sendMessage(\"\"+isIronPickaxe);\n                if(checkFirstBroken(player)&&isIronPickaxe) {\n                        //如果损坏第一次且损坏的是铁镐，则...\n                        player.sendMessage(\"你镐爆了\");\n                }\n                \n        }\n\n复制代码\n但是我不是很懂e.getBrokenItem().getType() == org.bukkit.Material.IRON_PICKAXE;这样判断是否有什么隐患\n因为”==“两侧的不是基本数据类型，而是MATERIAL类的对象\n印象中 用”==“对对象进行判断 好像只是判断指针地址是否相同，而不是判断它俩是不是同一个类型"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593150300,
+            "txt_content": "aa0307bb 发表于 2020-6-26 13:08\n追问亿下：\n上面的代码发现一些小问题\n①因为”==“两侧的不是基本数据类型，而是MATERIAL类的对象\n印象中 用”==“对对象进行判断 好像只是判断指针地址是否相同，而不是判断它俩是不是同一个类型\n\nMaterial使用 == 完全没有问题\n你自己去学习一下 Java 枚举 Enum 就知道了\n这是java基础问题"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593150360,
+            "txt_content": "aa0307bb 发表于 2020-6-26 13:08\n追问亿下：\n上面的代码发现一些小问题\n①\nItemBreak事件发生之后没有被cancel\n那就意味着铁镐已经爆掉了\n修改方法很简单\n\n加一行\ncount-- ;\nplayer.sendMessage(\"你铁镐用坏次数：\"+count);\n                  return (count == 0);"
+        },
+        {
+            "author": "落星雨",
+            "timestamp": 1593155880,
+            "txt_content": " 本帖最后由 落星雨 于 2020-6-26 15:31 编辑 \naa0307bb 发表于 2020-6-26 13:08\n追问亿下：\n上面的代码发现一些小问题\n①\n1.\n啊是我没写好\n你是在onBreakPickaxe里调用的这个方法，那么就意味着在onBreakPickaxe()之前，铁镐就已经爆掉了一次，统计信息随即从0变1，在这之后再调用getStatistic()，那么此时获取到的就是1了。按照#11大佬的方法，那就可以先让 count 自减1，然后再判断。\ncount--;\n\n2.\n可以自己往后加，\nint count = player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.IRON_PICKAXE);\ncount += player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.DIAMOND_PICKAXE);\ncount += player.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.WOODEN_PICKAXE);\n这个的意思是\ncount = 铁镐用坏次数+钻石镐用坏次数+木镐用坏次数\n如果想要判断玩家是否什么镐子都没用坏过，最后检查是否 count == 0 即可。"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593165780,
+            "txt_content": "落星雨 发表于 2020-6-25 23:41\npublic static boolean checkFirstBroken(Player pl){\n  int count = pl.getStatistic(org.bukkit.Statist ...\n在1.10Bukkit是能行的，我换成carserver就不行了OTZ\n测试之后发现是因为\nplayer.getStatistic(org.bukkit.Statistic.BREAK_ITEM, org.bukkit.Material.STONE_PICKAXE);\n返回的结果总是0\n（而且游戏界面内，ESC->统计次数 界面里面，就算镐子用坏了，“消耗次数”那一栏也不会增加）"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593168960,
+            "txt_content": "aa0307bb 发表于 2020-6-26 18:03\n在1.10Bukkit是能行的，我换成carserver就不行了OTZ\n测试之后发现是因为\n1.10的catserver嘛？\ncatserver不是专供1.12的嘛\n\n同时catserver兼容性存疑 \n有些bukkit api 上的东西确实无法正常使用\n所以有部分插件是不支持catserver的"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593171420,
+            "txt_content": "南柯郡守 发表于 2020-6-26 18:56\n1.10的catserver嘛？\ncatserver不是专供1.12的嘛\n啊我没说清楚……是“1.10Bukkit是能行的，我换成1.12.2carserver就不行了”\n\nbukkit api有没有出问题我不清楚\n关键是原版的一些功能好像也有点问题\n（也就是我上面说的“游戏界面内，ESC->统计次数 界面里面，就算镐子用坏了，“消耗次数”那一栏也不会增加”）"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593171600,
+            "txt_content": "aa0307bb 发表于 2020-6-26 19:37\n啊我没说清楚……是“1.10Bukkit是能行的，我换成1.12.2carserver就不行了”\n\nbukkit api有没有出问题我 ...\n你可以尝试用下别的服务端看看不是是catserver的特性\n\n如果所有服务端都一样的话\n建议自己建立一个记录\n例 建一个data.yml用来存放玩家用坏铁镐的次数\n\nint times = config.getInt(player.getName+\".axebreak\");\n复制代码"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593177180,
+            "txt_content": " 本帖最后由 aa0307bb 于 2020-6-26 21:15 编辑 \n南柯郡守 发表于 2020-6-26 19:40\n你可以尝试用下别的服务端看看不是是catserver的特性\n\n如果所有服务端都一样的话\n有没有哪个文章讲怎样操作配置文件的……我找了半天都找不到:(\n（话说站内有没有比较成体系的教程呀……现在动不动都得出来问人才会orz  本版置顶推荐的很多要么弃坑 要么打不开 要么太旧了 要么没有想要的东西，害）"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593178200,
+            "txt_content": "aa0307bb 发表于 2020-6-26 21:13\n有没有哪个文章讲怎样操作配置文件的……我找了半天都找不到:(\n（话说站内有没有比较成体系的教程呀……现 ...\nhttps://papermc.io/javadocs/paper/1.12/overview-summary.html\n\n推荐查看api文档\n\n操作配置文件比较基础所以没啥教材有\n\n简单说一下初始化配置文件吧\n\nFile filedata = new File(plugin.getDataFolder(),\"data.yml\");\nFileConfiguration cfg = YamlConfiguration.loadConfiguration(filedata);\n//上面是把插件配置文件夹下的data.yml文件作为配置文件读取到插件中\ncfg.getString(\"keyname\");\ncfg.getInt(player.getname+\".break\");\n//上面两个是从cfg里面读取配置项\ncfg.set(\"keyname\",value);\n//上面是向配置文件输出内容 即保存数据\ncfg.save(filedata);\n//上面这个是保存到data.yml文件中去\n//当你cfg.set的时候 只是将数据临时储存在插件的变量中了\n//并没有实时保存在文件里 所以需要save一下来保存到文件里\n复制代码\n现在基本都不爱写教程了\n\n一是有一堆教程 二是吃力不讨好"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593183660,
+            "txt_content": "南柯郡守 发表于 2020-6-26 21:30\nhttps://papermc.io/javadocs/paper/1.12/overview-summary.html\n\n推荐查看api文档\n感谢！（金粒和人气用光了明天再补\n那个第一行\nplugin.getDataFolder()\n的plugin是怎么来的\n\n（然后在插件主类的onEnable()里面不需要写plugin.就可以直接用了又是什么情况orz）"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593183840,
+            "txt_content": "aa0307bb 发表于 2020-6-26 23:01\n感谢！（金粒和人气用光了明天再补\n那个第一行\n这个属于java基础知识部分 建议一会巩固一下\n\npublic static YourPlugin plugin;\n@override\npublic void onEnable(){\n    plugin = this;\n}复制代码\n\n这里之后 这个plugin就代表你的这个插件实例 可以直接引用这个类下面的public的方法"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593187560,
+            "txt_content": "南柯郡守 发表于 2020-6-26 23:04\n这个属于java基础知识部分 建议一会巩固一下\n好的\n\n不过，我的代码主体写在监听器里\npublic class PlayerItemBreakListener implements Listener{\n        \n        @EventHandler\n        void onBreakPickaxe(PlayerItemBreakEvent e) {\n                Player player = e.getPlayer();\n                ……\n        }\n}\n\n监听器里面怎样获取它所在的插件主类的plugin对象"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1593187740,
+            "txt_content": "aa0307bb 发表于 2020-6-27 00:06\n好的\n\n不过，我的代码主体写在监听器里\n据我所知。。按 21# 大佬的方法在监听器里也可以用吧\n先 public static YourPlugin plugin = this;\n然后监听器里调用 YourPlugin.plugin"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593188520,
+            "txt_content": "蕾米洛伊 发表于 2020-6-27 00:09\n据我所知。。按 21# 大佬的方法在监听器里也可以用吧\n先 public static YourPlugin plugin = this;\n然后 ...\n类变量，好主意，膜OTZ\n按 21# 大佬的方法在监听器里也可以用吧\n在我这用不了OTZ"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1593188700,
+            "txt_content": "aa0307bb 发表于 2020-6-27 00:22\n类变量，好主意，膜OTZ\n\n在我这用不了OTZ\n那么就试试在Listener里写一个\n\nprivate static Plugin pl;\npublic PlayerItemBreakListener(Plugin pl){\n    Plugin plugin = pl;\n}\n在主类注册Listener的时候，记得传参 new Listener(this)。然后在其他方法里调用 plugin？\n啊也有可能是错了，好久没写忘了"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1593190260,
+            "txt_content": "aa0307bb 发表于 2020-6-27 00:06\n好的\n\n不过，我的代码主体写在监听器里\n\n尝试\n\npublic class YourListener implement Listener{\n    YourPlugin instance=YourPlugin.plugin;\n    @EventHandler\n    public void yourMethod(){\n        //do something with instance\n        instance.econ.depositPlayer(player,money);\n\n    }\n}\n复制代码"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593190740,
+            "txt_content": "蕾米洛伊 发表于 2020-6-27 00:25\n那么就试试在Listener里写一个\n\nprivate static Plugin pl;\n啊你提醒我了，监听器的传参问题我也是一知半解的OTZ\n\n//【代码1】\npublic class PlayerItemBreakListener implements Listener{        \n        @EventHandler\n        void onBreakPickaxe(PlayerItemBreakEvent e) {\n复制代码\n与\n\n//【代码2】\npublic class PlayerItemBreakListener implements Listener{\n        @EventHandler\n        void onBreakPickaxe(PlayerItemBreakEvent e,Plugin plugin) {\n复制代码\n\n那个@EventHandler能标记onBreakPickaxe()是事件处理函数是什么个原理，\n它是怎么知道我的onBreakPickaxe()需要什么参数并且总是(?)能传给我需要的参数的"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593191700,
+            "txt_content": "南柯郡守 发表于 2020-6-27 00:51\n尝试\n好的，已经成了 :)"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1593193020,
+            "txt_content": " 本帖最后由 蕾米洛伊 于 2020-6-27 01:48 编辑 \naa0307bb 发表于 2020-6-27 01:15\n好的，已经成了 :)\n我比较菜，可能会有错误，路过的大佬烦请指出 =w=\n这是 Java 注解，主要是为了让编译器检查你写的对不对的，通常来说对代码没有影响。\n但是在 EventListener就不一样了，具体需要看看 org.bukkit.event.EventHandler 是怎么写的。\n\n@Target({ElementType.METHOD})\n@Retention(RetentionPolicy.RUNTIME)\npublic @interface EventHandler {\n    EventPriority priority() default EventPriority.NORMAL;\n\n    boolean ignoreCancelled() default false;\n}\n这就是咱们所使用的 @EventHandler(priority = NORMAL) 的来源\n首先看最上面的两个小玩意\n\n@Target({ElementType.METHOD})\n这个意思是告诉编译器，我只能和不包含构造方法的方法放一块！其它类型一律给我报错嗷 (只有方法允许使用注解)\n@Retention(RetentionPolicy.RUNTIME)\n刚刚说到注解一般情况下是为了编译检查用的，不会保存到编译的文件中。但是在 bukkit，牵扯到事件优先级的问题，所以这个注解不能被忽略，否则的话bukkit就读不了优先级了。\n所以，这个小玩意的意思是告诉编译器，虽然我看起来小，你得把我编译进去，实际代码里也要用到我，所以你得让JVM大哥访问到我 (编译并让JVM读取此注解)。\n\n下面的 @interface 意思就是说这是个注解。\n(使用 @interface 定义注解时，意味着它实现了 java.lang.annotation.Annotation 接口，即该注解就是一个Annotation。)\n\n从上面的例子应该可以理解，@EventHandler 和 bukkit 怎么知道Event类型，是没有直接联系的。我的理解是这个 @EventHandler 主要是为了你定义事件优先级和 ignoreCancelled 的，因为注解中的变量可以被 method.getDeclaredAnnotations() 读取。\n\n刚看了一眼百度上关于注解的教程，我。。一个个写的都那么高端。。不能对新手友好点嘛。。。"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593221760,
+            "txt_content": "aa0307bb 发表于 2020-6-27 00:59\n啊你提醒我了，监听器的传参问题我也是一知半解的OTZ\n\n与\n我建议构造函数传参\n看SimplePluginManager\n  public void callEvent(@NotNull Event event) {\n    if (event.isAsynchronous()) {\n      if (Thread.holdsLock(this))\n        throw new IllegalStateException(String.valueOf(event.getEventName()) + \" cannot be triggered asynchronously from inside synchronized code.\"); \n      if (this.server.isPrimaryThread())\n        throw new IllegalStateException(String.valueOf(event.getEventName()) + \" cannot be triggered asynchronously from primary server thread.\"); \n      fireEvent(event);\n    } else {\n      if (!this.server.isPrimaryThread())\n        throw new IllegalStateException(String.valueOf(event.getEventName()) + \" cannot be triggered asynchronously from another thread.\"); \n      synchronized (this) {\n        fireEvent(event);\n      } \n    } \n  }\n\n\n  \n  private void fireEvent(@NotNull Event event) {\n    HandlerList handlers = event.getHandlers();\n    RegisteredListener[ listeners = handlers.getRegisteredListeners();\n    byte b;\n    int i;\n    RegisteredListener[ arrayOfRegisteredListener1;\n    for (i = (arrayOfRegisteredListener1 = listeners).length, b = 0; b < i; ) {\n      RegisteredListener registration = arrayOfRegisteredListener1[b;\n      if (registration.getPlugin().isEnabled())\n        try {\n          registration.callEvent(event);\n        } catch (AuthorNagException ex) {\n          Plugin plugin = registration.getPlugin();\n          if (plugin.isNaggable()) {\n            plugin.setNaggable(false);\n            this.server.getLogger().log(Level.SEVERE, String.format(\n                  \"Nag author(s): '%s' of '%s' about the following: %s\", new Object[ { plugin.getDescription().getAuthors(), \n                    plugin.getDescription().getFullName(), \n                    ex.getMessage() }));\n          } \n        } catch (Throwable ex) {\n          this.server.getLogger().log(Level.SEVERE, \"Could not pass event \" + event.getEventName() + \" to \" + registration.getPlugin().getDescription().getFullName(), ex);\n        }  \n      b++;\n    } \n  }  \n\n\n再来RegisteredListener类\n\n  \n  public void callEvent(@NotNull Event event) throws EventException {\n    if (event instanceof Cancellable && (\n      (Cancellable)event).isCancelled() && isIgnoringCancelled())\n      return; \n    this.executor.execute(this.listener, event);\n  }\n看看接口\npublic interface EventExecutor {\n  void execute(@NotNull Listener paramListener, @NotNull Event paramEvent) throws EventException;\n}\n\n你觉得可能传入插件主类这个参数吗。。。第二个方式不可能用来事件监听的你只能在构造函数传参主类实例\n\n"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593221880,
+            "txt_content": "蕾米洛伊 发表于 2020-6-27 01:37\n我比较菜，可能会有错误，路过的大佬烦请指出 =w=\n这是 Java 注解，主要是为了让编译器检查你写的对不对的 ...\n\n从上面的例子应该可以理解，@EventHandler 和 bukkit 怎么知道Event类型，是没有直接联系的。\n\n要靠Handler"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1593246120,
+            "txt_content": "William_Shi 发表于 2020-6-27 09:36\n我建议构造函数传参\n看SimplePluginManager\n  public void callEvent(@NotNull Event event) {\n有很多线程、同步异步、锁等待有关的东西，不太熟，眼花了\n就比如说这里没出现过个各种监听器的名称PlayerJoinListener、PlayerItemBreakListener\n更没有它们被@EventHandler标记的函数名的名称（比如onBreakPickaxe()）\n\n那么它是怎样知道@EventHandler标记的函数名并且往onBreakPickaxe()传参数的\n而且是不是无论是什么事件，传的参数都只是形如PlayerJoinEvent、PlayerItemBreakEvent等类的对象"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593246360,
+            "txt_content": "aa0307bb 发表于 2020-6-27 16:22\n有很多线程、同步异步、锁等待有关的东西，不太熟，眼花了\n就比如说这里没出现过个各种监听器的名称Playe ...\n1.大部分事件为同步事件\n2.监听可以通过反射进行调用\n检测到对应的注解的方法才会在你注册监听的时候加进去，其他的不会加进去的\n调用一个方法并不一定需要名称\n3.传参只能Class<? extends Event> 没其他的参数\n4.详见https://www.mcbbs.net/thread-1068558-1-1.html"
+        }
+    ]
+}

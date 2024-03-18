@@ -1,0 +1,89 @@
+{
+    "title": "【Bone Studio】【原创】【Hamster君】Spigot插件教学——配置文件极其衍生",
+    "author": "苏丶小沫",
+    "replyCount": 16,
+    "timestamp": 1531486920,
+    "txt_content": " 本帖最后由 HamsterB君 于 2018-7-14 14:54 编辑 \n玩什么配置哟，直接拿现成的好了(＾Ｕ＾)ノ~Spigot插件教学——配置文件及其衍生哇塞，这个帖子是我在禁言的时候发出来的，我发现了论坛的BUG……于是我又可以去水贴了……\nPart1-最普通的配置Config我们先在主类中创建一个File类型的全局变量出来，然后括号里面就是你的插件配置所在的文件夹，括号里面推荐填(getDataFolder(),\"config.yml\")getDataFolder()是Spigot为你准备的方法，作用是获取插件所在的文件夹，所以我们用这个方法获取到的就是\"plugins/插件名字/\"这样，我们的配置文件就指定在 plugins/插件名字/config.yml 里面啦！像这样：public class MyPlugin extends JavaPlugin{\n    File file=new File(getDataFolder(),\"config.yml\");\n    //其它代码\n}复制代码为了使主类显得简洁有序，我们干脆把加载配置写在主类的另一个专门处理配置的方法里面\n当然，方法名随意，但是请注意，第一个单词小写，后面的单词首字母都大写！\n我的方法就是这样子的：\npublic void loadConfigs() {\n}复制代码现在，我们要让Spigot自己加载配置config.yml了：\n在加载之前，为了防止加载出错，我们要看看config.yml存不存在，如果不存在，那么新建config.yml\n为了实现这个功能，我们的loadConfig()方法就变成了这样子：\npublic void loadConfigs() {\n    if(!getDataFolder().exists()) {\n        getDataFolder().mkdir();\n    }\n    if (!(file.exists())) {\n        saveDefaultConfig();\n    }//其他代码复制代码在这一串代码中，第一个if判断plugins中是否存在存放配置的文件夹，如果没有，那么就创建一个。\n                        第二个if判断文件夹中是否有config.yml，若没有，就把插件中的config复制出来。\n                        最后，刷新一下config，方便以后调用。\n我们的主类就变成了这个样子：\npublic class MyPlugin extends JavaPlugin{\n    File file=new File(getDataFolder(),\"config.yml\");\n    public void loadConfigs() {\n        if(!getDataFolder().exists()) {\n            getDataFolder().mkdir();\n        }\n        if (!(file.exists())) {\n            saveDefaultConfig();\n        }\n    reloadConfig();\n    }//其他代码复制代码现在，我们在插件中创建一个默认的config.yml，过程不用讲，跟创建plugin.yml一样。\n在yml文件中，一个路径对应一个值，请看以下代码：（选自 我的原创插件<DSInMinecraft>）#插件配置\n#理智值的设定\ndays: -1\nsanity: \n  #使用某东西时对理智值的影响\n  using: \n    #吃东西\n    APPLE: 3.0\n  #影响理智的状态（单位：/min）\n  state: \n    InTime: \n      day: 15.0复制代码好了，在这个yml文件中，冒号后面的东西就是值。------------------------------------------------------------------------------------------------例如：       路径                               该路径所对应的值                days                           -1                sanity.using.APPLE        3.0                sanity.state.InTime.day  15.0------------------------------------------------------------------------------------------------也就是说，路径之间用\".\"来分门别类。值就是冒号后面的东西了。#表示注释，java不会加载对于yaml，有这些方法：------------------------------------------------------------------------------------------------对象                    方法                                    用处                                                插件                 getConfig()                      表示得到的配置   返回：配置配置                 get(\"路径\")                      得到对应路径的值配置                 get+数据类型(\"路径\")        得到对应路径的值并转化成你想要的数据类型。                                                            例如：getInt(\"days\")；getDouble(\"sanity.using.APPLE\")配置                 set(\"路径\",值)                   对制定路径设置一个值（若路径不存在，自动添加。）配置                 set+数据类型(\"路径\",值)     对制定路径设置一个指定类型的值。                                                            例如：setInt(\"days\", -1)；setDouble(\"sanity.using.APPLE\",3.0)------------------------------------------------------------------------------------------------所以，我们经常在主类中使用getConfig().get(\"路径\")获取配置中的东西，getConfig().set(\"路径\",值)设置配置中的东西Part2-更多的配置文件想要有更多配置文件，那么会让你的主类代码很多，强烈建议独立成一个方法，就像上面的loadConfig()一样。想要新建另一个配置，一样地，新建一个File类型的全局变量：File file=new File(getDataFolder(),\"配置名字.yml\");然后，要把它转化成Java中的一种流：FileConfigurationFileConfiguration = load(file);请注意，上面两个都是全局变量好了，想让Spigot读取这些鬼玩意儿（我承认，我写到这里的时候心情不好），需要几行的代码，为了使主类的方法简单易懂，请独立出一个新的方法！例如下面：请注意，务必return！public FileConfiguration load(File file){\n    return YamlConfiguration.loadConfiguration(file);\n}复制代码然后为了起到自动识别读取的功能，在其中加入代码：if (!(file.exists())) { //不要吐槽我的格式\n    file.createNewFile();\n}复制代码如果，Eclipse划红线提醒你要什么try/catch语句，请照做。好了，创建完成后，我们要给它填充我们想要的内容，在file.createNewFile();下一行添加：saveResource(\"配置名字.yml\", true);复制代码这个方法，就是把文件内容复制出来。后面一定要填写true！然后如果要获取或者设置配置中的值，这样写：配置流名字.get(\"路径\");\n配置流名字.set(\"路径\",值);复制代码跟普通的config.yml的方法大同小异。Part3-在主类外访问非静态的配置文件[其它教程没有的知识点（重要）]我们之前说过了监听器和指令，学习了如何将他们放到主类外面去，既然如此，我们为什么不在主类外访问配置，以减轻主类的负担呢？但是，试过的小伙伴都知道，在主类外写getconfig()，报错：不是无法解析就是非静态方法不可用静态引用……我先来探索一下，既然这个方法不是静态方法，这么说一定需要一个对象，而这个对象就是插件。好了，我们在主类外新建一个类，让它专门处理配置，然后在这个类里面写public class ConfigAndOthers{\n    private 主类名字 plugin;\n    public ConfigAndOthers(Plugin plugin){\n        this.plugin = plugin;\n    }\n}复制代码然后在需要获取配置时使用：plugin.getConfig().get();或者plugin.getConfig().set();但是如何访问除了config.yml以外的配置呢？直接用主类里面那个FileConfiguration类型的变量就好啦！例如我的：主类：public static FileConfiguration language;配置类：主类名字.language.get();或者主类名字.language.set();这里就不需要用getConfig()了。当然，这仅限于专门处理配置的那一个类里面使用，如果你想要更多的类可以访问配置，请在它们每一个中插入：private 主类名字 plugin;\npublic ConfigAndOthers(Plugin plugin){\n    this.plugin = plugin;\n}\n复制代码最后，我们还要在主类的onEnable方法中启用我们的配置类的构造函数那么插入一下代码：new 配置类的名字(this);Part4-把数据储存进配置文件的规范[其它教程没有的知识点（重要）]为了使你的插件更加安全，所以请尝试在访问配置每个路径的值前看看这个路径是否存在：\ngetConfig().contains(\"路径\")复制代码我建议你可以弄一个类，专门存放从配置文件获取的值，别的类要用时直接调用配置类的变量就好了\n像我这样：（选自 我的插件 <DSInMinecraft>）\npublic class ConfigAndLang {\n    private DSInMinecraft plugin;\n    public ConfigAndLang(DSInMinecraft plugin) {\n        this.plugin = plugin;\n        load();\n    }\n    public void load() {\n        APPLE = DSInMinecraft.language.getString(\"lang.eathing.APPLE\");复制代码\n\n\n11234多字打得手疼有问题的小伙伴请在1楼问我\n你们也不看看我多少级……人气撒起来吧>>回到目录<<[groupid=1306]Bone Studio[/groupid]",
+    "replies": [
+        {
+            "author": "南少D凌坤",
+            "timestamp": 1531529220,
+            "txt_content": "写的还是挺详细的，支持下。"
+        },
+        {
+            "author": "senzon1",
+            "timestamp": 1531744740,
+            "txt_content": "支持！不过还是有点不懂。。。。。。"
+        },
+        {
+            "author": "SiYao",
+            "timestamp": 1532156700,
+            "txt_content": "好多不懂，麻烦能不能发一下你设置得源码，其他配置文件的，不是config的配置文件"
+        },
+        {
+            "author": "苏丶小沫",
+            "timestamp": 1532156820,
+            "txt_content": "我是天才1 发表于 2018-7-21 15:05\n好多不懂，麻烦能不能发一下你设置得源码，其他配置文件的，不是config的配置文件 ...\n抱歉，文中就有源代码，\n我自己没有源代码……因为我懒得把文中的东西复制进去……\n所有代码都在文中。\n\n请在自己看1个小时后再说你又没有看懂。\n不要一知半解就说自己看不懂。\n\n这只是一个建议啦！"
+        },
+        {
+            "author": "SiYao",
+            "timestamp": 1532325360,
+            "txt_content": "我看了好几天了emmmmmmmmmmmmm"
+        },
+        {
+            "author": "苏丶小沫",
+            "timestamp": 1532325720,
+            "txt_content": "我是天才1 发表于 2018-7-23 13:56\n我看了好几天了emmmmmmmmmmmmm\n那你的Java基础不行啊\n推荐的学习网站：\nwww.runoob.com"
+        },
+        {
+            "author": "SiYao",
+            "timestamp": 1532333160,
+            "txt_content": "我想知道怎么在监听事件类里面，怎么调用配置处理类中的方法，实例化类会错误啊\n\n\n这是这两个类的源码，求告诉"
+        },
+        {
+            "author": "xiaozaizai",
+            "timestamp": 1532341260,
+            "txt_content": "谢谢大大，不过我想知道java的"
+        },
+        {
+            "author": "xiaozaizai",
+            "timestamp": 1532494740,
+            "txt_content": "很详细的一个教程，支持"
+        },
+        {
+            "author": "苏丶小沫",
+            "timestamp": 1532498400,
+            "txt_content": "xiaozaizai 发表于 2018-7-23 18:21\n谢谢大大，不过我想知道java的\n这个网站很适合学各种语言：\nwww.runoob.com"
+        },
+        {
+            "author": "xiaozaizai",
+            "timestamp": 1532500440,
+            "txt_content": "HamsterB君 发表于 2018-7-25 14:00\n这个网站很适合学各种语言：\nwww.runoob.com\n谢谢，太感谢了"
+        },
+        {
+            "author": "a1640727878",
+            "timestamp": 1538299380,
+            "txt_content": "那个啊,默认的配置文件一个\n\nsaveDefaultConfig();\n复制代码\n不就好了吗"
+        },
+        {
+            "author": "58860113@qq.com",
+            "timestamp": 1540554660,
+            "txt_content": "虽然很复杂。。。但是我还是学会了一些些，继续加油！"
+        },
+        {
+            "author": "CarbonPaper99",
+            "timestamp": 1540615320,
+            "txt_content": "YamlConfiguration不能在别的类中调用吗？"
+        },
+        {
+            "author": "苏丶小沫",
+            "timestamp": 1545299940,
+            "txt_content": "PumpkinSever 发表于 2018-10-27 12:42\nYamlConfiguration不能在别的类中调用吗？\n可以。但比较麻烦。"
+        },
+        {
+            "author": "CarbonPaper99",
+            "timestamp": 1545385260,
+            "txt_content": "HamsterB君 发表于 2018-12-20 17:59\n可以。但比较麻烦。\n那要怎么样？像原生的config一样用static字段存起来然后调用吗"
+        }
+    ]
+}

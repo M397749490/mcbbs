@@ -1,0 +1,59 @@
+{
+    "title": "如何彻底优化服务器端(非MOD，插件）1.8官服效果较显著",
+    "author": "zariba",
+    "replyCount": 10,
+    "timestamp": 1424938560,
+    "txt_content": " 本帖最后由 zariba 于 2015-2-26 18:55 编辑 \n\n本帖转载百度贴吧id@驴要飞上天 这位大大似乎很少上贴吧，有幸拜读后稍微修改了一下转载到mcbbs上，侵删。\n原帖地址请勿挖坟！！！\n我不怀疑吧内有很多人开过服，也就是撸过那一串类似Minecraft官网的代码\njava -Xmx1024M -Xms1024M -jar minecraft_server.jar nogui\n当然还有人会加在开头加bat关闭回显的代码@echo off 或者加个死循环goto甚至for（其实我只想吐槽for根本多线程不能=A=）之类的。\n熟悉开服环节的人肯定能大致了解这些参数到底是什么意思，是否nogui对服务器性能的影响十分大，所以，nogui必须。（1.8官服有个傻【哔——】GUI,关掉可以减少消耗，若是非官服可无视。）\nminecraft 不管是客户端还是服务器端的运行都需java虚拟机 也就是JVM的支持，所以当过两年的程序员的楼主瞄准了JVM的调优方向，对minecraft的服务器进行彻底优化。以楼主的配置来讲，server.bat 文件内的各项参数如下\njava -server -d64 -Xmx3550M  -Xms3550M -Xss256k  -XX:PermSize=256m -XX:MaxPermSize=256m -XX:NewSize=1024m -XX:MaxNewSize=1024m -XX:+UseParNewGC -XX:+CMSIncrementalPacing -XX:+UseFastAccessorMethods -XX:+UseConcMarkSweepGC -XX:MaxGCPauseMillis=100 -XX:+CMSParallelRemarkEnabled -XX:ParallelGCThreads=20 -jar minecraft_server.1.8.jar nogui\npause\n当然咯，以上设置适合（I7 2670QM  8GB   ），但不适合每个人。所以请好好阅读然后根据自己的服务器配置状况配置启动参数。\n===========参数说明=============\n\nserve\n  一定要作为第一个参数，会使JVM启动速度变慢，但会显著提升JVM性能（要是我记得没错的话linux似乎默认是server）\n-Xmx3550m：设置JVM最大堆内存为3550M。\n-Xms3550m：设置JVM初始堆内存为3550M。此值可以设置与-Xmx相同，以避免每次垃圾回收完成后JVM重新分配内存。\n-Xss128k：设置每个线程的栈大小。JDK5.0以后每个线程栈大小为1M，之前每个线程栈大小为256K。应当根据应用的线程所需内存大小进行调整。在相同物理内存下，减小这个值能生成更多的线程。但是操作系统对一个进程内的线程数还是有限制的，不能无限生成，经验值在3000~5000左右。需要注意的是：当这个值被设置的较大（例如>2MB）时将会在很大程度上降低系统的性能。\n-Xmn2g：设置年轻代大小为2G。在整个堆内存大小确定的情况下，增大年轻代将会减小年老代，反之亦然。此值关系到JVM垃圾回收，对系统性能影响较大，官方推荐配置为整个堆大小的3/8。\n-XX:NewSize=1024m：设置年轻代初始值为1024M。\n\n-XX:MaxNewSize=1024m：设置年轻代最大值为1024M。\n\n-XX:PermSize=256m：设置持久代初始值为256M。\n-XX:MaxPermSize=256m：设置持久代最大值为256M。\n-XX:NewRatio=4：设置年轻代（包括1个Eden和2个Survivor区）与年老代的比值。表示年轻代比年老代为1:4。\n-XX:SurvivorRatio=4：设置年轻代中Eden区与Survivor区的比值。表示2个Survivor区（JVM堆内存年轻代中默认有2个大小相等的Survivor区）与1个Eden区的比值为2:4，即1个Survivor区占整个年轻代大小的1/6。\n-XX:MaxTenuringThreshold=7：表示一个对象如果在Survivor区（救助空间）移动了7次还没有被垃圾回收就进入年老代。如果设置为0的话，则年轻代对象不经过Survivor区，直接进入年老代，对于需要大量常驻内存的应用，这样做可以提高效率。如果将此值设置为一个较大值，则年轻代对象会在Survivor区进行多次复制，这样可以增加对象在年轻代存活时间，增加对象在年轻代被垃圾回收的概率，减少Full GC的频率，这样做可以在某种程度上提高服务稳定性。\n\n====== GC（垃圾回收）参数 ===\n\nSun HotSpot JVM 通常使用的 GC 算法是分代回收。即把对象按生命周期不同分为年轻代和年老代。新的对象会先生成在Young Area，在几次 GC 以后，如果没有收集到，就会逐渐升级到Tenured Area。\n\nSun JVM 默认的回收器称为 serial collector ，即串行回收，我们也可以使用多线程并发回收来提高效率。需要注意的是，在单核的机器上，使用默认的回收器可能会更好。\n\n-XX:+UseParNewGC\n  为年轻代对象使用并发回收，会缩短年轻代对象的回收时间\n\n-XX:+UseConcMarkSweepGC\n  为年老代使用并发回收\n\n-XX:+UseParallelGC\n  该收集器和 UseConcMarkSweepGC 是互相排斥的，为新生代使用并行清除，年老代使用单线程Mark-Sweep-Compact的垃圾收集器。\n\n其中的几个参数LZ忘记收集了必要的资料，没记错应该是减少服务器崩溃的几率。\n以上参数设置好后可以减少服务器崩溃次数和从底层提高server的效率。\n另外，因为服务器和客户端都是基于JVM运行的，所以以上参数适用于游戏客户端，如在启动器参数中设置。具体怎么做根据启动器类型的不同略有出入。\n\nLZ使用的是MCLauncherBN   里面有参数设置栏，表示很方便。\n当然还有server.properties 的可视区块设置和最大玩家数设置这个对宽带优化比较重要，宽带不好的机子可以尝试3-4。\n这些启动参数不仅适用于官方服务器端的启动，同样适用于任何基于JDK6。0以后的服务器端（基本都是）bukkit  sipgot 还是官方服务器。\n必需要注意的是目录必需得纯英文，要是服务端核心之类的名字含有非法字符（非数字英文）会来回报错！\n基本上就差不多这些，中间的参数说明很清晰了。请别回复问我怎么配置，自己尝试的弄一下，最后祝大家开服愉快。\n不知道可否求精{:10_492:} @SkyCatcher\n\nps：如果什么都看不懂就加个-SERVER 调低视野吧=A=。\n",
+    "replies": [
+        {
+            "author": "晓崆",
+            "timestamp": 1424939580,
+            "txt_content": "好高端不懂qwq"
+        },
+        {
+            "author": "zariba",
+            "timestamp": 1424939820,
+            "txt_content": "晓崆 发表于 2015-2-26 16:33\n好高端不懂qwq\n加个-SERVER 调低视野就有点效果了..."
+        },
+        {
+            "author": "Candys",
+            "timestamp": 1424947740,
+            "txt_content": "就为这点破事，楼主你又机智的水了一贴"
+        },
+        {
+            "author": "zariba",
+            "timestamp": 1425004740,
+            "txt_content": "冒泡... ..."
+        },
+        {
+            "author": "无名e",
+            "timestamp": 1425137640,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "zariba",
+            "timestamp": 1425641580,
+            "txt_content": "无名e 发表于 2015-2-28 23:34\n**** 作者被禁止或删除 内容自动屏蔽 ****\n依据机子性能不同是有不同的效果，如果机子不好-server和调低视野就感觉很显著了，但是对于强悍的机子这大概是减少崩溃的几率吧XD"
+        },
+        {
+            "author": "hj7332337",
+            "timestamp": 1427332320,
+            "txt_content": "这种很不错，受教了"
+        },
+        {
+            "author": "aiaiioi",
+            "timestamp": 1436754540,
+            "txt_content": "试试先,谢谢分享"
+        },
+        {
+            "author": "rgege",
+            "timestamp": 1490419620,
+            "txt_content": "看不懂啊"
+        },
+        {
+            "author": "hjyy0410",
+            "timestamp": 1515656940,
+            "txt_content": "很头疼，看不懂。。。很想优化服务器，但又不知道该从哪里入手"
+        }
+    ]
+}

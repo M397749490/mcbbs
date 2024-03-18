@@ -1,0 +1,24 @@
+{
+    "title": "[已解决] 关于1.12.2 spigot世界生成的问题",
+    "author": "wjwrh",
+    "replyCount": 3,
+    "timestamp": 1589340720,
+    "txt_content": " 本帖最后由 wjwrh 于 2020-5-13 12:01 编辑 \n\n最近在尝试写一个有关于插件端(Spigot 1.12.2)世界生成的插件，拜读了海螺螺的文章，以及阅读了相关的javadoc之后，仍有数点疑惑，望大佬指点\n\n关于现有世界增加Populator的问题 经过测试我发现在服务器启动时，WorldInitEvent事件也会触发，那么正常情况下我写在监听器里面的代码也会执行，也就是说我自己写的Populator应该已经被添加到Populators中了，但是我前往之前未加载的区块，我的Populator并不能正常工作，但是如果我新建一个世界的话，我写的Populator就会正常工作，是因为Population只会在初次生成世界的时候进行吗？那么添加新mod时，只要跑到之前未加载的区块，mod添加的新方块便会新生成是怎么做到的？还是说只有mod能做到这一点？关于MC世界生成方式改变的问题\n\nMinecraft在迅速发展，世界生成的代码却在很长的一段时间里没有发生太大的变化，而1.13正是对这一切进行变革的一个版本。\n这段话提到1.13MC的世界生成的代码有一个变革，我想请教一下这个\"变革\"对于插件的开发有没有什么影响？我发现1.12.2和1.15.2的相关API好像没有太大的变化的样子..?\n\n以上就是我的所有问题，之前没有接触过有关世界生成的问题，所以如果提出的问题很\"低级\"，还请大佬见谅，我已经尽我所能搜索并阅读了相关资料(也可能是英语水平受限，没有直接搜到有用的资料)，然后才提出的上述问题，希望大佬们可以解答一下，谢谢！\n\n这里附上我写的测试用代码\n\n// PluginTest.java\npackage cn.kurosawaruby.PluginTest;\n\nimport org.bukkit.Bukkit;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.EventPriority;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.world.WorldInitEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\n\npublic class PluginTest extends JavaPlugin implements Listener {\n\n\n    @Override\n    public void onEnable() {\n        Bukkit.getPluginManager().registerEvents(this, this);\n    }\n\n    @EventHandler(priority = EventPriority.MONITOR)\n    public void onWorldInit(WorldInitEvent event) {\n        getLogger().info(\"世界初始化事件已触发\");\n        event.getWorld().getPopulators().add(new TestPopulator());\n    }\n\n\n}\n\n// TestPopulator.java\npackage cn.kurosawaruby.PluginTest;\n\nimport org.bukkit.Chunk;\nimport org.bukkit.Material;\nimport org.bukkit.World;\nimport org.bukkit.generator.BlockPopulator;\nimport org.jetbrains.annotations.NotNull;\n\nimport java.util.Random;\n\npublic class TestPopulator extends BlockPopulator {\n\n    @Override\n    public void populate(@NotNull World world, @NotNull Random random, @NotNull Chunk chunk) {\n        if(chunk.getBlock(7,128,7).getType() == Material.AIR){\n            chunk.getBlock(7,128,7).setType(Material.BEDROCK);\n        }\n    }\n}复制代码",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1589341440,
+            "txt_content": "是因为Population只会在初次生成世界的时候进行吗\n\n并不是，按道理说你在onWorldInit里添加的populator就已经能work了\n比如我签名里的那个地牢生成器，原理就是这样\n\n这个\"变革\"对于插件的开发有没有什么影响\n插件的话，大体可以无视，主要影响是以下两点\n\n1. Chunk populator的触发有所改变\n具体请看：https://www.spigotmc.org/threads ... ckpopulator.370322/\nIn older Versions Minecraft has generated the chunks in a radius before populating them. So a populated chunk had always around 8 generated chunks around it. It seems, that this behaviour had been removed in 1.13/1.14\n\n这个让树木生成等变得非常烦人。。。\n\n2. Chunkregen这个方法不再有效\n见：https://hub.spigotmc.org/jira/browse/SPIGOT-4878\n\n这让包含islandcraft在内的一批地形生成器不再work。。。"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1589341620,
+            "txt_content": "以及你说的populator在已有世界不work，我在想是不是你调试插件的时候没重启服务端而是/reload confirm了。。。\n\n/reload confirm不会触发已加载世界的WorldInitEvent"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1589342040,
+            "txt_content": "第一个问题，你会发现我 plugin.yml 写了一个 load: STARTUP，WorldInitEvent 是在一般插件 onEnable 之前触发的\n第二个问题，变的很大，但是 bukkit 的 api 抹去了这些差异"
+        }
+    ]
+}

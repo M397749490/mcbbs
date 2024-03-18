@@ -1,0 +1,19 @@
+{
+    "title": "1.15.2 Forge通信",
+    "author": "肥洋洋",
+    "replyCount": 2,
+    "timestamp": 1583512260,
+    "txt_content": "求助如何在1.15.2正确的使用Forge通信(旧版本貌似用不了).\n\n客户端提示[Netty Client IO #2/ERROR] [ne.mi.fm.ne.NetworkRegistry/NETREGISTRY]: Channels [totur:keyclient] rejected vanilla connections\n附代码\n\n    private final String PROTOCOL_VERSION = \"1\";\n    private int id = 555555;\n    public SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(\n            new ResourceLocation(Totur.MODID, \"keyclient\"),\n            () -> PROTOCOL_VERSION,\n            PROTOCOL_VERSION::equals,\n            PROTOCOL_VERSION::equals\n    );\n    public ToturNetwork() {\n        INSTANCE.registerMessage(id++, String.class, this::enc, this::dec, this::proc);\n    }\n\n    private void enc(String str, PacketBuffer buffer) {\n        Totur.LOGGER.info(\"enc=\"+str);\n        buffer.writeBytes(str.getBytes(StandardCharsets.UTF_8));\n    }\n\n    private String dec(PacketBuffer buffer) {\n        Totur.LOGGER.info(\"dec=\"+buffer.readString());\n        return buffer.toString(StandardCharsets.UTF_8);\n    }\n\n    private void proc(String str, Supplier<NetworkEvent.Context> supplier) {\n        System.out.println(str);\n//        NetworkEvent.Context context = supplier.get();\n//        context.setPacketHandled(true);\n//        CHANNEL.reply(\"client hello\", context);\n    }\n\n    public void sendToServer(ToturMessage toturMessage) {\n        INSTANCE.sendToServer(toturMessage.toByteBuf());\n    }复制代码\n",
+    "replies": [
+        {
+            "author": "3TUSK",
+            "timestamp": 1583517780,
+            "txt_content": " 本帖最后由 3TUSK 于 2020-3-7 02:08 编辑 \npublic SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(\n    new ResourceLocation(Totur.MODID, \"keyclient\"),\n    () -> PROTOCOL_VERSION,\n    PROTOCOL_VERSION::equals, // 这一个用于在客户端检查服务器声称的协议版本\n    PROTOCOL_VERSION::equals // 这一个用于在服务器检查客户端声称的协议版本\n);复制代码\n你两个版本检查都是直接写了全字匹配（String.equals）。\n原版客户端大抵是不能处理你的信道的，所以你要检查的是协议版本是不是以 `ALLOWVANILLA` 开头。\npublic SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(\n    new ResourceLocation(Totur.MODID, \"keyclient\"),\n    () -> PROTOCOL_VERSION,\n    PROTOCOL_VERSION::equals, // 这一个用于在客户端检查服务器声称的协议版本\n    clientProtocol -> PROTOCOL_VERSION.equals(clientProtocol) || clientProtocol.startsWith(\"ALLOWVANILLA\") // 这一个用于在服务器检查客户端声称的协议版本\n);复制代码\n\n\n\nmcbbs 迄今不支持输入 emoji（截至 2020 年 3 月 7 日 02:10 左右，北京时间）。\n负责论坛技术的同志，麻烦考虑一下更新您的待办清单，不胜感激。\n\n\n实际上，对于原版服务器/客户端的连接，你指定的两个版本检查会收到的不只是 ALLOWVANILLA，而是：\nALLOWVANILLA ????????????复制代码\n没错，emoji，具体来说是三个 :heartbeat:（U+1F493）。Forge/FML 源码中用了 Surrogate Pair 来表示。\n\"ALLOWVANILLA \\uD83D\\uDC93\\uD83D\\uDC93\\uD83D\\uDC93\"复制代码\n而对于两端同时有 Forge 存在，但仍然缺少通信频道的情况下，则会给出这个协议版本：\nABSENT ????复制代码\n没错，那个 :thinking: emoji（U+1F914）。同样的，在源码中用了 Surrogate Pair 表示。\nABSENT \\uD83E\\uDD14复制代码\n"
+        },
+        {
+            "author": "chasing6",
+            "timestamp": 1584081600,
+            "txt_content": "\n收藏了，说不定能用上"
+        }
+    ]
+}

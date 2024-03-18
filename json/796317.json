@@ -1,0 +1,29 @@
+{
+    "title": "圆锥选择范围",
+    "author": "pca006132",
+    "replyCount": 4,
+    "timestamp": 1527231480,
+    "txt_content": " 本帖最后由 pca006132 于 2018-6-9 15:42 编辑 \n\n圆锥选择范围\n\n秋一做的地图里需要选择从玩家眼前出发，锥体的范围内的玩家。方法有计算ry、任意多面体选择范围等等，而我今天要讲解的方法就是基于向量的，按理来说应该是十分准的。\n\n福利\n\n \n\n感谢秋一提供此图\n\n原理\n\n原理就是，把使用技能玩家的朝向这向量进行单位化（长度不必为1m，只要确保单位在整个系统都是一样即可），为了方便之后处理我们会用一个实体marker把它进行标记。\n然后，对每个从使用技能玩家到范围内敌对玩家的向量进行单位化，计算与上一步的向量的距离，小于某个固定数值就是在那圆锥的范围之内。\n大家看着图推就行了...我也想不到怎么可以解释得更清楚，如果有大佬解释的话记得告诉我，我放上来...\n\n不过实际上我们并不会计算距离，也不是真的使用向量，我们会用朝向、执行坐标、选择器等来做到以上的处理。\n\n命令\n\n以下是PCC的命令，希望可以给大家一个大致的理解：\n\n//圆锥选择函数\ndef cone:\n    //tag=skill就是使用技能的玩家，我们生成单位化朝向的marker。（以该玩家当作原点）\n    //行末的 \\ 符号代表下一行也属于这条命令\n    execute as @e[tag=skill] at @s positioned ^ ^ ^3.8 run \\\n    summon area_effect_cloud ~ ~ ~ {Duration:2147483647,CustomName:\"\"target\"\"}\n\n    //移除所有inCone tag，inCone tag代表目标实体在圆锥范围之内\n    tag @e remove inCone\n\n    //run: 代表下面缩进部分需要放进别的命令函数并且被调用\n    //以下部分使用了两层的命令函数，因为execute内的选择器不会受\n    //前方execute子命令修改的执行坐标影响，需要放进别的命令函数里才会受到影响\n    execute at @e[tag=skill] run:\n        //让范围内（15格）的所有敌对实体“看向”使用技能的玩家，对这向量进行单位化\n        //positioned ~ ~1.3 ~ 的用途将会在下文解释\n        execute as @e[distance=..15,tag=!skill,name=!target] \\\n        at @s positioned ~ ~1.3 ~ facing entity @e[tag=skill,limit=1] eyes positioned as @e[tag=skill] positioned ^ ^ ^-3.8 run:\n            //如果1格范围内有那marker的话，就加上tag。\n            execute if entity @e[name=target,distance=..1] run tag @s add inCone\n    //清除marker\n    kill @e[name=target]复制代码\n3.8和1这两个不是 magic number，是算出来的。距离（执行坐标与 marker） r=sin(x/2)*2]*n，1 ≈ sin(15°/2)*2*3.8。n 只是单位化之后的长度，我选 3.8 因为 sin(15°/2)23.8 挺接近1... 我喜欢\n\n我上面用的等腰三角形算的距离，喜欢的话你们可以用cosine rule... 虽然没啥分别。\n\n\n以下是实际上的命令，加入了闪闪发光的特技来方便各位观看... 不过为了方便，我会在一个代码块内写完3个命令函数的内容，读者需要使用的话请自行分开不同命令函数。\n\n# minecraft:a\nexecute as @e[tag=skill] at @s positioned ^ ^ ^3.8 run summon area_effect_cloud ~ ~ ~ {Duration:2147483647,CustomName:\"\"target\"\"}\ntag @e remove foo\nexecute at @e[tag=skill] run function b\nkill @e[name=target]\neffect give @e[tag=foo] minecraft:glowing 1 0 true\neffect clear @e[tag=!foo] minecraft:glowing\n\n# minecraft:b\nexecute as @e[distance=..15,tag=!skill,name=!target] at @s positioned ~ ~1.3 ~ facing entity @e[tag=skill,limit=1] eyes positioned as @e[tag=skill] positioned ^ ^ ^-3.8 run function c\n\n# minecraft:c\nexecute if entity @e[name=target,distance=..1] run tag @s add foo复制代码\n理想 VS 现实\n\n这玩意理论上很正确，没啥不对的，但这里面确实有个问题。问题就是，我们把实体当作了一点来处理。\n\n当实体与玩家的距离比较近的时候，脚下到目标玩家眼睛的向量就和头到目标玩家眼睛的向量出现很大差别了，这点相信就不用画图了。这差别甚至会超过我们选择的范围，造成看向某些地方选择不到指定实体。这有几个方法处理：\n\n换个方法。用多几个点。不管。\n\n我那么懒，自然是选择不管的。不过我也给秋一一个选择，就是他要胸还是腿，他选择了胸，所以就有 positioned ~ ~1.3 ~ 这条子命令了：从脚下到胸口大概是 1.3米。\n\n好了我回去摸鱼了，大家有缘再见。\n\n使用 MM2BC 生成\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1527231780,
+            "txt_content": " 本帖最后由 ruhuasiyu 于 2018-5-25 15:04 编辑 \n\n弄到一个函数就好了吧……"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1527232020,
+            "txt_content": "ruhuasiyu 发表于 2018-5-25 15:03\n弄到一个函数就好了吧……\n里面说了的\n以下部分使用了两层的命令函数，因为execute内的选择器不会受前方execute子命令修改的执行坐标影响，需要放进别的命令函数里才会受到影响"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1527238440,
+            "txt_content": "pca006132 发表于 2018-5-25 15:07\n里面说了的\n以下部分使用了两层的命令函数，因为execute内的选择器不会受前方execute子命令修改的执行坐 ...\n会吗？我觉得不需要吧？"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1527238920,
+            "txt_content": "ruhuasiyu 发表于 2018-5-25 16:54\n会吗？我觉得不需要吧？\nhttp://www.mcbbs.net/thread-770198-1-1.html"
+        }
+    ]
+}

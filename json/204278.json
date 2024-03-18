@@ -1,0 +1,44 @@
+{
+    "title": "MCLauncherBN调用API",
+    "author": "zhh0000zhh",
+    "replyCount": 7,
+    "timestamp": 1386655200,
+    "txt_content": " 本帖最后由 zhh0000zhh 于 2014-4-13 09:37 编辑 \n\n自3.3.14.412起，启用PublicKeyToken=7dfc549dd9abeee0作为反病毒/篡改审查依据。\n\nMCLauncherBN插件API\n    Public Function Init(Launcher As String, Addon As Object, AddonLoadingVersion As String, LauncherVersion As Version ,Optional Lang As String = \"zh-cn\") As String()\nLauncher ：MCBN\nAddon ：Addon Object，用于调用启动器功能\nAddonLoadingVersion ：目前第二代，为2\nLauncherVersion ：启动器版本\nLang ：语言，目前仅zh-cn,zh-tw,en-us\n注意：此函数为启动器加载DLL时调用的函数\n以下为返回。\nReturn {\"version:1\", \"type:Context:[useragent]\", \"update:zhhsvr\", \"name:JSON编辑器\", \"description:不用介绍了吧。。。\" & vbCrLf & \"故名思意嘛~\", \"author:zhh0000zhh\"}\nversion为插件版本，type可分为Context，Tabpage\nContext为主界面版本列表右键菜单添加项\nTabpage语法：type:Tabpage:[down|addon|main]:[useragent]\nsub为在加载项中心打开，此时第三个分割为sub名称，仅支持定义1个sub，如果定义多个，最后一个sub会覆盖之前的定义\n第三个分割内容为用户自定义标识\n用于需要声明多个接口时使用\n\nupdate为检查升级接口，注意：启动器不会自动检查插件更新。\nzhhsvr为使用启动器自带检查更新，只有在服务器端添加的插件才能使用此功能\nurl为使用http/https检查更新，格式为第一行为最新版本号，第二行为最新版下载地址，使用crlf分割下载地址可为zip或dll后缀\n如update:url:http://checkupdate.mcbnaddon.net/addon1.htm\nfunction为使用插件自带程序检查更新\n如update:function:checkupdate\n返回值为string，使用crlf分割，第一行为最新版本号，第二行为最新版下载地址\n\n当启动器插件加载器分析返回值时\n如果需要添加右键菜单或者选项卡时\n会调用DLL中的Add_Object\nPublic Function Add_Object(Obj As Object, UserState As Object) As Boolean\n返回值为成功与失败\nUserState是刚刚定义的自定义标识。\nObj为所请求的控件，如ToolStripMenuItem，TabPage\n示例：\n        Obj.GetType.GetProperty(\"Text\").SetValue(Obj, “右键菜单”, Nothing)'设置text属性\n        Dim e As System.Reflection.EventInfo\n        e = Obj.GetType.GetEvent(\"Click\")\n        e.AddEventHandler(Obj, [Delegate].CreateDelegate(e.EventHandlerType, Me, \"_Click\"))'添加click过程处理\n\n\nAddon Object结构\nPublic Class Addon\n    Public Enum LoginType As Byte\n        Legacy = 1\n        Skinme = 2\n        Yggdrasil = 3\n        MCBNLogin = 4\n    End Enum\n    Public Structure LoginInfo\n        Dim UN As String\n        Dim PN As String\n        Dim UID As String\n        Dim SID As String\n        Dim Suc As Boolean\n        Dim OutInfo As String\n        Dim Client_identifier As String\n    End Structure\n    Public Sub Scan_MC() '刷新MC列表\n    Public Function Login(LoginType As LoginType, UserName As String, Password As String, Optional Client_identifier As String = \"\") As LoginInfo\n    Public Function Unzip(FileName As String, Target As String) As Boolean '解压缩文件到指定目录，仅支持zip格式\n    Public Function GetNewJSONCls() As Object\n'得到一个用于JSON解析的Class\n'定义见下文\n    Public Function GetDownForm(List As Queue, Optional Title As String = \"libraries\") As Object\n        '获得一个Download窗体，List为下载清单，奇数位为下载地址，偶数为为硬盘位置，多位置用\";\"分割。Title为下载时显示的标题\n    Public Function GetClsDownload() As Object\n        '获得一个下载基类，包含字符串下载和文件下载\n        '详细定义见下文\n     Public Function GetSelectedVersion() As String '获取当前选定的版本\nEnd Class\n\nClsJSON定义：\n    Public Structure JSONValue\n        Dim Type As JSONTYPE\n        Dim Strings As String\n        Dim Objects As JSONObject\n        Dim Arrays As JSONArray\n    End Structure\n    Public Enum JSONTYPE\n        [NULL] = 0\n        [String] = 1\n        [Object] = 2\n        [Array] = 3\n    End Enum\n    Public Structure JSONObject\n        Dim Strings() As String\n        Dim Values() As JSONValue\n        Public Overloads Function ToString() As String\n        Public Function GetValue([String] As String, Optional CompareMethod As CompareMethod = CompareMethod.Text) As JSONValue\n    End Structure\n    Public Structure JSONArray\n        Dim Values() As JSONValue\n        Public Overloads Function ToString() As String\n        Public Function GetObject(ID As String, [String] As String, Optional CompareMethod As CompareMethod = CompareMethod.Text) As JSONObject\n    End Structure\n    Public JSON As JSONObject '解析后的JSON\n    Public Property JSONStr As String\n    Public Language As String() = {\"BAD JSON String\"}\n    Public Overloads Function ToString() As String\n\nClsDownload定义：\n    Public Event DownloadAllProgressChanged(e As DownloadProgressChangedEventArgs)\n    Public Event DownloadAllCompleted(e As System.ComponentModel.AsyncCompletedEventArgs)\n    Public Event DownloadStringCompleted(e As DownloadStringCompletedEventArgs)\n    Public Structure DownloadProgressChangedEventArgs\n        Dim BytesReceived As Long\n        Dim ProgressPercentage As Byte\n        Dim TotalBytesToReceive As Long\n    End Structure\n    Public Structure DownloadStringCompletedEventArgs\n        Dim ex As Exception\n        Dim Suc As Boolean\n        Dim Result As String\n        Sub New(ex As Exception, suc As Boolean, Result As String)\n            Me.ex = ex\n            Me.Suc = suc\n            Me.Result = Result\n        End Sub\n    End Structure    Public Sub AbortDownloadString()\n    Public Sub AbortDownloadFile()\n    Public Sub DownloadStringAsync(Url As String)'托管字符串下载\n    Public Sub DownloadFile(Url As String, SavePath As String, Optional [Thread] As Byte = 5, Optional MaxRetryTime As Byte = 2)'非托管。\n\n外部调用程序：\nArgs:\nVersion*UserName*MemorySize*Pwd*LoginType*VM_Args\nVersion:MC版本\nUserName:玩家名\nMemorySize:内存大小\nPwd:密码\n如MCLauncherBN.exe 1.6.2-Forge9.10.1.871*用户名*1024*4*密码*-Dfml.ignoreInvalidMinecraftCertificates=true -Dfml.ignorePatchDiscrepancies=true\n\n",
+    "replies": [
+        {
+            "author": "xukarhei",
+            "timestamp": 1386658440,
+            "txt_content": "ww.mcbbs.net/forum-development-1.html\n你应该发到这里。。"
+        },
+        {
+            "author": "simon3000",
+            "timestamp": 1386659100,
+            "txt_content": "表示 看不懂"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1386659520,
+            "txt_content": "xukarhei 发表于 2013-12-10 14:54 \nww.mcbbs.net/forum-development-1.html\n你应该发到这里。。\n这只是MCLauncherBN的API，貌似不算是编程资源"
+        },
+        {
+            "author": "zhh0000zhh",
+            "timestamp": 1436610180,
+            "txt_content": "jimmyzhaoxpft 发表于 2015-7-11 17:38\n@zhh0000zhh ,是我自己做一个vb.net启动器的args参数，不是mcbn的参数，求代码，谢谢！ ...\n自行百度，VB.net args读取"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1436610780,
+            "txt_content": "jimmyzhaoxpft 发表于 2015-7-7 01:03\n@zhh0000zhh vb.net如何外部调用？谢谢\n没有VB.NET基础不要做启动器\n论坛现有资源已经很清楚了"
+        },
+        {
+            "author": "tdiant",
+            "timestamp": 1436867160,
+            "txt_content": "jimmyzhaoxpft 发表于 2015-7-14 17:45\n好像我没说过我不会vb.net\n善用搜索"
+        },
+        {
+            "author": "xiao_hanhan",
+            "timestamp": 1441288680,
+            "txt_content": "看不懂啊    我要好好学习，从小白变成超级熊孩子！！！{:10_538:}{:10_521:}"
+        }
+    ]
+}

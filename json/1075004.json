@@ -1,0 +1,29 @@
+{
+    "title": "[Bukkit/Spigot]优雅地让命令完整支持TAB补全吧~",
+    "author": "GapCold",
+    "replyCount": 4,
+    "timestamp": 1594276500,
+    "txt_content": " 本帖最后由 GapCold 于 2020-7-17 20:51 编辑 \n\n前言\n\n\n我也是刚开始看BukkitAPI不久，说的有不对的地方还请多多担待。\n想必大家都知道TabExecutor接口是个什么玩意。\n你不知道？那也无妨，想必你知道CommandExecutor接口是什么玩意。\nTabExecutor接口在CommandExecutor基础上增加了onTabComplete方法，用于处理命令的TAB补全。\n使用了TabExecutor接口的类基本结构如下：\n\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.command.TabExecutor;\n\nimport java.util.List;\n\npublic class DemoTabExecutor implements TabExecutor {\n    @Override\n    public boolean onCommand(CommandSender commandSender, Command command, String s, String[] strings) {\n        return false;\n    }\n\n    @Override\n    public List<String> onTabComplete(CommandSender commandSender, Command command, String s, String[] strings) {\n        return null;\n    }\n}复制代码\n\n\n从代码中看出，onTabComplete方法返回的是一个List< String >类的对象，List中包含的是用户输入命令时，当前参数可能的补全情况。\n\n例如，玩家输入领地相关指令时，会先输入/res，然后进入第一个参数，此时onTabComplete返回的List内容便是['create','remove']等等，玩家便可以在其中选择自己想要的参数，然后进入下一个参数的选择。\n\n只补全一个参数当然容易，但是想要命令全部补全呢？比如我想要写一个插件，该插件所有命令的所有参数都可以通过TAB补全呢？\n\n问题\n\n\n举个例子，比如我想建立一个领地，而且归系统所有，假设我们的指令是\n\n/res create NAME system复制代码\n其中NAME输入的是这个领地的名字，system是可选参数，代表是系统所有。\n\n于是我们输入/res后，补全的顺序为create,system\n\n当前参数要补全的内容取决于：\n\n1. 目前是第几个参数\n2. 上一个参数是什么\n3. 应该识别的上一个参数的位置\n\n以/res create NAME system中补全system为例，看图：\n\n\n\n\n\n\n无标题.png (24.38 KB, 下载次数: 0)\n\n下载附件\n\n2020-7-9 14:44 上传\n\n\n\n\n\n\n这个时候，就知道如何确定什么时候返回system了。\n\n这么多条件，一个一个if/else if/else 就可以了...吗？\n大家都知道，一个插件可能有很多指令，而且并不是在插件开始写的时候就完全确定好的，如果用if/else if/else来判断以及返回的话，这样不仅不够优雅，而且为后期维护带来非常大的不便。\n\n我也想过用二维数组，Map之类的来存储所有的情况，直接遍历即可。可是这些数据中有些是字符串，有些是整型，而且最终要返回List对象，想没多久我就举手投降了。\n\n于是我用我半桶水的Java知识，想出了一个易于维护，易于扩展的TAB补全方法。\n\n优雅地实现\n\n\n\nJava中有一种类，叫枚举类，不懂的小伙伴可以先百度一下。\nhttps://www.runoob.com/java/java-enum.html\n\n\n\n从上面说的原理来看，我们可以把枚举的每个成员当做一种List的返回情况，我们可以先设定好这个类的所有属性\n1. 目前是第几个参数\n2. 上一个参数是什么\n3. 应该识别的上一个参数的位置\n4. 返回的List\n\n并且写好构造方法。\nTabList.class\nimport java.util.Arrays;\nimport java.util.List;\n\npublic enum TabList {\n    private List<String> list;//返回的List\n    private int[] num;//这个参数可以出现的位置\n    private int befPos;//识别的上个参数的位置\n    private String bef;//上个参数的内容\n\n    private TabList(List<String> list,int befPos, String bef, int[] num){\n        this.list = list;\n        this.befPos = befPos;\n        this.bef = bef;\n        this.num = num.clone();\n    }\n}复制代码\n然后，当我们需要新的补全情况时，只需要添加对象即可。\n假设第一个参数可能的情况为create, alter, delete，那我们可以这样写：\nFIRST(Arrays.asList(\"create\",\"delete\",\"alter\"),0,null,new int[]{1}),复制代码\n因为前面没有更多参数，所以上一个参数为null，当然你也可以设置为\"\"。\n\n第二个参数是领地的名字，我们可以补全YourResName来提示用户这里要输入名字，由于我的设定是无论什么指令，第二个参数总是要操作的领地的名字，所以我们bef填null\nRES_NAME(Arrays.asList(\"YourResName\"),0,null,new int[]{2});复制代码假设我们可选参数除了system之外，还有disable，可以控制这个领地先建立着，但是暂时不要启用，所以第三个参数的补全可以这样写\nCREATE_SYSTEM_ENABLE(Arrays.asList(\"system\",\"disable\"), 1,\"create\",new int[]{3});复制代码\n当然，既然多了一个可选参数，那我们就多一个参数需要补全，为了避免重复，在上一个参数输入system时，我们第四个参数应该返回disable，反之，在上一个参数输入disable时，我们第四个参数应该返回system，所以我们这样写\nCREATE_ENABLE(Arrays.asList(\"disable\"),3,\"system\",new int[]{4}),\nCREATE_SYSTEM(Arrays.asList(\"system\"),3,\"disable\",new int[]{4}),复制代码好了，每个参数补全的内容和识别条件都写好了，接下来在接受参数时如何找到指定的补全内容呢？直接贴代码：\n\nMyCommand.class(使用TabExecutor的那个类)\npublic List<String> onTabComplete(CommandSender commandSender, Command command, String s, String[] args) {\n    return TabList.returnList(args,args.length,commandSender);\n}复制代码\nTabList.class\npublic int[] getNum() {\n    return num;\n}\n\npublic String getBef() {\n    return bef;\n}\n\npublic List<String> getList() {\n    return list;\n}\n\npublic int getBefPos() {\n    return befPos;\n}\n\npublic static List<String> returnList(String[] Para, int curNum, CommandSender sender) {\n    for(TabList tab : TabList.values() ){\n        if(tab.getBefPos()-1>=Para.length){\n            continue;\n        }\n        if((tab.getBef() == null || tab.getBef().equalsIgnoreCase(Para[tab.getBefPos()-1])) && Arrays.binarySearch(tab.getNum(),curNum)>=0){\n            return tab.getList();\n        }\n    }\n    return null;\n}复制代码思路就是，遍历所有当前枚举类下的元素，然后根据他们的状态进行筛选，返回全部条件都符合的成员的List。\n后续需要添加补全的指令只需要确定好条件新增成员即可，是不是比在if/else if/else中来回修改好多啦！\n\n另外\n\n完整的代码就不贴了。\n\n总感觉我这个办法还是笨重了一点，如果有大佬有更好的方法，麻烦在评论区给个思路，我们也好学习学习~\n另外禁止转载，虽然你们转了我也没辙，还请备注好原帖地址。\n吐槽一下这个编辑器，明明显示可以输入markdown代码，结果出来跟个鬼一样，还是得自己搞样式......\n\n\n2020-7-17更新:\n看了下评论，感觉还有一些东西没说清楚。其实我只是提供一个用枚举类来实现TAB完全补全的思路。也就是说，枚举类内的属性实际上是可以根据你插件的需求随意更换的。比如你命令参数出现的位置永远只会固定一个，那你可以不用数组，其他属性也是同理。如果你的命令当前的补全只靠这几个属性无法确定，你也可以多加几个属性。\n\n\n2020-7-17更新:\n\n最近想到了新思路，但是还没有具体的实现。\n直接以字符串数组的形式存储每一个命令，再用子串匹配字符串，将剩余的参数以空格为分隔符添加到List中，直到匹配完所有的命令返回List，如果能够实现，这个方式将更易于扩展，我有时间会去试一下的~\n",
+    "replies": [
+        {
+            "author": "丶米饭",
+            "timestamp": 1594854420,
+            "txt_content": "挺不错，学习了"
+        },
+        {
+            "author": "CyanBillows",
+            "timestamp": 1594988700,
+            "txt_content": "请问“参数可以出现的位置”，即Num可以直接用int Num声明吗？"
+        },
+        {
+            "author": "GapCold",
+            "timestamp": 1594989780,
+            "txt_content": "CyanBillows 发表于 2020-7-17 20:25\n请问“参数可以出现的位置”，即Num可以直接用int Num声明吗？\n可以的。我只是提供一个思路。所谓参数出现的位置、上个参数的位置、内容都是可以用数组或者单个元素替换的，看具体的插件选择就好了。如果改了就不能直接复制粘贴我的代码罢了。"
+        },
+        {
+            "author": "SakuraYuyuko233",
+            "timestamp": 1595131980,
+            "txt_content": "我也想吐槽一下mcbbs的编辑器 Markdown 跟个什么一样，自己排版又不会"
+        }
+    ]
+}

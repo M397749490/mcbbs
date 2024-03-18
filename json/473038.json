@@ -1,0 +1,84 @@
+{
+    "title": "【TRP出品】【乙烯】小游戏[连连看]的核心原理分析",
+    "author": "乙烯_中国",
+    "replyCount": 15,
+    "timestamp": 1437488160,
+    "txt_content": " 本帖最后由 乙烯_中国 于 2016-3-20 18:03 编辑 \n\n　　hello，大家好，我是乙烯。今天给大家带来的是我的连连看核心原理，希望大家喜欢。　　此贴与【TRP出品】【乙烯】连连看和【TRP出品】【乙烯】小游戏【扫雷】的具体原理分析两贴进行联动。\n　　本次地图仅为技术性地图，并非游戏地图，所以该地图仅为连连看这个游戏的核心系统。其余系统由于并不是特别难做，所以本贴概不详诉。\n　　说到连连看这种经典游戏，大家都不会陌生。那么我们来复述一下连连看的规则，其实很简单，就是连线不能拐超过两次的弯以及可以重新洗牌。其余倒是没什么特别的了。\n一，思路分析。\n　　那么还是来按照一局连连看的思路来进行思路分析。首先我们需要一个可以供我们游戏的棋盘，在这个的基础上我们需要一个生成棋盘的开局系统，在成功生成棋局之后我们就需要正常的进行游戏，所以我们需要一个具体的游戏系统，而游戏系统最重要的就是判断所选择的两个棋子是否其能够构成有效解的问题。然后棋局结束的系统我并没有做，但是实际上只需要两三条指令就可以建立起这个系统，所以本次的讲解会详细的讲解连连看的有效解系统及连线处理，其余系统将会一笔带过。\n　　那么我们现在来看看，我们所总结出来的思路，连连看的核心是判断有效解，并能够显示出一条有效的路径反馈给玩家。\n　　那么我们要如何做到判断有效解呢，我们可以这样的反向思考，以第一个棋子为基点，探索在两次拐弯所能够到达的地方，如果有第二个被选择的棋子且其内容相同，则为＂有解＂。那么我们借以反向思考所给定的基础进行正向的推演，首先我们可以确信一点，第一个被选择的棋子向外探测没有拐弯的格子是非常容易的事，仅需十字形探测。其次，我们可以知道，这些格子都有成为第一个拐点的可能性，那么我们再以这些格子为基础，向外探测进行下一次的探测，以此类推完成两次拐弯的推演。那么最后只需要判断第二个棋子是否在这个范围里，我们就可以判断这个是是否有解的。但是这样的思路有个致命的缺点，就是比较难输出一条有效的路径，并不是不可行，但是这意味着还得反向的去探测一次，那么这是非常不环保的行为，又慢又卡，我们得进行一次权衡，减少一次第一个的探索深度，将其加到第二层次的探索中，那么我们可以清楚的知道，两次探索的重叠位置可能是一个拐点（或者非拐点，例如直线情况）。在实际的实践中，我发现这种情况虽然能够较快的输出有解，但对于路径的选择仍然少了一个可能的拐点。于是，现在的思路就变成了：两个棋子各进行深度为二的搜索，两个覆盖范围就为其可能的拐点。好的，那么接下来只差一步了，我们需要选择一条唯一的路径，最好是最短的，正好关于最近的选择我们有一个c=1的选择器可以做到，通过这次的记录，我们便可以做到选择一条唯一的道路，虽然不一定是最近的，但绝对不会远到离谱，而且消耗资源相当少。剩下的我们只需要标记出这些被选择的拐点，然后做出对应的路径。\n二，开始建造。\n首先我在这里说一下我的会提到的计分板，以免下文造成理解不便。\n\nr惯例是右键探测，具体方式在扫雷贴里有说。\nmark是棋子内容的存储计分板。\nsc是拐点的标记计分板。\nf1-6都是进行探索时所用到的计分板。\nline1，line2，line5是标记路径的计分板。\nkill和kill1是拐点进行探测另一拐点的时候所用到的计分板。\n\n这里，我再声明一下计分板的作用，f1是第一个棋子的第一层探索，而f2是第二个的第一层探索，f5，f6为第一个棋子的第二层探索，f3，f4是第二个棋子的第二层探索。其中f5,6和f3,4用的是一套系统，我就只挑其一套来说。\n好的，那么我们现在可以开始了。\n\n下方的cb是探测右键的cb，比较器输出后会沿着箭头方向fill红石块，同时向前做出探测第二次右键的预备工作。fill我分成了两次依次执行了如下组的命令。\n\nexecute @e[score_r=1,score_r_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame] f1 1复制代码execute @e[score_r=1,score_r_min=1] ~ ~ ~ /scoreboard players set @e[dx=10,dy=0,type=ItemFrame] f1 2复制代码execute @e[score_r=1,score_r_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=-10,type=ItemFrame] f1 3复制代码execute @e[score_r=1,score_r_min=1] ~ ~ ~ /scoreboard players set @e[dx=-10,dy=0,type=ItemFrame] f1 4复制代码/scoreboard players set @e[score_r=1,score_r_min=1] f1 10000复制代码execute @e[score_f1=1,score_f1_min=1,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame] f1 0复制代码execute @e[score_f1=2,score_f1_min=2,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=10,dy=0,type=ItemFrame] f1 0复制代码execute @e[score_f1=3,score_f1_min=3,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=-10,type=ItemFrame] f1 0复制代码execute @e[score_f1=4,score_f1_min=4,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=-10,dy=0,type=ItemFrame] f1 0复制代码\n\n\n这对应之前思辨中的“探索未拐弯所能到达的格子”，原理是右键的格子向四个方向的所有格子进行标记，同时标记有数字记录其方向，然后由于不拐弯的情况下是不会越过有内容的格子的，所以所有的有内容的格子会朝他的那个方向清除标记，已“起XXXOOXOO”为例，“起”为选择的格子，X为空格，O为有内容的格子，第一个O会受到exe的影响，清除其右边所有的格子的标记，以此类推，下图是实际的标记效果。\n\n\n\n代码可以看做这样的处理办法。\n其次则会激发下一次的fill，执行以下指令。\n\nexecute @e[score_f1=4,score_f1_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame] f5 1复制代码execute @e[score_f1=4,score_f1_min=1] ~ ~ ~ /scoreboard players set @e[dx=10,dy=0,type=ItemFrame] f6 2复制代码execute @e[score_f1=4,score_f1_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=-10,type=ItemFrame] f5 3复制代码execute @e[score_f1=4,score_f1_min=1] ~ ~ ~ /scoreboard players set @e[dx=-10,dy=0,type=ItemFrame] f6 4复制代码/scoreboard players set @e[score_f1=4,score_f1_min=1] f5 10000复制代码/scoreboard players set @e[score_f1=4,score_f1_min=1] f6 10000复制代码execute @e[score_f5=1,score_f5_min=1,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame] f5 0复制代码execute @e[score_f6=2,score_f6_min=2,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=10,dy=0,type=ItemFrame] f6 0复制代码execute @e[score_f5=3,score_f5_min=3,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=0,dy=-10,type=ItemFrame] f5 0复制代码execute @e[score_f6=4,score_f6_min=4,score_mark=8,score_mark_min=1] ~ ~ ~ /scoreboard players set @e[dx=-10,dy=0,type=ItemFrame] f6 0复制代码\n\n此组命令与上组功能类似，注意，由于可能对一个格子进行两个方向的探测，所以我这里横向和竖向采取的是两个计分板。\n这是第二组的效果图。\n\n注意，这里其实是两个计分板，所以为了方便下方的计算，我们需要将其并为一个计分板，所以沿线路你们能看到以下类似指令。其中f3,4并为kill，f5,6并为kill1。图中绿色和橙色方块最终会处理成一种方块。\n\n\n\n/scoreboard players set @e[score_f5_min=1] kill1 1复制代码\n那么接下来你会看到这部分的电路，\n\n\n这里执行的指令我会依次解释。\nscoreboard players set @e[score_f1_min=1,score_f2_min=1,c=1] sc 5复制代码这条指令是探测只有一次拐弯的情况，标记唯一一个拐点为5，注意，这里有一个c=1的选择器，这样可以确保唯一路径，下文同理。\nexecute @e[score_r=1,score_r_min=1] ~ ~ ~ scoreboard players set @e[score_kill_min=1,score_f1_min=1,c=1] sc 2复制代码这条指令是探索两次拐弯的情况，同时标记第一个拐点。execute @e[score_sc=5,score_sc_min=5] ~ ~ ~ scoreboard players set @e[score_sc_min=1,score_sc=4] sc 0复制代码这里是分类情况，所有的连连看都有三种情况，一次拐弯，两次，或者不拐弯。不拐弯的情况其实可以忽略，因为总会被处理为一次拐弯的情况，而一旦有了一次拐弯的情况就不会再处理两次拐弯的情况，以获取最佳路径。\nexecute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame,score_kill1_min=1,score_f2_min=1] cut 1复制代码execute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[dx=10,dy=0,type=ItemFrame,score_kill1_min=1,score_f2_min=1] cut 1复制代码execute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[dx=0,dy=-10,type=ItemFrame,score_kill1_min=1,score_f2_min=1] cut 1复制代码execute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[dx=-10,dy=0,type=ItemFrame,score_kill1_min=1,score_f2_min=1] cut 1复制代码execute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[c=1] cut 0复制代码这一组指令的作用实际上是第一个拐点寻找其对应的第二个拐点，原理与前文相似，是十字形探索。\nexecute @e[score_sc=2,score_sc_min=2] ~ ~ ~ /scoreboard players set @e[score_cut=1,score_cut_min=1,c=1] sc 3复制代码这是标记第二个拐点的指令。\n\n最后这里就是标记路径的指令，其工作原理与第一次探索相同，但略微有点区别。\nexecute @e[score_r=2,score_r_min=2] ~ ~ ~ execute @e[dx=0,dy=-10,score_sc=3,score_sc_min=3] ~ ~ ~ /scoreboard players set @e[dx=0,dy=10,type=ItemFrame] line2 1\n复制代码唯一的区别是前方加了一个exe的嵌套，这样能够限制住方向，只有这个方向有可以连接的另一个拐点，才会往这个方向探索。\n\n\n最后我们只需要将带有line1-5的计分板的展示框exe再执行一个粒子指令就好。\nexecute @e[score_line1_min=1,score_line1=4] ~ ~ ~0.2 /particle barrier ~ ~ ~ 0 0 0 1 1 1复制代码\n好的，今天就讲到这里，如有不足的地方可以联系我我再补充。\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "MsYqgzt",
+            "timestamp": 1437488520,
+            "txt_content": "乙烯大大，不分页真的好么QAQ"
+        },
+        {
+            "author": "我的liuyulong",
+            "timestamp": 1437488700,
+            "txt_content": "这...这...难道就是神 我看到图都很吃惊！"
+        },
+        {
+            "author": "魔末",
+            "timestamp": 1437488700,
+            "txt_content": "为什么感觉那么像扫雷"
+        },
+        {
+            "author": "GTVZDH123",
+            "timestamp": 1437488940,
+            "txt_content": "魔末 发表于 2015-7-21 22:25\n为什么感觉那么像扫雷\n数字版的连连看，不然的话不好弄"
+        },
+        {
+            "author": "爱心魔王FHC",
+            "timestamp": 1437488940,
+            "txt_content": "看到计分板就烦……什么时候去学学……缩减线路的神器……"
+        },
+        {
+            "author": "ufof",
+            "timestamp": 1437489120,
+            "txt_content": "我来支持了233"
+        },
+        {
+            "author": "龙少丶Kiss",
+            "timestamp": 1437489840,
+            "txt_content": "火钳刘明"
+        },
+        {
+            "author": "hellomc_karen",
+            "timestamp": 1437491400,
+            "txt_content": "牛人牛人牛人！！！！"
+        },
+        {
+            "author": "lxq54sb123",
+            "timestamp": 1437491880,
+            "txt_content": "吓死人 尼玛看不懂"
+        },
+        {
+            "author": "Tirar_Long",
+            "timestamp": 1437495900,
+            "txt_content": "好深奥看不懂"
+        },
+        {
+            "author": "guyiwang",
+            "timestamp": 1437516420,
+            "txt_content": "这么复杂，我宁愿直接玩连连看"
+        },
+        {
+            "author": "jianghr",
+            "timestamp": 1437516600,
+            "txt_content": "解说好评，我看了下，不过没有时间上机验证了。你的思路应该是A点2轮检索，B点1轮检索，然后选择器找点描线的思路。\n有以下几个问题：\n检索方式为先标记后取消有值者的方式，那么会带来标记\"跳格\"的问题，问你是怎么解决的。\nf4的作用是什么？你这里没说。从前后结构推测其可能是f56对f2共检测的一个记分板，作用是标记A2轮检索和B1轮检索的交集，但是这里解说你貌似漏了。\n后面对我来说看懂倒不是问题。不过楼上不明觉厉的也太多了。\n\n行文设计的一些：\n你这个还是没和作品帖标双向链接。\n你这个结构很多的细节基础是扫雷帖，你这也要加上链接，不是所有人都会去手找的。\n变量的选名可读性还是差了点，3个月后你自己都不一定想的起来哪个对哪个。不过现在CB程序设计环境还是没有IDE的MOD，写复杂了还是要自己手打，也蛮蛋疼的。\n\n综上，先评分高亮，精我等修好了。chyx也出货了，不知他的思路是什么。"
+        },
+        {
+            "author": "PpY_SK",
+            "timestamp": 1437558240,
+            "txt_content": "我只是过来冒个泡的（什么都看不懂好么\n你看看上面那位大触，我还发现了隐藏的度度，，"
+        },
+        {
+            "author": "捌柒",
+            "timestamp": 1437564000,
+            "txt_content": "指令量不是我等凡人能及的"
+        },
+        {
+            "author": "暗灬翼",
+            "timestamp": 1437615360,
+            "txt_content": "虽然看不懂，但感觉很厉害的样子。。。"
+        }
+    ]
+}

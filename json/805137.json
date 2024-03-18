@@ -1,0 +1,34 @@
+{
+    "title": "【Bone Studio】【原创】【Hamster君】Spigot插件教学——命令与监听器",
+    "author": "苏丶小沫",
+    "replyCount": 5,
+    "timestamp": 1531356960,
+    "txt_content": " 本帖最后由 HamsterB君 于 2018-7-16 14:19 编辑 \n监听，监听，又监听，怕不是个聋子哦。Spigot插件教学——命令与监听器\nPart1-主类里的命令我的世界的命令，无非都是这样子的： /命令主名称 参数1 参数2 … 参数n那么，我们就有一下四个变量：CommandSender sender; Command cmd; String label; String args[].分别指代：命令的发送者; 命令主名称; 命令主名称的另一种形式; 命令参数正好，Spigot的主类JavaPlugin里面有一个编辑命令方法，我们只要把它照抄下来，然后在前面写上@Override，表示覆盖并重写这个方法，然后添加我们自己的代码就可以了！于是乎，在主类里，就这样写：@Override\n        public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {\n    return true;\n        }复制代码\n请注意，结尾务必要return例如我们想创建一个指令，叫做\"/hello\"。怎么检测玩家是否输入了hello呢？这时，我们就要用到四个变量中的Command cmd或者String label了个人建议使用label，因为cmd不是String类型，还要强制转换。这样我们在方法中插入：if(label.equalsIgnoreCase(\"hello\")){    //当然也可以label.equals(\"hello\")\n\n}复制代码这样，如果玩家输入/hello，我们的插件就会执行if语句里面的指令了！现在我们想让玩家用这个指令对另一个玩家打招呼，为了指定一个玩家，我们就要在命令里加一个参数String playerName这样我们的命令就变成了：/hello <playerName>例如，我现在输入命令：/hello hamster那么Spigot就会自动把hamster这个值输进四个变量中的args[]了。大家都知道，args[]是数组，所以从零开始，也就是说，args的第n个量等于args[n-1]那我们就获取它，并把这个玩家找出来：if(label.equalsIgnoreCase(\"hello\")){\n    String playerName = args[0];   //获取这个名字\n    Player player = Bukkit.getPlayer(playerName);   //让Bukkit在服务器里面寻找一个叫playerName的玩家，如果不存在，就是null\n}复制代码现在，我们就要给玩家发送信息了，我们假定发送的信息是：\"发送者的名字+对你说：你好！\"\n这么说，我们还要获取命令发送者的名字，就是四个变量中的sender了。就这样：\nif(label.equalsIgnoreCase(\"hello\")){\n    String playerName = args[0];   //获取这个名字\n    Player player = Bukkit.getPlayer(playerName);   //让Spigot在服务器里面寻找一个叫playerName的玩家，如果不存在，就是null\n    player.sendMessage(sender.getName()+\"对你说：你好！\");   //发送信息\n}复制代码我们的自定义指令就完成了！然后再在主类的onEnable方法里面写上this.getCommand(\"指令名称\").setExecutor(this);不过我们还要在plugin.yml里面添加指令：commands:\n  主命令名称:\n    description: \"简介\" 例子：\"对玩家打招呼\"\n    usage: 怎么使用 例子：/hello <player>\n    permission: 权限名称 例子：MyPlugin.hello\n    permission-message: 没有权限时的警告\npermissions: \n  权限名称: \n    default: 谁开局就拥有 （op或者true）复制代码如果一个指令你return了false，那么spigot会告诉发送者plugin.yml中的这个指令的简介和用法Part2-主类外的命令[其它教程没有的知识点（重要）]看完Part1之后，也许有小伙伴会问：如果我要编写一个大型的插件，指令很多，主类里面其它代码也很多，这样一股脑写在主类里面会不会有一点太乱了？且慢，你还没看part2呢！为了让代码更加简洁，推荐把指令执行器单独成类所以，我们又新建一个类（别告诉我你不知道怎么新建类），叫做MyPluginCommands把原来的指令执行器的所有代码剪切进来：public class MyPluginCommands {\n    @Override\n    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {\n        if(label.equalsIgnoreCase(\"hello\")){\n             String playerName = args[0];   //获取这个名字\n             Player player = Bukkit.getPlayer(playerName);  //让Spigot在服务器找一个叫playerName的玩家，如果不存在，就是null\n        }\n    return true;\n    }\n}复制代码现在你会看见onCommand方法下面有红线，怎么办呢？因为我们没有让Java知道我们用@Override覆盖了什么，但我们现在还没告诉它，于是，我们让这个类实现Spigot的CommandExecutor接口。\n然后再在主类的onEnable方法里面写上this.getCommand(\"hello\").setExecutor(new MyPluginCommands(this));\n实现命令的类也要有所更改：\npublic class MyPluginCommands implements CommandExecutor {\n    private final MyPlugin plugin;  //MyPlugin请改成你自己插件主类的名字\n    public MyPluginCommands(MyPlugin plugin) {  //MyPluginCommands请改成这个类的名字 括号里MyPlugin请改成你主类的名字\n        this.plugin = plugin; \n    }\n        @Override\n        public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {\n    if(label.equalsIgnoreCase(\"hello\")){\n        String playerName = args[0];   //获取这个名字\n        Player player = Bukkit.getPlayer(playerName);  //让Spigot在服务器里面寻找一个叫playerName的玩家，如果不存在，就是null\n    }\n    return true;\n    }\n}复制代码好啦！我们已经把命令独立出来啦！\nPart3-主类内的监听器监听器，顾名思义，就是监听服务器发生了什么。例如：我吃了一个苹果，那么使用物品的监听器就会被触发Spigot里的监听器跟Bukkit大致相同。在主类里面随便写一个方法，要求：还要给主类实现Listener接口！（就是在public class MyPlugin后面加上 implements Listener）@EventHandler\npublic void 随便什么名字(要监听的事件名称 event) {\n    // 你自己的代码...\n}复制代码注意，要监听的事件名称不能乱写，请务必使用Bukkit已经为你准备好的监听器（例如：PlayerJoinEvent）没错就是这样……如果你要监听玩家工具损坏（就是工具耐久没了）的事件，我们就写成这样：@EventHandler\n//工具损坏\npublic void onDestroyTools(PlayerItemBreakEvent event) {\n\n}复制代码然后，我们可以幸灾乐祸地给这个玩家发送信息，为了获取这个玩家，我们要用的这个事件的getPlayer()方法，当然有些事件没有这个方法，所以你得另辟蹊径，来获取到玩家。于是，我们就这样写：@EventHandler\n//工具损坏\npublic void onDestroyTools(PlayerItemBreakEvent event) {\n    Player player = event.getPlayer();复制代码好了，一个简单的监听器就这样完成了。最后，我们要注册这个监听器（也就是启用这个监听器），在主类的onEnable里面写上:getServer().getPluginManager().registerEvents(this, this);你可以自己去测试一下，看看工具损坏时，服务器会不会给你发消息哦！\nPart4-主类外的监听器[其它教程没有的知识点（重要）]没错，就是和part2差不多一样把监听器代码剪切到另一个类中让这个类实现Listener接口（主类的implements Listener可以删掉了）在这个监听器类中添加：private 主类的名字 plugin;\n    public 监听类的名字(主类的名字 plugin) {\n        this.plugin = plugin;\n        }复制代码然后在主类的onEnable方法里面写上：getServer().getPluginManager().registerEvents(new 监听类的名字(this), this);就这样，你把监听器独立出来了！Part5-如何编写安全的监听器和指令1-在获取玩家前，请务必看看玩家是否在线   if(Bukkit.getPlayer(playerName) == null){return false;} else{//你的代码+return true;}复制代码2-玩家输入命令并执行时，请务必看看玩家有没有权限   if(sender.hasPermission(\"权限\")){代码+return true;} else{return false;}复制代码3-检测指令的输入者是否是玩家OR控制台if(sender instanceof Player){代码+return;} else{代码+return;}复制代码4-给监听器配上优先等级代码待填充复制代码\n10631多字打得手疼\n有问题的小伙伴请在1楼问我\n你们也不看看我多少级……人气撒起来吧>>回到目录<<[groupid=1306]Bone Studio[/groupid]",
+    "replies": [
+        {
+            "author": "Sanlan",
+            "timestamp": 1531357560,
+            "txt_content": "学习了学习了，(沙发肯定是我的"
+        },
+        {
+            "author": "冰河世纪233",
+            "timestamp": 1531361580,
+            "txt_content": "大佬，正在学习"
+        },
+        {
+            "author": "a1640727878",
+            "timestamp": 1537081920,
+            "txt_content": " 本帖最后由 a1640727878 于 2018-9-16 15:18 编辑 \n\n        public boolean onCommand(CommandSender a1, Command a2, String label, String[] args) {\n                if (a2.getName().equalsIgnoreCase(\"miao\")) {\n                        if (!(a1 instanceof Player)) {\n                                a1.sendMessage(\"这个命令只有玩家可以执行\");\n                                return true;\n                        } else {\n                                Player a3 = (Player) a1;\n                                a1.sendMessage(\"喵喵喵,\" + a3.getName() + \"!\"); \n                                return true;\n                        }\n                }\n复制代码\n这种获取玩家ID方法怎么样....."
+        },
+        {
+            "author": "Br_DogTer",
+            "timestamp": 1538382480,
+            "txt_content": "a1640727878 发表于 2018-9-16 15:12\n这种获取玩家ID方法怎么样.....\nemmm,强转玩家对象，转成player类的对象，然后用getName方法"
+        },
+        {
+            "author": "58860113@qq.com",
+            "timestamp": 1540554540,
+            "txt_content": "嗯。。。不错不错。。。支持一下！"
+        }
+    ]
+}

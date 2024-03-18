@@ -1,0 +1,134 @@
+{
+    "title": "服务端崩溃",
+    "author": "结城希亚",
+    "replyCount": 25,
+    "timestamp": 1583583540,
+    "txt_content": " 本帖最后由 御炎Roinflam 于 2020-3-7 20:22 编辑 \n\n我自己看过了貌似是区块错误的原因\n但我已经把那个世界区块清了几十次，种子也跟着换了，坐标还是一样\n关于方块id为1913，我查过是一个热力发电机，但不是ic2的\n求解决方法（我那个世界的生存坐标已经切换到了xy按w算的，不存在区块加载到那边）\n而且是某些玩家突然一上线就会崩服\n\n\n\ncrash-2020-03-07_20.11.31-server.txt\n(28.34 KB, 下载次数: 23)\n\n\n\n2020-3-7 20:19 上传\n点击文件名下载附件\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583583540,
+            "txt_content": " 本帖最后由 GiNYAi 于 2020-3-8 16:32 编辑 \n御炎Roinflam 发表于 2020-3-7 22:48\n地图里什么都没有 我的想法是错误的\n\n我尝试写了一个修复的mod （至少不会直接导致崩溃\n希望能有所帮助\n\n\n\n\nFixNpeIc2EnergyNet-1.0.jar\n(4.92 KB, 下载次数: 6)\n\n\n\n2020-3-8 16:32 上传\n点击文件名下载附件\n\n\n\n\n\n\n\npackage dev.ginyai.mod._979381.asm;\n\nimport cpw.mods.fml.relauncher.IFMLLoadingPlugin;\nimport org.apache.logging.log4j.LogManager;\nimport org.apache.logging.log4j.Logger;\n\nimport java.util.Map;\n\n@IFMLLoadingPlugin.MCVersion(\"1.7.10\")\n@IFMLLoadingPlugin.Name(\"FixNpeIc2EnergyNet\")\npublic class Plugin implements IFMLLoadingPlugin {\n    public static Logger logger = LogManager.getLogger(\"FixNpeIc2EnergyNet\");\n\n    @Override\n    public String[] getASMTransformerClass() {\n        return new String[] {\n            \"dev.ginyai.mod._979381.asm.Transformer\"\n        };\n    }\n\n    @Override\n    public String getModContainerClass() {\n        return null;\n    }\n\n    @Override\n    public String getSetupClass() {\n        return null;\n    }\n\n    @Override\n    public void injectData(Map<String, Object> data) {\n\n    }\n\n    @Override\n    public String getAccessTransformerClass() {\n        return null;\n    }\n}\npackage dev.ginyai.mod._979381.asm;\n\nimport net.minecraft.launchwrapper.IClassTransformer;\nimport org.objectweb.asm.ClassReader;\nimport org.objectweb.asm.ClassWriter;\nimport org.objectweb.asm.Label;\nimport org.objectweb.asm.tree.AbstractInsnNode;\nimport org.objectweb.asm.tree.ClassNode;\nimport org.objectweb.asm.tree.InsnList;\nimport org.objectweb.asm.tree.MethodInsnNode;\nimport org.objectweb.asm.tree.MethodNode;\nimport org.objectweb.asm.tree.VarInsnNode;\n\nimport static org.objectweb.asm.Opcodes.*;\n\npublic class Transformer implements IClassTransformer {\n\n    @Override\n    public byte[] transform(String name, String transformedName, byte[] basicClass) {\n        if (\"ic2.core.energy.EnergyNetLocal\".equals(transformedName)) {\n            Plugin.logger.info(\"Find target class.\");\n            ClassReader classReader = new ClassReader(basicClass);\n            ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);\n            ClassNode classNode = new ClassNode(ASM5);\n            classReader.accept(classNode, ClassReader.EXPAND_FRAMES);\n            for (MethodNode methodNode : classNode.methods) {\n                if (\"addTileToGrids\".equals(methodNode.name) && \"(Lic2/core/energy/Tile;)V\".equals(methodNode.desc)) {\n                    Plugin.logger.info(\"Find target method.\");\n                    InsnList insnList = methodNode.instructions;\n                    AbstractInsnNode[] nodes = insnList.toArray();\n                    for (int i = 0; i + 3 < nodes.length ; i++ ) {\n                        if (checkMethodNode(nodes, INVOKEVIRTUAL, \"ic2/core/energy/Node\", \"getGrid\", \"()Lic2/core/energy/Grid;\")\n                            && (nodes[i + 1] instanceof VarInsnNode)\n                            && (nodes[i + 2] instanceof VarInsnNode)\n                            && checkMethodNode(nodes[i + 3], INVOKEVIRTUAL, \"ic2/core/energy/Grid\", \"add\", \"(Lic2/core/energy/Node;Ljava/util/Collection;)V\")\n                        ) {\n                            Plugin.logger.info(\"Find target point.\");\n                            insnList.insert(nodes, new VarInsnNode(ALOAD, 0));\n                            insnList.insert(nodes[i + 3], new MethodInsnNode(INVOKESTATIC, \"ic2/core/energy/EnergyNetLocal\", \"fnietDummyMethod\", \"(Lic2/core/energy/Node;Lic2/core/energy/EnergyNetLocal;Lic2/core/energy/Node;Ljava/util/Collection;)V\", false));\n                            insnList.remove(nodes);\n                            insnList.remove(nodes[i + 3]);\n                            break;\n                        }\n                    }\n                    break;\n                }\n            }\n            MethodNode dummyMethod = new MethodNode(ASM5, ACC_PRIVATE | ACC_STATIC, \"fnietDummyMethod\", \"(Lic2/core/energy/Node;Lic2/core/energy/EnergyNetLocal;Lic2/core/energy/Node;Ljava/util/Collection;)V\", \"(Lic2/core/energy/Node;Lic2/core/energy/EnergyNetLocal;Lic2/core/energy/Node;Ljava/util/Collection<Lic2/core/energy/Node;>;)V\", null);\n            dummyMethod.visitCode();\n            Label label0 = new Label();\n            dummyMethod.visitLabel(label0);\n            dummyMethod.visitLineNumber(10, label0);\n            dummyMethod.visitVarInsn(ALOAD, 0);\n            Label label1 = new Label();\n            dummyMethod.visitJumpInsn(IFNONNULL, label1);\n            Label label2 = new Label();\n            dummyMethod.visitLabel(label2);\n            dummyMethod.visitLineNumber(12, label2);\n            dummyMethod.visitInsn(RETURN);\n            dummyMethod.visitLabel(label1);\n            dummyMethod.visitLineNumber(14, label1);\n            dummyMethod.visitFrame(F_SAME, 0, null, 0, null);\n            dummyMethod.visitVarInsn(ALOAD, 0);\n            dummyMethod.visitMethodInsn(INVOKEVIRTUAL, \"ic2/core/energy/Node\", \"getGrid\", \"()Lic2/core/energy/Grid;\", false);\n            dummyMethod.visitVarInsn(ASTORE, 4);\n            Label label3 = new Label();\n            dummyMethod.visitLabel(label3);\n            dummyMethod.visitLineNumber(15, label3);\n            dummyMethod.visitVarInsn(ALOAD, 4);\n            Label label4 = new Label();\n            dummyMethod.visitJumpInsn(IFNONNULL, label4);\n            Label label5 = new Label();\n            dummyMethod.visitLabel(label5);\n            dummyMethod.visitLineNumber(16, label5);\n            dummyMethod.visitTypeInsn(NEW, \"ic2/core/energy/Grid\");\n            dummyMethod.visitInsn(DUP);\n            dummyMethod.visitVarInsn(ALOAD, 1);\n            dummyMethod.visitMethodInsn(INVOKESPECIAL, \"ic2/core/energy/Grid\", \"<init>\", \"(Lic2/core/energy/EnergyNetLocal;)V\", false);\n            dummyMethod.visitVarInsn(ASTORE, 4);\n            Label label6 = new Label();\n            dummyMethod.visitLabel(label6);\n            dummyMethod.visitLineNumber(17, label6);\n            dummyMethod.visitVarInsn(ALOAD, 0);\n            dummyMethod.visitVarInsn(ALOAD, 4);\n            dummyMethod.visitMethodInsn(INVOKEVIRTUAL, \"ic2/core/energy/Node\", \"setGrid\", \"(Lic2/core/energy/Grid;)V\", false);\n            dummyMethod.visitLabel(label4);\n            dummyMethod.visitLineNumber(19, label4);\n            dummyMethod.visitFrame(F_APPEND, 1, new Object[]{\"ic2/core/energy/Grid\"}, 0, null);\n            dummyMethod.visitVarInsn(ALOAD, 4);\n            dummyMethod.visitVarInsn(ALOAD, 2);\n            dummyMethod.visitVarInsn(ALOAD, 3);\n            dummyMethod.visitMethodInsn(INVOKEVIRTUAL, \"ic2/core/energy/Grid\", \"add\", \"(Lic2/core/energy/Node;Ljava/util/Collection;)V\", false);\n            Label label7 = new Label();\n            dummyMethod.visitLabel(label7);\n            dummyMethod.visitLineNumber(20, label7);\n            dummyMethod.visitInsn(RETURN);\n            Label label8 = new Label();\n            dummyMethod.visitLabel(label8);\n            dummyMethod.visitLocalVariable(\"neighbor\", \"Lic2/core/energy/Node;\", null, label0, label8, 0);\n            dummyMethod.visitLocalVariable(\"local\", \"Lic2/core/energy/EnergyNetLocal;\", null, label0, label8, 1);\n            dummyMethod.visitLocalVariable(\"currentNode\", \"Lic2/core/energy/Node;\", null, label0, label8, 2);\n            dummyMethod.visitLocalVariable(\"neighbors\", \"Ljava/util/Collection;\", \"Ljava/util/Collection<Lic2/core/energy/Node;>;\", label0, label8, 3);\n            dummyMethod.visitLocalVariable(\"grid\", \"Lic2/core/energy/Grid;\", null, label3, label8, 4);\n            dummyMethod.visitMaxs(3, 5);\n            dummyMethod.visitEnd();\n            classNode.methods.add(dummyMethod);\n            classNode.accept(classWriter);\n            return classWriter.toByteArray();\n        } else {\n            return basicClass;\n        }\n    }\n\n    private static boolean checkMethodNode(AbstractInsnNode oNode, int opcode, String owner, String name, String decs) {\n        if (!(oNode instanceof MethodInsnNode)) {\n            return false;\n        }\n        MethodInsnNode node = (MethodInsnNode) oNode;\n        return opcode == node.getOpcode() && owner.equals(node.owner) && decs.equals(node.desc);\n    }\n}"
+        },
+        {
+            "author": "空桑i了",
+            "timestamp": 1583584080,
+            "txt_content": "某些玩家上线就崩服的话 请把你限制边界插件的配置文件删掉\n因为玩家卡到边界里面会导致崩服 重启之后再上还是会在边界里面会是个循环的崩服"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583584140,
+            "txt_content": "空桑i了 发表于 2020-3-7 20:28\n某些玩家上线就崩服的话 请把你限制边界插件的配置文件删掉\n因为玩家卡到边界里面会导致崩服 重启之后再上 ...\n不太行，因为那个崩服的玩家所在的位置就是我的刷怪塔\n和出错的世界根本不是同一个世界"
+        },
+        {
+            "author": "空桑i了",
+            "timestamp": 1583584200,
+            "txt_content": "御炎Roinflam 发表于 2020-3-7 20:29\n不太行，因为那个崩服的玩家所在的位置就是我的刷怪塔\n和出错的世界根本不是同一个世界 ...\n建议尝试一下 先保存 然后删掉看看"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583584980,
+            "txt_content": "空桑i了 发表于 2020-3-7 20:30\n建议尝试一下 先保存 然后删掉看看\n我直接把插件卸了也无用"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583591580,
+            "txt_content": "可以的话 希望能发一下地图文件 我尝试直接处理一下"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583591700,
+            "txt_content": "GiNYAi 发表于 2020-3-7 22:33\n可以的话 希望能发一下地图文件 我尝试直接处理一下\n太大了不好发"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583591820,
+            "txt_content": "御炎Roinflam 发表于 2020-3-7 22:35\n太大了不好发\n\n应该只需要world/region/-1,0\n\n建议用tx的微云"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583592480,
+            "txt_content": "GiNYAi 发表于 2020-3-7 22:37\n应该只需要world/region/-1,0\n\n建议用tx的微云\n\n\n\nr.-1.0.zip\n(2.01 KB, 下载次数: 2)\n\n\n\n2020-3-7 22:48 上传\n点击文件名下载附件\n\n\n\n\n\n"
+        },
+        {
+            "author": "DE_SHARK",
+            "timestamp": 1583593740,
+            "txt_content": "备份好后把world文件夹里的leave.dat删掉重新生成"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583593980,
+            "txt_content": "DE_SHARK 发表于 2020-3-7 23:09\n备份好后把world文件夹里的leave.dat删掉重新生成\n啊，那我端不就毁了"
+        },
+        {
+            "author": "DE_SHARK",
+            "timestamp": 1583594520,
+            "txt_content": "御炎Roinflam 发表于 2020-3-7 23:13\n啊，那我端不就毁了\n只要前后不增删mod，理论上是不会出现问题的\n但是记得备份"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583629860,
+            "txt_content": "DE_SHARK 发表于 2020-3-7 23:22\n只要前后不增删mod，理论上是不会出现问题的\n但是记得备份\n不行，id全乱了"
+        },
+        {
+            "author": "Doomsday_Envoy",
+            "timestamp": 1583636520,
+            "txt_content": "简单来说就是百密一疏\n我注意到你的通用机械版本很奇怪，1个本体和两个附属，本体和用的都是9.4.13.349，本体的这个版本的原贴是https://www.curseforge.com/minec ... anism/files/2572881，可以看到明显是针对1.12.2的，造成问题的方块来自的MekanismGenerators的版本也是9.4.13.349，都是不适合1.7.10的，唯独MekanismTools的版本是对的（？）。去搬运贴重新下吧https://www.mcbbs.net/thread-654082-1-1.html，9.1.1.1031就是最后一个适合1.7.10的版本了。\n删掉那个区块/清除问题方块后，重新安装正确版本的通用机械。我不确定这会对方块ID造成什么影响，如果有机会的话，你应该要求玩家收回已经放置的相关方块和物品，然后再安装模组。如果你不痛下决心更换，这个bug有大概率复现。\n\nPS：关于明明不在附近却会崩掉的情况，和这个有点类似https://www.mcbbs.net/thread-797425-1-1.html，可能也是由于你没有安装正确的版本造成的。你的crash-report有这样一句Forestry : Warning: You have mods that change the behavior of Minecraft, ForgeModLoader, and/or Minecraft Forge to your client: \nBukkit, Cauldron, or other Bukkit replacement可以认为是实锤了。\n\nPPS：你的末影借口也在警告：* The RF API that is being used (1.7.10R1.0.2 from <unknown>) differes from that that is reported as being loaded (1.7.10R1.3.1 from CoFHCore-[1.7.10]3.1.4-329.jar). It is a supported version, but that difference may lead to problems.\n你也最好需要去更新前置（API）"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583638140,
+            "txt_content": "Doomsday_Envoy 发表于 2020-3-8 11:02\n简单来说就是百密一疏\n我注意到你的通用机械版本很奇怪，1个本体和两个附属，本体和用的都是9.4.13.349，本 ...\n可是我奇怪的是某个人上线后才会崩溃\n而崩溃的报告就是写这个区块出错\n而他根本就没在那个世界"
+        },
+        {
+            "author": "Doomsday_Envoy",
+            "timestamp": 1583638800,
+            "txt_content": "御炎Roinflam 发表于 2020-3-8 11:29\n可是我奇怪的是某个人上线后才会崩溃\n而崩溃的报告就是写这个区块出错\n而他根本就没在那个世界 ...\n他和放在这里的通用机械的方块有交互过嘛？另外我不清楚ic2是怎么与放在这里的通用机械的方块交互的，看起来像是在检测方块。可能那个玩家触发过这个ic2某个机制，然后针对性地（如果交互过）或者遍历性地，影响到了这里的方块。\n\n虽然个人怀疑，这个区块损坏只是背锅的，由于Mod不兼容导致的问题可能在任何地方发生，目前只是看起来，大概是那个玩家之前无意中的某个操作触发了bug，然后某个地方的检测死循环，现在一上线就会激活，然后bug复现。所以删除区块也无法根治，说到底可能只是被波及的。\n\n你可以去问问他（们）有过什么操作，话说明明生存的出生点坐标破万为什么还能跑到这个地方来...那个方块到底是人为放置的还是bug卡出来的？人为的话想办法倒推一下吧，我不是很熟科技类模组"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583656080,
+            "txt_content": "Doomsday_Envoy 发表于 2020-3-8 11:40\n他和放在这里的通用机械的方块有交互过嘛？另外我不清楚ic2是怎么与放在这里的通用机械的方块交互的，看 ...\n能麻烦白音酱帮我把那3个版本下过来不"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583657280,
+            "txt_content": "GiNYAi 发表于 2020-3-8 16:16\n地图里什么都没有 我的想法是错误的\n\n我尝试写了一个修复的mod （至少不会直接导致崩溃\n\n没什么用，还是一样\n\n\n\ncrash-2020-03-08_16.42.00-server.txt\n(26.83 KB, 下载次数: 1)\n\n\n\n2020-3-8 16:48 上传\n点击文件名下载附件\n\n\n\n\n\n"
+        },
+        {
+            "author": "Doomsday_Envoy",
+            "timestamp": 1583658000,
+            "txt_content": "御炎Roinflam 发表于 2020-3-8 16:28\n能麻烦白音酱帮我把那3个版本下过来不\n原贴下完发现本体不是传不上来么（14+MB）\n支持的话还是自己去原贴呗\nhttps://www.curseforge.com/minec ... sm/download/2475797\nhttps://www.curseforge.com/minec ... rs/download/2475792\n懒的话挂两个mc百科的地址好了，9.1.1.1031的就行：\nhttps://www.mcmod.cn/download/187.html\nhttps://www.mcmod.cn/download/1323.html\nMekanismTools的版本是对的我就不挂了，话说这是怎么做到的...\n再懒就私信里面找我，给你想办法整过去\n话说上面大佬写的估计是使1.12.2版本兼容1.7.10的修复，可以尝试一下。"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583658180,
+            "txt_content": "御炎Roinflam 发表于 2020-3-8 16:48\n没什么用，还是一样\n那能发一下fml-server-latest 中相关的部分看一下么"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583659140,
+            "txt_content": "GiNYAi 发表于 2020-3-8 17:03\n那能发一下fml-server-latest 中相关的部分看一下么\n链接：https://pan.baidu.com/s/1F843pAPwfjCkn3IkbMmOQQ \n提取码：unrl\n限额了发不了附件"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583659320,
+            "txt_content": "Doomsday_Envoy 发表于 2020-3-8 17:00\n原贴下完发现本体不是传不上来么（14+MB）\n支持的话还是自己去原贴呗\nhttps://www.curseforge.com/minecr ...PPS：你的末影借口也在警告：\n* The RF API that is being used (1.7.10R1.0.2 from <unknown>) differes from that that is reported as being loaded (1.7.10R1.3.1 from CoFHCore-[1.7.10]3.1.4-329.jar). It is a supported version, but that difference may lead to problems.\n\n你也最好需要去更新前置（API）\n\n啊我说的第三个是末影接口的"
+        },
+        {
+            "author": "GiNYAi",
+            "timestamp": 1583659560,
+            "txt_content": "御炎Roinflam 发表于 2020-3-8 17:19\n链接：https://pan.baidu.com/s/1F843pAPwfjCkn3IkbMmOQQ \n提取码：unrl\n限额了发不了附件 ...\n我发的那个是mod不是插件 emmmm"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1583659980,
+            "txt_content": "GiNYAi 发表于 2020-3-8 17:26\n我发的那个是mod不是插件 emmmm\n牛批了老哥"
+        },
+        {
+            "author": "Doomsday_Envoy",
+            "timestamp": 1583664540,
+            "txt_content": " 本帖最后由 Doomsday_Envoy 于 2020-3-8 18:56 编辑 \n御炎Roinflam 发表于 2020-3-8 17:22\n啊我说的第三个是末影接口的\n不熟CoFHCore、热力膨胀、末影接口，反正就是末影接口调用RF的API的时候发现调了一份老的API，而且它不清楚是从谁调过来的1.0.2的版本。听说热力膨胀还有个前身的历史，可能是某个地方包含了一份旧的RF的API，把新的覆盖了，也可能是你用的CoFHCore有问题，要重新下，原贴https://www.curseforge.com/minec ... re/download/2388750。\n反正所有用到RF的科技模组都有可能是内鬼，不知道谁私藏了一份RF的旧API然后骗了末影接口。"
+        }
+    ]
+}

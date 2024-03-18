@@ -1,0 +1,14 @@
+{
+    "title": "关于AutoCloseable接口的问题",
+    "author": "资深咸鱼",
+    "replyCount": 1,
+    "timestamp": 1587619920,
+    "txt_content": "\nimport java.lang.ref.Cleaner;\n\nclass Member implements Runnable {\n    public Member() {\n        System.out.println(\"实例化一个对象\");\n    }\n    @Override\n    public void run() {\n        System.out.println(\"对象回收线程\");\n    }\n}\nclass MemberCleaning implements AutoCloseable {\n    private static final Cleaner cleaner = Cleaner.create();\n    private Cleaner.Cleanable cleanable;\n    public MemberCleaning(Member member) {\n        this.cleanable = cleaner.register(this, member);\n    }\n    @Override\n    public void close() throws Exception {\n        this.cleanable.clean();\n    }\n}\npublic class JavaApiDemo {\n    public static void main(String args[]) {\n        Member mem = new Member();\n        System.gc();\n        try (MemberCleaning mc = new MemberCleaning(mem)) {\n            //相关代码\n        } catch (Exception e) {}\n        System.out.println(\"正常运作\");\n    }\n}class MemberCleaning implements AutoCloseable {\n    private static final Cleaner cleaner = Cleaner.create();\n    private Cleaner.Cleanable cleanable;\n    public MemberCleaning(Member member) {\n        this.cleanable = cleaner.register(this, member);\n    }\n    @Override\n    public void close() throws Exception {\n        this.cleanable.clean();\n    }\n}这一部分我非常迷惑。。。有几个问题还望解答。。。\n1、为什么这个对象属性要用final关键字和static关键字\n2、为什么要把mem对象包装在MemberCleaning类中\n3、gc方法和finalize方法、Cleaner释放资源有什么区别嘛\n4、是否仍要用try来在语句结束后自动释放资源\n最后感谢一下dalao们的答疑解惑。。。",
+    "replies": [
+        {
+            "author": "liach",
+            "timestamp": 1587664320,
+            "txt_content": "1、cleaner是所有MemberCleaning都使用的，所以static。final实际上不一定，但是有final性能更好，而且这个field也没有改动必要\n2、要member才能让cleaner创建cleanable，所以需要这个参数\n3、closeable是处理文件读入读出这种要代码主动处理的。老版本java里面有finalize让你关闭inputstream这类的，但是这个强烈不推荐，占用硬盘影响性能等等。gc的话会读取finalize，但是gc不会丢掉文件锁这样的东西\n4、try with resources 就是让代码简单点。原先 closeable 的东西别的操作出错后，如果你没有在finally里面呼叫 close 的话 close就会被跳过，很容易出错，造成资源泄漏。现在有try with resources后，close就算在try里面出错后也会自动帮你叫，如果有错误也可以更好汇报（addSuppressed）"
+        }
+    ]
+}

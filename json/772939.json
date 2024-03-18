@@ -1,0 +1,179 @@
+{
+    "title": "【TCP】【1.13】免穷举做到实体向前移动",
+    "author": "skeleton小白",
+    "replyCount": 34,
+    "timestamp": 1514272320,
+    "txt_content": " 本帖最后由 skeleton小白 于 2017-12-28 15:32 编辑 \n\n      趁着圣诞假期来水第二波贴...\n\n      1.10版本的时候就能利用船做到免穷举让实体前/后移动了，但是这样需要使用很多实体，效率并不是很高，使用起来也并不方便。并且这种方法只能做到在平面上移动，无法上下移动。那么，有没有更好的方法呢？\n      众所周知，两点确定一条直线，如果知道了实体面向的方向上的任意两点，那么就可以确定实体面对的方向。1.13的局部坐标可以很方便的做到这一点。将它转化为Motion值就可以让实体沿着面朝的方向移动了。\n效果图：\n\n也可以让盔甲架跳起来：\n\n\n\n原理讲解：\n\nscoreboard objectives add click minecraft.used:minecraft.carrot_on_a_stick\nscoreboard objectives add coordinate1 dummy\nscoreboard objectives add coordinate2 dummy复制代码      添加三个计分板，click用来触发（当然如果不用萝卜钓竿来触发的话这个计分板可以省略），coordinate1和coordinate2分别来记录实体前1格的坐标值和当前这一格的坐标值。\n\n（以下所有指令均为高频）\nexecute if entity @a[scores={click=1..100}] run tag @e[type=armor_stand] add move复制代码\n      给盔甲架加上一个move标签，这里偷懒直接用萝卜钓竿来触发。这只是拿盔甲架来做一个演示，实际应用的时候tag后的选择器可以根据需要更改\n\n\nexecute as @e[tag=move] at @s offset ^ ^ ^1 run summon area_effect_cloud ~ ~ ~ {CustomName:\"destination\"}复制代码      在实体眼前1格的位置生成一个名为“destination”的药水云，用来确定实体方向\n\n\nexecute as @e[tag=move] store result score @s coordinate1 run data get entity @e[limit=1,type=area_effect_cloud,name=destination] Pos[0] 100000复制代码      将药水云的x坐标存到待移动实体的coordinate1计分板内，为保留精度，乘以100000倍。\n\n\nexecute as @e[tag=move] store result score @s coordinate2 run data get entity @s Pos[0] 100000复制代码      将待移动实体的x坐标存进自己的coordinate2计分板内，为保留精度，乘以100000倍\n\n\nexecute as @e[tag=move] run scoreboard players operation @s coordinate1 -= @s coordinate2复制代码      用待移动实体的coordinate1计分板减去coordinate2计分板\n\n\nexecute as @e[tag=move] store result entity @s Motion[0] double 0.00001 run scoreboard players get @s coordinate1复制代码      得到的值存到待移动实体的x方向Motion上，乘0.00001还原本来的倍数。如果需要将实体运动的速度调快或是调慢的话，就将这个数调大或是调小。\n\nexecute as @e[tag=move] store result score @s coordinate1 run data get entity @e[limit=1,type=area_effect_cloud,name=destination] Pos[1] 100000\nexecute as @e[tag=move] store result score @s coordinate2 run data get entity @s Pos[1] 100000\nexecute as @e[tag=move] run scoreboard players operation @s coordinate1 -= @s coordinate2\nexecute as @e[tag=move] store result entity @s Motion[1] double 0.00001 run scoreboard players get @s coordinate1\n\nexecute as @e[tag=move] store result score @s coordinate1 run data get entity @e[limit=1,type=area_effect_cloud,name=destination] Pos[2] 100000\nexecute as @e[tag=move] store result score @s coordinate2 run data get entity @s Pos[2] 100000\nexecute as @e[tag=move] run scoreboard players operation @s coordinate1 -= @s coordinate2\nexecute as @e[tag=move] store result entity @s Motion[2] double 0.00001 run scoreboard players get @s coordinate1复制代码      与之前四条指令同样的方式处理y轴、z轴\n\nkill @e[name=destination]\ntag @e remove move复制代码      清掉药水云，移除move标签，初始化\n\n      丢上数据包方便参考：\n\n\n\nentity_move.zip\n(1.77 KB, 下载次数: 55)\n\n\n\n2017-12-26 14:54 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n      这种方式的另一个好处是用Motion移动代替了高频tp移动，总感觉以前一格格tp移动很不圆滑...并且还容易出bug，特别是对弓箭一类的实体用起来不太方便。于是在这个基础上稍加改进便做成了一把连弩：\n\n不知道为什么箭会在面前卡一下，但其实是射出去的。\n原理就是用玩家来做那个“待移动实体”，在面前生成一支箭，获取Motion值之后加到那个箭上。\n数据包：\n\n\n\nauto_bow.zip\n(1.82 KB, 下载次数: 45)\n\n\n\n2017-12-26 14:54 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n感谢@pca006132 的优化，其实盔甲架的移动只需要7条指令，道理与前文相同，优化之处是如果把待移动实体的位置看为坐标原点，那么marker的位置就是实体的motion，这样就省去了两个计分板和坐标相减的过程。\n指令：\nexecute if entity @a[scores={click=1..100}] run tag @e[type=armor_stand] add move\nexecute as @e[tag=move] offset 0.0 0.0 0.0 run tp @e[type=area_effect_cloud,name=marker] ^ ^ ^1\nexecute as @e[tag=move] store result entity @s Motion[0] double 0.00001 run data get entity @e[limit=1,type=area_effect_cloud,name=marker] Pos[0] 100000\nexecute as @e[tag=move] store result entity @s Motion[1] double 0.00001 run data get entity @e[limit=1,type=area_effect_cloud,name=marker] Pos[1] 100000\nexecute as @e[tag=move] store result entity @s Motion[2] double 0.00001 run data get entity @e[limit=1,type=area_effect_cloud,name=marker] Pos[2] 100000\nscoreboard players set @a click 0\ntag @e remove move复制代码\n优化后的数据包：\n\n\n\nentity_move_new.zip\n(1.73 KB, 下载次数: 36)\n\n\n\n2017-12-28 15:22 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n\n\n[groupid=1009]The Command's Power[/groupid]",
+    "replies": [
+        {
+            "author": "pca006132",
+            "timestamp": 1514275740,
+            "txt_content": "那箭掉下来的原因很简单：\n客户端和服务端不完全同步...客户端得到的资讯是那箭没motion要向下掉落，因为刚生成没motion。之后才更新就太迟了。\n\n可能解决方法：试试把箭在y=0玩家不应该在的地方生成，修改motion然后再tp上去。估计就不会发生这样的问题了。"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1514280480,
+            "txt_content": "版本下data上去的motion啊direction啊甚至pos啊这些基本都会鬼畜……无数人的悲惨遭遇。\n卡成ppt的凋灵弓有话要说"
+        },
+        {
+            "author": "怪诞骚杰",
+            "timestamp": 1514296020,
+            "txt_content": "学会了，感谢楼主"
+        },
+        {
+            "author": "等于号",
+            "timestamp": 1514296140,
+            "txt_content": "哎呀。。。改动还真是多啊。。。该重新去学学了。。。"
+        },
+        {
+            "author": "梨木利亚",
+            "timestamp": 1514310660,
+            "txt_content": "1.13的CB越来越接近一个mod能做到的事情了.......1.13也许会复兴CB"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1514382300,
+            "txt_content": "再想了想，或许可以简单点。相对于0 0 0，那pos就是其motion了。而且1次只会处理1个实体所以用一个marker就好，summon效率不高。\n\nexecute as @e[tag=move] offset 0 0 0 run tp @e[type=area_effect_cloud,name=marker] ^ ^ ^1\nexecute as @e[tag=move] store result entity @s Motion[0] double 1 run data get entity @e[type=area_effect_cloud,name=marker] Pos[0] 1\nexecute as @e[tag=move] store result entity @s Motion[0] double 1 run data get entity @e[type=area_effect_cloud,name=marker] Pos[1] 1\nexecute as @e[tag=move] store result entity @s Motion[0] double 1 run data get entity @e[type=area_effect_cloud,name=marker] Pos[2] 1"
+        },
+        {
+            "author": "skeleton小白",
+            "timestamp": 1514445900,
+            "txt_content": "pca006132 发表于 2017-12-27 21:45\n再想了想，或许可以简单点。相对于0 0 0，那pos就是其motion了。而且1次只会处理1个实体所以用一个marker就 ...\n感谢优化，不过有些问题\n·offset坐标原点的时候必须写成0.0 0.0 0.0，否则会自动变为0.5 0.5 0.5\n·存motion的时候要把pos值乘上一个很大的数再除掉以保留精度，否则会自动取整变成0"
+        },
+        {
+            "author": "SMFX阜星",
+            "timestamp": 1515246600,
+            "txt_content": "exe一改感觉我要重新学cb了，1.12和1.13不是一款游戏了"
+        },
+        {
+            "author": "pineapple_",
+            "timestamp": 1515263340,
+            "txt_content": "看到gif后爱苦力怕人士表示强烈谴责，看我用枪都只打史莱姆的\n\n看起来这个应该可以做那种抛射的导弹什么的，既然motion比较平滑看来我又得捡起invisible+marker的armor_stand了(毕竟aec不能抛)"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1516280580,
+            "txt_content": "pca006132 发表于 2017-12-27 21:45\n再想了想，或许可以简单点。相对于0 0 0，那pos就是其motion了。而且1次只会处理1个实体所以用一个marker就 ...\n嗯 现在的控制台指令执行位置是出生点了\n偏移到0 0 0 变得更为重要233"
+        },
+        {
+            "author": "无敌的冷风",
+            "timestamp": 1516407000,
+            "txt_content": "这是啥看叶看不懂，-w-"
+        },
+        {
+            "author": "X_Crystal",
+            "timestamp": 1517640960,
+            "txt_content": "跳着跳着就可以画抛物线了"
+        },
+        {
+            "author": "807489462",
+            "timestamp": 1521862500,
+            "txt_content": "谢谢作者"
+        },
+        {
+            "author": "xFrankyx",
+            "timestamp": 1524553380,
+            "txt_content": "然而我18w14b和往后的版本exeute store result路径为Motion全部失败了怎么办"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1524555360,
+            "txt_content": "xFrankyx 发表于 2018-4-24 15:03\n然而我18w14b和往后的版本exeute store result路径为Motion全部失败了怎么办\nexecute as @e[tag=sth,limit=1] store result entity @s Motion[0] double 0.0001 run scoreboard players get @s test\n\n这样子失败了吗？"
+        },
+        {
+            "author": "SSHZH",
+            "timestamp": 1524643500,
+            "txt_content": "辛苦楼主，这个想法很好，受教了"
+        },
+        {
+            "author": "xFrankyx",
+            "timestamp": 1524700560,
+            "txt_content": "ruhuasiyu 发表于 2018-4-24 15:36\nexecute as @e[tag=sth,limit=1] store result entity @s Motion[0] double 0.0001 run scoreboard playe ...\n就是比如我只有一个tag是1的东西，然后我的记分板1里的一个对象1的值是3，然后我用execute store entity @e[tag=1] Motion[1] double 1 run scoreboard players get 1 1，这样理论上来讲不应该是给一个标签是1的实体的Motion值替换为名为1的计分板中名为1的对象的值吗，这时候这个值应该是3，方向应该是纵轴，所以它应该是以3的速度向上运动，然而它并没有任何的反应，我觉得这个照说应该没有问题，还是说这种操作一定要以它本身执行才可以达到效果。不过对于类似的情况，对于一个火球实体，如果我把Motion换成power它的效果确实是可以显现的所以就不知道到底是什么原因。"
+        },
+        {
+            "author": "xFrankyx",
+            "timestamp": 1524700740,
+            "txt_content": "ruhuasiyu 发表于 2018-4-24 15:36\nexecute as @e[tag=sth,limit=1] store result entity @s Motion[0] double 0.0001 run scoreboard playe ...\n刚才少敲了limit=1，不过我的命令一直执行是由limit的"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1524724080,
+            "txt_content": "xFrankyx 发表于 2018-4-26 07:56\n就是比如我只有一个tag是1的东西，然后我的记分板1里的一个对象1的值是3，然后我用execute store entity  ...\ny轴有时候好像发挥不稳定，比如是一个物品，就可以正常飞起来，如果是一只牛好像就不会，具体我还没测试，但大概是这样\n\n但是水平方向不会有问题的"
+        },
+        {
+            "author": "xFrankyx",
+            "timestamp": 1524745080,
+            "txt_content": "ruhuasiyu 发表于 2018-4-26 14:28\ny轴有时候好像发挥不稳定，比如是一个物品，就可以正常飞起来，如果是一只牛好像就不会，具体我还没测试 ...\n也就是说现在bug还是有一些咯，等mc的debug团队去处理吧，我用这个做地图的话还是等正式版本出来再把跟store相关的完成了吧。"
+        },
+        {
+            "author": "xFrankyx",
+            "timestamp": 1524745260,
+            "txt_content": "ruhuasiyu 发表于 2018-4-26 14:28\ny轴有时候好像发挥不稳定，比如是一个物品，就可以正常飞起来，如果是一只牛好像就不会，具体我还没测试 ...\n说起来如果我用store把一个物体的Motion填充为另一个物体的Motion那这两个物体的运动应该是一样的效果，所以如果想做一个二连箭只要把第二个箭召唤在第一个箭的后边然后把Motion三项分别填充就好了吧，如果想达到一根高速箭的效果大概只要把物体自己的Motion乘倍然后store就好了吧"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1524750960,
+            "txt_content": "xFrankyx 发表于 2018-4-26 20:21\n说起来如果我用store把一个物体的Motion填充为另一个物体的Motion那这两个物体的运动应该是一样的效果， ...\n不\n这么说吧，比如同初始速度斜向上抛出的两个物体，两个物体的距离会变化，尽管二者的轨迹都是抛物线。\n但是如果二者初始在同一水平面上就会保持距离不动。"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1524802620,
+            "txt_content": " 本帖最后由 chyx 于 2018-4-27 12:36 编辑 \n\n&#9940;\n内容不予显示"
+        },
+        {
+            "author": "iverson119",
+            "timestamp": 1526983920,
+            "txt_content": "实在是太强了...膜拜啊！"
+        },
+        {
+            "author": "Water_Bell",
+            "timestamp": 1532485140,
+            "txt_content": "完了，1.13指令根本看不懂T_T"
+        },
+        {
+            "author": "m050131",
+            "timestamp": 1535977140,
+            "txt_content": "今天搞1.13正式版的时候发现指令不能用，结果一翻wiki发现execute又双叒叕改了……现在的教程简直要赶不上execute的更新了XD"
+        },
+        {
+            "author": "是谁",
+            "timestamp": 1549807260,
+            "txt_content": "X_Crystal 发表于 2018-2-3 14:56\n跳着跳着就可以画抛物线了\n抛物线可以直接用execute @e[type=可抛射实体] ~ ~ ~ setblock ~ ~-1 ~ minecraft:方块名，来得总觉得更简单啊。。。"
+        },
+        {
+            "author": "Jokey_钥匙",
+            "timestamp": 1552828500,
+            "txt_content": "offset移除了啊"
+        },
+        {
+            "author": "罐子:D",
+            "timestamp": 1554630960,
+            "txt_content": "但是玩家还是只能靠冬眠补帧的tp移动吗？有没有让玩家也圆滑的移动的方法awa"
+        },
+        {
+            "author": "cf6513272991",
+            "timestamp": 1558830600,
+            "txt_content": "改动还真是多啊。。。该重新去学学了。。"
+        },
+        {
+            "author": "cf6513272991",
+            "timestamp": 1558832640,
+            "txt_content": "感谢优化，跳着跳着就可以画抛物线了"
+        },
+        {
+            "author": "zxcv21202",
+            "timestamp": 1558846140,
+            "txt_content": "秀啊233感觉还是比较实用的"
+        },
+        {
+            "author": "SAMFLEASHER",
+            "timestamp": 1586998980,
+            "txt_content": "盔甲架骑乘落沙和潜影贝，再加这个可以做成仿真电梯"
+        },
+        {
+            "author": "Bob987654321",
+            "timestamp": 1587867780,
+            "txt_content": "不错，很简单"
+        }
+    ]
+}

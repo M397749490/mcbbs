@@ -1,0 +1,34 @@
+{
+    "title": "如何写一个同时支持1.13以下版本和以上版本的箱子GUI？",
+    "author": "R_Josef",
+    "replyCount": 5,
+    "timestamp": 1568344020,
+    "txt_content": "我正在考虑给我的插件https://www.mcbbs.net/thread-789082-1-1.html撸一个箱子菜单，于是我写了以下代码供测试：\npublic GUI(Player player) {\n                this.setGui(Bukkit.createInventory(null,InventoryType.CHEST , \"§bBBSToper\"));\n                @SuppressWarnings(\"deprecation\")\n                ItemStack frame = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);// GUI的边框，就是这里报错\n                ItemMeta framemeta = frame.getItemMeta();\n                framemeta.setDisplayName(\"§8我是边框\");\n                frame.setItemMeta(framemeta);\n                for (int i=0; i < gui.getSize(); i++) {\n                        if (i > 9 && i < 17) continue;\n                        gui.setItem(i, frame);\n                }\n                ItemStack skull = new ItemStack(Material.PLAYER_HEAD);\n                SkullMeta meta = (SkullMeta) skull.getItemMeta();// 玩家头颅\n                meta.setOwningPlayer(player);\n                skull.setItemMeta(meta);\n                gui.setItem(12, skull);\n        }复制代码然后服务端报错：\n[10:19:38] [Craft Scheduler Thread - 0/ERROR]: Fatal error trying to convert BBSToper v2.1.2:moe/feo/bbstoper/GUI.class\norg.bukkit.plugin.AuthorNagException: No legacy enum constant for BLACK_STAINED_GLASS_PANE. Did you forget to define api-version: 1.13 in your plugin.yml?复制代码然后我查了一下spigot的wiki：\napi-version\nThe version of the API you want to use.\n1.13 and 1.14 are available versions\nThis will signal to the server that your plugin has been coded with a specific server version in mind, and that it should not apply any sort of backwards compatibility measures. As a result you will also need to make sure that you have programmed your code to account for reading of older configurations, data, etc... .Each server version can decide how compatibility is achieved, unknown or future versions will prevent the plugin from enabling. As of the 1.14 release, the api-version 1.13 is still allowed - however future versions may drop backwards support based on this version.\nExample:\nCode (YAML):\napi-version: 1.13复制代码也就是说，1.13以上要在plugin.yml指定api版本，然后不会再支持旧版，我一想这不行，于是再去翻翻javadoc：\nLEGACY_STAINED_GLASS_PANE\n已过时。 复制代码嗯对，就是这个已过时的玩意，然后我又用旧的方法去获取一个ItemStack：\nItemStack frame = new ItemStack(Material.LEGACY_STAINED_GLASS_PANE, 1, (short) 15);复制代码然后服务端又给我狠狠的抽了一巴掌：\n[10:19:38] [Craft Scheduler Thread - 0/ERROR]: Fatal error trying to convert BBSToper v2.1.2:moe/feo/bbstoper/GUI.class\norg.bukkit.plugin.AuthorNagException: No legacy enum constant for LEGACY_STAINED_GLASS_PANE. Did you forget to define api-version: 1.13 in your plugin.yml?复制代码\n\n有大佬说可以用1.12api来构建，但是我想问问有没有更加优雅的办法呢？？",
+    "replies": [
+        {
+            "author": "Karlatemp",
+            "timestamp": 1568344560,
+            "txt_content": "org.bukkit.plugin.AuthorNagException: No legacy enum constant for LEGACY_STAINED_GLASS_PANE. Did you forget to define api-version: 1.13 in your plugin.yml?\n\n无法为LEGACY_STAINED_GLASS_PANE找到过时材质. 你是不是忘记在 plugin.yml 加上 api-version: 1.13 了？\n\n这是翻译\n直接用 STAINED_GLASS_PANE(1.12)"
+        },
+        {
+            "author": "R_Josef",
+            "timestamp": 1568344740,
+            "txt_content": "99ww 发表于 2019-9-13 11:16\norg.bukkit.plugin.AuthorNagException: No legacy enum constant for LEGACY_STAINED_GLASS_PANE. Did you ...\n是的我没有加上这个，因为我想让我的插件能兼容1.12和以下的版本，而根据wiki的描述，加上这个会无法使用1.12和以下任何特性"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1568344800,
+            "txt_content": "R_Josef 发表于 2019-9-13 11:19\n是的我没有加上这个，因为我想让我的插件能兼容1.12和以下的版本，而根据wiki的描述，加上这个会无法使用 ...\n那个是错误翻译\n你用STAINED_GLASS_PANE就行，依赖库用1.12的核心"
+        },
+        {
+            "author": "云闪",
+            "timestamp": 1568344920,
+            "txt_content": "1.12.2并没有BLACK_STAINED_GLASS_PANE吧(你的第一个代码部分)，你这依赖的是1.13的包，自然必须得加上api-version: 1.13\n\n要同时支持的话直接使用STAINED_GLASS_PANE(所以你必须依赖1.12的包哇)，即可\n\nLEGACY_STAINED_GLASS_PANE的已过时标签应该不是指的1.12过时，而是指的请不要直接使用\n\n原理是这样的，如果你没加api-version: 1.13，服务器加载你的代码的时候会自动尝试使用LEGACY_前缀的版本，比如你一开始用BLACK_STAINED_GLASS_PANE，就会尝试LEGACY_BLACK_STAINED_GLASS_PANE，显然没有这个material；你第二次用LEGACY_STAINED_GLASS_PANE就会尝试LEGACY_LEGACY_STAINED_GLASS_PANE，显然也是不行的。\n直接使用STAINED_GLASS_PANE，服务端就会尝试LEGACY_STAINED_GLASS_PANE，嗯这个是有的\n\n\n1.13只是给1.12提供了一个兼容层，便于部分低版本插件可以直接在1.13使用。但使用1.13开发的不能在低于1.13的版本使用(使用了新版本的东西就自然向前不兼容了)\n\n总结答案：要同时支持1.12和1.13就必须依赖1.12 碰都不要碰1.13，然后正常按1.12的开发就行，material使用1.12的STAINED_GLASS_PANE(1.13没有这个)"
+        },
+        {
+            "author": "B站谳舒",
+            "timestamp": 1569021240,
+            "txt_content": "看不懂啊！编程渣的哭泣"
+        }
+    ]
+}

@@ -1,0 +1,54 @@
+{
+    "title": "关于Bukkit线程清理相关问题",
+    "author": "魂蛋呃",
+    "replyCount": 9,
+    "timestamp": 1589163360,
+    "txt_content": " 本帖最后由 魂蛋呃 于 2020-5-11 10:19 编辑 \n\n请问Bukkit.getScheduler()里的线程是如何处理的\n\n如果我3秒中执行一次Bukkit.getScheduler().runTaskAsynchronously()并且里面嵌套很多个Bukkit.getScheduler().runTask()\n\n\n或者3秒内执行10次Bukkit.getScheduler().runTask()内存占用会变大吗\n\n这些线程会不会自动清理呢",
+    "replies": [
+        {
+            "author": "MC_longxi",
+            "timestamp": 1589170560,
+            "txt_content": "这个插件用这一直很舒服"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1589171940,
+            "txt_content": "1. 内存占用会变大，单不严重\n2. 会被java虚拟机自动清理\n\nrunTask的实现如下\n    @NotNull\n    public synchronized BukkitTask runTask(@NotNull Plugin plugin) throws IllegalArgumentException, IllegalStateException {\n        checkNotYetScheduled();\n        return setupTask(Bukkit.getScheduler().runTask(plugin, (Runnable) this));\n    }\n复制代码\n\n即通过setupTask创建一个BukkitTask，之后允许task自己的runTask方法，运行完后函数退出，创建的这个临时task变量会随着函数的退出失效，被jvm自动清理"
+        },
+        {
+            "author": "念爻安",
+            "timestamp": 1589173020,
+            "txt_content": "6666666666666666666"
+        },
+        {
+            "author": "言灵乀Poison",
+            "timestamp": 1589196840,
+            "txt_content": " 本帖最后由 言灵乀Poison 于 2020-5-11 19:43 编辑 \n\n没记错的话应该会被丢进task队列里逐个执行\n同步任务由Server Thread线程(即主线程)执行\n异步任务由Craft Scheduler Thread - N(N为数字 从0开始，有多个)线程执行\n不会新增线程来处理你的任务，也就不存在\"线程清理\"\n\n(对象多了自然占用内存肯定会增加，但是增加的量也许是可以忽略不计的\n但还是更建议能放在同一个task就放在同一个task不要拆分成多个。\n\n需要大量执行的盲猜一下，是物品扫描或者玩家扫描这类需求？"
+        },
+        {
+            "author": "魂蛋呃",
+            "timestamp": 1589268360,
+            "txt_content": "言灵乀Poison 发表于 2020-5-11 19:34\n没记错的话应该会被丢进task队列里逐个执行\n同步任务由Server Thread线程(即主线程)执行\n异步任务由Craft S ...\n我这很多地方都会用到这个情况的，比如想执行一个指令就有用到好几个，而且这个指令是会被经常用到的，感谢帮助"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589362860,
+            "txt_content": "只要你不做骚操作\n线程都是正常结束的\n那就没问题\n嵌套不是问题"
+        },
+        {
+            "author": "魂蛋呃",
+            "timestamp": 1589723940,
+            "txt_content": "yumc 发表于 2020-5-13 17:41\n只要你不做骚操作\n线程都是正常结束的\n那就没问题\n那 Bukkit.getScheduler().runTaskTimer() 这个循环线程呢，如果我想结束该如何操作的"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1589769300,
+            "txt_content": "魂蛋呃 发表于 2020-5-17 21:59\n那 Bukkit.getScheduler().runTaskTimer() 这个循环线程呢，如果我想结束该如何操作的\n ...\nrunTaskTimer会返回一个BukkitTask对象\n取消时调用该对象的cancel()就好了"
+        },
+        {
+            "author": "yumc",
+            "timestamp": 1589793840,
+            "txt_content": "魂蛋呃 发表于 2020-5-17 21:59\n那 Bukkit.getScheduler().runTaskTimer() 这个循环线程呢，如果我想结束该如何操作的\n ...\n楼上已经解答了"
+        }
+    ]
+}

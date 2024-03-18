@@ -1,0 +1,69 @@
+{
+    "title": "[高难度]Java的class文件中的常量池概述",
+    "author": "linnaea",
+    "replyCount": 12,
+    "timestamp": 1402730520,
+    "txt_content": " 本帖最后由 linnaea 于 2014-6-14 15:24 编辑 \n\n首先请确保你会Java，不然我可以保证你看的一头雾水\n\n对于汉化那些消息都写在class文件里的插件，这些东西还是比较有用的还有这些东西比较难懂，所以尽管问……\n\n首先每个class文件中都有一个常量池，其中会存放不少东西，包括字符串\n常量池中的数据分成14种，以下是比较常见的11种和他们之间的引用关系\nFieldref_info           --\\     /--> Class_info       --\\\nMethodref_info          ---+===+---> NameAndType_info ---+===> Utf8_info\nInterfaceMethodref_info --/                             /\nString_info--------------------------------------------/\n\nInteger_info\nFloat_info\nLong_info\nDouble_info复制代码Fieldref_info：表示类中的字段\nMethodref_info：表示类中的方法\nInterfaceMethodref_info：表示接口中的方法\nClass_info：表示类和接口\nNameAndType_info：表示字段或方法的名称和类型，含有两个对Utf8_info的引用\nString_info：表示字符串常量\nUtf8_info：实际保存字符串的地方\nInteger_info：保存一个32位整数\nFloat_info：保存一个32位单精度浮点数\nLong_info：保存一个64位整数，在这个常量后的一个常量必须是有效的，但是会被忽略（也就是不能使用）\nDouble_info：保存一个64位双精度浮点数，同上\n\n常量池中的常量从1开始编号，最大为65535\nclass文件中，所有的数据都是大尾序的（也就是说，0x01020304保存为0x01 0x02 0x03 0x04四个字节，而小尾序是0x04 0x03 0x02 0x01）\n\n\n对类的引用在class文件中表示为一个Class_info，这个结构中有一个表示相应的Utf8_info的编号的字段，而相应的Utf8_info中会记录实际的类名\n类的名字很容易看，比如Java中的类com.example.foo.Bar，记录在class文件中时，把.换成/即可，也就是com/example/foo/Bar\n\n对字段的引用在class文件中表示为一个Fieldref_info，这个结构中有一个表示所属的类的Class_info的编号的字段，还有一个表示字段名称和类型的NameAndType_info\nNameAndType_info中有两个Utf8_info的编号，一个是名字，另外一个是类型。\nclass文件中，类型的信息是有自己的一个表示方式的。byte记为B，char记为C，double记为D，float记为F，int记为I，long记为J，short记为S，boolean记为Z，而某个特定的类记为 L类名; ，数组则是在相应的类型前加上[\n比如，byte[]是[B，String[][]是[[Ljava/lang/String;，com.example.foo.Bar类型记为Lcom/example/foo/Bar;\n\n\n对方法的引用和对字段的引用大体上是一样的，区别在于类型的标记方式。\n一个方法可以接受多个参数，并且可以返回一个值（或者void类型，没有返回值）\n这些信息一样是记录在NameAndType_info中表示类型的那个Utf8_info里的，记录方法是\n(参数1类型 参数2类型 ...)返回类型复制代码（注意实际上是没有空格的，这里的空格只是方便阅读）\n特别的，对于void的返回类型，记作V\n举例：java.lang.StringBuilder.append\nMethodref_info ---+---> Class_info        -------> Utf8_info \"java/lang/StringBuilder\"\n                   \\--> NameAndType_info  ---+---> Utf8_info \"append\"\n                                              \\--> Utf8_info \"(Ljava/lang/String;)Ljava/lang/StringBuilder;\"复制代码java.lang.Object.toStringMethodref_info ---+---> Class_info        -------> Utf8_info \"java/lang/Object\"\n                   \\--> NameAndType_info  ---+---> Utf8_info \"toString\"\n                                              \\--> Utf8_info \"()Ljava/lang/String;\"复制代码boolean foobar(int i, double d, Thread t) （只表示NameAndType_info部分）NameAndType_info  ---+---> Utf8_info \"foobar\"\n                      \\--> Utf8_info \"(IDLjava/lang/Thread;)Z\"复制代码\n对于字符串常量，String_info里有一个记录对应Utf8_info的编号的字段。非常简单的东西。\n\n\n然后我们来考虑插件汉化……\n考虑这种情况：你的程序里有一个地方使用了java.lang.StringBuilder.append（字符串之间用+都会用到这个），然后你又有一个字符串常量是\"append\"\n那么在class文件里看起来就是这样的：Methodref_info ---+---> Class_info        --------> Utf8_info \"java/lang/StringBuilder\"\n                   \\--> NameAndType_info  ---+----> Utf8_info \"(Ljava/lang/String;)Ljava/lang/StringBuilder;\"\n                                              \\\nString_info    --------------------------------+--> Utf8_info \"append\"复制代码然后你把append汉化成“附加”了，于是本来调用java.lang.StringBuilder.append的地方就都变成java.lang.StringBuilder.附加，GG……（我没用过hhclass，不过我猜可能是这个原因导致有些插件没法汉化）\n正确的做法：单独添加一个Utf8_info常量，内容是“附加”，然后把本来指向“append”的String_info改为指向这个新的常量。\n软件的话，http://classeditor.sourceforge.net/\n\n来练个手吧w\n这是某个class文件中的常量池的一部分：\n#8 Fieldref_info    Class_info#137，NameAndType_info#253\n#39 String_info  Utf8_info#149\n#63  Methodref_Info   Class_info#137，NameAndType_info#314\n#137 Class_info   Utf8_info#375\n#149 Utf8_Info  \"compressor\"\n#150 Utf8_Info  \"Lnet/jpountz/lz4/LZ4Compressor;\"\n#204 Utf8_Info  \"setWorldsAutoSaving\"\n#205 Utf8_Info  \"(Z)V\"\n#253 NameAndType_Info   Utf8_info#149  Utf8_info#150\n#314 NameAndType_Info   Utf8_info#204  Utf8_info#205\n#375 Utf8_Info \"name/linnaea/mbdelta/cb/BukkitPlugin\"\n请试着指出Methodref_Info#63表示的方法所在的类，及其原型\n类：name.linnaea.mbdelta.cb.BukkitPlugin\n原型：void setWorldsAutoSaving(boolean)\n请试着指出Fieldref_info#8表示的字段所在的类，以及字段的名称和类型\n类：name.linnaea.mbdelta.cb.BukkitPlugin\n名称：compressor\n类型：net.jpountz.lz4.LZ4Compressor\n请试着指出String_info#39表示的字符串\ncompressor\n\n\n之后我可能会试着自己写个这种东西，方便汉化什么的\n不过这些东西放这里的话，我觉得肯定会有人比我先完成，因为……\n\n\n\n\n\n\n\n\n\n\n\n\n我懒啊",
+    "replies": [
+        {
+            "author": "250=mo",
+            "timestamp": 1402730700,
+            "txt_content": "你成功保障了我看得一头雾水，哈哈"
+        },
+        {
+            "author": "叫我stere",
+            "timestamp": 1402730880,
+            "txt_content": "同上......."
+        },
+        {
+            "author": "Notme.",
+            "timestamp": 1402731000,
+            "txt_content": "= = 好深奥。。"
+        },
+        {
+            "author": "红人.Sx",
+            "timestamp": 1402731300,
+            "txt_content": "小学生表示不懂"
+        },
+        {
+            "author": "yangzhen0021",
+            "timestamp": 1402732380,
+            "txt_content": "楼主加油！~哇啦啦~"
+        },
+        {
+            "author": "youliao",
+            "timestamp": 1402732440,
+            "txt_content": "哦，原来汉化是这样的，长知识了。"
+        },
+        {
+            "author": "梦幻龙族Ⅱ",
+            "timestamp": 1402873140,
+            "txt_content": "原来字节码是这样的，长见识了。"
+        },
+        {
+            "author": "linnaea",
+            "timestamp": 1402886700,
+            "txt_content": "梦幻龙族Ⅱ 发表于 2014-6-16 06:59\n原来字节码是这样的，长见识了。\n字节码和执行栈之类的我还没讲到呢……"
+        },
+        {
+            "author": "梦幻龙族Ⅱ",
+            "timestamp": 1402888320,
+            "txt_content": "哦，好吧。常量池原来是这样的~"
+        },
+        {
+            "author": "Ph-苯",
+            "timestamp": 1564891320,
+            "txt_content": "请问\n--\\ --/\n\\--> /-->\n---+===+--->\n---+===>\n---+--->\n------->\n分别是什么意思？\n我从未见过，完全看不懂这些符号。"
+        },
+        {
+            "author": "UltraPanda",
+            "timestamp": 1565061120,
+            "txt_content": "使用 Anthony大佬 的 Koffee反汇编 会简单一些。"
+        },
+        {
+            "author": "lovexyn0827",
+            "timestamp": 1612633200,
+            "txt_content": "学过汇编，用过Mixin的表示轻松"
+        }
+    ]
+}

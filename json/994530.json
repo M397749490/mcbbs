@@ -1,0 +1,54 @@
+{
+    "title": "如何制作一个能够投影其他方块模型的方块？",
+    "author": "zjx475",
+    "replyCount": 9,
+    "timestamp": 1584945960,
+    "txt_content": " 本帖最后由 zjx475 于 2020-3-23 15:11 编辑 \n\n版本1.14.4，如题，我希望制作一个方块，功能大致是将上方的那个方块缩小一半后作为这个方块的模型，如下图：\n\n\n\n\nfile_1584945709000.jpg (101.76 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-23 14:41 上传\n\n\n\n\n\n（这只是写的一个静态模型）\n请问这样的方块怎么做？是要用到TileEntityRenderer吗？还是可以自定义方块Baked模型？\n（好像AA的物品展示台（DisplayStand）就是用TER的↓，但我这个不需要那种旋转的功能，只需要在上方方块更新时更新模型，且暂时不需考虑附魔台这类特殊方块）\n\n\n\n\nfile_1584945958000.jpg (77.54 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-23 14:45 上传\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "飞翔之歌",
+            "timestamp": 1584962520,
+            "txt_content": "https://harbinger.covertdragon.team/chapter-11/tesr.html\n试一试。"
+        },
+        {
+            "author": "zjx475",
+            "timestamp": 1584973320,
+            "txt_content": " 本帖最后由 zjx475 于 2020-3-23 22:26 编辑 \n飞翔之歌 发表于 2020-3-23 19:22\nhttps://harbinger.covertdragon.team/chapter-11/tesr.html\n试一试。\n\"1.2.1. 关于性能\n是的，有一个很常见的说法是 TESR 对性能影响巨大。毕竟 TESR 和 TileEntity 的刷新频率是一样的（一秒最多 20 次），服务器上 TileEntity tick 一次，客户端这边对应的 TESR（如果有的话）也得重新绘制一次。这样的东西一多，后果自不必说。更何况 TESR 还挺常见的——比如原版箱子就有一个。堆满箱子的游戏后期存档应该是原版玩家的日常吧…… 固定管线的问题就不提了，因为提了也解决不了 Minecraft 现在还需要用这玩意的问题。\"\n所以，不能用IBakedModel吗？我希望这个方块可以用于建筑——比如以后开发成可以制作更薄的木板之类的，但如果用TESR（1.14更名为TER），会不会很卡...就算是FastTER，也是每tick渲染一次..."
+        },
+        {
+            "author": "飞翔之歌",
+            "timestamp": 1585012680,
+            "txt_content": "zjx475 发表于 2020-3-23 22:22\n\"1.2.1. 关于性能\n是的，有一个很常见的说法是 TESR 对性能影响巨大。毕竟 TESR 和 TileEntity 的刷新频率 ...\n可以，但是可能情况太多了。"
+        },
+        {
+            "author": "zjx475",
+            "timestamp": 1585015860,
+            "txt_content": " 本帖最后由 zjx475 于 2020-3-24 10:19 编辑 \n飞翔之歌 发表于 2020-3-24 09:18\n可以，但是可能情况太多了。\n我大概了解了一下IBakedModel，划重点就是写一个新的IBakedModel要写getQuads方法，它需要返回一系列quads，这个quads是就需要渲染的长方形。\n而需要的数据从所谓的“extended blockstates”提供，每当模型需要更新时——可以使用world.markBlockRangeForRenderUpdate更新模型——\n这个模型绑定的方块类中的\npublic IExtendedBlockState getExtendedState(IBlockState state, IBlockAccess world, BlockPos pos) \n就会被调用，你返回的extended blockstates会传入IBakedModel中供渲染使用。Forge文档关于extended blockstates是这样说的：\n“Extended blockstates provide a way for blocks to pass arbitrary data to their models. Ordinary blockstates and properties occupy only a fixed set of possible states, while extended states can form infinite sets. ”\n也就是说extended blockstates可以储存的数据是任意的。\n那么我能否在getExtendedState中利用IBlockAccess world, BlockPos pos获得——在我这个例子中是BlockPos上方那个方块的——BlockState然后\nIBakedModel bakedmodel = Minecraft.getMinecraft().getBlockRendererDispatcher().getModelForState(blockstate)\n获取上方那个方块的BlockState所对应的BakedModel，再调用这个bakedmodel的getquads方法获取quads，并进行转化，比如缩放成1/3大小，\n最后...把这些quads塞入extended blockstates中？然后IBakedModel就直接从extended blockstates中提取quads，并作为getQuads的返回值。\n大佬看看这个方法可行吗？\n还有(Forge文档：Warning\nIt is highly recommended that your unlisted property values be immutable. Baked model implementations will use the extended state and unlisted values on multiple threads, so any value must be used in a threadsafe manner. The easiest way is to simply make that information an immutable snapshot. Anything you might possibly want to know in your custom IBakedModel, you should be passing an immutable snapshot of through Block.getExtendedState.）这是什么意思？对我的方法有影响吗？"
+        },
+        {
+            "author": "飞翔之歌",
+            "timestamp": 1585017000,
+            "txt_content": "zjx475 发表于 2020-3-24 10:11\n我大概了解了一下IBakedModel，划重点就是写一个新的IBakedModel要写getQuads方法，它需要返回一系列quads ...\n有影响。Forge建议你把所有可能的状态都给列出"
+        },
+        {
+            "author": "zjx475",
+            "timestamp": 1585019040,
+            "txt_content": " 本帖最后由 zjx475 于 2020-3-24 11:21 编辑 \n飞翔之歌 发表于 2020-3-24 10:30\n有影响。Forge建议你把所有可能的状态都给列出\n什么叫“都给列出”呢？extended blockstates的可能状态不是无限的吗？我觉得这条警告的意思是每个传入的extended blockstates都得是不可改变的，因为getQuads会在多个线程上调用，如果同时在getQuads中改变它会有线程安全问题。\n所以说，传入的BakedQuad是否是不可改变的呢...怎样能使它变得不可改变呢...如果我不主动改变它，会有问题吗?"
+        },
+        {
+            "author": "zjx475",
+            "timestamp": 1585020060,
+            "txt_content": "飞翔之歌 发表于 2020-3-24 10:30\n有影响。Forge建议你把所有可能的状态都给列出\n这里Forge文档上举了一个伪装方块的例子，和我的好像差不多，但我看不大懂，求大佬解释...\n\"One such use case is advanced camouflaging blocks. The camouflaging block may have a tile entity that holds the IBlockState representative of the camouflagee, and an unlisted property to hold that state during rendering. This property can then be filled by getExtendedState. Finally, a custom IBakedModel can steal the model for that state and use it instead of using the uncamouflaged model.\""
+        },
+        {
+            "author": "a_kun123",
+            "timestamp": 1585029000,
+            "txt_content": "感谢大佬 我感觉可以！"
+        },
+        {
+            "author": "zjx475",
+            "timestamp": 1585042440,
+            "txt_content": "哇，这个视频好像能完美解决我的问题\n\n"
+        }
+    ]
+}

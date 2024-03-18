@@ -1,0 +1,44 @@
+{
+    "title": "教大家如何让调用NMS的插件做到多版本兼容",
+    "author": "q88724653",
+    "replyCount": 7,
+    "timestamp": 1494132780,
+    "txt_content": " 本帖最后由 q88724653 于 2017-5-7 14:57 编辑 \n前言:  \n  调用过NMS的方法的都知道，你调用NMS的版本必须与你服务器的版本相对应。我这里说的版本不是1.8.8啊1.8.7啊这类，而是类似于v1_8_R4啊v1_8_R1这类，1.8这么多版本，其实在服务器的版本里只有1_8_R1、1_8_R2、1_8_R3（别的同理）。那如果你想多版本兼容，最傻的方法便是做添加一个版本的核心到你插件的库里导入再添加另一个版本的核心进你的库里导入，这样比较麻烦，而我这种是将多个服务器核心添加到库里然后用抽象类根据服务器版本来挂钩对应版本的方法。\n下面进入正题:\n  在你的插件库里添加你想要兼容的服务器核心版本。\n\n\n\n\n\nQQ截图20170507124746.jpg (58.7 KB, 下载次数: 1)\n\n下载附件\n\n添加库\n2017-5-7 12:53 上传\n\n\n\n\n\n\n  然后新建一个作为抽象类接口的java类\n  例如，我新建了一个叫NMS的类做接口，这个类的代码为\npublic abstract interface  NMS \n{\n}复制代码\n  然后，在里面定义方法，你的方法要用abstract去修饰\n\npublic abstract interface  NMS \n{\n        public abstract String getVersion();//这个必须有\n        public abstract void sendActionBar(Player p, String msg);//这是我自己定义的，用来发actionbar的，你改成自己的\n}\n复制代码\n  再新建一个版本号的类，在这个类中使用NMS类的接口，例如我建个版本为v1_8_R1的类和一个v1_8_R2的类，代码为\n\n\n\nv1_8_R1类\npublic class v1_8_R1 implements NMS\n{\n          public String getVersion()//必须有\n          {\n            return \"v1_8_R1\";\n          }\n        public void sendActionBar(Player p, String msg)\n        {\n         //你的代码\n        }\nv1_8_R2类\npublic class v1_8_R2 implements NMS\n{\n          public String getVersion()//必须有\n          {\n            return \"v1_8_R2\";\n          }\n        public void sendActionBar(Player p, String msg)\n        {\n         //你的代码\n        }\n}复制代码 然后，去你的主类添加\n\n\npublic static NMS nms;\n    public static NMS getNMS()\n    {\n            return nms;\n    }\n复制代码\n  在主类添加一个判断版本号获取对应NMS的方法\n\n        private Boolean setUpNms()\n        {\n                String version = Bukkit.getServer().getClass().getPackage().getName().replace(\".\", \",\").split(\",\")[3];\n                getLogger().info(\"你的服务器运行在版本：\"+version);\n                switch(version)\n                {\n                case \"v1_8_R1\":\n                nms = new v1_8_R1();\n                break;\n                case \"v1_8_R2\":\n                nms = new v1_8_R2();\n                break;\n                //别的版本以此类推\n                }\n                return Boolean.valueOf(nms != null);\n        }复制代码\n  最后在主类onEnable()里添加\n\n                        if(setUpNms().booleanValue())\n                        {\n                                getLogger().info(\"加载NMS成功\");\n                        }else\n                        {\n                              getLogger().severe(\"加载NMS失败\");\n                              getLogger().severe(\"你的服务器不能使用该插件\");\n                              Bukkit.getPluginManager().disablePlugin(this);\n                              return;\n                        }复制代码\n  完成\n",
+    "replies": [
+        {
+            "author": "GayaGuoguo",
+            "timestamp": 1494228780,
+            "txt_content": "为什么不用反射呢"
+        },
+        {
+            "author": "言灵乀Poison",
+            "timestamp": 1494310980,
+            "txt_content": "GayaGuoguo 发表于 2017-5-8 15:33\n为什么不用反射呢\n我也想问，为何要switch case来new\n为何不用反射Class.forName(根据版本拼装类名).newInstance()\n没有对应版本的支持的处理放到catch就好啦"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1494323640,
+            "txt_content": "言灵乀Poison 发表于 2017-5-9 14:23\n我也想问，为何要switch case来new\n为何不用反射Class.forName(根据版本拼装类名).newInstance()\n没有对 ...\n反射效率较低，差一个数量级，而且由于方法名字段名经常多变，反射的兼容性事实上并没有提高"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1494323940,
+            "txt_content": "指出楼主几个不足之处\n1. NMS接口不需要再多加abstract修饰符，因为里面的方法默认就是抽象的。\n2.setUpNms的返回值最好使用boolean而不是Boolean，拆包封包也是很消耗时间的\n3.方法结尾没有必要再加return了"
+        },
+        {
+            "author": "言灵乀Poison",
+            "timestamp": 1494327120,
+            "txt_content": " 本帖最后由 言灵乀Poison 于 2017-5-9 18:57 编辑 \n耗子 发表于 2017-5-9 17:54\n反射效率较低，差一个数量级，而且由于方法名字段名经常多变，反射的兼容性事实上并没有提高 ...\n你看…我说的反射仅仅指new出自己的对NMS的那个实现类…\n你看我第一句就是在质疑switch case，第二句写明了switch case的替代方案，第三句的catch处理也是说\"不支持这个版本\"而不是\"没有相应类/方法/字段\"\n\n当版本多起来的时候，用switch case就是大片重复代码了，看着都不爽啊qwq"
+        },
+        {
+            "author": "l89669",
+            "timestamp": 1494776820,
+            "txt_content": "楼主这个是兼容性高的办法\n当然，再优化一点的办法是如前面大佬所说的用反射而不是跳转表来new\n虽然跳转表较快，但是在代码上看起来的确很啰嗦（onEnable方法里面对代码执行速度没有特别的需要好吧）"
+        },
+        {
+            "author": "鸭蛋只吃黄",
+            "timestamp": 1495159620,
+            "txt_content": " 本帖最后由 凋灵兔子 于 2017-10-17 17:22 编辑 \n\n已编辑，就当我当时是在放屁好了"
+        }
+    ]
+}

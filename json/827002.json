@@ -1,0 +1,394 @@
+{
+    "title": "[长期更新]1.12Forge mod开发教程",
+    "author": "森林蝙蝠",
+    "replyCount": 77,
+    "timestamp": 1541065800,
+    "txt_content": " 本帖最后由 森林蝙蝠 于 2019-5-20 16:19 编辑 \n\n前言：\n在我之前，有很多人做过不同版本的forge mod教程（论坛此类帖子多达135个），但抑或声名不显（例如deathwolf的教程），抑或时过境迁（例如4z的教程），抑或没啥作用，希望通过这篇贴子能带来一些不一样的东西。\n\n\n\n\n想多了，我才不会做论坛不鼓励的纯Java教程呢！\n\n可以去购买此表情包上的书籍（最近出的阿里《码出高效》也有助于快速上手，建议结合Java核心技术一起阅读）或观看口碑良好的Java视频教程（例如马士兵），不要说自己没钱买书，你有那钱买硬件氪游戏把妹子，就不能买两本技术性的书籍开卷有益一下？\n那么开发用的软件怎么搞呢？可看此教程：http://www.mcbbs.net/thread-792717-1-1.html，不要害怕英文！\n有些人可能会用groovy写gradle脚本或者直接写mod本身代码，教程：https://www.w3cschool.cn/groovy/\n\n\n想进行forge开发，首先要搞清楚一件事情：当我们在部署forge环境时，我们在做什么？\n答：是在处理forge的依赖项目和生成启动。\nMC和forge并不仅仅依赖Java本身，而是若干个其他程序包，下面将罗列出来：\ngson：google出品的json解析器，你用来注册合成表，模型等的各种json资源文件，由它解析加载。\nguava：google出品的著名Java开发框架，提供了很多实用的集合（例如Multimap<K,V>）和并发相关（例如ListenableFuture），该框架提供的EventBus类，被forge用来做事件系统。\nicu4j-core-mojang：icu4j是International Components for Unicode（Unicode本地化组件）在Java上的实现，你能实现汉化，其实靠的是这个包。\nauthlib：mojang自己用来负责玩家登陆的工具，用于正版启动器。\nrealms：原版领域服相关。\npaulscode：一个提供Java音效的包。\nakka actor：一个用scala编写的高性能并发框架，但可惜在MC开发中形同虚设，反倒带来了scala类库下载的不便，如果你的HMCL资源下载失败了，看看是不是它的问题吧。\napache common：一个和guava对标的著名Java开发框架，提供了线程监视等实用功能（MC居然还在用common 2.5这样老旧的版本）\nnetty：高性能网络通信框架，MC内部的服务端（NMS）基于此实现，如果你的服务器掉线了，经常会看到来自netty的报错。\nfastutil：提供了一系列高效存储大量元素的集合，例如BigArrays类，Object2ObjectOpenHashMap集合，BigList接口等。\njava3d：Java自己的一个简易3d制作包。\njline：用来处理控制台输入的一个Java类库。\njna（Java native access）：Java自带的调用本地（native）方法的类库。\nlaunchwrapper：mojang自己提供的一个类加载工具，内含ITweaker和IClassTransformer这两个修改类加载和编写字节码的重要接口，以及MC原版类加载器LaunchClassLoader，因不支持Java 9+，将在1.13的forge被废弃。\nlog4j：最早出现的Java日志输出类库，现被广泛使用。\nasm：Java的虚拟机指令只有200多个，不超过byte[]类型保存的上限，因此可以用byte来保存这些指令，故称“字节码”，asm就是目前使用最广泛的字节码操纵框架（用来动态修改其他人的代码），forge本身就是建立在asm修改MC的基础上。\nscala：scala语言的标准库，将在1.13的forge中被移除。\n这些依赖往往没有被充分利用，大多数情况下，就是个玩具钟——虚有其表。\n\n\n这么一通交待下来，看的晕头转向了吧？总而言之，如果要把这些依赖库一一手动下载下来，不知道要浪费多少宝贵的时间和精力，最重要的是没有相应的主类启动它们（MC的主类只管自己，无视他人），因此需要gradle来管理这些依赖，并按照给定配置对它们生成主类（GradleStart和GradleStartServer）。\nforge自带了forgegradle插件，当用户按照教程运行/gradlew setupDecompWorkspace时，就会自行下载gradle，并根据build.gradle文件，从forge默认的maven源（http://files.minecraftforge.net/maven）下载相应的依赖文件，对其进行构建生成主类。\n然而因为某些你也知道的原因，从外网下载gradle速度会很慢很慢，时常掉线——大多数情况下这是你构建失败的元凶。而且forge依然在采用gradle 2.14这个老版本，而最新的gradle出到了5——因此，不通过forge自己的配置，自行下载gradle是个非常明智的选择。\n如果你已经下载了自己的gradle，如何让forge或者IDE“知道”这件事呢？\n方法1：修改gradle-wrapper.properties文件里的gradle版本（从2.14改成4.x），然后在构建开始，下载gradle时将指定文件夹里的gradle替换掉，重启构建（如果你网够好可以等待它下完）\n方法2：在IDEA里指定gradle路径。\n\n选中“Use auto import（自动导入）”选项，选择“Use local gradle distribution”选项，即可在gradle home选项中指定你安装gradle的位置，以及用来运行gradle的JVM位置。\n如果你在这之前已经构建过，不想再下载一次依赖，可以选择“Offline work（离线构建）”选项，然后在下方选择上一次构建后依赖存放的位置（默认是C:/Users/用户名/.gradle）。\n然后点击“File”→“New”→“Project from existing sources”，在弹出的对话框中选择build.gradle文件，会弹出一个和上图类似的对话框：\n\n设置同上，点击OK，即可导入。\n也可以点击“File”→“Open”，然后打开build.gradle，会弹出对话框问你是否以一个工程的形式打开它。\n\n以这两种方式，IDEA都可以自动为你配置forge环境而不需要输入什么指令（记得给自己开一下魔法上网加速下载），如果部署成功，你会在externallib里看到一大堆包（botania是植物魔法的名字，如果你不做植魔附属请忽略它）：\n\n到此为止，你的forge开发环境就建立成功了。\n\n如果你还想加入别的依赖（例如上图的botania），可能需要了解一下forge配置工程的核心文件build.gradle——其实所有gradle工程都是这个文件，这一点forge除了做了个forgegradle插件来指定自己的gradle指令之外，和一般的gradle工程并无太大区别。\n\nbuildscript {\n    repositories {\n        jcenter()\n        maven { url = \"http://files.minecraftforge.net/maven\" }\n        maven { url = \"http://maven.ic2.player.to/\" }\n        //maven { url = \"http://dvs1.progwml6.com/files/maven\" }\n}\n    dependencies {\n        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'\n    }\n}\napply plugin: 'net.minecraftforge.gradle.forge'\n//Only edit below this line, the above code adds and enables the necessary things for Forge to be setup.\nversion = \"1.0\"\ngroup = \"com.forestbat.warhammer\" // http://maven.apache.org/guides/mini/guide-naming-conventions.html\narchivesBaseName = \"warhammer\"\n\nsourceCompatibility = 1.8\n// Need this here so eclipse task generates correctly.\ncompileJava {\n    sourceCompatibility = 1.8\n}\n\nminecraft {\n    version = \"1.12.2-14.23.2.2611\"\n    runDir = \"run\"\n    \n    // the mappings can be changed at any time, and must be in the following format.\n    // snapshot_YYYYMMDD   snapshot are built nightly.\n    // stable_#            stables are built at the discretion of the MCP team.\n    // Use non-default mappings at your own risk. they may not always work.\n    // simply re-run your setup task after changing the mappings to update your workspace.\n    mappings = \"snapshot_20171003\"\n    // makeObfSourceJar = false // an Srg named sources jar is made by default. uncomment this to disable.\n}\n\ndependencies {\n    // you may put jars on which you depend on in ./libs\n    // or you may define them like so..\n    //compile \"some.group:artifact:version:classifier\"\n    //compile \"some.group:artifact:version\"\n    // real examples\n    //compile 'com.mod-buildcraft:buildcraft:6.0.8:dev'  // adds buildcraft to the dev env\n    //compile 'com.googlecode.efficient-java-matrix-library:ejml:0.24' // adds ejml to the dev env\n    // the 'provided' configuration is for optional dependencies that exist at compile-time but might not at runtime.\ndeobfProvided \"net.industrial-craft:industrialcraft-2:2.8.84:api\"\n    // the deobf configurations:  'deobfCompile' and 'deobfProvided' are the same as the normal compile and provided,\n    // except that these dependencies get remapped to your current MCP mappings\n    //deobfCompile 'com.mod-buildcraft:buildcraft:6.0.8:dev'\n    //deobfProvided 'com.mod-buildcraft:buildcraft:6.0.8:dev'\n    // for more info...\n    // http://www.gradle.org/docs/curre ... ncies_tutorial.html\n    // http://www.gradle.org/docs/curre ... ncy_management.html\n}\n\nprocessResources {\n    // this will ensure that this task is redone when the versions change.\ninputs.property \"version\", project.version\n    inputs.property \"mcversion\", project.minecraft.version\n\n    // replace stuff in mcmod.info, nothing else\nfrom(sourceSets.main.resources.srcDirs) {\n        include 'mcmod.info'\n                \n        // replace version and mcversion\nexpand 'version':project.version, 'mcversion':project.minecraft.version\n    }\n        \n    // copy everything else except the mcmod.info\nfrom(sourceSets.main.resources.srcDirs) {\n        exclude 'mcmod.info'\n    }\n}\n如上，是一个由minecraftdev插件生成的build.gradle文件，从注释中我们能看到各种内容对应的含义：\nbuildscripts：这个代码块内的repositories地址专门为了此build.gradle文件而服务。\n\nrepositories：该工程的依赖库地址（一般为maven），你可以从中下载到很多你所需要的依赖，类似于自选商场，区别于dependencies（一个个的jar文件，类似于你已经拿到手的商品）。如果声明在buildscripts之外，那么这些库将为这个项目本身服务。\njcenter()//区别于maven中心库mavenCentral()的库，为gradle内置库，如果下载卡顿可以选用jcenter(){url 'http://jcenter.bintray.com/'}，或者其他第三方maven库，例如阿里的中心库http://maven.aliyun.com/nexus/content/groups/public/\nmaven { url = \"http://files.minecraftforge.net/maven\" }//指向http://files.minecraftforge.net的maven库，链接可打开\nmaven { url = \"http://maven.ic2.player.to/\" }//指向工业2的maven仓库，链接可打开\nmaven { url = \"http://dvs1.progwml6.com/files/maven\" } //另一个有用的maven仓库\n\n//在这里指定你的项目隶属，版本号\nversion = \"1.0\" //版本是1.0\ngroup = \"com.forestbat.warhammer\" //group的命名遵守maven“三段”规则，com是组织性质，forestbat是组织名（其实就是我），warhammer是项目名\n\narchivesBaseName = \"warhammer1.0\" //该项目下的模块名，maven通过group，archive和version将每一个代码库区分开来\nsourceCompatibilty：Java语言特性等级，当前选择的是8，代表Java 8\n\n\nminecraft代码块下，version代表你使用的forge版本，runDir代表你的测试环境下MC客户端的运行位置，mappings代表forge使用的mcp反混淆表版本，1.12默认为snapshot_20171003。\n\n\ndependencies代码块下，可以指定你的项目所依赖的jar文件，分为三个等级：\ncompile：你的项目强制依赖这个jar，否则编译不过；\nruntime：你的项目在运行时要求这个jar，否则无法运行；\nprovided：你的项目和它是联动关系，没有也罢。\n其deobf版本（deobfCompile，deobfRuntime，deobfProvided）是会经过forge的反混淆用作依赖的，适合那些不开源的前置mod。\n\n\n\n首先看看“真正的”主类GradleStart（若为服务器，应为GradleStartServer）：\n<font color=\"Black\">public static void main(String[] args) throws Throwable { //main是除了JavaFX之外所有程序的入口点\n        hackNatives(); //在这里调用一些本地的库，例如lwjgl.dll\n        (new GradleStart()).launch(args); //进行游戏启动前的一些工作，例如搜索coremod以及加载notchname-srgname的转换表，然后启动。\n    }</font>复制代码这是一个由IDEA的minecraftdev插件生成的主类：\n\n<font color=\"Black\">@Mod(\n        modid = MOD_ID,\n        name = MOD_NAME,\n        version = VERSION\n)\npublic class YourMod {\n\n    public static final String MOD_ID=“yourmod”;//MOD_ID是唯一的mod标识符，不应随意更改\n    public static final String MOD_NAME=“yourmod”;\n    public static final String VERSION=“xxx”;\n\n    /**\n     * This is the instance of your mod as created by Forge. It will never be null.\n     */\n    @Mod.Instance(MOD_ID)\n    public static YourMod INSTANCE;\n\n    public static CreativeTabs YourMod=new CreativeTabs(\"yourmod\") {//为你的mod添加创造物品栏\n        @MethodsReturnNonnullByDefault\n        public ItemStack getTabIconItem() {\n            return null；//指定创造物品栏的标志物品，例如林业的创造栏是个蜜蜂\n        }\n    };\n    //forge初始化进程包括三个阶段：预初始化（preinit），初始化（init），后初始化（postinit）\n    @Mod.EventHandler \n    public void preinit(FMLPreInitializationEvent event) {//该方法负责监听预初始化事件，并可以用event对象调用相应的方法完成一些工作\n        GameRegistry.registerTileEntity(TileEntityChest.class,\"TileEntityChest\"); //你可以在这一阶段注册TileEntity（例如箱子）\n        GameRegistry.registerTileEntity(TileEntityChest.class，new ResourceLocation（\"TileEntityChest\"））;\n        //较新版本的forge建议用resourcelocation注册实体，resourcelocation对象一般指向json文件，后面会提及\n        //也可以用RegistryEvent.Register<T>对象来进行注册，推荐的做法，下文会提及\n}\n\n    @Mod.EventHandler \n    public void init(FMLInitializationEvent event) {\n    //该方法负责监听初始化事件，并可以用该事件对象调用相应方法完成一些工作，你可以在这里注册你的合成表\n\n    }\n\n    @Mod.EventHandler\n    public void postinit(FMLPostInitializationEvent event) {\n      //该方法负责监听后初始化事件，并可以用该事件对象调用相应方法完成一些工作\n    }\n\n</font> <font color=\"Black\">\n    @GameRegistry.ObjectHolder(MOD_ID)\n    public static class Blocks {//在这个内部类中以public static final形式，声明一些方块便于调用，类似于minecraft.init.Blocks类\n      /*\n          public static final MySpecialBlock mySpecialBlock = null; // placeholder for special block below\n      */\n    }\n\n    /**\n     * Forge will automatically look up and bind items to the fields in this class\n     * based on their registry name.\n     */\n    @GameRegistry.ObjectHolder(MOD_ID)\n    public static class Items {//在这个内部类中初始化一些物品（必须是public static final声明）便于调用，类似于minecraft.init.Items类\n      /*\n          public static final ItemBlock mySpecialBlock = null; // itemblock for the block above\n          public static final MySpecialItem mySpecialItem = null; // placeholder for special item below\n          public static YourItems xxxItem=null；\n      */\n    }\n\n    @Mod.EventBusSubscriber\n    public static class ObjectRegistryHandler {\n        /**\n         * 在这个类中监听注册事件，以注册你自定义的东西\n        */\n        @SubscribeEvent  //该注解负责监听各种事件，如果你传入的参数里有Event类型的MC事件，需要加上这个注解\n        public static void addItems(RegistryEvent.Register<Item> event) {\n          //通过RegistryEvent.Register<T>注册物品，每个你编写的物品都要通过这种方式注册\n           /*\n             event.getRegistry().register(new ItemBlock(Blocks.myBlock).setRegistryName(MOD_ID, \"myBlock\"));\n             event.getRegistry().register(new MySpecialItem().setRegistryName(MOD_ID, \"mySpecialItem\"));\n           */\n           //setRegistryName（）：设置物品的注册名，也是本地化名\n        }\n     \n        @SubscribeEvent\n        public static void addBlocks(RegistryEvent.Register<Block> event) {\n          //通过RegistryEvent.Register<T>注册方块，每个你编写的方块都要通过这种方式注册\n          /*\n             event.getRegistry().register(new MySpecialBlock().setRegistryName(MOD_ID, \"mySpecialBlock\"));\n          */\n          /**Register<T>具有10种泛型类型参数：<Item>,<Block>，<Potion>（药水），<Biome>（生物群系），<SoundEvent>\n          （声音事件），<PotionType>（药水类型），<Enchantment>（附魔），<VillagerProfession>（村民职业），<EntityEntry>\n           （实体），<IRecipe>（合成表），你可以在ForgeRegistries类中看到这些泛型参数，也可以不使用泛型参数，直接用\n            RegisterEvent监听所有事件*/\n    }\n    /* EXAMPLE ITEM AND BLOCK - you probably want these in separate files\n    public static class MySpecialItem extends Item {\n\n    }\n\n    public static class MySpecialBlock extends Block {\n\n    }\n    */\n}</font>复制代码如果一个类被打上@Mod的注解，那么它就会被FML（forge mod loader）看作是一个mod主类。\n所有的class文件将会在ModClassLoader里过一遍，然后由Loader.identifyMods指定出mod，这会返回一个ModDiscover：\n\n\nprivate ModDiscoverer identifyMods(List<String> additionalContainers)\n{     \n    //additionalContainers由ModClassLoader产生，复制到injectedContainers集合中进行处理\n    injectedContainers.addAll(additionalContainers);\n    FMLLog.log.debug(\"Building injected Mod Containers {}\", injectedContainers);    \n    //mods是一个List<ModContainer>，minecraft则被forge当作ModContainer\n    mods.add(minecraft);  \n    //至于什么是ModContainer，参见http://www.mcbbs.net/thread-822754-1-1.html\n    //ModContainer container = Loader.instance().getIndexedModList().get(modId);    \n\n    mods.add(new InjectedModContainer(mcp,new File(\"minecraft.jar\"))); //把mcp加载进mods\n    for (String cont : injectedContainers)\n    {\n        ModContainer mc;\n        try\n       {\n            //从ModClassLoader中，反射获取所有ModContainer，有必要清楚的是，即使是同一个类，只要从不同的ClassLoader加载，也会被当成不同的   类，所以要指定从哪个ClassLoader加载\n            mc = (ModContainer) Class.forName(cont,true,modClassLoader).newInstance();\n        }\n        catch (Exception e)\n        {\n            FMLLog.log.error(\"A problem occurred instantiating the injected mod container {}\", cont, e);\n            throw new LoaderException(e);\n        }\n        mods.add(new InjectedModContainer(mc,mc.getSource())); 把mc（所有的ModContainer)加载进mods\n    }\n    ModDiscoverer discoverer = new ModDiscoverer(); \n\n    //if (!FMLForgePlugin.RUNTIME_DEOBF) //Only descover mods in the classpath if we're in the dev env.\n    {                                 \n\n       //TODO: Move this to GradleStart? And add a specific mod canidate for Forge itself.\n        FMLLog.log.debug(\"Attempting to load mods contained in the minecraft jar file and associated classes\");\n        discoverer.findClasspathMods(modClassLoader); //由ModDiscover进行接下来的寻找mod工作\n        FMLLog.log.debug(\"Minecraft jar mods loaded successfully\");\n    }\n\n    List<Artifact> maven_canidates = LibraryManager.flattenLists(minecraftDir);\n    List<File> file_canidates = LibraryManager.gatherLegacyCanidates(minecraftDir);\n\n    for (Artifact artifact : maven_canidates)\n    {\n        artifact = Repository.resolveAll(artifact);\n        if (artifact != null)\n        {\n            File target = artifact.getFile();\n            if (!file_canidates.contains(target))\n                file_canidates.add(target);\n        }\n    }\n    //Do we want to sort the full list after resolving artifacts?\n    //TODO: Add dependency gathering?\n    for (File mod : file_canidates)\n    {\n        // skip loaded coremods\n        if (CoreModManager.getIgnoredMods().contains(mod.getName()))\n        {\n            FMLLog.log.trace(\"Skipping already parsed coremod or tweaker {}\", mod.getName());\n        }\n        else\n        {\n            FMLLog.log.debug(\"Found a candidate zip or jar file {}\", mod.getName());\n            discoverer.addCandidate(new ModCandidate(mod, mod, ContainerType.JAR));\n        }\n    }\n\n    mods.addAll(discoverer.identifyMods());\n    identifyDuplicates(mods);\n    namedMods = Maps.uniqueIndex(mods, ModContainer::getModId);\n    FMLLog.log.info(\"Forge Mod Loader has identified {} mod{} to load\", mods.size(), mods.size() != 1 ? \"s\" : \"\");\n    return discoverer;\n}\n\n//这是ModDiscoverer\npublic class ModDiscoverer\n{\n    private List<ModCandidate> candidates = Lists.newArrayList();//ModCandidates：一个从文件名获取“备选mod”的类，顾名思义\n\n    private ASMDataTable dataTable = new ASMDataTable();//ASMDataTable/ASMData：我觉得应该叫ModMetaData，因为这和ASM半点没关系\n\n    private List<File> nonModLibs = Lists.newArrayList();\n\n    public void findClasspathMods(ModClassLoader modClassLoader)\n    {\n        List<String> knownLibraries = ImmutableList.<String>builder()\n                // skip default libs\n       .addAll(modClassLoader.getDefaultLibraries())\n                // skip loaded coremods\n       .addAll(CoreModManager.getIgnoredMods())\n                // skip reparse coremods here\n       .addAll(CoreModManager.getReparseableCoremods())\n                .build();\n        File[] minecraftSources = modClassLoader.getParentSources(); //调用了LaunchClassLoader.getSources()\n        if (minecraftSources.length == 1 && minecraftSources[0].isFile())\n        {\n            FMLLog.log.debug(\"Minecraft is a file at {}, loading\", minecraftSources[0].getAbsolutePath());\n            addCandidate(new ModCandidate(minecraftSources[0], minecraftSources[0], ContainerType.JAR, true, true));\n        }\n        else\n        {\n            int i = 0;\n            for (File source : minecraftSources)\n            {\n                if (source.isFile())\n                {\n                    if (knownLibraries.contains(source.getName()) || modClassLoader.isDefaultLibrary(source))\n                    {\n                        FMLLog.log.trace(\"Skipping known library file {}\", source.getAbsolutePath());\n                    }\n                    else\n                   {\n                        FMLLog.log.debug(\"Found a minecraft related file at {}, examining for mod candidates\", source.getAbsolutePath());\n                        addCandidate(new ModCandidate(source, source, ContainerType.JAR, i==0, true));\n                    }\n                }\n                else if (minecraftSources.isDirectory())\n                {\n                    FMLLog.log.debug(\"Found a minecraft related directory at {}, examining for mod candidates\", source.getAbsolutePath());\n                    addCandidate(new ModCandidate(source, source, ContainerType.DIR, i==0, true));\n                }\n                i++;\n            }\n        }\n    }\n\n    public List<ModContainer> identifyMods()\n    {\n        List<ModContainer> modList = Lists.newArrayList();\n\n        for (ModCandidate candidate : candidates)\n        {\n            try\n           {\n                List<ModContainer> mods = candidate.explore(dataTable);\n                if (mods.isEmpty() && !candidate.isClasspath())\n                {\n                    nonModLibs.add(candidate.getModContainer());\n                }\n                else\n               {\n                    modList.addAll(mods);\n                }\n            }\n            catch (LoaderException le)\n            {\n                FMLLog.log.warn(\"Identified a problem with the mod candidate {}, ignoring this source\", candidate.getModContainer(), le);\n            }\n        }\n\n        return modList;\n    }\n……\n}\n\n//这是FMLModContainer\nprivate void parseSimpleFieldAnnotation(SetMultimap<String, ASMData> annotations, String annotationClassName, Function<ModContainer, Object> retriever) throws IllegalAccessException\n{\n    Set<ASMDataTable.ASMData> mods = annotations.get(Mod.class.getName());\n    String[] annName = annotationClassName.split(\"\\\\.\");\n    String annotationName = annName[annName.length - 1;\n    for (ASMData targets : annotations.get(annotationClassName))\n    {\n        String targetMod = (String)targets.getAnnotationInfo().get(\"value\");\n        String owner = (String)targets.getAnnotationInfo().get(\"owner\");\n        if (Strings.isNullOrEmpty(owner))\n        {\n            owner = ASMDataTable.getOwnerModID(mods, targets);\n            if (Strings.isNullOrEmpty(owner))\n            {\n                FMLLog.bigWarning(\"Could not determine owning mod for @{} on {} for mod {}\", annotationClassName, targets.getClassName(),                    this.getModId());\n                continue;\n            }\n        }\n        if (!this.getModId().equals(owner))\n        {\n            FMLLog.log.debug(\"Skipping @{} injection for {}.{} since it is not for mod {}\", annotationClassName, targets.getClassName(),          targets.getObjectName(), this.getModId());\n            continue;\n        }\n        Field f = null;\n        Object injectedMod = null;\n        ModContainer mc = this;\n        boolean isStatic = false;\n        Class<?> clz = modInstance.getClass();\n        if (!Strings.isNullOrEmpty(targetMod))\n        {\n            if (Loader.isModLoaded(targetMod))\n            {\n                mc = Loader.instance().getIndexedModList().get(targetMod);\n            }\n            else\n           {\n                mc = null;\n            }\n        }\n        if (mc != null)\n        {\n            try\n        {\n                clz = Class.forName(targets.getClassName(), true, Loader.instance().getModClassLoader());\n                f = clz.getDeclaredField(targets.getObjectName());\n                f.setAccessible(true);\n                isStatic = Modifier.isStatic(f.getModifiers());\n                injectedMod = retriever.apply(mc);\n            }\n            catch (ReflectiveOperationException e)\n            {\n                FMLLog.log.warn(\"Attempting to load @{} in class {} for {} and failing\", annotationName, targets.getClassName(), mc.getModId(), e);\n            }\n        }\n        if (f != null)\n        {\n            Object target = null;\n            if (!isStatic)\n            {\n                target = modInstance;\n                if (!modInstance.getClass().equals(clz))\n                {\n                    FMLLog.log.warn(\"Unable to inject @{} in non-static field {}.{} for {} as it is NOT the primary mod instance\", annotationName, targets.getClassName(), targets.getObjectName(), mc.getModId());\n                    continue;\n                }\n            }\n            f.set(target, injectedMod);\n        }\n    }\n}\n\n\n不管这过程多么复杂，总之forge将会从@Mod主类加载你的mod的其他部分——理论上三个初始化方法不是必须的，但是它们用来负责监听三个阶段的事件，很有用处。\n\n\n\n要声明一个物品，最简单的方法就是：Item yourItem=new Item（）；于是你写出了你的第一个物品（当然需要在主类中注册到游戏中）。当然，这样声明物品仅仅适合于没有任何行为的合成材料（例如钻石和下界星），实际情况中一般要定义一个自己的类：\npublic class yourItem extends Item{}\n然后yourItem对象就可以调用或覆写Item下的方法被你使用，原版具有这些方法：\npublic static final RegistryNamespaced<ResourceLocation, Item> REGISTRY = net.minecraftforge.registries.GameData.getWrapper(Item.class);\n//使用该字段你可以获得所有注册到游戏中的物品，Forge提供\n\npublic ItemStack getDefaultInstance(){\n//获取物品的“默认”ItemStack，Item转ItemStack的重要方法，但是如果你有多个ItemStack使用了相同的Item，\n//如new ItemStack（yourItem，1，meta（0-100）），这个方法则无法得到你指定的ItemStack，例如Mekanism的输导矩阵\n}\n\npublic static Item getByNameOrId（String id）{\nItem item = REGISTRY.getObject(new ResourceLocation(id));\n/*通过传入的注册id，例如“minecraft：apple”，获得一个Item，其中的REGISTRY指代所有注册到游戏中的物品*/}\n\npublic static Item getItemFromBlock(Block blockIn){\nItem item = BLOCK_TO_ITEM.get(blockIn);\nreturn item == null ? Items.AIR : item;\n/*通过传入一个方块blockIn，可以获取这个方块所对应的物品，如果没有就是空气，一般可以当做获取掉落物的方法*/\n/*当然也有例外，例如石头挖掘得到圆石，这时需要getItemDropped（）方法获取掉落物*/}\n\npublic boolean updateItemStackNBT(NBTTagCompound nbt){\n/*用户可以决定是否通过预先传入的NBT标签，来更新物品已有的NBT标签，例：*/\n   if（nbt.hasKey（“Frog”））{\n      nbt.setString（“ZeminJiang”，“ImAngry！”）\n      return true；}\nelse return false；}\n\npublic EnumActionResult onItemUseFirst(EntityPlayer player, World world, BlockPos pos, EnumFacing side, float hitX, float hitY, float hitZ, EnumHand hand){\n/*当玩家手持物品，右击方块时该方法被调用，返回一个点击结果*/\n}\n\npublic EnumActionResult onItemUse(EntityPlayer player, World worldIn, BlockPos pos, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {/*当玩家手持物品，右击方块时该方法被调用，返回一个点击结果，例：*/\nItemStack itemStack=player.getHeldItem（MAIN_HAND）；//获取玩家主手持有的物品\nif（facing==EnumFacing.DOWN）\n   return EnumActionResult.FAIL；//限定玩家不能右击方块的下面，否则就会失败\nBlock block=worldIn.getBlockState（pos）.getBlock；//根据给定的BlockPos，即MC坐标对象，获取当前位置的方块\nif（block==Blocks.SAND）{\n   spawnEntity（new EntityCreeper（），worldIn）//生成一只苦力怕\n   itemStack.shrink（1）；//物品数量-1，如果是像鸡蛋一样的消耗品，可以调用这个\n   return EnumActionResult.SUCCESS；\n}\nelse return EnumActionResult.FAIL；\n}    \n\npublic ActionResult<ItemStack> onItemRightClick(World worldIn, EntityPlayer playerIn, EnumHand handIn) {\n/*当玩家手持物品右击时（准确来说是对空右击），返回一个点击结果*/}\n\npublic float getDestroySpeed（ItemStack stack，IBlockState state）{/*获取挖掘速度*/}\n\n public boolean onBlockDestroyed(ItemStack stack, World worldIn, IBlockState state, BlockPos pos, EntityLivingBase entityLiving){\n /*当一个方块被该物品破坏时，该方法被调用，统计物品使用次数*/\n if（state.getBlock（）==Blocks.GOLD）//判断方块是不是金块，与worldIn.getBlockState（pos）.getBlock（）等效\nstack.damageItem（1，entityLiving）；//物品耐久-1\nelse stack.damageItem（2，entityLiving）；\nreturn true；\n }\n\npublic void onUsingTick(ItemStack stack, EntityLivingBase player, int count){\n//当玩家使用此物品时（例如在挖矿），在特定的某一tick做出操作\nif（count==6&&player.inventory.getInventory.contains（anotherStack））//判定第6个tick，anotherStack是预先声明的另一物品\nstack.damageItem（1，player）；\n}\n\npublic void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn){\n/*添加自定义物品信息（tooltip），当鼠标指针移动到物品上就会显示出来*/\n/*IToolFlag.isAdvanced（）添加的是高级调试信息，需要F3+H才会显示出来*/\nif（stack.getItem（）instanceof YourItem）\ntooltip.add（“你的头，像皮球”）；\n}\n\npublic void onUpdate(ItemStack stack, World worldIn, Entity entityIn, int itemSlot, boolean isSelected){\n/*MC用了lwjgl的计时器，这个计时器规定1s=20tick，实现了这个方法后物品会每tick刷新一次，用户可以借刷新进行操作*/\nif（worldIn.provider.getDimensionType（）==DimensionType.End）{//判断当前世界是末地\nentityIn.isBurning（）；//携带此物品的实体会燃烧起来\nif（entityIn instanceof EntityPlayer）\nentityIn.setHealth(entityIn.getMaxHealth())；//如果持有它的实体是玩家，玩家的血量会被实时设定为最大\n}\n\npublic boolean hasEffect(ItemStack stack){/*判断物品是否被附魔*/\nreturn stack.isItemEnchanted();\n}\n\nprotected RayTraceResult rayTrace(World worldIn, EntityPlayer playerIn, boolean useLiquids){\n//获取当前物品指向的方块，调用了World.rayTraceBlocks（）方法\n}\n\npublic void getSubItems(CreativeTabs tab, NonNullList<ItemStack> items){\n//新建一批同一id但是不同meta的物品，例如原版染料和染色羊毛\n if (this.isInCreativeTab(tab))\n     for (int i = 0; i < 16; ++i)\n     items.add(new ItemStack(this, 1, i));\n}\n\nprotected boolean isInCreativeTab(CreativeTabs targetTab){\n//调用以判断物品是否在某个创造物品栏中\n}\n\npublic Multimap<String, AttributeModifier> getAttributeModifiers(EntityEquipmentSlot slot, ItemStack stack){\n//调节各种物品参数，例如护甲值，攻速，伤害之类\nMultimap<String, AttributeModifier> multimap = super.getAttributeModifiers(equipmentSlot, itemStack);\nif (equipmentSlot == EntityEquipmentSlot.MAINHAND) {\nmultimap.put(SharedMonsterAttributes.ATTACK_DAMAGE.getName(), new AttributeModifier(ATTACK_DAMAGE_MODIFIER,\"Tool Modifier\", SWORD_HARM, 0));}\n/*SharedMonsterAttributes.ATTACK_DAMAGE：内置的攻击力调整参数，toName（）起标记作用\nnew AttributeModifier（ATTACK_DAMAGE_MODIFIER，“ToolModifier”，SWORD_HARM，0）：\nATTACK_DAMAGE_MODIFIER：内置的攻击力调整器，传入AttributeModifier（属性调整器）以指定攻击力\nSWORD_HARM：预先定义的int，代表剑的伤害*/\n\nmultimap.put(SharedMonsterAttributes.ARMOR_TOUGHNESS.getName(),SharedMonsterAttributes.readAttributeModifierFromNBT(itemStack.getSubCompound(\"generic.armorToughness\")));\n/*SharedMonsterAttributes.ARMOR_TOUGHNESS：内置的护甲强度调整参数，toName（）起标记作用\nnew AttributeModifier（ARMOR_TOUGHNESS_MODIFIER，“ToolModifier”，ARMOR_TOUGH，0）：\nARMOR_TOUGHNESS_MODIFIER：内置的护甲强度调整器，传入AttributeModifier（属性调整器）以指定攻击力\nARMOR_TOUGH：预先定义的int，代表护甲强度*/\n\nreturn multimap;}:\n}\n\npublic Item setMaxDamage（int damage）{/*设置物品的耐久，damage为-1即为无限耐久*/}\npublic Item setMaxItemStack（int stack）{/*设置物品的最大堆叠数量，默认64*/}\npublic Item setHasSubItems（boolean hasSubTypes）{/*设置物品是否有子物品，就像原版床与羊毛，煤炭*/}\npublic Item setFull3D（）{/*设置物品手持时是否会被3D渲染*/}\npublic Item setUnlocalizedName（String name）{/*设置物品的本地化名称，这个名称会显示给翻译者翻译*/}\npublic Item setCreativeTab（CreativeTab creativeTab）{/*设置物品的创造物品栏*/}\npublic boolean getIsRepairable（ItemStack toRepair，ItemStack repair）{/*设置物品是否能在铁砧中被修复，toRepair是待修复物品，repair是相应的修复材料，例如钻石镐会被钻石修复*/}\npublic void setHarvestLevel（String toolClass，int level）{/*设置工具的挖掘等级level，toolClass是工具类型，有“pickaxe”，“axe”，“shovel”三种；木头和金的等级是0，石头的等级是1，铁的等级是2，钻石的等级是3，你也可以设置一个更高的值*/\n/*如果你自定义了方块，那么方块的Material会决定你的挖掘等级是否有用，详见http://www.mcbbs.net/thread-825589-1-1.html*/}\n/*以上方法可以直接声明在你的物品类构造器中以设定物品的基础属性，例如：\npublic YourItem（）{\nsetMaxDamage（300）；\nsetMaxItemStack（16）；}*/\n\npublic boolean isBeaconPayment（ItemStack stack）{/*判定或设置该物品可以在信标中被消耗以提供buff，原版默认是铁，金，钻石和绿宝石*/}\n\npublic boolean itemInteractionForEntity(ItemStack stack, EntityPlayer playerIn, EntityLivingBase target, EnumHand hand){\n/*设置该物品能右键用于目标实体，例如剪刀可以右键养剪羊毛*/\nif（playerIn.getHeldItemMainhand.getItem（）instanceof YourItem）{//判断你主手的物品是否是你定义的物品\n     if（target instanceof EntityBat）{//判断目标实体是蝙蝠\n     target.dropItem（YourItems.BAT_FUR，2）；//掉落蝙蝠毛2个\n     stack.damageItem（1，playerIn）；\nreturn true；}\nelse return false；}\n\npublic boolean onDroppedByPlayer(ItemStack item, EntityPlayer player){/*若返回true，则该物品无法从玩家物品栏掉出去，无论是按Q丢弃还是玩家死亡*/}\n\npublic NBTTagCompound getNBTShareTag(ItemStack stack){\n/*重写此方**导致服务器和客户端之间同步的NBT被改变，危险的方法，如果你不知道你在做什么请不要动它*/}\n\npublic boolean onBlockStartBreak(ItemStack itemstack, BlockPos pos, EntityPlayer player){/*若返回true，会防止方块以正常情况被破坏，例如用镐子挖掉*/}\n\npublic boolean onLeftClickEntity(ItemStack stack, EntityPlayer player, Entity entity){/*若返回true，则设置该物品无法对生物造成伤害*/}\n\npublic int getEntityLifespan(ItemStack itemStack, World world){/*设置物品被丢到世界中的存在时间，默认为6000tick，也就是5分钟*/}\n\npublic boolean hasCustomEntity(ItemStack stack){\n//若返回true，当物品被丢到世界中时，会出现一个由Item.createEntity（）自定义的实体而不是物品掉落物本身\n//血魔感知剑就是这样，当按Q丢弃到世界中，会出现一把飞剑\n}\n\npublic Entity createEntity(World world, Entity location, ItemStack itemstack){\n/*物品丢弃到世界中时尝试生成实体*/\nif（itemstack.getCount（）>32）\nreturn new EntityCreeper（world）；\n}\n\npublic float getSmeltingExperience(ItemStack item){/*获取熔炼物品后得到的经验*/}\n\npublic boolean doesSneakBypassUse(ItemStack stack, net.minecraft.world.IBlockAccess world, BlockPos pos, EntityPlayer player){\n/*若返回true，则当玩家潜行时，物品将会点击到下面的方块*/}\n\npublic void onArmorTick(World world, EntityPlayer player, ItemStack itemStack){\n/*如果你想让你自定义的护甲在刷新时做些什么，只需重写这个方法，然后调用它\nitemStack.addEnchantment（33，1）//添加精准采集附魔，当然这没个P用\n}\n//yourArmor.onArmorTick（）；\n\npublic boolean isValidArmor(ItemStack stack, EntityEquipmentSlot armorType, Entity entity){\n/*返回真，你的物品就可以当做护甲，EntityEquipmentSlot（装备栏）有6个，分别是双手，头，胸（chest），护腿和靴子。\n}\n\npublic String getArmorTexture(ItemStack stack, Entity entity, EntityEquipmentSlot slot, String type){\n/*继承了ItemArmor类的护甲，可以获取你自定义的护甲材质，返回null即为默认值*/\n}\n\npublic void renderHelmetOverlay(ItemStack stack, EntityPlayer player, net.minecraft.client.gui.ScaledResolution resolution, float partialTicks){\n/*当玩家戴上给定头盔时，渲染玩家的HUD，例如玩家戴上南瓜头后视野受到影响*/\n}\n\npublic boolean showDurabilityBar(ItemStack stack){\n//物品是否显示耐久条，编写有能量条的物品时有必要实现\nItem item=(IEnergyStorage)(stack.getItem());\nreturn item.getEnergyStored()!=item.getMaxEnergyStored();\n//IEnergyStorage:Forge自带的能量实现接口，来自RF API\n}\n\npublic double getDurabilityForDisplay(ItemStack stack){\n//默认采用“当前耐久（能量）/最大耐久（能量）”的形式显示耐久条\nItem item=(IEnergyStorage)(stack.getItem());\nreturn item.getEnergyStored()/item.getMaxEnergyStored();\n}\n\npublic int getRGBDurabilityForDisplay(ItemStack stack){\n//默认的耐久条颜色算法，你可以指定自己的\nreturn MathHelper.hsvToRGB(Math.max(0.0F, (float) (1.0F - getDurabilityForDisplay(stack))) / 3.0F, 1.0F, 1.0F);\n}\n\npublic void setDamage(ItemStack stack, int damage){\n//指定某一物品的当前耐久，简单直观\n}\n\npublic int getItemStackLimit(ItemStack stack){\n//获取当前物品的堆叠数量，深渊国度mod就是靠堆叠数判断每个物品产生的PE\nreturn this.getItemStackLimit();\n}\n\npublic int getItemEnchantability(ItemStack stack){\n//获取/设定物品的附魔能力，例如寰宇剑的附魔能力是200.\n}\n\npublic boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment){\n//指定物品能否满足一定条件，在附魔台中附魔，例如1000耐久以上可附时运2,1000耐久以下可附时运3\nreturn enchantment.type.canEnchantItem(stack.getItem());\n}\n\npublic boolean shouldCauseBlockBreakReset(ItemStack oldStack, ItemStack newStack){\n//默认情况下，当玩家挖掘方块时切换手中物品，挖掘进度会被重置，如果该方法返回false，则实现该方法的物品切换时不会重置进度\nreturn !(newStack.getItem() == oldStack.getItem() && ItemStack.areItemStackTagsEqual(newStack, oldStack) && (newStack.isItemStackDamageable() || newStack.getMetadata() == oldStack.getMetadata()));\n}\n\npublic boolean canDisableShield(ItemStack stack, ItemStack shield, EntityLivingBase entity, EntityLivingBase attacker){\n//指定该物品是否能破盾牌，默认是斧子\nreturn this instanceof ItemAxe;\n}\n\npublic boolean isShield(ItemStack stack, @Nullable EntityLivingBase entity){\n//指定某物品是否能作为盾牌\nreturn entity instanceof EntityPig &&stack.getItem() instanceof Items.SADDLE;\n//当猪带着马鞍时就可以作为盾牌\n}\n\npublic int getItemBurnTime(ItemStack itemStack){\n//获取/设定物品的燃烧时间，0不作为燃料，-1则是原版的燃烧时间\nreturn -1;\n}\n\n复制代码Forge具有如下方法：\npublic String getCreatorModId(ItemStack itemStack){\n//获取当前物品是由哪个mod注册的\nreturn net.minecraftforge.common.ForgeHooks.getDefaultCreatorModId(itemStack);\n}\n\npublic ICapabilityProvider initCapabilities(ItemStack stack, @Nullable NBTTagCompound nbt){\n//物品初始化时，加载Capability（能力）系统，让物品拥有相应的“能力”，后续介绍\nreturn null;\n}\n\n复制代码\n\n理论上你的每一个物品都可以这样声明，但是1.12及其以前的物品id数量都是有限的（原版4096，某些mod会将其扩增到int上限），如果你想写大一些的mod，就会消耗掉很多id（尤其是一些想写史诗级mod的同学），因此光用Item乱声明是行不通的，需要ItemStack类来曲线救国。\n你可以简单地把ItemStack理解为一个Item在同一个id的不同实例——例如TE的铜，锡，铅，银等金属，又或者是不同耐久的两把钻石镐，就是通过ItemStack来声明的，虽然TE有9种金属锭和对应的矿物，但实际上只消耗了一个id，例子如下：\n\nItem metal=new Item（）；ItemStack iron=new ItemStack（metal，1,1）；\nItemStack copper=new ItemStack（metal，1,2）；\n通过上述三行，你已经声明了同一个Item的两个ItemStack，会在游戏中被玩家看到。\nItemStack有7个构造器，说明了声明一个ItemStack需要的参数：\npublic ItemStack(Block blockIn){/*通过一个方块blockIn声明相应的物品，例如半砖方块获取半砖物品*/}\n    public ItemStack(Block blockIn, int amount){/*你可以再指定物品堆叠数量，由于我们在创造物品栏看到的物品都是一个一个的，因此amount一般设为1*/}\n    public ItemStack(Block blockIn, int amount, int meta){/*meta是标签，可以是1,2,3……等int数，无论你声明多少个meta，都只消耗一个id}\n    public ItemStack(Item itemIn){/*通过一个物品itemIn声明相应的物品实例，例如new ItemStack（Items.DIAMOND）*/}\n    public ItemStack(Item itemIn, int amount){/*你可以再指定物品堆叠数量，由于我们在创造物品栏看到的物品都是一个一个的，因此amount一般设为1*/}\n    public ItemStack(Item itemIn, int amount, int meta){/*meta作用同上，起到一个标签的作用，这样无论你声明多少个物品实例，都只消耗一个物品ID*/}\n    public ItemStack(Item itemIn, int amount, int meta, @Nullable NBTTagCompound capNBT){\n/*为物品添加附加的NBT，例如物品一合成出来就有时运3附魔*/\n/*例子：\nNBTTagCompound nbtTagCompound=new NBTTagCompound（）；\nnbtTagCompound.setInteger（“id”，Enchantment.getEnchantmentID（Enchantments.FORTUNE））；\nnbtTagCompound.setInteger（“lvl”，3）；\n//不用怀疑，NBT就是这样的刻意声明，“lvl”一定代表附魔等级，自己声明NBT标签的时候注意一下\n……\nnew ItemStack（yourItem，1,1，nbtTagCompound）；*/\n}\npublic ItemStack(NBTTagCompound compound){}复制代码你可以用ItemStack.getItem（）或者Item.getDefaultInstance（）来实现Item和ItemStack的互转。注意，getDefaultInstance（）可能会引发异常，而且无法根据用户要求返回一个具体的ItemStack，例如mekanism有4个等级的输导矩阵，在calculator（运算工艺）的原子增幅仪里复制就只能得到普通的输导矩阵，因为得到的ItemStack中，并没有指定具体的metadata，而只是getDefaultInstance（）。\npublic ItemStack splitStack(int amount){}\n//按照给定的数量，将ItemStack分成两堆\n\npublic EnumActionResult onItemUse(EntityPlayer playerIn, World worldIn, BlockPos pos, EnumHand hand, EnumFacing side, float hitX, float hitY, float hitZ){\n//当把玩家手中的物品（不管哪只手）右键方块使用时，进行的操作，例如剪刀右键树叶\n/*if（worldIn.provider.getDimension（）=6）//6是aroma1997矿界的id，当然可能会被修改\nswitch（side）{\ncase（side==EnumFacing.SOUTH):spawnEntity(……);//如果是南面，召唤一个实体，随便什么都行\n}*/\n}\n\npublic EnumActionResult onItemUseFirst(EntityPlayer playerIn, World worldIn, BlockPos pos, EnumHand hand, EnumFacing side, float hitX, float hitY, float hitZ){}\n//与onItemUse（）几乎一样，具体区别可查看Item.onItemUseFirst（）\n\npublic float getDestroySpeed(IBlockState blockIn){}\n//获取物品对方块的破坏速度，因为一把镐对钻石和黑曜石的破坏速度肯定不一样\n\n//没什么可说的，这两个方法都是直接调取对应Item的方法，本质完全一样\npublic ActionResult<ItemStack> useItemRightClick(World worldIn, EntityPlayer playerIn, EnumHand hand)\n{\n    return this.getItem().onItemRightClick(worldIn, playerIn, hand);\n}\n\npublic ItemStack onItemUseFinish(World worldIn, EntityLivingBase entityLiving)\n{\n    return this.getItem().onItemUseFinish(this, worldIn, entityLiving);\n}\n\npublic NBTTagCompound writeToNBT(NBTTagCompound nbt){}\n//将一段NBT写入当前ItemStack中，完成玩家所希望的属性的持久化存储\n\n//没什么可说的都一样\npublic int getMaxStackSize()\n{\n    return this.getItem().getItemStackLimit(this);\n}\npublic boolean isItemStackDamageable(){}\n//判断一个物品是否有耐久，如果没有，它会有一个boolean类型的标签“Unbreakable”\n\n\npublic boolean isItemDamaged(){}\n//判断物品是不是满耐久，返回true则代表已经受损，或者不是满能量\n\n\npublic boolean attemptDamageItem(int amount, Random rand, @Nullable EntityPlayerMP damager){}\n//尝试破坏玩家手中的物品，如果该物品有耐久附魔，将会有几率取消耐久损耗，如果带来的耐久损耗（amount）大于最大耐久，物品则被破坏，该方法返回true\n\npublic boolean attemptDamageItem(int amount, Random rand, @Nullable EntityPlayerMP damager){}\n损耗给定的耐久值，如果amount大于当前耐久值，物品会被直接破坏\n\npublic void hitEntity(EntityLivingBase entityIn, EntityPlayer playerIn){}\n//打击实体，没什么可说的\n\npublic void onBlockDestroyed(World worldIn, IBlockState blockIn, BlockPos pos, EntityPlayer playerIn){\n//在方块被破坏时做些什么\n/*if(blockIn.getBlock().equals(Blocks.OBSIDIAN && playerIn.getHealth()<5)\nspawnEntity(ENTITY_LIGHTNING_THUNDER);\n//如果玩家在血量低于5的情况下挖黑曜石，当黑曜石被破坏时劈下闪电*/\n}\n\npublic ItemStack copy(){}\n//复制一个一样的ItemStack\n\n\npublic static boolean areItemStackTagsEqual(ItemStack stackA, ItemStack stackB){}\n//判断两个ItemStack的NBT是否一致\n\npublic static boolean areItemStacksEqual(ItemStack stackA, ItemStack stackB){}\n//比较两个ItemStack是否完全一致\n\npublic static boolean areItemsEqual(ItemStack stackA, ItemStack stackB)\n//只比较两个ItemStack的物品和耐久值，忽略NBT\n\npublic static boolean areItemsEqualIgnoreDurability(ItemStack stackA, ItemStack stackB){}\n//只比较两个ItemStack是否物品相同，忽略耐久\n\npublic String getUnlocalizedName(){}\n//获得ItemStack的未本地化名\n\npublic void updateAnimation(World worldIn, Entity entityIn, int inventorySlot, boolean isCurrentItem){}\n//更新动画，一般用于地图的更新\n\npublic void onCrafting(World worldIn, EntityPlayer playerIn, int amount)\n{\n    //无可奉告，参考Item.onCreated（）\n    playerIn.addStat(StatList.getCraftStats(this.item), amount);\n    this.getItem().onCreated(this, worldIn, playerIn);\n}\n\npublic boolean hasTagCompound(){}\n//判断该ItemStack是否有NBT\n\npublic NBTTagCompound getTagCompound(){}\n//获取NBT\n\npublic NBTTagCompound getOrCreateSubCompound(String key){}\n//获取（如果没有则创建）一个子NBT\n\npublic void removeSubCompound(String key){}\n//移除子NBT\n\npublic NBTTagList getEnchantmentTagList(){}\n//根据“ench”这个key，获得该ItemStack的NBTList\n\npublic void setTagCompound(@Nullable NBTTagCompound nbt){}\n//把一个NBT分配到这个ItemStack\n\npublic ItemStack setTranslatableName(String p_190924_1_){}\n//在NBT里设置一个可以翻译的名字\n\npublic List<String> getTooltip(@Nullable EntityPlayer playerIn, ITooltipFlag advanced){}\n//获取这个物品的tooltip，例如你为心爱姑娘在工具里写的情诗\n\npublic void addEnchantment(Enchantment ench, int level){}\n//为ItemStack添加附魔，Enchantment是附魔，level是附魔等级\n//Enchantment ench=ForgeRegistries.ENCHANTMENTS.getValue(\"Unbreaking\");\n//addEnchantment(ench,3);\n\npublic void setTagInfo(String key, NBTBase value)\n{\n    //和setTag唯一的区别在于无需用户手动判断null\n    if (this.stackTagCompound == null)\n    {\n        this.setTagCompound(new NBTTagCompound());\n    }\n    this.stackTagCompound.setTag(key, value);\n}\n\npublic boolean isOnItemFrame(){}\n//这个物品在不在物品展示框里面\n\n//显而易见\npublic void setItemFrame(EntityItemFrame frame)\n{\n    this.itemFrame = frame;\n}\n\n@Nullable\npublic EntityItemFrame getItemFrame()\n{\n    return this.isEmpty ? null : this.itemFrame;\n}\n\npublic int getRepairCost(){}\n//获取这个ItemStack的铁砧修理费\n\npublic void setRepairCost(int cost){}\n//设置这个ItemStack的铁砧修理费\n\npublic Multimap<String, AttributeModifier> getAttributeModifiers(EntityEquipmentSlot equipmentSlot){\n//……\n//AttributeModifier attributemodifier = SharedMonsterAttributes.readAttributeModifierFromNBT(nbttagcompound);\n//……\n//与Item.getAtrributeModifiers不同，ItemStack.getAttributeModifiers会检查ItemStack的NBT以找到需要的属性\n}\n\npublic void addAttributeModifier(String attributeName, AttributeModifier modifier, @Nullable EntityEquipmentSlot equipmentSlot){}\n//直接给工具添加属性，modifier用作实参时可以用SharedMonsterAtrributes.readAttributeModifierFromNBT(NBTTagCompound compound)来从NBT获取\n\npublic boolean canDestroy(Block blockIn){}\n//是否能破坏指定方块blockIn\n\npublic boolean canPlaceOn(Block blockIn){}\n//Itemstack能够放在方块上，一般这样的方块只有物品展示框\n\npublic int getCount(){}\n//获取ItemStack里物品的数量，例如一堆物品有35个，那得到的数量就是35\n\npublic void setCount(int size){}\n//指定ItemStack中物品的数量\n\npublic void grow(int quantity){}\n//让ItemStack中的物品数量增长一定数量（quantity）\n\npublic void shrink(int quantity){}\n//让ItemStack中的物品减少一定数量，例如丢鸡蛋时，就需要shrink(1)\n\n\npublic boolean hasCapability(net.minecraftforge.common.capabilities.Capability<?> capability, @Nullable net.minecraft.util.EnumFacing facing){}\n//该物品是否具有能力（capability），如果不注重facing可以为null\n\n@Override\n@Nullable\npublic <T> T getCapability(net.minecraftforge.common.capabilities.Capability<T> capability, @Nullable net.minecraft.util.EnumFacing facing){}\n//获取相应的能力，facing一般情况下null就可以\n\n//与readNBT和writeNBT大同小异\npublic void deserializeNBT(NBTTagCompound nbt)\n{\n    // TODO do this better while respecting new rules\nfinal ItemStack itemStack = new ItemStack(nbt);\n    this.stackTagCompound = itemStack.stackTagCompound;\n    this.capNBT = itemStack.capNBT;\n}\n\npublic NBTTagCompound serializeNBT()\n{\n    NBTTagCompound ret = new NBTTagCompound();\n    this.writeToNBT(ret);\n    return ret;\n}\n\npublic static boolean areItemStacksEqualUsingNBTShareTag(ItemStack stackA, ItemStack stackB){}\n//基于areItemStackShareTagsEqual(ItemStack stackA, ItemStack stackB)方法，比较两个ItemStack所对应的Item的NBT\n\n\n有必要说清楚的一件事是，在MC里并不是真的画了10万个草方块，而是把同一个草方块画了10万遍（如果你学习OpenGL，可以了解一下实例化渲染），符合Java的“享元模式”，因此也有人说MC的方块（Block）是享元的，如果是熔炉这样，存在内容物且内容物不定，那么就不能是享元的——否则你会看到100个里面有一组生鸡肉且一起被烧熟的熔炉，这样的东西往往用TileEntity描述。\npublic static int getIdFromBlock(Block blockIn)\n{\n    return REGISTRY.getIDForObject(blockIn);\n    //由方块blockIn获取一个方块的id\n    //不难看出，在forge环境下，我们经常使用REGISTRY来获取各种物品，方块等，而不是原版本身声明的方式\n    //public static final RegistryNamespacedDefaultedByKey<ResourceLocation, Block> REGISTRY = net.minecraftforge.registries.GameData.getWrapperDefaulted(Block.class);\n}\n\npublic static int getStateId(IBlockState state){}\n//由给定的IBlockState获取state的id，在MC中Block和IBlockState是密不可分的\n\npublic static Block getBlockById(int id){}\n//和getIdFromBlock反过来，由id获取方块，但是非原版情况下似乎没人知道哪个id对应哪个方块\n\npublic static IBlockState getStateById(int id){}\n//和getStateId反过来，由id获取IBlockState\n\npublic static Block getBlockFromItem(@Nullable Item itemIn){}\n//如果Item是ItemBlock的话，就可以从这个Item获取相应的Block\n\npublic static Block getBlockFromName(String name){}\n//由名称例如“Obsidian”获取相应方块\n\npublic int getMetaFromState(IBlockState state){}\n//由传入的IBlockState获取相应的meta值，适合一个方块有多种meta的情况，例如末地门框架\n\npublic Block setLightOpacity(int opacity){}\n//一般用在方块构造函数内部，指定方块的不透明度\n\npublic Block setLightLevel(float value){}\n//一般用在方块构造函数内部，指定方块的亮度，value介于0-1之间（乘15为实际值），也可以取更大的数\n\npublic Block setResistance(float resistance){}\n//一般用在方块构造函数内部，指定方块的抗爆性，resistance一般为10（乘3为实际值），也可以取别的数\n\npublic Block setHardness(float hardness){}\n//一般用在方块构造函数内部，指定方块的硬度，hardness一般为6（乘5为实际值），也可以取别的数\n\npublic Block setBlockUnbreakable(){}\n//一般用在方块构造函数内部，直接将方块设为不可破坏\n\npublic Block setTickRandomly(boolean shouldTick){}\n//一般用在方块构造函数内部，如果shouldTick为true，方块将随机时间更新\n\nprotected static boolean isExceptionBlockForAttaching(Block attachBlock)\n{\n    return true；\n    //if(Block.isExceptionForAttaching(attachBlock)\n    //用来判断或指定不能直接左键破坏或者破坏后会丢失内容物的方块，\n    //默认有潜影箱，树叶，活板门，信标，炼药锅，玻璃，萤石块，冰，海晶灯\n}\npublic boolean isPassable(IBlockAccess worldIn, BlockPos pos)\n{\n    return true;\n    //用来判断或指定可以直接通过的方块，例如草\n}\npublic boolean isReplaceable(IBlockAccess worldIn, BlockPos pos){return false；}\n//用来判断或指定该方块能否被其他的方块右键放置而替换掉，例如空气，草，高草\n\nprotected static void addCollisionBoxToList(BlockPos pos, AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes, @Nullable AxisAlignedBB blockBox){}\n//如果传入的blockBox经过pos大小的平移，能够和entityBox交叉的话，就将blockBox添加到colldingBoxes中，因为一个方块可能有多个碰撞箱\n\npublic void updateTick(World worldIn, BlockPos pos, IBlockState state, Random rand)\n{\n//当setTickRandomly(true)时，这个方法被调用，执行方块在更新时的操作\n/*if(state.getBlock(pos.up(1)).equals(DIAMOND_BLOCK)) //判断当前方块位置上方一格是不是钻石块\nworldIn.getNearestAttackablePlayer(pos，128，128).attackEntityFrom(DamageSource.MAGIC,10); //搜寻xyz方向上128格内最近的玩家并给予10点药水伤害\n}\npublic void randomDisplayTick(IBlockState stateIn, World worldIn, BlockPos pos, Random rand)\n{\n//由于是渲染有关，因此这个方法是客户端限定的，是的，任何涉及渲染的方法都应该是SideOnly(Side.CILENT)，这个方法只在渲染tick时更新\n}\npublic void onBlockDestroyedByPlayer(World worldIn, BlockPos pos, IBlockState state)\n{\n//定义了当玩家破坏这个方块之后触发的行为\nif(pos.getX()==677&&pos.getZ()==788）\nworldIn.getNearestAttackablePlayer(pos，2，2).setPositionAndUpdate(1，1，1)；\n//破坏方块后获取（4，4，4）范围内最近的玩家，传送到（1，1，1）坐标\n}\npublic void onBlockAdded(World worldIn, BlockPos pos, IBlockState state)\n{\nNBTTagCompound nbt=new NBTTagCompound();\nnbt.setString(\"player\",getNearestPlayer(pos,1,1));\n//方块在区块生成之后未更新TileEntity之前进行的操作\nif(hasTileEntity）\nworld.getTileEntity(pos).writeToNBT(nbt);\n}\npublic void breakBlock(World worldIn, BlockPos pos, IBlockState state){\n//在服务端被调用，破坏方块后TileEntity被改变前起效，可以用来实现保险箱\nTileEntity te=worldIn.getTileEntity(pos);\nif(te!=null) {\n    NBTTagCompound nbtTagCompound = new NBTTagCompound();\n    nbtTagCompound.setTag(\"Tile\", te.getTileData());\n    ItemStack itemStack = new ItemStack(this);\n    itemStack.writeToNBT(nbtTagCompound);\n    EntityItem entityItem=new EntityItem(worldIn,player.posX,player.posY,player.posZ,itemStack);\n    entityItem.setInfinitePickupDelay();        //掉落物将不会消失\n    entityItem.setEntityInvulnerable(true);   //掉落在世界中的物品是EntityItem，setEntityInvulnerable(true)可确保物品不被岩浆等外力破坏，类似于匠魂工具\n    worldIn.spawnEntity(entityitem);\n}}\n\npublic int quantityDropped(Random random)\n{   //根据传入的随机参数，指定破坏方块时掉落物品的数量\n    return 1;\n}\n\npublic Item getItemDropped(IBlockState state, Random rand, int fortune)\n{   //保持默认实现就好，当然你可以让它掉落点别的\n    //return Item.getItemFromBlock(this);\n    //以下是demo\n    if(rand.nextFloat()>0.99)\n       return Items.DIAMOND;//1%几率得到钻石\n}\n\npublic void dropBlockAsItemWithChance(World worldIn, BlockPos pos, IBlockState state, float chance, int fortune)\n{\n   //将方块概率掉落为物品\n   List<ItemStack> drops = getDrops(worldIn, pos, state, fortune);//fortune是时运等级\n   if(1<chance<100) //方便表述请勿吐槽\n   for(ItemStack drop:drops)\n   spawnAsEntity(worldIn, pos, drop);\n}\n\npublic static void spawnAsEntity(World worldIn, BlockPos pos, ItemStack stack) //将方块掉落成掉落物(EntityItem)的方法\n{\n    if (!worldIn.isRemote && !stack.isEmpty() && worldIn.getGameRules().getBoolean(\"doTileDrops\")&& !worldIn.restoringBlockSnapshots) // do not drop items while restoring blockstates, prevents item dupe\n{\n        if (captureDrops.get())\n        {\n            capturedDrops.get().add(stack);\n            return;\n        }\n        float f = 0.5F;\n        double d0 = (double)(worldIn.rand.nextFloat() * 0.5F) + 0.25D;\n        double d1 = (double)(worldIn.rand.nextFloat() * 0.5F) + 0.25D;\n        double d2 = (double)(worldIn.rand.nextFloat() * 0.5F) + 0.25D;\n        EntityItem entityitem = new EntityItem(worldIn, (double)pos.getX() + d0, (double)pos.getY() + d1, (double)pos.getZ() + d2, stack);\n        entityitem.setEntityInvulnerable(true);  //在这里重写方法，掺杂私货      \n        entityitem.setDefaultPickupDelay();\n        worldIn.spawnEntity(entityitem);//最后调用的核心方法\n    }\n}\n\npublic void dropXpOnBlockBreak(World worldIn, BlockPos pos, int amount){\n   //方块被破坏时掉落amount数量的经验   \n   worldIn.spawnEntity(new EntityXPOrb(worldIn, (double)pos.getX() + 0.5D, (double)pos.getY() + 0.5D, (double)pos.getZ() + 0.5D, amount));\n   //经验球是实体，EntityXPOrb就是，其构造器为EntityXPOrb(World，double，double，double，amount)，amount是总经验值\n}\n\npublic int damageDropped(IBlockState state)\n{\n    //在这里根据方块的metadata值获取掉落物的meta\n}\n\npublic void onBlockDestroyedByExplosion(World worldIn, BlockPos pos, Explosion explosionIn)\n{\n//当这个方块被爆炸破坏时做些什么\n   EntityLivingBase sb=explosionIn.getExplosivePlacedBy();\n   if(sb==暮色森林的红帽地精）\n   sb.setDead();//弄死这个sb地精\n}\n\n@SideOnly(Side.CLIENT)\npublic BlockRenderLayer getBlockLayer()\n{\n    return BlockRenderLayer.SOLID;\n    //获取方块的渲染层\n}public boolean canPlaceBlockOnSide(World worldIn, BlockPos pos, EnumFacing side)\n{\n    //方块是否可以放在某个位置的某个面\n    return this.canPlaceBlockAt(worldIn, pos);\n}\npublic boolean canPlaceBlockAt(World worldIn, BlockPos pos)\n{   //方块是否可以放在某个位置\n    return worldIn.getBlockState(pos).getBlock().isReplaceable(worldIn, pos);\n    //一般只有空气和草才是isReplaceable的\n}\n\npublic boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ)\n{\n    //用来控制玩家右击方块时做什么，是的这是一个重要方法 \n    playerIn.displayGui((IInteractionObject)worldIn.getTileEntity);//打开机器的GUI，如果它真的可交互的话\n    world.newExplosion(new EntityTNTPrimed(world),pos.getX(),pos.getY(),pos.getZ(),7,true,true) //在方块所在的地方引发一场烈度为7，有烟和火焰的点燃TNT爆炸\n    commandBanIp.execute();//执行banip指令\n}\npublic void onEntityWalk(World worldIn, BlockPos pos, Entity entityIn)\n{\n   //当实体站在这个方块上时会发生什么\n   if(entityIn instanceof EntityWither)\n   entityIn.setDead()；\n}\n\npublic void onBlockClicked(World worldIn, BlockPos pos, EntityPlayer playerIn)\n{\n  //决定玩家点击方块时发生什么\n  worldIn.getBlockState(pos).getBlock().spawnAsEntity()；\n}\npublic Vec3d modifyAcceleration(World worldIn, BlockPos pos, Entity entityIn, Vec3d motion)\n{   //传入一个3d向量，以调节方块的加速度\n    return motion;\n}\n\npublic void onEntityCollidedWithBlock(World worldIn, BlockPos pos, IBlockState state, Entity entityIn)\n{\n  //当方块与实体碰撞时做些什么\n  (EntityEgg)entityIn.getThrower();\n}\n\npublic void harvestBlock(World worldIn, EntityPlayer player, BlockPos pos, IBlockState state, @Nullable TileEntity te, ItemStack stack){\n    //产生这个方块的掉落物，期间方块可能会被调用Block.removedByPlayer()而移除\n}\nprotected ItemStack getSilkTouchDrop(IBlockState state){\n   //获取该方块被精准采集时的掉落物\n}\npublic void onBlockPlacedBy(World worldIn, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack)\n{\n  //方块被玩家放置时做些什么\n}\npublic boolean canSpawnInBlock()\n{\n     //该方法用于指定或判断生物是否可以生成在这个方块中，默认实现中可以看出，这个方块不能是solid也不能是liquid\n    return !this.blockMaterial.isSolid() && !this.blockMaterial.isLiquid();\n}\n\npublic Block setUnlocalizedName(String name)\n{\n    //设置这个方块的本地化名称，这个名字将会在汉化文件中被翻译者翻译\n    this.unlocalizedName = name;\n    return this;\n}\n\npublic String getLocalizedName()\n{\n    return I18n.translateToLocal(this.getUnlocalizedName() + \".name\");\n}\n\npublic String getUnlocalizedName()\n{\n    return \"tile.\" + this.unlocalizedName;\n}\n\npublic void onFallenUpon(World worldIn, BlockPos pos, Entity entityIn, float fallDistance)\n{   \n    //决定实体在掉到这个方块上时的伤害加成\n    entityIn.fall(fallDistance, 1.0F); //fallDistance：摔落高度，1.0F：伤害加成因数，设为0可以免伤\n}\n\n\npublic void getSubBlocks(CreativeTabs itemIn, NonNullList<ItemStack> items)\n{   //获取一个有相同id但是不同meta的方块列表\n     //CreativeTabs：原版自带的创造物品栏标签，例如建筑方块，装饰方块，杂项等\n    items.add(new ItemStack(this));\n}\n\npublic void onBlockHarvested(World worldIn, BlockPos pos, IBlockState state, EntityPlayer player)\n{\n   //比breakBlock()晚，前者在tileentity被改变前起作用，这个方法在方块被设为空气（破坏）前起作用，但依旧是方块被破坏时进行的操作\n}\n\npublic void fillWithRain(World worldIn, BlockPos pos)\n{\n   //和randomTick()一样，但是这个方法只在下雨时执行\n   for(Entity entity:getEntitiesWithinAABBexcluding(world.getEntityById（23)，AABB/*玩家指定的长方体碰撞箱，这里不特意声明*/，null)\n         entity.attackEntityFrom(DamageSource.LIGHTNING_BOLT, 5.0F); //让id是23的那个实体被雷劈\n}\n\n\npublic boolean canDropFromExplosion(Explosion explosionIn)\n{   \n    //指定或判定这个方块会不会在爆炸中掉落下来\n    return true；\n}\n\npublic boolean isAssociatedBlock(Block other)\n{   \n    //判断这个方块和其他方块一样，没什么用\n    return this == other;\n}\n\npublic BlockStateContainer getBlockState()\n{   \n    //获取方块状态（BlockState)\n    return this.blockState;\n}\n\nprotected final void setDefaultState(IBlockState state)\n{   \n    //设置默认的BlockState\n    this.defaultBlockState = state;\n}\n\npublic final IBlockState getDefaultState()\n{   \n    //获取默认的BlockState\n    return this.defaultBlockState;\n}\n\n/**\n * Get the OffsetType for this Block. Determines if the model is rendered slightly offset.\n */\npublic Block.EnumOffsetType getOffsetType(){     \n    return Block.EnumOffsetType.NONE;}\n\n@SideOnly(Side.CLIENT)\npublic void addInformation(ItemStack stack, @Nullable World player, List<String> tooltip, ITooltipFlag advanced){\n    //当你在物品栏或者JEI里查看物品时，会有一些工具的描述，例如“我在东北玩泥巴”，“略显邪恶”，这就是tooltip\n   tooltip.add(\"Hunluan\"); //你的tooltip里面会出现hunluan字眼\n}\n\npublic float getSlipperiness(IBlockState state, IBlockAccess world, BlockPos pos, @Nullable Entity entity)\n{\n    //获取这个方块的滑度，其值介于0-1之间，冰的滑度为0.98\n    return slipperiness;\n    //this.slipperiness=0.5；在Block构造器内指定方块的滑度\n}\n\npublic void setDefaultSlipperiness(float slipperiness)\n{   \n    //设置这个方块的滑度\n    this.slipperiness = slipperiness;\n}\n\n\npublic int getLightValue(IBlockState state, IBlockAccess world, BlockPos pos)\n{   \n    //获取某一方块位置的亮度\n    return state.getLightValue();\n}\n\npublic boolean isLadder(IBlockState state, IBlockAccess world, BlockPos pos, EntityLivingBase entity) { \n      //设置一个方块能不能当作梯子使用\n      return false; \n}\n\n\n\n先上一张思维导图：\n\n下方继承上方，绿色代表抽象类，黄色代表类（如果看不清吱一声，我发一下ppt），可以看出各种实体之间的继承关系，例如EntityMob（怪物）和EntityAnimal（动物）都派生自EntityCreature，而EntityPlayer则直接来自EntityLivingBase。\n每声明一个Entity，都会有一个样板代码：\npublic class EntityPig extends EntityAnimal\n{\n    private static final DataParameter<Boolean> SADDLED = EntityDataManager.createKey(EntityPig.class, DataSerializers.BOOLEAN);//SADDLED：这头猪是否配了鞍具\n    private static final DataParameter<Integer> BOOST_TIME = EntityDataManager.createKey(EntityPig.class, DataSerializers.VARINT);//BOOST_TIME：用胡萝卜钓竿给猪加速的时间\n}\nEntityDataManager负责服务端与客户端之间的实体数据同步，DataSerializer负责数据类型的序列化（或者说持久化保存）。\n生物（也包括玩家）的属性绝大多数情况下由SharedMonsterAttributes（SMA）这个类指定：\n//这些是SMA类的字段\n//最大血量，默认20，最大1024，但其实可以指定更大的值例如2048\npublic static final IAttribute MAX_HEALTH = (new RangedAttribute((IAttribute)null, \"generic.maxHealth\", 20.0D, Float.MIN_VALUE, 1024.0D)).setDescription(\"Max Health\").setShouldWatch(true);\n//怪物会发现并尾随的距离，默认是32，恶魂高达100，卫道士只有12\npublic static final IAttribute FOLLOW_RANGE = (new RangedAttribute((IAttribute)null, \"generic.followRange\", 32.0D, 0.0D, 2048.0D)).setDescription(\"Follow Range\");\n//击退抗性，1可以完全抗击退\npublic static final IAttribute KNOCKBACK_RESISTANCE = (new RangedAttribute((IAttribute)null, \"generic.knockbackResistance\", 0.0D, 0.0D, 1.0D)).setDescription(\"Knockback Resistance\");\n//移动速度，默认0.7，最高1024，当然没人会真以1024的速度冲出去，保证崩溃\npublic static final IAttribute MOVEMENT_SPEED = (new RangedAttribute((IAttribute)null, \"generic.movementSpeed\", 0.7D, 0.0D, 1024.0D)).setDescription(\"Movement Speed\").setShouldWatch(true);\n//飞行速度，鹦鹉是0.4，最高是1024，有必要说明的是，玩家，末影龙，凋灵的“飞行”不是靠FLYING_SPEED指定的，换句话说，这些不是飞行\npublic static final IAttribute FLYING_SPEED = (new RangedAttribute((IAttribute)null, \"generic.flyingSpeed\", 0.4D, 0.0D, 1024.0D)).setDescription(\"Flying Speed\").setShouldWatch(true);\n//攻击伤害，默认为2也就是一颗心，最高2048\npublic static final IAttribute ATTACK_DAMAGE = new RangedAttribute((IAttribute)null, \"generic.attackDamage\", 2.0D, 0.0D, 2048.0D);\n//攻击速度，默认为4，实际上的武器攻速会根据“Tool Modifier”来减慢，例如剑的的Tool Modifier就是2.4，攻速是4-2.4=1.6\npublic static final IAttribute ATTACK_SPEED = (new RangedAttribute((IAttribute)null, \"generic.attackSpeed\", 4.0D, 0.0D, 1024.0D)).setShouldWatch(true);\n//护甲值（不一定要有护甲），默认是0，最高是30\npublic static final IAttribute ARMOR = (new RangedAttribute((IAttribute)null, \"generic.armor\", 0.0D, 0.0D, 30.0D)).setShouldWatch(true);\n//护甲韧性，默认0，最高20\nACTUAL_DAMAGE（实际伤害） = ATTACK_DAMAGE * ( 1 - min( 20, max( ARMOR / 5, ARMOR - ATTACK_DAMAGE / ( 2 + ( ARMOR_TOUGHNESS / 4 ) ) ）) / 25 )，取自minecraft wiki\npublic static final IAttribute ARMOR_TOUGHNESS = (new RangedAttribute((IAttribute)null, \"generic.armorToughness\", 0.0D, 0.0D, 20.0D)).setShouldWatch(true);\n//幸运，目前只与钓鱼有关，跟时运是两回事\npublic static final IAttribute LUCK = (new RangedAttribute((IAttribute)null, \"generic.luck\", 0.0D, -1024.0D, 1024.0D)).setShouldWatch(true);\n\n//指定属性可以在构造器中，也可以在专门的方法中\npublic EntityXXX(){     \n     //获取EntityXXX的最大血量，设定成256\n    getAttribute(SharedMonsterAttributes.MAX_HEALTH).setBaseValue(256);\n    this.immuneToFire(true);//设置生物免疫火焰伤害\n}\n\n生物是有AI的，例如攻击其他生物，捡拾物品，以及和村民交配等。\n要添加AI只需在你自己的Entity构造器或者专门方法中输入语句：\npublic void initEntityAI(){\n    this.tasks.addTask(6, new EntityAILookIdle(this));  //6代表优先级，数字越小越高\n    //addTask负责将相应的AI添加到生物当中\n}\n\n以下是AI表：\nEntityAttackAIMelee：俗称大乱斗AI，实体会主动搜寻目标并展开攻击\nEntityAttackAIRanged：远程攻击AI，原版女巫，凋灵这样能远程攻击的生物拥有\nEntityAttackAIRangedBow：用弓箭的远程攻击AI，很明显，默认给骷髅用的\nEntityAIAvoidEntity：避开某个实体，例如苦力怕避开猫，骷髅避开狼\nEntityAIBeg：狼跟着拿着骨头的玩家走的AI，没什么用处\nEntityAIBreakDoor：破门AI，仅限困难模式的僵尸\nEntityAICreeperSwell：专属于苦力怕膨胀准备爆炸的AI，没什么用处\nEntityAIDefendVillage：保护村庄的AI，默认铁傀儡拥有\nEntityAIEatGrass：吃草方块使之变成泥土的AI，默认羊拥有\nEntityAIFindEntityNearest：搜寻最近实体的AI\nEntityAIFindEntityNearestPlayer：搜寻附近玩家的AI\nEntityAIFleeSun：躲避阳光的AI，如果生物没有着火，此AI不会执行\nEntityAIFollow：跟随实体的AI\nEntityAIFollowGolem：跟随铁傀儡的AI，小村民（getGrowingAge()<0）且在白天才会触发，这时小村民会从铁傀儡手中接过花\nEntityAIFollowOwner：跟随主人的AI，猫，鹦鹉，狼和马等默认拥有\nEntityAIFollowOwnerFlying：跟随飞行主人并在主人落地后传送的AI，默认狼拥有\nEntityAIFollowParent：幼体动物跟随父母的AI\nEntityAIHarvestFarmland：收割作物的AI，默认村民拥有\nEntityAIHurtByTarget：回击AI，当被打击的实体拥有这个AI时，便会展开反击，如果是群居动物例如僵尸猪人，会alertOthers()呼叫同类展开攻击\nEntityAILandOnOwnersShoulder：落在主人肩膀上，很明显是鹦鹉，如果你写了个宠物调用这个AI不错\nEntityAILeapAtTarget：跳跃着扑向对方的AI，要在距离在4-16之间才可能起效\nEntityAILlamaFollowCaravan：一群羊驼跟着拴绳走的AI，开发者可以重新实现一下变成其他生物跟着走的AI\nEntityAILookAtTradePlayer:这会看向与其交易的玩家，是的，村民专属\nEntityAILookAtVillager：当铁傀儡手上有花时，它会看向村民，尝试给村民花朵\nEntityAILookIdle：实体什么也不做，四处瞎看\nEntityAIMate：实体交配的AI\nEntityAIMoveIndoors：当下雨天时，村民会尝试躲进门里的AI\nEntityAIMoveThroughVillage：主动搜寻最近的门找到村庄的AI，默认僵尸和铁傀儡有\nEntityAIMoveToBlock：移动到某一方块的AI\nEntityAIMoveTowardsRestriction：这个AI限制了实体的活动范围，它们离开一定距离后便会向“家”走去，-1代表距离无限，实体一定会受限\nEntityAIMoveTowardsTarget：这个AI让实体接近它的目标，如果目标离实体太远超过最大距离，这个AI便不会执行\nEntityAINearestAttackableTarget:这个AI允许实体寻找最近的可以攻击的实体\nEntityAIOcelotAttack：顾名思义，猫发起攻击的AI\nEntityAIOcelotSit：猫主动寻找熔炉和箱子坐下的AI\nEntityAIOpenDoor：开门的AI，默认村民专属\nEntityAIOwnerHurtByTarget：主人被其他生物攻击时，被驯服的动物所采取的动作\nEntityAIOwnerHurtTarget：主人攻击其他生物时，被驯服的动物采取的动作\nEntityAIPanic：动物被搭上时惊慌乱跑的AI\nEntityAIPlay：小村民专属的AI，他们会互相追逐打闹\nEntityAIRunAroundLikeCrazy：字面意思，四处乱跑的AI\nEntityAISit：实体在主人命令下坐下的AI\nEntityAISkeletonRiders：生成骷髅骑士的AI\nEntityAISwimming：只有具有这个AI的实体才会游泳\nEntityAITempt：动物会被玩家手上的诱饵所吸引的AI\nEntityAITradePlayer：和玩家交易的AI\nEntityAIVillagerInteract：村民之间分享和交换物品的AI\nEntityAIVillagerMate：村民交配的AI\nEntityAIWander：无目的的漫游AI\nEntityAIWanderAvoidWater：对于不会游泳的实体来说，建议添加这个AI，这样它们不会往水里走\nEntityAIWatchClosest：看向最近的实体，如果有攻击对象，会把最近的实体设置为攻击对象\nEntityAIWatchClosest2：与前一条完全一致，除了setMutexBits（3）。\n注意：setMutexBits所指定的参数，规定了当不同的ai冲突时，该在什么地方互斥\n\n大体上来说，原版提供的AI就能满足绝大多数的需求，但是如果玩家想要自定义AI，就需要实现EntityAIBase抽象类：\npackage net.minecraft.entity.ai;\n\npublic abstract class EntityAIBase\n{\n//并行因子，如果是0，这个AI可以和其他AI并行执行（例如僵尸一边追赶玩家一边踩碎海龟蛋）\n    private int mutexBits;\n\n//在这里指定，AI什么时候可以执行\n    public abstract boolean shouldExecute();\n\n//在这里指定，什么时候AI可以继续执行，一般来说和AI何时执行是同一个条件\n    public boolean shouldContinueExecuting()\n    {\n        return this.shouldExecute();\n    }\n\n//在执行这个AI时，如果这个方法返回true，那么AI将可以被优先级更高的AI打断\n    public boolean isInterruptible()\n    {\n        return true;\n    }\n\n//开始执行AI,在这里实现AI的动作\n    public void startExecuting()\n    {\n    }\n\n//重置AI状态，用于当前AI被高优先级AI打断时\n    public void resetTask()\n    {\n    }\n\n//AI的持续动作，不重要\n    public void updateTask()\n    {\n    }\n\n//指定并行因子，一般不用管，或者设置成0.\n    public void setMutexBits(int mutexBitsIn)\n    {\n        this.mutexBits = mutexBitsIn;\n    }\n\n//获取其并行因子\n    public int getMutexBits()\n    {\n        return this.mutexBits;\n    }\n}复制代码例程：\npackage net.xxx.entity.ai;\n\npublic abstract class EntityAISleepWithSeashell extends EntityAIBase\n{\nprivate int mutexBits;\nprivate YourEntity yourEntity;\n\npublic EntityAISleepWithSeashell（YourEntity entity）{\n    this.yourEntity=entity；     \n}\n\n\npublic abstract boolean shouldExecute(){\n//获取最近的海螺实体\n<font color=\"Black\"><i>EntitySeashell seashell=entity.world.findNearestEntityWithinAABB(EntitySeashell.class,new AABB(blockpos1,blockpos2),entity);</i></font>\nif(entity.getDistanceSq（seashell）<64)\nreturn true；//当和实体距离小于64时，AI开始执行\n\n}\n\n//在这里指定，什么时候AI可以继续执行，一般来说和AI何时执行是同一个条件\npublic boolean shouldContinueExecuting()\n{\nreturn this.shouldExecute();\n}\n\n//在执行这个AI时，如果这个方法返回true，那么AI将可以被优先级更高的AI打断\npublic boolean isInterruptible()\n{\nreturn true;\n}\n\n//开始执行AI,在这里实现AI的动作\npublic void startExecuting()\n{\n    yourEntity.undress（seashell）；//脱衣服……咳咳，少儿不宜\n}\n\n//重置AI状态，用于当前AI被高优先级AI打断时\npublic void resetTask()\n{\n    entityZombie.setDead()；//杀死那个坏你好事的僵尸\n}\n\n//AI的持续动作，不重要\npublic void updateTask()\n{\n}\n\n//指定并行因子，一般不用管，或者设置成0.\npublic void setMutexBits(int mutexBitsIn)\n{\nthis.mutexBits = mutexBitsIn;\n}\n\n//获取其并行因子\npublic int getMutexBits()\n{\nreturn this.mutexBits;\n}\n}复制代码public Set<String> getTags()\n    {\n//获取实体所有的NBT，如果NBT长度超过1024，你将不能添加更多的标签\n        return this.tags;\n    }复制代码public void setDead()\n    {\n//直接杀死实体\n        this.isDead = true;\n    }复制代码\n\n\n\n\n\n\n\n\n\n\n\n\n1.12的forge有三种注册的方式——有点乱，但是值得介绍。\n方法1：forge推荐的方法，就是看上去比较麻烦：\n@Mod.EventBusSubscriber\npublic static class ObjectRegistryHandler {\n    @SubscribeEvent\n    public static void addItems(RegistryEvent.Register<Item> event) { //注册物品，因此泛型参数是Item，下同         \n         event.getRegistry().register(new Item().setRegistryName(MOD_ID,\"ustc_zzzz\").setCreativeTab(yourCreativeTab).setUnlocalizedName(\"ustc_zzzz\"));    \n         //setRegistryName()：注册名，setCreativeTab()：指定创造物品栏，setUnlocalizedName()：指定本地化名称\n    }\n\n    @SubscribeEvent\n    public static void addBlocks(RegistryEvent.Register<Block> event) {注册方块，泛型参数是Block\n         event.getRegistry().register(new Block().setRegistryName(modid,\"ustc_zzzz\").setCreativeTab(yourCreativeTab));\n    }\n}\n方法2：ForgeRegistries注册：\nForgeRegistries.Items.register(new Item().setRegistryName());\n方法3：GameData注册：\nGameData.register_impl(new Item().setRegistryName());\n（2和3本质上是一回事，但所属的类不同）\n那么为什么forge会有这样的注册系统呢？这算是历史遗留了（1.13之后forge痛定思痛，把GameRegistry砍掉，GameData转为内部测试类，失去价值），真正有用的是IForgeRegistry<T>接口和它的实现类IForgeRegistry<T>.Impl，不信请看Item类的声明：\npublic class Item extends net.minecraftforge.registries.ForgeRegistryEntry<Item> implements IItemProvider, net.minecraftforge.common.extensions.IForgeItem {\n//一堆又臭又长跟魔熊的裹脚布一样的代码\n}\npublic abstract class ForgeRegistryEntry<V extends IForgeRegistryEntry<V>> implements IForgeRegistryEntry<V>{\n//这次不是裹脚布了\n}\n原版所有实现了IForgeRegistryEntry<V>的类被罗列在ForgeRegistries类中：\npublic static final IForgeRegistry<Block>        BLOCKS       = GameRegistry.findRegistry(Block.class);\npublic static final IForgeRegistry<Item>         ITEMS        = GameRegistry.findRegistry(Item.class);\npublic static final IForgeRegistry<Potion>       POTIONS      = GameRegistry.findRegistry(Potion.class);\npublic static final IForgeRegistry<Biome>        BIOMES       = GameRegistry.findRegistry(Biome.class);\npublic static final IForgeRegistry<SoundEvent>   SOUND_EVENTS = GameRegistry.findRegistry(SoundEvent.class);\npublic static final IForgeRegistry<PotionType>   POTION_TYPES = GameRegistry.findRegistry(PotionType.class);\npublic static final IForgeRegistry<Enchantment>  ENCHANTMENTS = GameRegistry.findRegistry(Enchantment.class);\npublic static final IForgeRegistry<VillagerProfession> VILLAGER_PROFESSIONS = GameRegistry.findRegistry(VillagerProfession.class);\npublic static final IForgeRegistry<EntityEntry>  ENTITIES     = GameRegistry.findRegistry(EntityEntry.class);\npublic static final IForgeRegistry<IRecipe>      RECIPES      = GameRegistry.findRegistry(IRecipe.class);方块，物品，药水，群系，声音事件，药水类型，附魔，村民职业，实体，合成。\n那么没有实现IForgeRegistryEntry<V>的怎么办呢？就要靠GameRegistry类了，例如：\npublic static void registerWorldGenerator(IWorldGenerator generator, int modGenerationWeight)\n{\n   //modGenerationWeight：mod生成物权重\n}\npublic static void addShapedRecipe(ResourceLocation name, ResourceLocation group, @Nonnull ItemStack output, Object... params)\n{\n    ShapedPrimer primer = CraftingHelper.parseShaped(params);\n     //GameRegistry.register()在1.12较新版本变成private，开发者无法直接调用以注册，以此促进event.getRegister()的使用\n    GameRegistry.register(new ShapedRecipes(group == null ? \"\" : group.toString(), primer.width, primer.height, primer.input, output).setRegistryName(name));\n}\npublic static void registerTileEntity(Class<? extends TileEntity> tileEntityClass, String key) //该方法在1.13被移除\n{\n    // As return is ignored for compatibility, always check namespace\nGameData.checkPrefix(new ResourceLocation(key).toString());\n    TileEntity.register(key, tileEntityClass);//这一点使用了原版方法，也就是说原版注册不是不可使用的\n}\nprivate static <K extends IForgeRegistryEntry<K>> K register(K object)\n{\n    //通过GameRegistry.register注册到游戏中的实现了IForgeRegistryEntry的东西，本质上是GameData注册的\n    return (K)GameData.register_impl(object);\n}\n\n一些开发者表示：我爱简洁，不想要那劳什子的event.getRegistry()，GameRegistry.register()不让用，那我就GameData好了，多简洁！然后你就不得不面对这样的问题：不同的开发者会把东西注册到不同的加载阶段导致一些不可预料的后果，在这种背景之下，forge推出了RegistryEvent.Register类，谋求一个统一的加载。\n\n\n虽然MC是有一些onXXX（）方法，来监听游戏中发生的特定动作，但是这并不够，而且你也没办法从这些返回void的方法中获取到什么——想想一个很常见的需求，我只需要监听苦力怕死亡的瞬间，来做出一个特定的动作（例如复活），但是你又没办法覆写原版的方法去更改苦力怕死亡时的行为——于是事件系统应运而生，所有的事件（Event）都是forge把相关的代码打补丁写进MC源码中进而起效的，你可以在ForgeHooks类中看到forge的“小动作”，看看原版方法都会触发哪些事件。\n使用一个事件其实很简单，只需要这么做：\n@SubcribeEvent //forge用来监听事件的注解\npublic void doSomething（Event event）{\n     //todo 实现你想要做的\n     //监听事件不需要返回什么东西，所以一律是void\n}\n是的，就是这么简单，让我们看看默认提供的事件（比罗列一大堆AI还要恶心）：\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n[groupid=128]HAYO Studio[/groupid]",
+    "replies": [
+        {
+            "author": "夏逆大大",
+            "timestamp": 1541068800,
+            "txt_content": "写的很明白，不错"
+        },
+        {
+            "author": "五氧化四铁",
+            "timestamp": 1541068920,
+            "txt_content": "支持大佬～"
+        },
+        {
+            "author": "夏逆520",
+            "timestamp": 1541069280,
+            "txt_content": "支持前辈，大佬"
+        },
+        {
+            "author": "？祭酒",
+            "timestamp": 1541069640,
+            "txt_content": " 本帖最后由 ？祭酒 于 2018-11-1 19:09 编辑 \n\n后排滋滋蝙蝠"
+        },
+        {
+            "author": "117779284",
+            "timestamp": 1541071740,
+            "txt_content": "一文成神不是梦。已收藏"
+        },
+        {
+            "author": "502mc",
+            "timestamp": 1541147220,
+            "txt_content": "坐等更新，4z大佬的教程的确跟不上了"
+        },
+        {
+            "author": "狂羊捕狼",
+            "timestamp": 1541346300,
+            "txt_content": "找了数个教程，发现注册物品的方式全部是过期的。\n\n搬凳子过来坐等讲解，注册表到底是怎么写的？"
+        },
+        {
+            "author": "呆辽",
+            "timestamp": 1541670840,
+            "txt_content": "新人求问Material类要怎么写import语句，电脑配置太渣，带不动Eclipse，用GVIM写的代码，网上查资料找到的各种代码又基本上不截import部分的语句，写类型引用好痛苦"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1541672580,
+            "txt_content": "呆辽 发表于 2018-11-8 17:54\n新人求问Material类要怎么写import语句，电脑配置太渣，带不动Eclipse，用GVIM写的代码，网上查资料找到的 ...\n说实话，eclipse都带不动，你怎么构建起forge开发环境的？gvim也没有包管理功能，建议换一台好电脑而不是强行委屈自己。"
+        },
+        {
+            "author": "zh470947848",
+            "timestamp": 1543499100,
+            "txt_content": "这排版"
+        },
+        {
+            "author": "Yecgaa_",
+            "timestamp": 1543732200,
+            "txt_content": "虽然我写的不够大佬好，不过还是想吐槽一下这个文件结构\n（n合1,声明有些乱）"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1543734840,
+            "txt_content": "Yecgaa_ 发表于 2018-12-2 14:30\n虽然我写的不够大佬好，不过还是想吐槽一下这个文件结构\n（n合1,声明有些乱） ...\n这玩意按章节拆开的话保证屠版。"
+        },
+        {
+            "author": "Yecgaa_",
+            "timestamp": 1543739220,
+            "txt_content": "森林蝙蝠 发表于 2018-12-2 15:14\n这玩意按章节拆开的话保证屠版。\n不是，我是指文件结构。\n把所有的声明堆在一起不太好吧"
+        },
+        {
+            "author": "godone",
+            "timestamp": 1544110740,
+            "txt_content": "要是有GUI的教程就好了，加油哦!"
+        },
+        {
+            "author": "caizhong3",
+            "timestamp": 1544428680,
+            "txt_content": "godone 发表于 2018-12-6 23:39\n要是有GUI的教程就好了，加油哦!\n4z的有啊"
+        },
+        {
+            "author": "sp_doto",
+            "timestamp": 1545377040,
+            "txt_content": "诶呦不错哦"
+        },
+        {
+            "author": "sp_doto",
+            "timestamp": 1545377100,
+            "txt_content": "诶呦不错哦"
+        },
+        {
+            "author": "尬兹GZ",
+            "timestamp": 1550642820,
+            "txt_content": "很好很好"
+        },
+        {
+            "author": "尬兹GZ",
+            "timestamp": 1550642820,
+            "txt_content": "很好很好"
+        },
+        {
+            "author": "MashKJo",
+            "timestamp": 1551703080,
+            "txt_content": "日常挖坑不填系列.jpg\n（等的好急）"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1551759420,
+            "txt_content": "是否方便讲解一下Forge是如何寻找并加载@Mod注解的呢？"
+        },
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1551977280,
+            "txt_content": "gooding300 发表于 2019-3-5 12:17\n是否方便讲解一下Forge是如何寻找并加载@Mod注解的呢？\n已经更新了。"
+        },
+        {
+            "author": "CycleDM",
+            "timestamp": 1552108380,
+            "txt_content": "码了，支持一下"
+        },
+        {
+            "author": "吕不才",
+            "timestamp": 1553658240,
+            "txt_content": "是蝙蝠大佬鸭"
+        },
+        {
+            "author": "人走茶凉。",
+            "timestamp": 1554551340,
+            "txt_content": "楼主怎么被抢了。。。"
+        },
+        {
+            "author": "Savior_Hn",
+            "timestamp": 1555641540,
+            "txt_content": "讲解的很细致，感觉是做的相当不错的"
+        },
+        {
+            "author": "MashKJo",
+            "timestamp": 1556597580,
+            "txt_content": "能否讲一下json和注册到主类中的实例？"
+        },
+        {
+            "author": "2404540291",
+            "timestamp": 1556772240,
+            "txt_content": "正好需要\n真是雪中送炭,"
+        },
+        {
+            "author": "1336033998",
+            "timestamp": 1557067080,
+            "txt_content": "码住,等更多点看"
+        },
+        {
+            "author": "小卡子吖",
+            "timestamp": 1557702060,
+            "txt_content": "支持一下"
+        },
+        {
+            "author": "f1a2f1a",
+            "timestamp": 1561741260,
+            "txt_content": "虽然看得一脸蒙圈，但还是硬着头皮看下去"
+        },
+        {
+            "author": "Day4331Dream",
+            "timestamp": 1565531760,
+            "txt_content": "求解！\n前面还好好的\n运行到后面就报错！\n如下：\n\nFAILURE: Build failed with an exception.\n\n* Where:\nBuild file '(mdk根目录,路径名没有特殊字符)\\build.gradle' line: 10\n\n* What went wrong:\nA problem occurred evaluating root project '(mdk根目录)'.\n> org.gradle.api.internal.TaskOutputsInternal.dir(Ljava/lang/Object;)Lorg/gradle/api/tasks/TaskOutputs;\n\n* Try:\nRun with --stacktrace option to get the stack trace. Run with --debug option to get more log output. Run with --scan to get full insights.\n\n* Get more help at https://help.gradle.org\n\n其中build.gradle文件的第十行代码: apply plugin: 'net.minecraftforge.gradle.forge'\n\n我已经不想用forgegradle配置了\n有没有手动配置的方法\n需要的文件我都有办法下载\n就是想手动配置\n不知道放哪\n求解！"
+        },
+        {
+            "author": "赤刃泉润CQR",
+            "timestamp": 1565884980,
+            "txt_content": "挺好的教程，蝙蝠讲的挺细的，可惜还没更新完"
+        },
+        {
+            "author": "wdadadada",
+            "timestamp": 1566093600,
+            "txt_content": "强得一批 但是秃了 哈哈哈哈哈哈~"
+        },
+        {
+            "author": "wdadadada",
+            "timestamp": 1566093660,
+            "txt_content": "等等  我手上为什么有头发！"
+        },
+        {
+            "author": "YZL314159265",
+            "timestamp": 1569411120,
+            "txt_content": "顶一波，楼主加油填坑"
+        },
+        {
+            "author": "mod设计师",
+            "timestamp": 1569990180,
+            "txt_content": "大佬威武，受教了！"
+        },
+        {
+            "author": "名为123的貘",
+            "timestamp": 1576851120,
+            "txt_content": "正好，我来找教程了\n结果正好目录结束到我需要的地方\n草\n支持支持"
+        },
+        {
+            "author": "改变吧！世界。",
+            "timestamp": 1579633560,
+            "txt_content": "坐等更新，有制作大型mod的想法"
+        },
+        {
+            "author": "l小魂l",
+            "timestamp": 1580482200,
+            "txt_content": "我入坟了"
+        },
+        {
+            "author": "hfsadhldsjf",
+            "timestamp": 1586663280,
+            "txt_content": "求加QQ指导啊啊啊啊"
+        },
+        {
+            "author": "cpmc",
+            "timestamp": 1587267600,
+            "txt_content": "方法1：修改gradle-wrapper.properties文件里的gradle版本（从2.14改成4.x），然后在构建开始，下载gradle时将指定文件夹里的gradle替换掉，重启构建（如果你网够好可以等待它下完）\n这里能说的详细一些吗"
+        },
+        {
+            "author": "wdhliminghao",
+            "timestamp": 1587699420,
+            "txt_content": "项目好不容易打开了，怎么依赖的环境下载的这么慢啊。。。\njar包都是境外的地址么。。"
+        },
+        {
+            "author": "怜生",
+            "timestamp": 1587782520,
+            "txt_content": "谢谢分享，老板大气，老板身体健康"
+        },
+        {
+            "author": "怜生",
+            "timestamp": 1587786300,
+            "txt_content": "已经买了谢谢老板，很好用"
+        },
+        {
+            "author": "亿颗钻石",
+            "timestamp": 1589252100,
+            "txt_content": "支持大佬~~已收藏"
+        },
+        {
+            "author": "我玩你玩大家玩",
+            "timestamp": 1589265660,
+            "txt_content": "支持大佬，写的很明白"
+        },
+        {
+            "author": "2212019934",
+            "timestamp": 1589284680,
+            "txt_content": "大佬加油MC加油"
+        },
+        {
+            "author": "小林最牛",
+            "timestamp": 1589609160,
+            "txt_content": "谢谢楼主分享，谢谢谢谢"
+        },
+        {
+            "author": "liangcha2009",
+            "timestamp": 1592101560,
+            "txt_content": "谢谢楼主，这对我的开发很有帮助"
+        },
+        {
+            "author": "1549835366",
+            "timestamp": 1593186900,
+            "txt_content": "快速回复"
+        },
+        {
+            "author": "ar神之神人",
+            "timestamp": 1593245760,
+            "txt_content": "大佬腻害"
+        },
+        {
+            "author": "ar神之神人",
+            "timestamp": 1593245820,
+            "txt_content": "厉害厉害"
+        },
+        {
+            "author": "ar神之神人",
+            "timestamp": 1593245820,
+            "txt_content": "nb，大佬nb"
+        },
+        {
+            "author": "XFeiLin",
+            "timestamp": 1593402720,
+            "txt_content": "嘻嘻嘻嘻嘻嘻嘻厉害厉害"
+        },
+        {
+            "author": "wenlonglong",
+            "timestamp": 1593755400,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "laozictou",
+            "timestamp": 1594145760,
+            "txt_content": "支持大佬，解决了好的我没有解决的问题"
+        },
+        {
+            "author": "尘落233",
+            "timestamp": 1600501920,
+            "txt_content": "收藏"
+        },
+        {
+            "author": "2417908343",
+            "timestamp": 1601050320,
+            "txt_content": "太棒了，顶"
+        },
+        {
+            "author": "老黑黑",
+            "timestamp": 1601312520,
+            "txt_content": "喜欢主播，支持"
+        },
+        {
+            "author": "杨璐嘉",
+            "timestamp": 1601371800,
+            "txt_content": "我eclipse都带不动"
+        },
+        {
+            "author": "龙耳猫啊",
+            "timestamp": 1602254880,
+            "txt_content": "谢谢楼主，正好在学。本彩笔连eclipse都用不利索"
+        },
+        {
+            "author": "kkk66666p",
+            "timestamp": 1602315840,
+            "txt_content": "感谢大佬的教程"
+        },
+        {
+            "author": "y星柒12",
+            "timestamp": 1602592080,
+            "txt_content": "写的很明白，不错。谢谢"
+        },
+        {
+            "author": "1795714492",
+            "timestamp": 1602834600,
+            "txt_content": "aaaaaaaaaaaaa"
+        },
+        {
+            "author": "泽泽joseph",
+            "timestamp": 1602898680,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "热狗怪",
+            "timestamp": 1603639080,
+            "txt_content": "图片为啥加载不出来。。。"
+        },
+        {
+            "author": "凉凉丶",
+            "timestamp": 1604311380,
+            "txt_content": "图片挂掉了还是我网速问题= =，一直转圈圈"
+        },
+        {
+            "author": "钟太豪",
+            "timestamp": 1604648520,
+            "txt_content": "请问执行gradlew setupDecompWorkspace指令时报错Task 'setupDecompWorkspace' not found in root project 'testmod'.怎么处理，求解答谢谢"
+        },
+        {
+            "author": "1489812684",
+            "timestamp": 1605618300,
+            "txt_content": "很好666666666666"
+        },
+        {
+            "author": "老-G",
+            "timestamp": 1606654860,
+            "txt_content": "还在继续更新么"
+        },
+        {
+            "author": "hatanonono",
+            "timestamp": 1606660200,
+            "txt_content": "要是有GUI的教程就好了，加油哦!"
+        },
+        {
+            "author": "小肥猪吖",
+            "timestamp": 1606741260,
+            "txt_content": "这个帖讲的很详细！作者大大用心了啊"
+        },
+        {
+            "author": "小肥猪吖",
+            "timestamp": 1606741320,
+            "txt_content": "........................."
+        },
+        {
+            "author": "小肥猪吖",
+            "timestamp": 1606741380,
+            "txt_content": "......................"
+        },
+        {
+            "author": "小肥猪吖",
+            "timestamp": 1606741500,
+            "txt_content": "................................."
+        },
+        {
+            "author": "半导体果冻",
+            "timestamp": 1612378200,
+            "txt_content": "世界需要你!!"
+        }
+    ]
+}

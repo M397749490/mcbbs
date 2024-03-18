@@ -1,0 +1,54 @@
+{
+    "title": "[管理][比赛]RemoteControl——用代码远程管理的你的服务器[1.8-1.12]",
+    "author": "轻光233",
+    "replyCount": 9,
+    "timestamp": 1564469160,
+    "txt_content": " 本帖最后由 轻光233 于 2019-9-1 08:05 编辑 \n\n默认客户端已出,请到下面的下载地址去下载简介没有编程基础的人可以不用看了不！要！浪！费！时！间\n很久以前,我和一个哥们朋友在自己服务器耍的时候,突然想到能不能用插件来远程管理服务器那个时候论坛里还没有什么适合我们用的,于是就开始了这个世纪大坑刚好赶上比赛,就当填坑了233好了,不多说废话了这是一个可以通过特定格式的数据远程管理你的服务器的插件你可以通过tcp连接并通过特定的流程发送数据包来获取服务器的数据你也可以自己定义数据包,比如远程关闭插件啊什么的如果你的服务器使用的是vps或者独立主机,你甚至可以远程截图rcon和其他的方法并不能满足这么多的功能,所以就有了这个插件\n用法先将本插件和前置加入到你的Build Path里(就像你平时使用ProtocolLib和Placeholder一样)对于客户端,你只需要将前置加入到Build Path里就可以了然后就可以根据下面提供的java doc来进行你想要的操作了\n所有在下面出现的客户端和服务器的数据包都在com.qing_guang.RemoteControl.packet.client和server里客户端与服务器的登陆流程如下(c代表客户端,s代表服务器)c -> s 客户端确认(ClientVerifyPacket)s -> c 服务器确认(ServerVerifyPacket)s -> c 加密要求(EncryptRequirePacket)c -> s RSA公钥(RSAPublicKeyPacket)s -> c RSA公钥(RSAPublicKeyPacket)s -> c AES密钥(RSA加密)(AESKeyPacket)(在这之后的所有数据都是AES加密和解密)c -> s 登陆请求(LoginRequestPacket)s -> c 登陆是否成功(LoginSuccessfulPacket)\n登陆成功之后的初始化数据信息如下(无序)s -> c 游戏服务器信息(ServerInfoPacket)s -> c 插件信息(PluginInfoPacket)s -> c 世界信息(WorldInfoPacket)s -> c 玩家、客户端的在线状态(OnlineModeChangePacket)s -> c 最新的50条后台信息(BackstageInfoPacket)\n初始化后的普通数据信息交换如下(无序)s -> c 客户端、插件、玩家的有效状态更改(OnlineModeChangePacket)s -> c 新后台信息(BackstageInfoPacket)s -> c 拒绝操作(RefuseOperatePacket)c -> s 后台指令(CommandLinePacket)\n正常的结束连接的数据信息(无序)s -> c 服务器关闭(ServerClosePacket)s -> c 手动断线(ManualDisconnectedPacket)c -> s 客户端手动退出(ClientExitPacket)\n当然,你也可以添加你自己的数据包 先创建一个enum以注册你所有的数据包类型public enum MyPacketType implements PacketType复制代码PacketType是所有数据包类型的父接口里面有一个抽象方法getSign(),需要你返回这一组数据包类型的标志只要这个标志没有被使用就行定义好之后就可以使用registerPacketType(\"这组数据包类型的标志\",MyPacketType.class);复制代码来注册这组数据包类型了然后你需要创建一个数据包public class MyPacket extends Packet<MyPacket>复制代码Packet是所有数据包的父类这里有两个抽象方法:getPkttype()和clone()第一个方法返回这个数据包对应的数据包类型第二个方法需要你自己重写这个数据包的clone方法然后,你必须添加一个参数为JsonObject的构造函数并在第一行添加super(json);public MyPacket(JsonObject json){\n  super(json);\n  //your code\n}复制代码在your code那里通过json参数来初始化你的数据包如果你想有自己的构造方法,请务必在此构造方法的第一行写上super();punlic MyPacket(args){\n  super();\n  //your code\n}复制代码最后调用Packet.registerPacket(type,MyPacket.class);复制代码来注册这个数据包type参数务必要和这个数据包的getType方法返回的值一致现在,你的数据包就可以被自动发送和接收了注意,这个数据包需要客户端和服务器都注册之后才能被正常的接收和发送如果你只在客户端添加了这个数据包请把上面做的所有操作也放到服务器再做一次就可以了反之亦然\n如何跟服务器进行连接先创建一个Socket连接Socket socket = new Socket(ip,端口);复制代码然后创建一个ConnectChannel建立连接ConnectChannel channel = new ConnectChannel(socket,in_exc_handler,out_exc_handler);复制代码至于\"in_exc_handler\"和\"out_exc_handler\"是什么,可以自行查阅下面的java doc这里就不再赘述了创建好之后,使用start方法开启此连接channel.start();复制代码然后,你就可以获取读取和写出的ChannelReadChannel rc = channel.getReadChannel();\nWriteChannel wc = channel.getWriteChannel();复制代码你现在就可以使用里面提供的方法进行数据的发送和接收具体怎么发送请自行查阅下面的java doc这里就不再赘述唯一要注意的一点是,在加密环节时接收服务器的RSAPublicKeyPacket将里面的byte数组转成PublicKey设置到发送的Channel里wc.setRSAKey(PublicKey);复制代码通过byte数组获得PublicKey对象的方法在CommunicateEncryptUtil里有\n具体看下面的java doc\n再将里面的字符集设置到接收的Channel里\nrc.setCharset(charset);复制代码做完上面的操作之后先生成一个KeyPairKeyPair pair = CommunicateEncryptUtil.buildRSAKeyPair(size)复制代码size最好填128(因为其他的我也没试过2333)再将pair里面的getPrivate()设置到接收的Channel里rc.setRSAKey(pair.getPrivate());复制代码然后再将pair.getPublic().getEncoded()和你自己使用的字符集发送出去RSAPublicKeyPacket rsapkp = new RSAPublicKeyPacket(pair.getPublic().getEncoded(),Charset.defaultCharset().displayName());复制代码上面的操作完成之后,服务器会发送一个AESKeyPacket给你你只需要使用RSA算法解密然后将里面的AES密钥设置到发送和接收里就可以了wc.setAESKey(key);\nrc.setAESKey(key);复制代码参数key是什么东西就不用我说了吧=-=从这之后服务器发送和接收数据都使用的是AES算法(除非你弄些骚操作,这个我管不着)\n指令主命令是rc所有指令都需要rc.use权限/rc reload 需要rc.reload权限/rc add和/rc remove 需要rc.acc_ctrl权限/rc disconn 需要rc.disconn权限所有权限默认op拥有所有指令的用法请输入/rc help查看\n激动人心的下载和开源地址RemoteControl-Plugin: \n\n\n\nRemoteControl-Plugin.jar\n(41.68 KB, 下载次数: 5)\n\n\n\n2019-9-1 08:05 上传\n点击文件名下载附件\n\n\n\n\n\nRemoteControlLib: \n\n\n\nRemoteControlLib.jar\n(238.35 KB, 下载次数: 6)\n\n\n\n2019-9-1 08:05 上传\n点击文件名下载附件\n\n\n\n\n\n客户端: \n\n\n\nRemoteControlClient.jar\n(739.97 KB, 下载次数: 5)\n\n\n\n2019-9-1 08:05 上传\n点击文件名下载附件\n\n\n\n\n\nJAVA DOC: \n\n\n\njava doc.zip\n(451.55 KB, 下载次数: 4)\n\n\n\n2019-7-30 14:31 上传\n点击文件名下载附件\n\n\n\n\n\nRemoteControl-Plugin开源地址: https://github.com/Light-Light/RemoteControl-PluginRemoteControlLib开源地址: https://github.com/Light-Light/RemoteControlLib别问我为什么Lib那么大,我塞了个GSON进去=-=客户端请放在一个文件夹里单独使用新建一个'start.bat'文件并在里面填写java -jar 客户端jar文件名复制代码双击后即可运行\n插件效果\n\n\n\n\nH@H)`7E%~R2X3ZGILPV8XVX.png (113.47 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-30 14:43 上传\n\n\n\n\n\n\n\n\nHD6TF[0Y57KPVM9I(SGS`HW.png (68.17 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-30 14:43 上传\n\n\n\n\n\n\n\n\n6ZSXC(T`$L[G77]]4[8MUXV.png (50.68 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-30 14:43 上传\n\n\n\n\n\n\n\n\n}NVOZ3BQB~~7TV7)Y9VG433.png (121.31 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-30 14:43 上传\n\n\n\n\n\n\n\n\n1}RD}YT73[KP~0X_35[[7.png (59.95 KB, 下载次数: 0)\n\n下载附件\n\n2019-7-30 14:43 上传\n\n\n\n\n\n虽然是参赛作品,但是如果,如果这个插件对你有帮助的话请务必不要吝啬你的人气谢谢了!\n最后啊,在这帖子发ignb不算水贴,请版主注意一下,谢谢\n本插件所用所有代码均为原创,不存在借用/抄袭等行为本插件为非盈利性插件,免费发布,禁止销售和转卖插件为 BlueStudio-轻光 所创作",
+    "replies": [
+        {
+            "author": "清茶旧友",
+            "timestamp": 1564470480,
+            "txt_content": "感觉很不错的插件 支持一下"
+        },
+        {
+            "author": "shenren3-f",
+            "timestamp": 1564470840,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "小喵咪_owo",
+            "timestamp": 1564472700,
+            "txt_content": "支持一下，不做伸手党~"
+        },
+        {
+            "author": "kevin2018",
+            "timestamp": 1564485060,
+            "txt_content": "Windows:远程桌面\nLinux:ssh\n虚拟池:控制面板\n哪一种不可以远程管理服务器？想不到实用场景。"
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1564487700,
+            "txt_content": "kevin2018 发表于 2019-7-30 19:11\nWindows:远程桌面\nLinux:ssh\n虚拟池:控制面板\n1:谁的电子设备上都能直接用远程？别跟我说TeamViewer什么的,插件和软件没法比\n2:Linux上也是服务器后台,一般的后台能看见服务器所有你能想到的信息？也别跟我说啥其他的插件看，仅仅为了在后台列出信息这个目的加插件,说句实话未免太多此一举\n至于虚拟池,抱歉我是真不知道这什么东西\n我的插件可能确实是有一些鸡肋或者不好的地方\n我也很感谢你给我提的建议,但是这些东西和开发属实没什么关系(如果仅仅用于远程管理方面)\n我从帖子一开始就说过了,不是开发者的在我写出默认的客户端时请直接退出\n如果这些话哪里刺激到你那我是真没什么办法"
+        },
+        {
+            "author": "kevin2018",
+            "timestamp": 1564498200,
+            "txt_content": "轻光233 发表于 2019-7-30 19:55\n1:谁的电子设备上都能直接用远程？别跟我说TeamViewer什么的,插件和软件没法比\n2:Linux上也是服务器后台, ...\n我没有恶意呀，我只是想说它解决了一个不存在的问题，仅此而已。。我没有说你哪里不好吧。。我说的只是已经有更好的解决方案了，对于远程管理服务器。移动平台装个app就可以直接连接vps（windows原生支持），非要用api管理一个mc服务端，意义何在呢？再说你的api终究不还是要装客户端才能在电子设备上控制服务器？那和装远程app有什么区别？"
+        },
+        {
+            "author": "38腐主",
+            "timestamp": 1564499580,
+            "txt_content": "没啥用处吧..."
+        },
+        {
+            "author": "轻光233",
+            "timestamp": 1564511280,
+            "txt_content": "kevin2018 发表于 2019-7-30 22:50\n我没有恶意呀，我只是想说它解决了一个不存在的问题，仅此而已。。我没有说你哪里不好吧。。我说的只是已 ...\n这只是一个远程管理服务器的选择，我并没有去让你们在某种程度上的强迫使用这个方法，你使用其他的方法，没问题，我也无权干涉，如果比我的方法好，我也很赞同你的做法，但是就因为有了其他的方法就要否定我的作品的话我觉得这样未免有些不妥，如果你是开发者的话不妨给我提出在思路或者代码层面上的建议，如果建议有益我会十分感谢，但你可能需要思考一下因为有了其他的方法实现了我的插件的功能就来否定我插件的存在这种做法是否真的合适，举一个不太恰当的例子，不能因为某一个行业趋于饱和就不允许新生血液注入到这个行业当中吧"
+        },
+        {
+            "author": "kevin2018",
+            "timestamp": 1564548660,
+            "txt_content": "轻光233 发表于 2019-7-31 02:28\n这只是一个远程管理服务器的选择，我并没有去让你们在某种程度上的强迫使用这个方法，你使用其他的方法， ...\n我没有否定你的作品...这个问题很客观。不过我能理解你的心情。"
+        }
+    ]
+}

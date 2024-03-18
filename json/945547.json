@@ -1,0 +1,49 @@
+{
+    "title": "[1.7.10][CNPC]NPC脚本对bukkit的事件进行监听",
+    "author": "Hueihuea",
+    "replyCount": 8,
+    "timestamp": 1579797780,
+    "txt_content": " 本帖最后由 Hueihuea 于 2020-2-4 19:58 编辑 \n\n好了 又到了搞一些有的没的东西的时候了\n之前搞了个forge的https://www.mcbbs.net/thread-874131-1-1.html\nforge+bukkit才是绝配嘛XD\n\n/**\n * @authorHueihuea\n * @VERSION 2020.01.24.00.27\n */\n\n/** \n * 枚举优先级\n * @enum {*} BukkitEventPriority.LOWEST  最低;\n * @enum {*} BukkitEventPriority.LOW     较低;\n * @enum {*} BukkitEventPriority.NORMAL  正常;\n * @enum {*} BukkitEventPriority.HIGH    较高;\n * @enum {*} BukkitEventPriority.HIGHEST 很高;\n * @enum {*} BukkitEventPriority.MONITOR 最高;\n * @description 注意 在MONITOR优先级下 您不应该对事件进行任何操作 它仅仅是为监听而存在。\n */\nfunction BukkitEventPriority() {\n  BukkitEventPriority.LOWEST;\n  BukkitEventPriority.LOW;\n  BukkitEventPriority.NORMAL;\n  BukkitEventPriority.HIGH;\n  BukkitEventPriority.HIGHEST;\n  BukkitEventPriority.MONITOR;\n}\n{\n  var EventPriority = Java.type(\"org.bukkit.event.EventPriority\");\n  BukkitEventPriority.LOWEST = EventPriority.LOWEST;\n  BukkitEventPriority.LOW = EventPriority.LOW;\n  BukkitEventPriority.NORMAL = EventPriority.NORMAL;\n  BukkitEventPriority.HIGH = EventPriority.HIGH;\n  BukkitEventPriority.HIGHEST = EventPriority.HIGHEST;\n  BukkitEventPriority.MONITOR = EventPriority.MONITOR;\n}\n/**\n * 用于构建一个监听器对象\n * @param {String} event 要监听的事件\n * @param {\"org.bukkit.event.EventPriority\"} priority 优先级\n * @param {Function} executeFunction 执行函数\n * @param {Boolean} ignoreCancelled 可空，是否跳过已撤销的事件\n * @param {\"org.bukkit.event.Listener\"} listener 可空，监听器对象\n * @param {\"org.bukkit.plugin.Plugin\"} plugin 可空，插件对象\n * [url=home.php?mod=space&uid=109629]@See[/url] BukkitEventPriority\n */\nfunction BukkitEventListener(event, priority, executeFunction, ignoreCancelled, listener, plugin) {\n  var server = Java.type(\"org.bukkit.Bukkit\").getServer();\n  var Class = Java.type(\"java.lang.Class\");\n  var eventType = Class.forName(event);\n  if (!Class.forName(\"org.bukkit.event.Event\").isAssignableFrom(eventType)) {\n    throw new Error(\"The event isn't a bukkit event.\");\n  }\n  var RegisteredListener = Java.type(\"org.bukkit.plugin.RegisteredListener\");\n  ignoreCancelled = (ignoreCancelled == null) ? false : ignoreCancelled;\n  listener = Java.extend(Java.type(\"org.bukkit.event.Listener\"), {});\n  listener = new listener();\n  plugin = Java.extend(Java.type(\"org.bukkit.plugin.Plugin\"), {\n    getDescription: function () {\n      var PluginDescriptionFile = Java.type(\"org.bukkit.plugin.PluginDescriptionFile\");\n      return new PluginDescriptionFile(\"FakePlugin\", \"1.0\", \"null\")\n    },\n    isEnabled: function () {\n      return true;\n    }\n  });\n  plugin = new plugin();\n  executor = Java.extend(Java.type(\"org.bukkit.plugin.EventExecutor\"), {\n    execute: function (paramListener, paramEvent) {\n      try {\n        var Class = Java.type(\"java.lang.Class\");\n        if (!eventType.isAssignableFrom(paramEvent.getClass())) {\n          return;\n        }\n        var CustomTimingsHandler = Java.type(\"org.spigotmc.CustomTimingsHandler\");\n        var timings = new CustomTimingsHandler(\"World:DIM\" + world.getMCWorld().field_73011_w.field_76574_g\n          + \",Pos:\" + npc.x + \",\" + npc.y + \",\" + npc.z\n          + \",NPCEntityUUID:\" + npc.getMCEntity().func_110124_au()\n          + \",Engine:\" + engine\n          + \",Context:\" + context);\n        var isAsync = paramEvent.isAsynchronous();\n        if (!isAsync) {\n          timings.startTiming();\n        }\n        executeFunction.call(null, paramEvent);\n        if (!isAsync) {\n          timings.stopTiming();\n        }\n      } catch (err) {\n        var InvocationTargetException = Java.type(\"java.lang.reflect.InvocationTargetException\");\n        var EventException = Java.type(\"org.bukkit.event.EventException\");\n        if (err instanceof InvocationTargetException) {\n          throw new EventException(err.getCause());\n        }\n        throw new EventException(err);\n      }\n    }\n  });\n  var executor = new executor();\n  var registeredListener = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);\n  /**\n   * 用于注册这个监听器\n   */\n  this.register = function () {\n    this.getEventListeners().register(registeredListener);\n  }\n  /**\n   * 用于撤销这个监听器 \n   */\n  this.unregister = function () {\n    this.getEventListeners().unregister(registeredListener);\n  }\n  this.getEventListeners = function () {\n    var manager = server.getPluginManager();\n    var getEventListeners = manager.getClass().getDeclaredMethod(\"getEventListeners\", Class.forName(\"java.lang.Class\"));\n    getEventListeners.setAccessible(true);\n    return getEventListeners.invoke(manager, eventType);\n  }\n}\n复制代码\n\n一个示例:\n监听玩家移动并告诉玩家他在动\n\nnew BukkitEventListener(\n    \"org.bukkit.event.player.PlayerMoveEvent\",\n    EventPriority.NORMAL,\n    function (event) {\n      event.getPlayer().sendMessage(\"你移动了\");\n    }\n  ).register();\n复制代码\n\n\n\n\nfile_1579797805000.jpg (208.83 KB, 下载次数: 0)\n\n下载附件\n\n2020-1-24 00:43 上传\n\n\n\n\n\n\n对 这应该也算mod教程\n[groupid=1595]CNPC Script Studio[/groupid]",
+    "replies": [
+        {
+            "author": "cihankj",
+            "timestamp": 1582182540,
+            "txt_content": "nfhfgbvhggggggggggggggggggggfvgndxgxbxth"
+        },
+        {
+            "author": "思望文宣",
+            "timestamp": 1584534660,
+            "txt_content": "会像之前那样反复注册么"
+        },
+        {
+            "author": "Hueihuea",
+            "timestamp": 1584534720,
+            "txt_content": "思望文宣 发表于 2020-3-18 20:31\n会像之前那样反复注册么\n操作不当会\n反复注册并不是我的锅 是使用者的锅"
+        },
+        {
+            "author": "安营",
+            "timestamp": 1612707720,
+            "txt_content": "像org.bukkit.event.player.PlayerMoveEvent这样的路径是在哪里搞到的 求解"
+        },
+        {
+            "author": "Hueihuea",
+            "timestamp": 1612754940,
+            "txt_content": "安营 发表于 2021-2-7 22:22\n像org.bukkit.event.player.PlayerMoveEvent这样的路径是在哪里搞到的 求解\n见bukkit/spigot插件开发javadoc\nhttps://hub.spigotmc.org/javadoc ... it/block/Block.html"
+        },
+        {
+            "author": "YUNZHONG-",
+            "timestamp": 1612776720,
+            "txt_content": "居然还用到了反射。"
+        },
+        {
+            "author": "Hueihuea",
+            "timestamp": 1612869960,
+            "txt_content": "YUNZHONG- 发表于 2021-2-8 17:32\n居然还用到了反射。\nnpc脚本的本质就是反射"
+        },
+        {
+            "author": "454564啊",
+            "timestamp": 1612879920,
+            "txt_content": "很不错的教程，感谢分享"
+        }
+    ]
+}

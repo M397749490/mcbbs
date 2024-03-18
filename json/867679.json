@@ -1,0 +1,44 @@
+{
+    "title": "关于活塞与粘性活塞的JSON文件问题",
+    "author": "SHEEP_REALMS",
+    "replyCount": 7,
+    "timestamp": 1558436580,
+    "txt_content": " 本帖最后由 SHEEP_REALMS 于 2019-5-21 20:41 编辑 \n\n我现在正在制作一个材质包，想要自定义粘性活塞基座的材质。目前我已经修改了部分JSON，但发现粘性活塞推出后其基座材质变回了普通活塞的材质。我在材质包翻到以下文件：\n\n\n我想要知道这些文件的作用，我能基本理解JSON语法，理解模板（Template）的意思。\n如果各位有什么好的建议也可以回答一下，谢谢",
+    "replies": [
+        {
+            "author": "⊙u⊙",
+            "timestamp": 1558436580,
+            "txt_content": "那么多份文件可还行...\n\n要修改block模型，优先查看blockstates，里面根据情况指向不同模型。\n那么，先看 piston.json\n{\n    \"variants\": {\n        \"extended=false,facing=down\": { \"model\": \"block/piston\", \"x\": 90 },\n        \"extended=false,facing=up\": { \"model\": \"block/piston\", \"x\": 270 },\n        \"extended=false,facing=north\": { \"model\": \"block/piston\" },\n        \"extended=false,facing=south\": { \"model\": \"block/piston\", \"y\": 180 },\n        \"extended=false,facing=west\": { \"model\": \"block/piston\", \"y\": 270 },\n        \"extended=false,facing=east\": { \"model\": \"block/piston\", \"y\": 90 },\n        \"extended=true,facing=down\": { \"model\": \"block/piston_base\", \"x\": 90 },\n        \"extended=true,facing=up\": { \"model\": \"block/piston_base\", \"x\": 270 },\n        \"extended=true,facing=north\": { \"model\": \"block/piston_base\" },\n        \"extended=true,facing=south\": { \"model\": \"block/piston_base\", \"y\": 180 },\n        \"extended=true,facing=west\": { \"model\": \"block/piston_base\", \"y\": 270 },\n        \"extended=true,facing=east\": { \"model\": \"block/piston_base\", \"y\": 90 }\n    }\n}复制代码\nextended（伸出），没伸出时，使用模型 pistion\n伸缩后，使用模型 piston_base\n\n\n众所周知，活塞分为头和基座。base是基座，head则为头。\n查看 piston_head.json，里面会根据是否为sticky（粘）指向粘/不粘的模型贴图。\n\n\n\n\n\n睡觉时间到了....\nTL;DR\n长话短说，我用debug_stick看了下，大概推测。\n\nmoving_piston，应该是所谓的幽灵方块，模型中没有任何块状（element）。\npiston，为模板>整个无激活模板定义贴图路径。\npiston_base，为基座定义贴图路径。\npiston_extend，基座模型。\npistion_head，为模板>活塞臂定义贴图路径。\npiston_head_short，为模板>不完全伸出的活塞臂定义贴图路径。\npiston_head_short_sticky，为模板>不完全伸出(且粘)的活塞臂定义贴图路径。\npiston_head_sticky，为模板>(粘)的活塞臂定义贴图路径。\npiston_inventory，背包下显示的活塞模型。\nsticky_piston，为模板>整个无激活模板定义贴图路径。\nsticky_piston_inventory，背包下显示（粘）的活塞模型。\n\n\n\n后面三个模板，分别为：\n完整，整个方块，无激活\n完全伸出的活塞臂\n不完全伸出的活塞臂（完全伸出前存在极短时间，比完全伸出的短几个像素块）。\n\n\n\n其实总结下来，\n模板定义模型的样子或/和贴图的定义。\n然后三个模板。一个为完整方块大小的方块，两个为臂。\n臂在拆分为几个部件模板，最终决定是否带黏性并为贴图定义补上贴图路径。\n还有和一个没有模型的幽灵方块。\nmjsb...\n\n"
+        },
+        {
+            "author": "ruhuasiyu",
+            "timestamp": 1558439280,
+            "txt_content": "你只是要改材质不改模型的话，不用改json文件，直接改textures中的贴图"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1558439940,
+            "txt_content": " 本帖最后由 SPGoding 于 2019-5-21 20:07 编辑 \n粘性活塞推出后其基座材质变回了普通活塞的材质\n还需要修改方块状态文件 minecraft:sticky_piston 的 \"extended=true,facing=*\" 状态下所有模型为新的模型，如 minecraft:block/sticky_piston_base\n\n新的模型 minecraft:block/sticky_piston_base 复制自模型 minecraft:block/piston_base，并把其中的 textures.bottom 修改为你需要的材质。"
+        },
+        {
+            "author": "⊙v⊙",
+            "timestamp": 1558440780,
+            "txt_content": " 本帖最后由 ⊙v⊙ 于 2019-5-21 02:24 编辑 \n\n发现自己说的有点乱...激活前是一个模型，激活后是两个，一个臂一个基座。\n\n除了要修改激活前的整体模型(粘/不粘)，\n要修改基座的模型，piston_extended。\n还要在piston_base里修改基座的贴图。\n还有...激活前背包里的整体模型(粘/不粘)。\n\n如前面说的，只改材质的话不要碰这些...\n但如果要改的话，建议是自己写一遍blockstates。放弃short这部分。\n写4个方块模型，一个激活前，一个激活后，两份粘球版本。\n再把其余json找一个没有模型的parent。\n最后把item模型指向激活前的block模型。\n\n\n看，上面都是大佬。最佳就不要给我了...\n"
+        },
+        {
+            "author": "SHEEP_REALMS",
+            "timestamp": 1558442400,
+            "txt_content": " 本帖最后由 SHEEP_REALMS 于 2019-5-21 20:59 编辑 \n⊙u⊙ 发表于 2019-5-21 19:52\n那么多份文件可还行...\n\n要修改block模型，优先查看blockstates，里面根据情况指向不同模型。\n我忘记说了，我的版本是1.13，我好像没有在piston_head.json里找到粘性这个参数\n算了各位还是直接告诉我如何为粘性活塞基座的六个面单独修改材质吧，要确保推出前推出后不会有什么问题。"
+        },
+        {
+            "author": "SPGoding",
+            "timestamp": 1558446180,
+            "txt_content": "SHEEP_REALMS 发表于 2019-5-21 20:40\n我忘记说了，我的版本是1.13，我好像没有在piston_head.json里找到粘性这个参数\n算了各位还是直接告诉我如 ...\n粘性活塞使用的模型由 blockstates 中的 sticky_piston.json 决定\n你需要如我地板所言创建新的模型并关联到粘性活塞的方块状态文件，然后在新的模型中设置材质。\n\n你把 300 金粒给我我还能转账给他们平分一下下，给他就没希望了（跑"
+        },
+        {
+            "author": "⊙u⊙",
+            "timestamp": 1558488180,
+            "txt_content": "整理了一下blockstates和model的关系。\n祝你好运\n\n\n\n\npiston_list.jpg (298.23 KB, 下载次数: 0)\n\n下载附件\n\n2019-5-22 09:22 上传\n\n\n\n\n\n@SPGoding \n\n\n"
+        }
+    ]
+}

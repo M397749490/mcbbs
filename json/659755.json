@@ -1,0 +1,504 @@
+{
+    "title": "LiteMod开发引导——基于LiteLoader的Mod制作教程[InfStudio]",
+    "author": "土球球",
+    "replyCount": 99,
+    "timestamp": 1483623960,
+    "txt_content": " 本帖最后由 ustc_zzzz 于 2017-1-19 13:45 编辑 \n\n引言：\n\nLiteMod，顾名思义，专指依赖于一个名为LiteLoader的Mod框架的Mod。\n\n和知名框架Forge相比，LiteLoader有着以下优势：\n轻量级。LiteLoader本身大小不到1MB，只作用于Minecraft客户端，对Minecraft的修改相对少些更新及时。LiteLoader的更新速度一直相较Forge更快一筹，例如LiteLoader的1.11.2版本的第一次构建时间就比Forge早三天\n\n如果你希望打造一个服务端插件和客户端Mod配合的系统，那么在客户端Mod方面，LiteLoader应该是一个不错的选择。\n\n可以去LiteLoader的官方网站了解到关于LiteLoader的一切。\n\n当然，这篇教程充其量只相当于指路，教程不会也没有办法包办有关于LiteMod的一切，更多的内容还需要开发者自己摸索。\n如果读者之前有过开发Forge Mod的经验，阅读该教程会相对容易些。\n\n配置开发环境：\n\n比较官方的方法是：\n从LiteLoader的官网上拷贝一份LiteLoader作者提供的示例Mod：\ngit clone http://develop.liteloader.com/liteloader/ExampleMod.git复制代码\n去下载一个Gradle进入到你刚刚拷贝的目录下。由于你十有八九用不到LiteLoader官方提供的Git提交历史，所以你大可以把Git文件夹删掉：\nrm -rf .git/复制代码\n进行构建参数选项的调整，具体见下一段在你刚刚拷贝的目录下运行：\ngradle setupDecompWorkspace复制代码\n等。\n如果你之前有过配置Forge Mod的开发环境的经验的话，你应该知道上面这一个字的千钧之力。\n等到出现“BUILD SUCCESSFUL”字样的话，就可以进行下一步了，否则。。。再试一次？或者挂个代理什么的如果你使用Eclipse，那么运行：\ngradle eclipse复制代码\n如果你使用IntelliJIDEA，那么运行：\ngradle idea复制代码\n然后接着等，直到同样的“BUILD SUCCESSFUL”字样出现\n\n如果你懒得下Gradle，懒得从LiteLoader的官方仓库Clone的话。。。你可以：\n教程后面有关于示例源代码的ZIP，把它下载下来然后省略前三步进行构建参数选项的调整，具体见下一段接着的配置方式一样，只不过要把“gradle”换成“./gradlew”（Linux和OSX）或者“gradlew.bat”（Microsoft Windows）但是等这一步你是躲不过去的，Wish you good luck\n\n\n构建参数选项：\n\n打开“build.gradle”文件，先找到“minecraft”开头的一段：\nminecraft {\n    version = \"1.11.2\"\n    mappings = \"snapshot_20161220\"\n    runDir = \"run\"\n}复制代码\n把version换成你想要的Minecraft版本（教程用的是发帖时最新的1.11.2，你可以按照你想要用的自己调整）。\nmappings是MCP版本，由于Minecraft的源代码是被混淆过的，所以MCP就是用于把不好看的混淆名和好看的未混淆名一一对应上的映射表。\n这个mapping每天晚上都会更新，所以你其实大可以把这个改成你昨天的日期对应的snapshot（由于时区原因，你当天是拿不到对应的snapshot构建的）。\n对于旧版本而言，你可以按照这里给出来的版本和映射表之间的关系选择你想要的版本。\n这里的版本大多以stable开头，相当于说已经稳定了。\nrunDir是最后运行时的目录，保持默认的就行。\n然后我们看“litemod”开头的一段：\nlitemod {\n    json {\n        name = \"litemodtutor\"\n        version = project.version\n        mcversion = \"1.11.2\"\n        author = \"ustc_zzzz\"\n        description = \"LiteModTutor\"\n    }\n}复制代码\n我们先说一下这段是做什么的。\n\n读者如果有对开发其他类型的Mod或插件熟悉的话，应该知道每个最终发布的JAR都会有一个对应的文件表示该Mod或插件。\nBukkit插件中这个是“plugin.yml”，而Forge Mod和Sponge插件中这个是“mcmod.info”，对于LiteMod来说，这个文件就是“litemod.json”。这段的作用就是生成这个JSON，你也可以在“src/main/resources”文件夹下找到这个JSON，不过由于它可以完全由上面那段生成，所以你大可以删掉那个JSON文件（最后提供的示例源代码ZIP中这个文件已经被我删掉了）。\n\n这段的内容还是很好理解的，如果你Clone得到的对应文件的这一段有一行是“mixin”开头的话，那你暂时用不着它，删掉就是。\n然后我们来看下面这一段：\nversion = \"0.1.0\"\ngroup = \"com.github.ustc_zzzz.litemodtutor\" // http://maven.apache.org/guides/mini/guide-naming-conventions.html\narchivesBaseName = \"litemodtutor\"复制代码\n首先，“version”。它代表你的Mod版本，待会在你的Mod里你也要指定这个版本号，推荐的版本号格式是语义化版本。\n然后是“group”。这个“group”应该和你待会写代码时用到的包名一致，然后关于包名的约定，这行的注释里的链接已经讲得比较清楚了。\n最后是“archivesBaseName”。这和你最后生成的Mod文件名有关。\n然后你可以删掉一些没有用的内容，最后我把我写的“build.gradle”文件整体列在这里，读者可以把它直接替换掉现有的“build.gradle”文件并进行修改：\nbuildscript {\n    repositories {\n        mavenCentral()\n        maven {\n            name = \"sonatype\"\n            url = \"https://oss.sonatype.org/content/repositories/snapshots/\"\n        }\n        maven {\n            name = \"forge\"\n            url = \"http://files.minecraftforge.net/maven\"\n        }\n    }\n    dependencies {\n        classpath 'net.minecraftforge.gradle:ForgeGradle:2.2-SNAPSHOT'\n    }\n}\n\napply plugin: 'net.minecraftforge.gradle.liteloader'\n\nversion = \"0.1.0\"\ngroup = \"com.github.ustc_zzzz.litemodtutor\" // http://maven.apache.org/guides/mini/guide-naming-conventions.html\narchivesBaseName = \"litemodtutor\"\n\nminecraft {\n    version = \"1.11.2\"\n    mappings = \"snapshot_20161220\"\n    runDir = \"run\"\n}\n\nlitemod {\n    json {\n        name = \"litemodtutor\"\n        version = project.version\n        mcversion = \"1.11.2\"\n        author = \"ustc_zzzz\"\n        description = \"LiteModTutor\"\n    }\n}\n\njar {\n    from litemod.outputs\n}复制代码\n\n构建运行：\n\n构建还是很简单的。运行下面的命令（同样在部分情况下把“gradle”换成“./gradlew”或“gradlew.bat”）：\ngradle build复制代码\n然后等到出现“BUILD SUCCESSFUL”字样，你就可以在“build/libs”里找到一个“.litemod”后缀的文件，拿去用就行了。\n\n运行的话除了在IDE里运行，你还可以运行命令：\ngradle runClient复制代码\n第一次运行时会弹出来一个小窗，你只要把你的正版用户名和密码输进去就行了：\n\n\n\n\nScreenshot from 2017-01-05 17-12-28.png (19.38 KB, 下载次数: 47)\n\n下载附件\n\n2017-1-5 17:03 上传\n\n\n\n\n\n如果不愿意使用正版账号，你可以在这个小窗左下角打勾，然后就可以以离线方式登录了。\n\n如果上面的命令你已经运行过一次了，下一次运行时可以直接加上“--offline”参数，以减少不必要的等待。\n\n主类格式与事件的监听：\n\nLiteLoader识别Mod主类格式的方式是找到一个类实现了“com.mumfrey.liteloader.LiteMod”，并以“LiteMod”开头，作为Mod的主类。\n不过。。。LiteLoader官方给的示例Mod是这么写的：\npublic class LiteModExample implements Tickable, PreRenderListener复制代码\n说好的“LiteMod”接口呢？\n实际上是这样子的：\npublic interface Tickable extends LiteMod\npublic interface PreRenderListener extends LiteMod复制代码\n好我们继续。再重复一遍，和Forge等Mod框架不同，LiteLoader识别Mod主类的方式是该类实现了“LiteMod”接口，并以“LiteMod”开头。\n那么这些继承了“LiteMod”的接口又是做什么的呢？\n\n熟悉开发插件以及Forge Mod的开发者应该比较熟悉注册事件的方式，在其中，用于执行事件逻辑的类中的方法，都加上了诸如“@EventHandler”或者“@SuscribeEvent”的注解，不过LiteLoader不是这么做的，LiteLoader的事件是基于接口的。换句话说，每种类型的事件都有其特定的接口，Mod主类只要实现了相应的接口，就代表监听了相应的事件。\n\n如果有读者对旧版本的LiteLoader比较熟悉，就应该知道LiteLoader中历史最悠久，也是最知名的接口之一，就是一个名为“Tickable”的接口。该接口在每次客户端执行一次渲染时调用一次，也就是说该接口每个tick会调用多次。我们看看这个接口新添加的方法：\npublic abstract void onTick(Minecraft minecraft, float partialTicks, boolean inGame, boolean clock);复制代码\n\n第一个参数是Minecraft的主类不解释。\n第二个参数代表当前进行的tick进行了多久。因为刚刚我们说到该方法会在一个tick执行多次，所以说这个浮点数就代表执行时tick的小数部分，永远在0和1之间。\n第三个参数表示我们是否在游戏中，也就是是否在一些诸如按下Esc出现的界面的状态。\n最后一个参数如果为真，代表它是一个新的tick，否则代表它是当前tick的又一次执行。\n\n通常的渲染HUD的方式为：\n    @Override\n    public void onTick(Minecraft minecraft, float partialTicks, boolean inGame, boolean clock)\n    {\n        if (inGame && minecraft.currentScreen == null && Minecraft.isGuiEnabled())\n        {\n            // DO SOMETHING\n        }\n    }复制代码\n这保证了HUD能够像游戏中的其他HUD一样渲染。\n\n这里作为示例，我们想要制作的Mod是一个像弹幕（Danmaku）视频网站一样的Mod。服务端插件发送弹幕，同时在客户端显示出来。\n我们先完成一下弹幕的逻辑（这里偷懒直接使用内部类了）。这段代码只是用于实现游戏逻辑的，具体内容是什么样子的不重要：\n\n    private DanmakuRenderer danmakuRenderer;\n\n    @Override\n    public void onTick(Minecraft minecraft, float partialTicks, boolean inGame, boolean clock)\n    {\n        if (inGame && minecraft.currentScreen == null && Minecraft.isGuiEnabled())\n        {\n            ScaledResolution scaledresolution = new ScaledResolution(minecraft);\n            int width = scaledresolution.getScaledWidth(), height = scaledresolution.getScaledHeight();\n            this.danmakuRenderer.render(minecraft, width, height, partialTicks);\n        }\n    }\n\n    private static class DanmakuRenderer\n    {\n        private final float movePerTick;\n        private final Queue<Danmaku> strings = new ConcurrentLinkedQueue<Danmaku>();\n\n        private DanmakuRenderer(float movePerTick)\n        {\n            this.movePerTick = movePerTick;\n        }\n\n        private void push(Minecraft minecraft, String string)\n        {\n            if (minecraft.world != null)\n            {\n                this.strings.add(new Danmaku(string, minecraft.world.getTotalWorldTime()));\n            }\n        }\n\n        private void render(Minecraft minecraft, int width, int height, float partialTicks)\n        {\n            long now = minecraft.world.getTotalWorldTime();\n            Iterator<Danmaku> iterator = this.strings.iterator();\n            while (iterator.hasNext())\n            {\n                Danmaku danmaku = iterator.next();\n                String text = danmaku.string;\n                float timeDiff = now - danmaku.renderTick + partialTicks;\n                if (timeDiff < 0)\n                {\n                    break;\n                }\n                int offsetWidth = (int) (width - timeDiff * this.movePerTick);\n                int offsetHeight = height / 2;\n                FontRenderer fontRenderer = minecraft.fontRendererObj;\n                int stringWidth = fontRenderer.getStringWidth(text);\n                if (offsetWidth < -stringWidth)\n                {\n                    iterator.remove();\n                }\n                else\n                {\n                    fontRenderer.drawString(text, offsetWidth, offsetHeight, 0xFFFFFFFF);\n                }\n            }\n        }\n    }\n\n    private static class Danmaku\n    {\n        private final String string;\n        private final long renderTick;\n\n        private Danmaku(String string, long renderTick)\n        {\n            this.string = string;\n            this.renderTick = renderTick;\n        }\n    }复制代码\n我们暂时把“DanmakuRenderer”类的“push”方法闲置，以供接下来使用。\n\n很好，下面我们来考查“LiteMod”接口（及其父接口）定义的四个方法：\n    @Override\n    public abstract String getName();\n    public abstract String getVersion();\n    public abstract void init(File configPath);\n    public abstract void upgradeSettings(String version, File configPath, File oldConfigPath);复制代码\n\ngetName方法用于显示名称（没错就是游戏主界面右侧的小鸡界面里的名称）。\ngetVersion方法用于设置版本号（这里最好和在“build.gradle”里设置的相同）。\ninit方法会在游戏尚未完全初始化时调用，用于对Mod进行初始化（这里不要轻易操作原版Minecraft的类）。传入的参数一般情况下代表“liteconfig/common”文件夹，你可以在这里读取并写入配置，不过我会在后面的内容中提供一种更好的方法。\nupgradeSettings方法会在Minecraft发生版本更新时调用。如果LiteLoader没有找到当前Minecraft版本的配置文件却找到了旧的Minecraft版本的配置文件，就会调用这个方法。传入的第一个参数代表新的Minecraft版本，后两个参数一般情况下代表“liteconfig/config.{Minecraft版本}”文件夹。比如说这个1.11.2的Mod如果运行的整合包从1.10.2升级而来，那么对应的三个参数分别为“1.11.2”、代表“liteconfig/config.1.11.2”的文件夹，代表“liteconfig/config.1.10.2”的文件夹。\n\n读者可能会有疑问：为什么同时有“liteconfig/common”和“liteconfig/config.{Minecraft版本}”两种文件夹呢？它们的区别是什么呢？别急，后面会讲到的。\n\n然后我们实现一下这四个方法。这里我们利用“init”方法完成了“danmakuRenderer”字段的初始化：\n    private float movePerTick = 5.0F;\n\n    @Override\n    public String getName()\n    {\n        return \"LiteModTutor\";\n    }\n\n    @Override\n    public String getVersion()\n    {\n        return \"0.1.0\";\n    }\n\n    @Override\n    public void init(File configPath)\n    {\n        this.danmakuRenderer = new DanmakuRenderer(this.movePerTick);\n    }\n\n    @Override\n    public void upgradeSettings(String version, File configPath, File oldConfigPath)\n    {\n        // DO NOTHING\n    }复制代码\n\n最后说一句，Mod主类的构造方法必须是无参的，请在“init”方法完成所有的初始化操作。\n\n\n与服务端插件交互：\n\n在Minecraft中，各种各样的数据包从网络中得到，进行处理后，再变成新的数据包发送进网络中去。其中有一种名为“CustomPayload”的数据包尤为特殊，因为它是Minecraft专门为插件和Mod的交互提供的。该数据包包含一个用作识别符的名称字符串，以及一串字节流。这种数据包还有一个名字，就是PluginChannel。\n\n一些常见的插件和Mod交互的例子，如WorldEdit插件和WorldEditCUI客户端Mod之间，就是用这种方式进行的交互。LiteLoader里用于接收服务端插件发送的数据包的接口为“PluginChannelListener”。这个接口（及其父接口）相较“LiteMod”接口多提供了两个方法：\n    @Override\n    public abstract List<String> getChannels();\n    public abstract void onCustomPayload(String channel, PacketBuffer data);复制代码\n第一个方法用于指定监听的所有PluginChannel的名称集合。\n第二个方法用于指定收到特定PluginChannel的数据时的操作。\n\n我们先在第一个方法指定我们想要监听的PluginChannel的名字，再在第二个方法把弹幕的数据取出来并等待显示：\n    private static final String CHANNEL_LITEMODTUTOR = \"LITEMODTUTOR\";\n\n    @Override\n    public List<String> getChannels()\n    {\n        return Collections.singletonList(CHANNEL_LITEMODTUTOR);\n    }\n\n    @Override\n    public void onCustomPayload(String channel, PacketBuffer data)\n    {\n        if (CHANNEL_LITEMODTUTOR.equals(channel))\n        {\n            byte[] bytes = data.readByteArray();\n            String text = new String(bytes, Charsets.UTF_8);\n            this.danmakuRenderer.push(Minecraft.getMinecraft(), text);\n        }\n    }\n复制代码\n\n作为对应，我们编写相应的服务端插件。由于作者对Bukkit插件不熟悉，所以使用的是Sponge插件：\n/**\n * [url=home.php?mod=space&uid=1231151]@author[/url] ustc_zzzz\n */\n@Plugin(id = LiteModTutorPlugin.ID, name = \"LiteModTutorPlugin\", authors =\n        {\"ustc_zzzz\"}, version = \"0.1.0\", description = \"LiteModTutorPlugin\")\npublic class LiteModTutorPlugin\n{\n    public static final String ID = \"litemodtutorplugin\";\n\n    private static final String CHANNEL_LITEMODTUTOR = \"LITEMODTUTOR\";\n\n    private ChannelBinding.RawDataChannel channel;\n\n    private void sendData(Task task)\n    {\n        for (Player player : Sponge.getServer().getOnlinePlayers())\n        {\n            this.channel.sendTo(player, buf ->\n            {\n                String text = String.format(\"To %s: 2333\", player.getName());\n                buf.writeByteArray(text.getBytes(Charsets.UTF_8));\n            });\n        }\n    }\n\n    @Inject\n    private Logger logger;\n\n    @Listener\n    public void onServerStarted(GameStartedServerEvent event)\n    {\n        this.channel = Sponge.getChannelRegistrar().createRawChannel(this, CHANNEL_LITEMODTUTOR);\n        Sponge.getScheduler().createTaskBuilder().intervalTicks(25).execute(this::sendData).submit(this);\n        this.logger.info(\"Plugin enabled. \");\n    }\n}复制代码\n我们以平均25tick每次的频率向客户端发送玩家名称和2333的弹幕，然后在客户端显示。\n如果不出所料，显示的内容应该是这样子的：\n\n\n\n\nScreenshot from 2017-01-05 15-17-29.png (266.65 KB, 下载次数: 53)\n\n下载附件\n\n2017-1-5 21:23 上传\n\n\n\n\n\n虽然这个“弹幕”的功能很不完美，不过作为教程的示例应该是够用的。\n\n配置文件：\n\n现在我们先解决一下在教程前面提到的问题。\nLiteLoader提供两种类型的配置文件：一种为版本通用的配置文件，默认存放在“liteconfig/common”文件夹，一种为随不同版本而变的配置文件，默认存放在“liteconfig/config.{Minecraft版本}”文件夹。\n\n那么我们该如何声明我们的Mod到底使用的是哪种配置文件类型呢？配置文件又应该叫作什么名字呢？我们在我们的Mod主类开头增加一个注解：\n/**\n * @author ustc_zzzz\n */\n@ExposableOptions(strategy = ConfigStrategy.Versioned, filename = \"litemodtutor.json\")\npublic class LiteModTutor implements Tickable, PluginChannelListener复制代码\n这个注解的“strategy”参数表示配置文件是通用的还是随版本而变的，而“filename”参数表示相应文件夹下的名字。这个注解其实还有一个名为“aggressive”的参数，默认为false，如果设置为true，那么保存配置时如果配置文件里已有该项配置，那么相关字段的值将覆盖已有配置，否则不予替换。\n\n如果读者有认真分析之前我提供的游戏逻辑的话，应该会注意到有一个量“movePerTick”被我单独提成了字段。现在我们如果想要配置它的话，LiteLoader为我们提供了一种非常简单的方法：在相应的字段上加注解：\n    @Expose\n    @SerializedName(\"move_per_tick\")\n    private float movePerTick = 5.0F;复制代码\n“@Expose”注解表明这个字段加入配置文件中，而“@SerializedName”注解表明这个字段到底该是什么名字。\n\n现在我们运行一次游戏，在“liteconfig/config.1.11.2”文件夹下应该有一个名为“litemodtutor.json”的文件，这个文件的内容应该是这样子的：\n{\n  \"move_per_tick\": 5.0\n}复制代码\n很好，我们把一个字段和配置文件中的一行完成了关联。\n\n字节码的操纵：\n\n读者问到这里可能会想：LiteLoader目前提供的功能，我用Forge Mod都可以做到啊？没错，但LiteLoader的魅力还不止这些。其中最引人注目的特性之一就是LiteLoader自Minecraft 1.8.9开始提供的一套名为Mixin的框架，这套框架可以非常方便地以hook的方式操纵低层字节码。由于Mixin的内容比较多，作者就不在这里讲述，而会开单独的一篇文章讲解。使用Mixin操纵字节码会变得非常方便，甚至不需要了解Java的字节码就可以使用Mixin。\n\n\n教程相关代码：\n\n这里提供了本篇教程中使用的所有相关源代码，它们已经以ZIP形式打包好：\n\n最后，感谢所有读者对本人的教程提供的支持。谢谢大家！\n\n[groupid=534]InfinityStudio[/groupid]",
+    "replies": [
+        {
+            "author": "I026833619",
+            "timestamp": 1483673700,
+            "txt_content": "我是该吐槽是都懒得回帖\n还是编程版太冷清= =\n总之，楼主辛苦了\n冷场了这么久…………"
+        },
+        {
+            "author": "q549365815",
+            "timestamp": 1483684560,
+            "txt_content": "强烈支持！"
+        },
+        {
+            "author": "LEIMIjiang",
+            "timestamp": 1483700280,
+            "txt_content": "感谢楼主"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1483896900,
+            "txt_content": "很好，那么问题来了：\n在“与服务器交互”中提到了PacketCUstomPayload，那么如果我有一个serverSideOnly = true的基于MinecraftForge的Mod想和客户端的一个litemod交互，这个forge mod应该用什么？FMLEventChannel？"
+        },
+        {
+            "author": "破产",
+            "timestamp": 1483934100,
+            "txt_content": "11111111111111111111111"
+        },
+        {
+            "author": "g2535592206",
+            "timestamp": 1483953360,
+            "txt_content": "听不懂你在说什么....."
+        },
+        {
+            "author": "aaaage",
+            "timestamp": 1484726220,
+            "txt_content": "正在学习编程中..."
+        },
+        {
+            "author": "463157047",
+            "timestamp": 1484741940,
+            "txt_content": "围观围观围观围观围观围观围观围观围观"
+        },
+        {
+            "author": "0x3B800001",
+            "timestamp": 1484750640,
+            "txt_content": "听说回复才能看到源码？\n难得见到4z居然不是在gayhub上传代码\n参考参考4z大佬的代码"
+        },
+        {
+            "author": "Pan$brother",
+            "timestamp": 1484823420,
+            "txt_content": "能在简单点吗"
+        },
+        {
+            "author": "545822830",
+            "timestamp": 1485061980,
+            "txt_content": "学习学习，正在努力学习编程"
+        },
+        {
+            "author": "redhat1019",
+            "timestamp": 1485101220,
+            "txt_content": "kankankankan"
+        },
+        {
+            "author": "uesugi2",
+            "timestamp": 1485274140,
+            "txt_content": "永远研究不懂系列"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1485306840,
+            "txt_content": "u.s.knowledge 发表于 2017-1-9 01:35\n很好，那么问题来了：\n在“与服务器交互”中提到了PacketCUstomPayload，那么如果我有一个serverSideOnly = ...\n大概看了下。。。\nnet.minecraftforge.fml.common.network.FMLNetworkEvent.ServerCustomPacketEvent？"
+        },
+        {
+            "author": "石镐",
+            "timestamp": 1485308460,
+            "txt_content": "有人看懂了吗？ 我觉得听好的"
+        },
+        {
+            "author": "dwch",
+            "timestamp": 1485310620,
+            "txt_content": "兹磁4zdalao"
+        },
+        {
+            "author": "iceer",
+            "timestamp": 1485431280,
+            "txt_content": "这玩意，我还是改改mod贴图吧。。。\n这 我 英语还没及格\n等我英语及格了我就去玩mod"
+        },
+        {
+            "author": "hyq510",
+            "timestamp": 1485858960,
+            "txt_content": "。。。。"
+        },
+        {
+            "author": "DuckSoft",
+            "timestamp": 1486970460,
+            "txt_content": "感谢楼主的分享！\n听说回复才有源码看QAQ"
+        },
+        {
+            "author": "反清富明",
+            "timestamp": 1487043240,
+            "txt_content": "先支持一下   慢慢消化再说话"
+        },
+        {
+            "author": "q549365815",
+            "timestamp": 1487793660,
+            "txt_content": "没有中文文档看的好辛苦...\n\n\n\n\n支持一个"
+        },
+        {
+            "author": "q549365815",
+            "timestamp": 1487796480,
+            "txt_content": "只求大兄弟讲解下GUI绘画\n跪求"
+        },
+        {
+            "author": "呆萌的龙言",
+            "timestamp": 1487812560,
+            "txt_content": "长见识了 向大佬低头"
+        },
+        {
+            "author": "夜影清宁",
+            "timestamp": 1488957960,
+            "txt_content": "英语不及格啊\n"
+        },
+        {
+            "author": "yangfangood123",
+            "timestamp": 1489396020,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "OP1115",
+            "timestamp": 1489848360,
+            "txt_content": "求吗666666666666666666666"
+        },
+        {
+            "author": "ddee",
+            "timestamp": 1490415240,
+            "txt_content": "坐等更新。。。。。。。"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1490416620,
+            "txt_content": "ddee 发表于 2017-3-25 12:14\n坐等更新。。。。。。。\n没啥好更新的了啊"
+        },
+        {
+            "author": "寂",
+            "timestamp": 1490621340,
+            "txt_content": "支持一下，\n看来我也要入坑了。。\n来配合插件实现一些高级功能看似不错"
+        },
+        {
+            "author": "andyxiu",
+            "timestamp": 1490700660,
+            "txt_content": "难得有那么细致的教程，感谢楼主"
+        },
+        {
+            "author": "SakuraKooi",
+            "timestamp": 1490957040,
+            "txt_content": "懒癌晚期,我选择下载2333"
+        },
+        {
+            "author": "whx3997",
+            "timestamp": 1491912180,
+            "txt_content": "支持楼主！"
+        },
+        {
+            "author": "Zhanng_ge",
+            "timestamp": 1492838340,
+            "txt_content": "很用心 这个教程很不错"
+        },
+        {
+            "author": "PVZ光影",
+            "timestamp": 1492945440,
+            "txt_content": "回个复好下载"
+        },
+        {
+            "author": "Limbol_Rain",
+            "timestamp": 1493182140,
+            "txt_content": "被一个大佬拉进来看教程。。。"
+        },
+        {
+            "author": "浅念哥",
+            "timestamp": 1493647320,
+            "txt_content": "支持，楼主辛苦"
+        },
+        {
+            "author": "咕咕好受",
+            "timestamp": 1494034440,
+            "txt_content": "6666666666666666666\n"
+        },
+        {
+            "author": "1021791630",
+            "timestamp": 1494059940,
+            "txt_content": "666 支持"
+        },
+        {
+            "author": "Glyceryl",
+            "timestamp": 1494149400,
+            "txt_content": "Git文件夹在哪，这么找不到？"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1494149640,
+            "txt_content": "Glyceryl 发表于 2017-5-7 17:30\nGit文件夹在哪，这么找不到？\n就是.git文件夹呀"
+        },
+        {
+            "author": "1501729",
+            "timestamp": 1494160860,
+            "txt_content": "666666666666666666"
+        },
+        {
+            "author": "chw99szh",
+            "timestamp": 1494465180,
+            "txt_content": "dddddddddddddddddddddddddddddddddd"
+        },
+        {
+            "author": "19790729",
+            "timestamp": 1494479580,
+            "txt_content": "6666666666666666666666666666666"
+        },
+        {
+            "author": "reginalcazar",
+            "timestamp": 1494504540,
+            "txt_content": "谢谢楼主，拿下了"
+        },
+        {
+            "author": "qq19990116",
+            "timestamp": 1494650160,
+            "txt_content": "这个该怎么用啊啊啊啊"
+        },
+        {
+            "author": "Glyceryl",
+            "timestamp": 1494741840,
+            "txt_content": "等的时候退出会怎样？"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1494744240,
+            "txt_content": "Glyceryl 发表于 2017-5-14 14:04\n等的时候退出会怎样？\n会配置失败，然后你就需要再来一次"
+        },
+        {
+            "author": "niceRAM",
+            "timestamp": 1494905520,
+            "txt_content": "好教程一定要顶一下"
+        },
+        {
+            "author": "xiaoyao2276",
+            "timestamp": 1495414560,
+            "txt_content": "66666666666"
+        },
+        {
+            "author": "Huge_Black",
+            "timestamp": 1496233500,
+            "txt_content": "终于找到了可以看的了"
+        },
+        {
+            "author": "GGIGCTR",
+            "timestamp": 1496587560,
+            "txt_content": "\nMcbbs有你更精彩~"
+        },
+        {
+            "author": "NIULIU",
+            "timestamp": 1496915220,
+            "txt_content": "66666666666666"
+        },
+        {
+            "author": "园丁爱吃素",
+            "timestamp": 1497514020,
+            "txt_content": "\n强烈支持！"
+        },
+        {
+            "author": "是夜初哇丶",
+            "timestamp": 1497697020,
+            "txt_content": "混楼层= =\n正好也要学习相关方面的东西\n大佬的东西啥的我就都伸手了~"
+        },
+        {
+            "author": "倾城·夏沫",
+            "timestamp": 1497871980,
+            "txt_content": "夫读书诗所示所所所所"
+        },
+        {
+            "author": "xSam",
+            "timestamp": 1497946620,
+            "txt_content": "来学习学习"
+        },
+        {
+            "author": "1139365029",
+            "timestamp": 1499094420,
+            "txt_content": "搭建不了，提示 Task 'setupDecompWorkspace' not found in root project 'bin'."
+        },
+        {
+            "author": "Ph-苯",
+            "timestamp": 1499141460,
+            "txt_content": "为什么我都找不到相应的文件啊"
+        },
+        {
+            "author": "Litttle_fish",
+            "timestamp": 1499677500,
+            "txt_content": "表示要试试liteloader。。。\n\n虽然说我估计做出来的很可能就是个BUG。。。"
+        },
+        {
+            "author": "林歌",
+            "timestamp": 1499767500,
+            "txt_content": "。。。。。"
+        },
+        {
+            "author": "2411567502",
+            "timestamp": 1500286980,
+            "txt_content": "31231223124"
+        },
+        {
+            "author": "hl1370950658",
+            "timestamp": 1501136820,
+            "txt_content": "ggggggggggggg"
+        },
+        {
+            "author": "hl1370950658",
+            "timestamp": 1501143300,
+            "txt_content": "伟大发无大无大无大无大无大无大无大无大所大无多撒大无多撒大无多"
+        },
+        {
+            "author": "GLOK17",
+            "timestamp": 1501146780,
+            "txt_content": "GOOD!!!!!!!!!!!!!!!!!!"
+        },
+        {
+            "author": "神秘使徒",
+            "timestamp": 1501316220,
+            "txt_content": "666666666666666"
+        },
+        {
+            "author": "偏挚",
+            "timestamp": 1501575720,
+            "txt_content": "新入坑准备学习编写mod但是现在整个人都懵圈了"
+        },
+        {
+            "author": "1900191066",
+            "timestamp": 1503288780,
+            "txt_content": "感谢楼主"
+        },
+        {
+            "author": "wszwq",
+            "timestamp": 1503310320,
+            "txt_content": "学完插件学模组"
+        },
+        {
+            "author": "非常你我",
+            "timestamp": 1503390180,
+            "txt_content": "谢谢，我一直想做一个mod"
+        },
+        {
+            "author": "434408784",
+            "timestamp": 1503498720,
+            "txt_content": "很棒的作品！！"
+        },
+        {
+            "author": "Actahedral",
+            "timestamp": 1503622440,
+            "txt_content": "首次接触Litemod"
+        },
+        {
+            "author": "奇偶I呵呵",
+            "timestamp": 1503673020,
+            "txt_content": "呵呵这东西太好用了"
+        },
+        {
+            "author": "530467763",
+            "timestamp": 1503729420,
+            "txt_content": "感谢楼主"
+        },
+        {
+            "author": "chheese",
+            "timestamp": 1503849180,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "my200",
+            "timestamp": 1505532720,
+            "txt_content": "==。。。。挺好的23333"
+        },
+        {
+            "author": "qwwdezone",
+            "timestamp": 1505580780,
+            "txt_content": "现在回复有用吗？可以做个liteloader的背包整理吗？ 感觉forge不轻便"
+        },
+        {
+            "author": "qq2055914657",
+            "timestamp": 1505628720,
+            "txt_content": "66666666666666"
+        },
+        {
+            "author": "MAOYULUN",
+            "timestamp": 1506166200,
+            "txt_content": "Hufu1\n\n\n"
+        },
+        {
+            "author": "641612952",
+            "timestamp": 1506661620,
+            "txt_content": "谢谢楼主"
+        },
+        {
+            "author": "wchaolo",
+            "timestamp": 1506911580,
+            "txt_content": "第一次回复，答主好像在知乎见过？"
+        },
+        {
+            "author": "Aye10032",
+            "timestamp": 1507010280,
+            "txt_content": "支持大佬"
+        },
+        {
+            "author": "Aye10032",
+            "timestamp": 1507011960,
+            "txt_content": "楼主一开始提到的下载gradlew是还需要配置环境吗？"
+        },
+        {
+            "author": "Aye10032",
+            "timestamp": 1507028760,
+            "txt_content": "请问一下我在之前有下过1.12的forge，可以直接将forge文件夹中的gradlew复制过来吗?"
+        },
+        {
+            "author": "无尽之城",
+            "timestamp": 1507631460,
+            "txt_content": "教程相关代码"
+        },
+        {
+            "author": "HMTD",
+            "timestamp": 1507892940,
+            "txt_content": "学c#没学过java表示，写java只要有IDE和百度，普通java代码不在话下"
+        },
+        {
+            "author": "灵单",
+            "timestamp": 1508046420,
+            "txt_content": "2333333333"
+        },
+        {
+            "author": "zbs12138",
+            "timestamp": 1509712200,
+            "txt_content": "emmm谢楼主"
+        },
+        {
+            "author": "2603600030",
+            "timestamp": 1510146900,
+            "txt_content": "阿阿阿阿阿阿阿阿阿阿阿阿阿阿阿阿"
+        },
+        {
+            "author": "1251354900",
+            "timestamp": 1510188480,
+            "txt_content": "强烈支持！"
+        },
+        {
+            "author": "jkji111",
+            "timestamp": 1510301160,
+            "txt_content": "66666666666666666666666"
+        },
+        {
+            "author": "li709854423",
+            "timestamp": 1510302420,
+            "txt_content": "啊！！！！希望学有所成！"
+        },
+        {
+            "author": "li709854423",
+            "timestamp": 1510304340,
+            "txt_content": "是否有开发环境跑的办法？不用runclient的。。这样可以看打印日志和debug？"
+        },
+        {
+            "author": "土球球",
+            "timestamp": 1510305660,
+            "txt_content": "li709854423 发表于 2017-11-10 16:59\n是否有开发环境跑的办法？不用runclient的。。这样可以看打印日志和debug？\nIDE里理应有运行配置的，直接点运行就好"
+        },
+        {
+            "author": "li709854423",
+            "timestamp": 1510315980,
+            "txt_content": "ustc_zzzz 发表于 2017-11-10 17:21\nIDE里理应有运行配置的，直接点运行就好\n然而并没有啊。。。你有试过吗。。。"
+        },
+        {
+            "author": "li709854423",
+            "timestamp": 1510318080,
+            "txt_content": "ustc_zzzz 发表于 2017-11-10 17:21\nIDE里理应有运行配置的，直接点运行就好\n你是什么版本的。。。我看了官网。也看了有土鳖的几年前的教程。。都是需要自己配开发环境的运行的。。为啥你能直接有"
+        },
+        {
+            "author": "GTA守护使者",
+            "timestamp": 1511120460,
+            "txt_content": "前来学习一下"
+        },
+        {
+            "author": "AR_Mr_Amzing",
+            "timestamp": 1511692680,
+            "txt_content": "个人觉得Lite还是比较好的，就是不火"
+        },
+        {
+            "author": "13542202544",
+            "timestamp": 1511799780,
+            "txt_content": "啦啦啦啦"
+        },
+        {
+            "author": "BanananK",
+            "timestamp": 1515339780,
+            "txt_content": "感谢楼主的教材 受益匪浅"
+        }
+    ]
+}

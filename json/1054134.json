@@ -1,0 +1,144 @@
+{
+    "title": "【1.13~1.16|随机】牛头人随机数生成器（Not That Random）——更实用、更可控的随机",
+    "author": "xwjcool123",
+    "replyCount": 27,
+    "timestamp": 1590894360,
+    "txt_content": " 本帖最后由 xwjcool123 于 2020-6-19 10:33 编辑 \n\n基本信息\n\n\n介绍：\n这是一个基于线性同余生成器的伪随机数发生器，用于生成伪随机数序列。\n\n优点\n高效——生成一个32位的整型伪随机数只需要11条命令，不包含任何递归与循环，也不需要生成任何marker实体——11条命令的纯计算，这比以往逐位生成的随机数模块都要快。不用担心，它看起来就和真正的随机数一样。大范围——它的输出范围覆盖了-2147483648~2147483647的所有整数，是以往随机数模块的两倍。基本可靠——在三维空间未观测到明显的分布平面。这是一个48位的生成器，输出高32位，避免了最低位01交替出现的问题。实用——每个玩家都拥有自己的随机实例。只要两个玩家的种子相同，他们就能生成同样的随机序列。不用去记录整个序列，也不用担心搞丢。跨版本兼容——从1.13到快照，全部都能用。\n\n\n缺点\n不够安全——可以被暴力破解。不过如果仅仅用于游戏的话是不用担心这些的。有周期——周期为2^48，之后就会开始重复。不过能用到整个周期的情况几乎不存在。\n\n\n它是“伪”随机。我可以放心使用它吗？\n如果用于游戏或解密地图，为游戏添加随机元素——可以的。这个数据包生成的数对于不知道其背后机理与内部状态的玩家而言看起来是“随机”而“无规律”的（如果不知道原理、不借助工具，就算在屏幕前盯上一整天也找不到规律的）。而且，比起其他基于命令的随机实现方法，它更可控一些。\n然而：如果你希望将其用于难以被人破解的用途，如密码学，那么我的建议是——最好不要使用。这个生成器不够安全。可能花个几小时甚至几分钟，一些技术人员就可以暴力破解它。\n\n\n使用方法：\n\n安装\n下载本数据包并将其放在存档目录的datapacks文件夹下。\n\n\n\nNot That  Random 1.0.1.zip\n(6.43 KB, 下载次数: 41)\n\n\n\n2020-5-31 11:11 上传\n点击文件名下载附件\n\n\n\n\n\n\n在游戏中执行/reload\n\n\n初始化随机实例\n本数据包允许每一个实体都拥有一个独立的随机实例。同时，还拥有一个全局实例。这些实例可以相同，也可以不同。\n第一次使用前请务必初始化\n#获得一个新的种子并初始化自己的随机实例\nfunction lcg:randomize\n\n#获得一个新的种子并初始化全局随机实例\nfunction lcg:global_randomize\n\n#初始化自己的随机实例，但不更新种子（使用自定义种子时请使用这个）\nfunction lcg:reset\n\n#初始化全局随机实例，但不更新种子（使用自定义种子时请使用这个）\nfunction lcg:global_reset\n复制代码\n本生成器采用48位的种子与内部状态。种子保存在实体或 _global 的 lcg_seed_hi32 （高32位，范围-2147483648~2147483647）与 lcg_seed_lo16 （低16位，范围0~65535）这两个计分板目标下。\n\n输出伪随机数\n#更新自身实例的状态并输出一个伪随机数\nfunction lcg:rand\n\n#更新全局实例的状态并输出一个伪随机数\nfunction lcg:global_rand\n复制代码\n输出的伪随机数范围在-2147483648~2147483647，覆盖了整个记分板的范围。输出的结果存储在实体或 _global 的 lcg_output 记分板目标下\n\n获取与设置种子\n\n每个实例拥有自己的种子。使用randomize进行初始化时会自动获取一个种子。你也可以指定你想要的种子，然后进行reset\n#获取自己的种子\nfunction lcg:getseed\n\n#获取全局实例的种子\nfunction lcg:global_getseed\n\n#设置自己的种子（例）\nscoreboard players set @s lcg_seed_hi32 123456789\nscoreboard players set @s lcg_seed_lo16 12345\n\n#设置全局实例的种子（例）\nscoreboard players set _global lcg_seed_hi32 123456789\nscoreboard players set _global lcg_seed_lo16 12345\n复制代码\n\n应用：\n在调试过程（如测试发牌、测试功能）的过程中，反复输出同一“随机”序列。在类似俄罗斯方块的多人对抗中，需要保证各个选手虽然步调不一致，但是获得的随机序列是相同的Replay功能回放随机事件在类似“扫雷”的游戏中重新开始同一版面也可以当作普通的随机来用\n\n\n\n原理：\n这个生成器的核心是一个标准的线性同余生成器。\n\nstate = (state * 25214903917 + 11) mod (2 ^ 48)复制代码因为生成器只有48位，所以高于48位的部分将会溢出而被直接舍弃，相当于直接对2^48取余。\n\n准备工作\n这里是定义常量和变量的部分。这部分在#minecraft:load里执行。\nscoreboard objectives add lcg_timestamp dummy\nscoreboard objectives add lcg_seed_hi32 dummy\nscoreboard objectives add lcg_seed_lo16 dummy\nscoreboard objectives add lcg_state_hi32 dummy\nscoreboard objectives add lcg_state_lo16 dummy\nscoreboard objectives add lcg_output dummy\n\nscoreboard objectives add data_version dummy\n\n# LCG parameters （基本参数的定义）\nscoreboard objectives add lcg_multi_lo16 dummy\nscoreboard objectives add lcg_multi_lo32 dummy\nscoreboard objectives add lcg_multi_hi32 dummy\nscoreboard objectives add lcg_increment dummy\nscoreboard objectives add lcg_carry dummy\nscoreboard objectives add lcg_1s dummy\n\n# 0x5DEECE66D （这个数超过32-bit int上限，所以拆成段以方便计算）\nscoreboard players set _global lcg_multi_hi32 384748\nscoreboard players set _global lcg_multi_lo16 58989\nscoreboard players set _global lcg_multi_lo32 -554899859\n\n# 0xB\nscoreboard players set _global lcg_increment 11\n\n# 0x1000\nscoreboard players set _global lcg_1s 65536复制代码\n获得种子\n生成一个药水云实体并根据它的UUID获取种子。根据版本的不同，这个数据包会使用不同的命令。这里展示的是20w12a及以后会执行的命令。\n#get seed and set initial state from random entity UUID\nexecute at @s run summon area_effect_cloud ~ ~ ~ {Tags:[lcg_randomizer]}\nexecute store result score @s lcg_seed_hi32 run data get entity @e[tag=lcg_randomizer,limit=1] UUID[1]\nexecute store result score @s lcg_seed_lo16 run data get entity @e[tag=lcg_randomizer,limit=1] UUID[3]\nscoreboard players operation @s lcg_seed_lo16 %= _global lcg_1s\nkill @e[tag=lcg_randomizer]\n复制代码\n初始化\n#将当前状态设为种子\nscoreboard players operation @s lcg_state_hi32 = @s lcg_seed_hi32\nscoreboard players operation @s lcg_state_lo16 = @s lcg_seed_lo16\n复制代码\n刷新状态并输出随机数\n这是本生成器的核心部分。更新一次状态并生成新的随机数。输出的随机数为更新后的状态的高32位。\n# refresh the state （更新状态）\n# state = (state * 25214903917 + 11) mod (2 ^ 48)\nscoreboard players operation @s lcg_carry = @s lcg_state_lo16\nscoreboard players operation @s lcg_state_lo16 *= _global lcg_multi_lo16\nscoreboard players operation @s lcg_carry *= _global lcg_multi_hi32\nscoreboard players operation @s lcg_state_hi32 *= _global lcg_multi_lo32\nscoreboard players operation @s lcg_state_hi32 += @s lcg_carry\n\nscoreboard players add @s lcg_state_lo16 11\nexecute if score @s lcg_seed_lo16 matches 0..10 run scoreboard players add @s lcg_state_hi32 1\nscoreboard players operation @s lcg_carry = @s lcg_state_lo16\nscoreboard players operation @s lcg_carry /= _global lcg_1s\nscoreboard players operation @s lcg_state_hi32 += @s lcg_carry\nscoreboard players operation @s lcg_state_lo16 %= _global lcg_1s\n\n# output (for further modification or ready to use)\nscoreboard players operation @s lcg_output = @s lcg_state_hi32\n复制代码\n\n",
+    "replies": [
+        {
+            "author": "空辰KC",
+            "timestamp": 1590895080,
+            "txt_content": "not that random 牛头人狂喜，纯爱党正在赶来的路上\n\n可以加点靠随机而经常用的功能(做成前置(划去)\n所以随机数真是个生草的东西(悲)"
+        },
+        {
+            "author": "3491638801",
+            "timestamp": 1590895140,
+            "txt_content": "1dasdasdad"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1590895920,
+            "txt_content": "放张随机生成的猫\n\n\n\n\n2020-05-31_11.31.14.png (97.97 KB, 下载次数: 2)\n\n下载附件\n\n2020-5-31 11:32 上传\n\n\n\n\n\n\n"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1590896340,
+            "txt_content": "这个名字有点过头了\n不 要 起 擦 边 球 鬼 名 字"
+        },
+        {
+            "author": "Never-Mind",
+            "timestamp": 1590896460,
+            "txt_content": "牛头人狂喜，纯爱党正在赶来的路上，猎牛人"
+        },
+        {
+            "author": "rooke_zb",
+            "timestamp": 1590898020,
+            "txt_content": "现在原版模组起名都这么生草的吗？马大哈，牛头人，WTMSB，这都啥名字啊（战术后仰\n不过随机数这样很常用的还是挺实用的"
+        },
+        {
+            "author": "望帝啼鹊",
+            "timestamp": 1590939000,
+            "txt_content": "牛头人是真的强"
+        },
+        {
+            "author": "lifuhao",
+            "timestamp": 1591150620,
+            "txt_content": "666666666666"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1591433100,
+            "txt_content": " 本帖最后由 (=°ω°)丿 于 2020-6-7 08:48 编辑 \n\n理想气体状态方程：PV=nTR，\n而分子的热运动是随机的，\n所以，我编不下去了（\n\n断言依旧很香（"
+        },
+        {
+            "author": "小白小孟",
+            "timestamp": 1591776120,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "小白小孟",
+            "timestamp": 1591776120,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qq1244696403",
+            "timestamp": 1591792260,
+            "txt_content": "谢谢楼主的分享."
+        },
+        {
+            "author": "xiaoshuguang",
+            "timestamp": 1591839660,
+            "txt_content": "有点意思 支持一下楼主"
+        },
+        {
+            "author": "晴路卡",
+            "timestamp": 1591940280,
+            "txt_content": "(=°ω°)丿 发表于 2020-6-6 16:45\n理想气体状态方程：PV=nTR，\n而分子的热运动是随机的，\n所以，我编不下去了（\n断言 LT UUID都好\n过往整随机的东西都太不可控了\n\n线性同余的优势在帖子的第二条应用里已经很明显了"
+        },
+        {
+            "author": "VOLRIS",
+            "timestamp": 1591975200,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "VCS-Official",
+            "timestamp": 1592094360,
+            "txt_content": "现在的取名都这么讲究的嘛,i了i了\n→一直不知道牛头人是啥的屑"
+        },
+        {
+            "author": "WYL0zhu",
+            "timestamp": 1592113860,
+            "txt_content": "你不是可以吧初始化的内容添加到函数标签#minecraft:load里吗，这样就可以让使用者不用手动初始化了。"
+        },
+        {
+            "author": "xwjcool123",
+            "timestamp": 1592207280,
+            "txt_content": " 本帖最后由 xwjcool123 于 2020-6-15 15:52 编辑 \nWYL0zhu 发表于 2020-6-14 13:51\n你不是可以吧初始化的内容添加到函数标签#minecraft:load里吗，这样就可以让使用者不用手动初始化了。 ...\n本来刚开始是这么搞的，后来考虑到实际使用的时候可以设置种子再初始化，所以移除了。而且每个玩家拥有自己的随机实例，多人游戏如果在#load初始化的话，不能保证玩家都同时在线\n而且直接使用这个数据包的通常不是普通玩家，一般都是其他数据包的作者什么的。手动初始化也方便debug"
+        },
+        {
+            "author": "2430162630",
+            "timestamp": 1592234640,
+            "txt_content": "羊驼大战ntr？"
+        },
+        {
+            "author": "吾之凯旋",
+            "timestamp": 1592237940,
+            "txt_content": "太草了"
+        },
+        {
+            "author": "kayn-",
+            "timestamp": 1596939960,
+            "txt_content": "纯爱战士一拳一个牛头人，取这个标题233"
+        },
+        {
+            "author": "堕天使之墓",
+            "timestamp": 1596945240,
+            "txt_content": "神TM牛头人，不怕被打死吗\n这玩意......\n单个命令能看懂但放一起就不知道是什么鬼了\n一堆运算弄可控随机，em"
+        },
+        {
+            "author": "Lingqian",
+            "timestamp": 1596950160,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "18226085696",
+            "timestamp": 1597060500,
+            "txt_content": "nice~~~~~~~~~~~~~~~~"
+        },
+        {
+            "author": "忘记了，爱",
+            "timestamp": 1597071540,
+            "txt_content": "十分实用L）））"
+        },
+        {
+            "author": "NRBL",
+            "timestamp": 1597300560,
+            "txt_content": "好的 很强 就是这个名字牛头人。。。"
+        },
+        {
+            "author": "永爱不忘",
+            "timestamp": 1597894260,
+            "txt_content": "NTR生成器  现在连这都有了吗"
+        }
+    ]
+}

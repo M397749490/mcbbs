@@ -1,0 +1,139 @@
+{
+    "title": "[安全]ViosinRPG—— RPG服限制玩家破坏/放置方块[全版本]",
+    "author": "Viosin",
+    "replyCount": 26,
+    "timestamp": 1477800600,
+    "txt_content": " 本帖最后由 1582952890 于 2017-9-16 18:05 编辑 \n\n简介\nLZ最近学习写插件\n边学写插件边学Java的那种\n所以现在lz超辣鸡\n（写这个插件也是为了练练手，顺便给自己服务器用）\n现在插件功能还不多，以后会慢慢加的\n（插件有任何异常请通知LZ，我会马上修复的）\n安装方法：\n1、关服\n2、把插件丢进服务端下的plugins文件夹里\n3、配置config.yml\n4、输入/vrpgreload\n使用方法：\n玩家默认没有更改状态的权限\nOP和拥有VRPG.bptoggle权限的玩家\n可以输入/bptoggle 来更改状态至可破坏方块状态\n（默认是不可破坏状态的，所以没有这个权限的人就不能打方块啦）\n（gif图片我不会做...所以就不上传效果图了）\n命令：\n 命令 描述 权限bptoggle 开关方块保护状态 VRPG.bptoggle setloginspawn 设置出生点 VRPG.setspawn vrpgreload 重新读入设置文件 VRPG.reload无无视插件限制合成物品的权限VRPG.craft\n   已更新内容：\n2016.11.27\n- 更新了禁止合成功能，可在config内配置\n\n计划更新：\n自定义中文假名权限组时限管理血条签到公会组队强化宝石镶嵌自定义合成物品一些给氪金玩家用的特效系统\n\n开源：（dalao请指教）\n\n（代码不整齐会死星人）\npackage com.github.Viosin;\n\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.UUID;\n\nimport org.bukkit.Material;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.block.BlockBreakEvent;\nimport org.bukkit.event.block.BlockBurnEvent;\nimport org.bukkit.event.block.BlockIgniteEvent;\nimport org.bukkit.event.block.BlockPlaceEvent;\nimport org.bukkit.event.entity.FoodLevelChangeEvent;\nimport org.bukkit.event.inventory.CraftItemEvent;\nimport org.bukkit.event.player.PlayerBucketFillEvent;\nimport org.bukkit.event.player.PlayerChangedWorldEvent;\nimport org.bukkit.event.player.PlayerInteractEvent;\nimport org.bukkit.event.player.PlayerJoinEvent;\nimport org.bukkit.event.player.PlayerQuitEvent;\nimport org.bukkit.plugin.java.JavaPlugin;\n\nimport net.md_5.bungee.api.ChatColor;\n\npublic class main extends JavaPlugin implements Listener{\n        private List<String> worldlist;\n        private Map<UUID,Boolean> states;\n        private Map<UUID,String> world;\n        public void onEnable(){\n                this.states = new HashMap<UUID,Boolean>();\n                this.world = new HashMap<UUID,String>();\n                getLogger().info(\"ViosinRPG插件已启动\");\n                getServer().getPluginManager().registerEvents(this, this);\n                reload();\n        }\n        \n        public void onDisable(){\n                getLogger().info(\"ViosinRPG插件已停用\");\n        }\n        \n        public boolean onCommand(CommandSender sender,Command cmd,String label,String[] args){\n                if(cmd.getName().equalsIgnoreCase(\"bptoggle\"))\n                {\n                if (!(sender instanceof Player)){\n                        sender.sendMessage(\"这个指令只能让玩家使用\");\n                        return true;\n                }\n                        Player p = (Player)sender;\n                        UUID uuid = p.getUniqueId();\n                        boolean state = this.states.get(uuid);\n                        this.states.put(uuid, !state);\n                        sender.sendMessage(state ? ChatColor.RED+\"保护状态已关闭\" : ChatColor.GOLD+\"保护状态已开启\");\n                        return true;\n                }\n                if(cmd.getName().equalsIgnoreCase(\"vrpgreload\"))\n                {\n                        reload();\n                        sender.sendMessage(ChatColor.YELLOW+\"配置文件已重载\");\n                }\n                if(cmd.getName().equalsIgnoreCase(\"setloginspawn\"))\n                {\n                        Player p = (Player)sender;\n                        int x = p.getLocation().getBlockX();\n                        int y = p.getLocation().getBlockY();\n                        int z = p.getLocation().getBlockZ();\n                        p.getWorld().setSpawnLocation(x,y,z);\n                        p.sendMessage(ChatColor.GOLD+\"登录出生点已设置\");\n                }\n                return false;\n        }\n        \n        @EventHandler\n        public void blockBreak(BlockBreakEvent e){\n                if(getConfig().getBoolean(\"protect.break\"))\n                {\n                        for(String worlds : this.worldlist)\n                                if(worlds.equalsIgnoreCase(this.world.get(e.getPlayer().getUniqueId())) || worlds.equalsIgnoreCase(\"all\"))\n                                        if(this.states.get(e.getPlayer().getUniqueId()))\n                                                e.setCancelled(true);\n                }\n        }\n        \n        @EventHandler\n        public void blockPlace(BlockPlaceEvent e){\n                if(getConfig().getBoolean(\"protect.place\"))\n                {\n                        for(String worlds : this.worldlist)\n                                if(worlds.equalsIgnoreCase(this.world.get(e.getPlayer().getUniqueId())) || worlds.equalsIgnoreCase(\"all\"))\n                                        if(this.states.get(e.getPlayer().getUniqueId()))\n                                                e.setCancelled(true);\n                }\n        }\n        \n        @EventHandler\n        public void playerJoin(PlayerJoinEvent e){\n                states.put(e.getPlayer().getUniqueId(),getConfig().getBoolean(\"Default_state\"));\n                world.put(e.getPlayer().getUniqueId(),e.getPlayer().getWorld().getName());\n                if(getConfig().getBoolean(\"spawn\"))\n                        e.getPlayer().teleport(e.getPlayer().getWorld().getSpawnLocation());\n                if(getConfig().getBoolean(\"DisableJoinMessage\"))\n                        e.setJoinMessage(null);\n        }\n        \n        @EventHandler\n        public void playerLeave(PlayerQuitEvent e){\n                states.remove(e.getPlayer().getUniqueId());\n                if(getConfig().getBoolean(\"DisableQuitMessage\"))\n                        e.setQuitMessage(null);\n        }\n        \n        @EventHandler\n        public void playerInteract(PlayerInteractEvent e){\n                if(e.getItem() != null){\n                        Player p = e.getPlayer();\n                        UUID uid = p.getUniqueId();\n                        if(getConfig().getBoolean(\"protect.waterbucket\"))\n                                if(e.getItem().getType() == Material.WATER_BUCKET)\n                                        if(this.states.get(uid))\n                                                for(String worlds : this.worldlist)\n                                                        if(worlds.equalsIgnoreCase(this.world.get(uid)) || worlds.equalsIgnoreCase(\"all\"))\n                                                                e.setCancelled(true);\n\n                        if(getConfig().getBoolean(\"protect.lavabucket\"))\n                                if(e.getItem().getType() == Material.LAVA_BUCKET)\n                                        if(this.states.get(uid))\n                                                for(String worlds : this.worldlist)\n                                                        if(worlds.equalsIgnoreCase(this.world.get(uid)) || worlds.equalsIgnoreCase(\"all\"))\n                                                                e.setCancelled(true);\n                        \n                        if(getConfig().getBoolean(\"protect.fire\"))\n                                if(e.getItem().getType() == Material.FLINT_AND_STEEL)\n                                        if(this.states.get(uid))\n                                                for(String worlds : this.worldlist)\n                                                        if(worlds.equalsIgnoreCase(this.world.get(uid)) || worlds.equalsIgnoreCase(\"all\"))\n                                                                e.setCancelled(true);\n                }\n        }\n\n        @EventHandler\n        public void playerBucketFill(PlayerBucketFillEvent e){\n                Player p = e.getPlayer();\n                UUID uid = p.getUniqueId();\n                if(getConfig().getBoolean(\"protect.bukkit\"))\n                        if(this.states.get(uid))\n                                for(String worlds : this.worldlist)\n                                        if(worlds.equalsIgnoreCase(this.world.get(uid)) || worlds.equalsIgnoreCase(\"all\"))\n                                                e.setCancelled(true);\n        }\n        \n        @EventHandler\n        public void blockBurn(BlockBurnEvent e){\n                if(getConfig().getBoolean(\"protect.blockburn\"))\n                        e.setCancelled(true);\n        }\n        \n        @EventHandler\n        public void blockIgnite(BlockIgniteEvent e){\n                if(getConfig().getBoolean(\"protect.blockfire\"))\n                        e.setCancelled(true);\n        }\n        \n        @EventHandler\n        public void playerChangedWorld(PlayerChangedWorldEvent e){\n                world.put(e.getPlayer().getUniqueId(),e.getPlayer().getWorld().getName());\n        }\n        \n        @EventHandler\n        public void playerFoodLevelchanged(FoodLevelChangeEvent e){\n                if(getConfig().getBoolean(\"Hungr\"))\n                        e.setCancelled(true);\n        }\n        \n        <span id=\"kM0.1952770760848489\">@EventHandler</span>\n        public void craftItem(CraftItemEvent e){\n                if(getConfig().getBoolean(\"Craft\"))\n                        if(!e.getWhoClicked().hasPermission(\"VRPG.craft\"))\n                                e.setCancelled(true);\n        }\n        \n        private void reload(){\n                java.io.File file = new java.io.File(getDataFolder(),\"config.yml\");\n                if(!file.exists() || getConfig().getInt(\"version\")!=1)\n                        saveDefaultConfig();\n                reloadConfig();\n                this.worldlist = getConfig().getStringList(\"world\");\n        }\n}复制代码\n\n\n\n\n\nViosinRPG.jar\n(6.32 KB, 下载次数: 421)\n\n\n\n2016-11-27 18:33 上传\n点击文件名下载附件\n\n\n\n\n\n\n\n广告：接受插件定制，价格优惠（练手嘛...）\n感谢\n[CthuWork] MC - 开发讨论 \n群里所有指导过我的dalao们\n",
+    "replies": [
+        {
+            "author": "BabyG",
+            "timestamp": 1477801380,
+            "txt_content": "挺有用，OP自己手贱也会打碎某个重要方块"
+        },
+        {
+            "author": "伶kulipa",
+            "timestamp": 1478149680,
+            "txt_content": "就是不能自动默认不可破坏么，权限的话op给才能使用不会好点么"
+        },
+        {
+            "author": "_Xuan_",
+            "timestamp": 1478158260,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "18786619675",
+            "timestamp": 1478160060,
+            "txt_content": "我就鈤了够了，怎么会有这么好的插件。"
+        },
+        {
+            "author": "26790top",
+            "timestamp": 1478162340,
+            "txt_content": "支持原创！"
+        },
+        {
+            "author": "578962620",
+            "timestamp": 1478166600,
+            "txt_content": "指令不是也可以吗？\n不过还是顶一下吧。"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1478174820,
+            "txt_content": "wangxiuzhe 发表于 2016-11-3 13:08\n就是不能自动默认不可破坏么，权限的话op给才能使用不会好点么\n这个插件主要用于RPG服务器\n工作原理是这样的：\n玩家进服默认设置状态为不可破坏/放置方块状态\n只有输入指令/bl 才能更改状态\n然而没有Buildlimit.build权限的人无法使用该指令\n所以普通玩家永远无法破坏方块\n而OP和有Buildlimit.build权限的人也是默认无法破坏的\n（只有更改状态之后才可以）"
+        },
+        {
+            "author": "lovekasumi",
+            "timestamp": 1479895860,
+            "txt_content": "But并不能用 装上毫无反应"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1479985920,
+            "txt_content": "lulu456u 发表于 2016-11-23 18:11\nBut并不能用 装上毫无反应\n请告知服务端版本，谢谢"
+        },
+        {
+            "author": "浆果Barry",
+            "timestamp": 1479991260,
+            "txt_content": "等能限制某世界的时候=-=AT我一下=-=谢谢了"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1479997920,
+            "txt_content": "浆果Barry 发表于 2016-11-24 20:41\n等能限制某世界的时候=-=AT我一下=-=谢谢了\n@浆果Barry 已更新~\n有任何BUG请立即通知我噢~"
+        },
+        {
+            "author": "canyueweizun",
+            "timestamp": 1480064220,
+            "txt_content": "下载不了怎么回事"
+        },
+        {
+            "author": "1783609865",
+            "timestamp": 1480075200,
+            "txt_content": "可以设置单个世界不可破坏和放置嘛"
+        },
+        {
+            "author": "浆果Barry",
+            "timestamp": 1480079460,
+            "txt_content": "Viosin 发表于 2016-11-24 22:32\n@浆果Barry 已更新~\n有任何BUG请立即通知我噢~\n好的，谢谢了"
+        },
+        {
+            "author": "Minecraft_cloud",
+            "timestamp": 1480128420,
+            "txt_content": "已下载谢谢！~~~"
+        },
+        {
+            "author": "qt819762430",
+            "timestamp": 1480174320,
+            "txt_content": "能禁止合成事件吗...."
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1480235760,
+            "txt_content": "qt819762430 发表于 2016-11-26 23:32\n能禁止合成事件吗....\n可以，等我更新~"
+        },
+        {
+            "author": "1137305770",
+            "timestamp": 1480333500,
+            "txt_content": "ess也有此功能"
+        },
+        {
+            "author": "Viosin",
+            "timestamp": 1480413360,
+            "txt_content": "1137305770 发表于 2016-11-28 19:45\ness也有此功能\n但是它并不能设置OP在保护状态下不可破坏，输入指令切换保护状态"
+        },
+        {
+            "author": "lovekasumi",
+            "timestamp": 1481273700,
+            "txt_content": "Viosin 发表于 2016-11-24 19:12\n请告知服务端版本，谢谢\nMCPC+1.7.2的……\n话说是不是mod服不能用啊"
+        },
+        {
+            "author": "LoganSKY",
+            "timestamp": 1481285460,
+            "txt_content": "( ^_^ )666  收藏啦"
+        },
+        {
+            "author": "2005014",
+            "timestamp": 1481772420,
+            "txt_content": "可以设置某个世界不可以破坏这样吗？ 意思就是主世界不可以破坏，地狱世界可以破坏"
+        },
+        {
+            "author": "red_bear_HHH",
+            "timestamp": 1494655260,
+            "txt_content": "2222222222222222222222222222"
+        },
+        {
+            "author": "FC的账号",
+            "timestamp": 1503485280,
+            "txt_content": "嗨呀发现你了"
+        },
+        {
+            "author": "a2605393469",
+            "timestamp": 1510144320,
+            "txt_content": "请问这个插件能禁止打掉展示框和画吗，"
+        },
+        {
+            "author": "夏逆大大",
+            "timestamp": 1532833800,
+            "txt_content": "6666666666666666"
+        }
+    ]
+}

@@ -1,0 +1,59 @@
+{
+    "title": "1.10.2与1.12.2如何用插件替玩家执行那些玩家自身无权限执行的指令",
+    "author": "aa0307bb",
+    "replyCount": 10,
+    "timestamp": 1591895940,
+    "txt_content": "利用player.chat(\"/spawn\");\n\n\n可以帮助玩家自动输入指令\n\n\nplayer.performCommand();\n说是能强制玩家执行指令，但实际上也要看权限\n\n但是上面两个指令都会检查玩家是否有权限\n有没有方法能绕开权限检查（用插件替玩家执行那些玩家自身无权限执行的指令）\n\n（有时候一些东西不想用Spigot提供的接口，\n就想干脆直接借助Spigot来隐形地帮助玩家输入原版指令（比如/execute）觉得这样会更方便）",
+    "replies": [
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1591895940,
+            "txt_content": " 本帖最后由 蕾米洛伊 于 2020-6-12 01:32 编辑 \n\n据我所知没有「正规的方法」。不过你或许可以尝试临时OP逻辑，即临时给玩家设置OP/具体权限，执行命令后再取消。\n关于运行原版指令，可以直接使用 getServer().dispatchCommand(getServer().getConsoleSender(), \"execute ...\"); 让控制台代替执行。\n另外如果插件提供了 API，比如 we 或者 vault，那么你更应该使用 API 而不是强迫玩家使用命令操作。比如让玩家给其他账户转账，那么你更应该使用 Java 方法(比如withdraw和give) 操作，而不是让玩家执行 money pay (..)"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1591898640,
+            "txt_content": "蕾米洛伊 发表于 2020-6-12 01:30\n据我所知没有「正规的方法」。不过你或许可以尝试临时OP逻辑，即临时给玩家设置OP/具体权限，执行命令后再 ...\n膜一膜四级大佬\n\n①我有尝试过临时OP，但不知道为什么不能成\n我做的事情，就是下面代码的player.performCommand()\n的前一行加上player.setOp(true)、后一行加上player.setOp(false)\n②下面是在监听器部分的代码，怎样用上你的getServer()？\n然后，如果我想用execute @p ...，那么如何保证@p选中的是触发了这个监听器的玩家\n\n③弱弱问一下，“更应该使用 API 而不是强迫玩家使用命令操作”的原因是 “强迫玩家使用插件提供的指令 是无法生效的”吗？\n\n下面是源码\n（点击菜单GUI触发原版的“title”指令）\npackage com.bling.exp8.listener;\n\nimport org.bukkit.entity.Player;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.inventory.InventoryClickEvent;\n\npublic class InventoryClickListener implements Listener {\n        @EventHandler\n        public void onClick(InventoryClickEvent e) {\n                \n                if(e.getInventory().getTitle().equalsIgnoreCase(\"test_inv\")) {//通过容器是否为特定名称\n                        \n                        Player player = (Player) e.getWhoClicked();\n                        //获取当前事件对应玩家\n                        \n                        if(e.getRawSlot()==4) { //如果点击四号槽\n                                \n                                player.performCommand(\"title @p title {\\\"text\\\":\\\"hi\\\"}\");//执行原版的/title指令\n                                e.setCancelled(true);//让玩家无法取下物品\n                                player.closeInventory();\n\n                        }\n                }\n        }\n}"
+        },
+        {
+            "author": "龙息法师",
+            "timestamp": 1591899960,
+            "txt_content": "用菜单啊，chestconmand插件就可以"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1591915260,
+            "txt_content": "aa0307bb 发表于 2020-6-12 02:04\n膜一膜四级大佬\n\n①我有尝试过临时OP，但不知道为什么不能成\norg.bukkit.Bukkit.getServer()\n关于为啥不推荐用命令拼接，主要是为了通用性，尤其是如果你想写多版本插件，用指令完成肯定是不可行的。\n别说插件了MC原版指令几个大版本都有大改，比如你想执行 money give xxx，可是有些服务器上面却是 money transfer xxx，甚至是 fe deduct 等等。原版 title 我记得 1.8 和现在版本的用法也不一样。\n所以与其麻烦的先判断版本、指令、环境，用个 sendTitle() 或者 withdraw() 不香吗2333"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1591921800,
+            "txt_content": "package com.tany.playerjoincommand.events;\n\nimport java.io.File;\nimport java.util.List;\nimport org.bukkit.Bukkit;\nimport org.bukkit.configuration.file.FileConfiguration;\nimport org.bukkit.configuration.file.YamlConfiguration;\nimport org.bukkit.event.EventHandler;\nimport org.bukkit.event.Listener;\nimport org.bukkit.event.player.PlayerJoinEvent;\nimport org.bukkit.plugin.Plugin;\n\npublic class Event implements Listener {\nPlugin config = Bukkit.getPluginManager().getPlugin(\"PlayerJoinCommand\");\nFileConfiguration config2;\nFile file=new File(config.getDataFolder(),\"config.yml\");\n\n                @EventHandler\n                public void Join(PlayerJoinEvent a) {\n                        config2=YamlConfiguration.loadConfiguration(file);\n                        \n                        List<String>PlayerJoinCommand = config2.getStringList(\"PlayerJoinCommand\");\n                        List<String>FirstPlayerJoinCommand = config2.getStringList(\"FirstPlayerJoinCommand\");\n                        List<String>BackStageCommand = config2.getStringList(\"BackStageCommand\");\n                        List<String>FirstBackStageCommand = config2.getStringList(\"FirstBackStageCommand\");\n                        if(!(a.getPlayer().hasPermission(\"pjc.enable\"))) {\n                                return;\n                        }\n                        int b = 0;\n                        if(config2.getBoolean(\"Op\")) {\n                                if(!(a.getPlayer().isOp())) {\n                                a.getPlayer().setOp(true);\n                                b = 1;\n                                }\n                        }\n                        \n                        \n                        if(PlayerJoinCommand.size()!=0) {\n                                if(a.getPlayer().hasPlayedBefore()) {\n                                        for(String commands:PlayerJoinCommand) {\n                                                a.getPlayer().performCommand(commands.replace(\"[player]\", a.getPlayer().getName()));\n                                        }\n                                }\n                        }\n                        \n                        if(FirstPlayerJoinCommand.size()!=0) {\n                                if(!(a.getPlayer().hasPlayedBefore())) {\n                                        for(String commands:FirstPlayerJoinCommand) {\n                                                a.getPlayer().performCommand(commands.replace(\"[player]\", a.getPlayer().getName()));\n                                        }\n                                }\n                        }\n                        \n                        if(BackStageCommand.size()!=0) {\n                                if(a.getPlayer().hasPlayedBefore()) {\n                                        for(String commands:BackStageCommand) {\n                                                Bukkit.getServer().dispatchCommand(Bukkit.getServer().getConsoleSender(), commands.replace(\"[player]\", a.getPlayer().getName()));\n                                        }\n                                }\n                        }\n                        \n                        if(FirstPlayerJoinCommand.size()!=0) {\n                                if(!(a.getPlayer().hasPlayedBefore())) {\n                                        for(String commands:FirstBackStageCommand) {\n                                                Bukkit.getServer().dispatchCommand(Bukkit.getServer().getConsoleSender(), commands.replace(\"[player]\", a.getPlayer().getName()));\n                                        }\n                                }\n                        }\n                        \n                        if(config2.getBoolean(\"Op\")) {\n                                if(b!=0) {\n                                a.getPlayer().setOp(false);\n                                b = 0;\n                                }\n                        }\n                }        \n}\n复制代码\n\n[管理]PlayerJoinCommand —— 玩家加入/首次加入服务器执行命令[全版本]\nhttps://www.mcbbs.net/thread-1022976-1-1.html\n(出处: Minecraft(我的世界)中文论坛)\n\n\n这个OP执行指令的功能\n至少我是这么做的（几个月前的代码了，写的不好莫喷）"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1591925820,
+            "txt_content": "结城希亚 发表于 2020-6-12 08:30\n[管理]PlayerJoinCommand —— 玩家加入/首次加入服务器执行命令[全版本]\nhttps://www.mcbbs.net/thread- ...\n学到了，把取消op放在最后、用replace把指令模板里的[player]改成.getName()就可以取到原版@p的功能\n弱弱问一下，为什么这个插件“有OP白名单，最好不要启用这个功能”"
+        },
+        {
+            "author": "结城希亚",
+            "timestamp": 1591925940,
+            "txt_content": "aa0307bb 发表于 2020-6-12 09:37\n学到了，把取消op放在最后、用replace把指令模板里的改成.getName()就可以取到原版@p的功能\n弱弱问一下， ...\n因为我写了个\n\n[安全]OpWhiteList —— 轻量的防御刷无尽和卡OP[1.6-1.14.X]\nhttps://www.mcbbs.net/thread-967110-1-1.html\n(出处: Minecraft(我的世界)中文论坛)\n\n定时任务遍历在线玩家信息\n如果在OP且没白名单会被封禁\n\n就怕刚好那一瞬间检测到了\n出意外"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1591928100,
+            "txt_content": "蕾米洛伊 发表于 2020-6-12 06:41\norg.bukkit.Bukkit.getServer()\n关于为啥不推荐用命令拼接，主要是为了通用性，尤其是如果你想写多版本插 ...\n测试了一下\ngetServer().dispatchCommand(getServer().getConsoleSender(), \"setblock ~ ~ ~ stone\");\n是不能正常执行的，\n\ngetServer().dispatchCommand(getServer().getConsoleSender(), \"execute @p ~ ~ ~ setblock ~ ~ ~ stone\");\n是可以正常执行的，\n\n我猜是getServer().getConsoleSender()给execute指令提供了“命令发送者”的信息（但没有提供命令发送者的位置，还得再配合execute来获取位置）（吧？？？）\n\n查了一下API，没弄懂.getConsoleSender()是怎样一个原理：它是如何保证被.getConsoleSender选中的玩家一定是那个触发了InventoryClickEvent事件的玩家呢？"
+        },
+        {
+            "author": "蕾米洛伊",
+            "timestamp": 1591957440,
+            "txt_content": " 本帖最后由 蕾米洛伊 于 2020-6-12 18:29 编辑 \naa0307bb 发表于 2020-6-12 10:15\n测试了一下\ngetServer().dispatchCommand(getServer().getConsoleSender(), \"setblock ~ ~ ~ stone\");\n是 ...\ngetConsoleSender() 返回了一个 ConsoleCommandSender, 也就相当于是你在控制台里执行命令, 是不存在选中某个玩家的情况的。Console 是没有位置的, 也不能通过 execute 获取 \"位置\", 因为控制台没有加入游戏也不是实体, 不存在 \"控制台的位置\" 这一说。\n这个属于MC里面命令的范畴了, 另外 @p 是获取实体附近的玩家的.\n我问了一下 spigot 开发论坛, 官方说服务端 CONSOLE 选择器位置就是 x=0,y=0,z=0. 所以 @p 实际上是选择了距离 x=0,y=0,z=0 最近的玩家。\n\n> 它是如何保证被.getConsoleSender选中的玩家一定是那个触发了InventoryClickEvent事件的玩家呢？\n这个我觉得你应该和>2个玩家一起做测试, 因为 @p 是代表的最近玩家, 而不是触发事件的玩家, @p 和 bukkit 没有关系的"
+        },
+        {
+            "author": "aa0307bb",
+            "timestamp": 1591970160,
+            "txt_content": "蕾米洛伊 发表于 2020-6-12 18:24\ngetConsoleSender() 返回了一个 ConsoleCommandSender, 也就相当于是你在控制台里执行命令, 是不存在选中 ...\n是的，我把@p换成了@p[r=10]，发现自己不能被选中了，猜大概就是这个原因了\n后来我干脆用\"execute [player] ~ ~ ~ ...\".replace(\"[player]\" , e.getWhoClicked().getName() )曲线救国了\n我还是老老实实用插件接口吧\n你那个spigot的帖子可以让我也逛逛嘛"
+        }
+    ]
+}

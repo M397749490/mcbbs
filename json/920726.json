@@ -1,0 +1,179 @@
+{
+    "title": "Dynmap 卫星地图的优化方法，让你的卫星地图变得与众不同",
+    "author": "Akkariin",
+    "replyCount": 34,
+    "timestamp": 1571327340,
+    "txt_content": " 本帖最后由 Akkariin 于 2020-3-13 12:53 编辑 \n\n欢迎来到本教程，这里会教你如何自定义自己的 Dynmap 以及优化它。\n\n#1 多核渲染优化\nDynmap 默认是使用单核心 CPU 进行渲染的，除非你的 CPU 是 i9 9900K 那种级别的 CPU，否则渲染速度是相当的慢，一张稍微大点的地图渲染一个晚上都是常事。如何让它渲染的更快呢？一起来看看。\n\n找到 plugins/dynmap/configuration.txt 这个文件，用 Notepad++ 等专业编辑器打开它。搜索 parallelrendercnt 这个配置项，如果前面有 # 注释，请将注释删除将 parallelrendercnt: 后面的数字改为你的 CPU 核心数，比如你的 CPU 是 8 核就改成 8，可以超过这个数字，但是可能会给你的系统带来更大负担执行命令 /dynmap reload 重载，这时候你应该会看到 CPU 占用率狂飙，但是渲染速度超快\n\n实测在 E5-2698 v3 双路（32 核心 64 线程）服务器上，三分钟内 Dynmap 就完成了全图渲染，CPU 的性能也完全发挥了出来。\n\n\nCPU 几乎所有核心都用上了\n\n#2 自定义材质包\n默认的材质包不好看？你可以通过简单的几个设置实现自定义材质包。\n\n准备一个你需要用于 Dynmap 的材质包，不推荐太高分辨率的，一般 256x256 以下就可以了，不然的话渲染速度超级慢（除非你用天河二号开服那我没话说 23333）将这个材质包复制到 plugins/dynmap/texturepacks/ 目录中，注意文件名不要有中文、特殊符号以及空格用 Notepad++ 等专业编辑器打开 plugins/dynmap/custom-shaders.txt 这个文件，删除里面所有内容并重新写入以下内容：shaders:\n  - class: org.dynmap.hdmap.TexturePackHDShader\n    name: stdtexture\n    texturepack: 你的材质包名字.zip复制代码执行命令 /dynmap reload 重载，然后执行 /dynmap cancelrender 取消正在进行的渲染（如果有的话），最后执行 /dynmap fullrender 重新开始渲染整张地图\n\n\n搭配 ModernArch v81 256x256 材质包的效果\n\n#3 减少宽带使用率\n如果你的服务器宽带比较小，那么大量的图片会急剧增大你的网络流量，导致玩家正常游戏受到影响。\n因此你可以通过以下步骤进行优化，减少网络流量。\n\n使用 Notepad++ 等专业编辑器打开 plugins/dynmap/configuration.txt 这个文件使用搜索功能找到 image-format: 这个配置项将默认的 png 改为 jpg 或 jpg-q95、jpg-q90、jpg-q85（q 后面代表画质，数字越大画质越好，但是文件体积也越大），数值只能是 100/95/90/85/80/75 其中一个执行 /dynmap reload 重载配置，然后 /dynmap fullrender 进行全图渲染\n\n\n#4 防止 Dynmap 拖累服务器\n如果你的 Dynmap 渲染使用的 CPU 核心数过多，可能会拖累服务器，因此可以通过以下配置防止服务器假死。\n\n还是打开 plugins/dynmap/configuration.txt 这个文件找到 fullrender-min-tps: 这个选项后面的数字就是最小 TPS，当服务器 TPS 低于这个数值的时候就会临时暂停 dynmap 渲染地图执行 /dynmap reload 重载插件\n\n\n#5 禁止玩家通过网页发送消息\n有些游客（非玩家）喜欢跑到网页上往游戏里发垃圾消息，刷屏等等，因此我个人是建议禁用网页聊天功能的。\n禁用方法很简单，修改 configuration.txt 文件中的 allowwebchat: 这个配置项，设置为 false 即可。\n\n\n#6 通过 Nginx 反代为 Dynmap 增加 HTTPS 支持\n这部分内容仅适用于对 Linux 有使用基础的服主，并且你的服务器也需要使用 Linux。\nDynmap 自身并不支持 HTTPS，如果你想要把 Dynmap 嵌入到你的其他 HTTPS 网页中，又不想让谷歌浏览器左上角报不安全的标记，那么为 Dynmap 增加 HTTPS 就很重要了。\n\n首先，确保你的服务器已经安装了 Nginx，如果没有，可以按照下面的步骤安装：\n\n打开 OneinStack：https://oneinstack.com/auto/将 Nginx 的开关打开，其他的所有开关关闭，所有复选框取消勾选（当然你也可以根据自己需要选择安装，例如 PHP）将最底下的命令复制，然后在你的 SSH 终端中粘贴运行\n\n确认 Nginx 安装完成后，为 Nginx 新增一个 Vhost 配置文件，如果你使用的是 OneinStack，那么目录应该在 /usr/local/nginx/conf/\n如果你使用的是 yum install nginx 这样安装的 Nginx，配置文件应该在 /etc/nginx/\n为了方便教程阅读，后面我统一以 OneinStack 为例进行教程演示现在我们需要创建一个 vhost 并申请 SSL 证书，在终端中输入以下命令：cd ~/oneinstack/\n./vhost.sh复制代码接着会出现以下内容，按照图片里来填\n\n\nVhost 添加示例图\n完成之后，你可以在 /usr/local/nginx/conf/vhost/ 内找到你的 Vhost 配置文件，名称为 <你的域名>.conf\n先输入 echo \"\">配置文件名.conf 清空配置，然后在里面输入以下内容：\nserver {\n  listen 80;\n  listen 443 ssl http2 ;\n  ssl_certificate /usr/local/nginx/conf/ssl/你的域名.crt;\n  ssl_certificate_key /usr/local/nginx/conf/ssl/你的域名.key;\n  ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;\n  ssl_ciphers TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;\n  ssl_prefer_server_ciphers on;\n  ssl_session_timeout 10m;\n  ssl_session_cache builtin:1000 shared:SSL:10m;\n  ssl_buffer_size 1400;\n  add_header Strict-Transport-Security max-age=15768000;\n  ssl_stapling on;\n  ssl_stapling_verify on;\n  server_name 你的域名;\n  access_log /data/wwwlogs/你的域名_nginx.log combined;\n  if ($ssl_protocol = \"\") { return 301 https://$host$request_uri; }\n\n  location / {\n        # 服务器内网一般都是 127.0.0.1，如果你的 MC 服务器和 Nginx 服务器不在同一台机器，那么这里就填 MC 服务器的 IP\n        proxy_pass   http://服务器内网IP:Dynmap端口$request_uri;\n        proxy_redirect             off;\n        proxy_set_header           Host $host; \n        proxy_set_header           X-Real-IP $remote_addr; \n        proxy_set_header           X-Forwarded-For $proxy_add_x_forwarded_for; \n        client_max_body_size       1024m;\n        client_body_buffer_size    128k;\n        proxy_connect_timeout      300;\n        proxy_send_timeout         300;\n        proxy_read_timeout         300;\n        proxy_buffer_size          4k;\n        proxy_buffers              4 32k;\n        proxy_busy_buffers_size    64k;\n        proxy_temp_file_write_size 64k;\n    }\n}复制代码完成之后，输入命令 nginx -s reload 重载 Nginx，接着浏览器访问你的域名，应该就可以看到 Dynmap 了，并且是有 HTTPS 的，此时你就可以把 Dynmap 通过 iframe 等方式嵌入到你的官网而不用担心谷歌浏览器会报不安全警告了。\n\n\n以上就是本教程全部内容，如果有帮到你的话，欢迎给我评分，谢谢~本教程将会不定期更新，你可以收藏本帖，当我更新时就可以收到消息提醒作者：Akkariin | 转载请注明本帖地址及作者\n",
+    "replies": [
+        {
+            "author": "白焰BaiYan",
+            "timestamp": 1571374380,
+            "txt_content": "学到了，下次使用地图的时候修改，谢谢大佬分享"
+        },
+        {
+            "author": "二哈大魔王",
+            "timestamp": 1572427380,
+            "txt_content": " 本帖最后由 二哈大魔王 于 2019-10-30 17:25 编辑 \n\n哇 有用有用  建议出更多的实用教程。。比如如何优化一些参数设置等等。。"
+        },
+        {
+            "author": "oyimc",
+            "timestamp": 1577944140,
+            "txt_content": "有个问题大佬，如何关闭指定世界或指定世界某图层的渲染显示"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1577953920,
+            "txt_content": "boyimc 发表于 2020-1-2 13:49\n有个问题大佬，如何关闭指定世界或指定世界某图层的渲染显示\n你把你的 plugins/dynmap/worlds.txt 发来我看看"
+        },
+        {
+            "author": "oyimc",
+            "timestamp": 1578014100,
+            "txt_content": "Akkariin 发表于 2020-1-2 16:32\n你把你的 plugins/dynmap/worlds.txt 发来我看看\n请大佬一观\n\n\n\n\n\n\n\nworlds.txt\n\n\n2020-1-3 09:15 上传\n点击文件名下载附件\n\n\n\n\n4.74 KB, 下载次数: 4\n\n\n\n\n"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1578162000,
+            "txt_content": "boyimc 发表于 2020-1-3 09:15\n请大佬一观\n给你改好了，根据我里面的注释按照你的实际情况修改一下就行了。\n\n\n\n\nworlds.txt\n(1.16 KB, 下载次数: 25)\n\n\n\n2020-1-5 02:20 上传\n点击文件名下载附件\n\n\n\n\n\n"
+        },
+        {
+            "author": "king北辰",
+            "timestamp": 1578241080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "oyimc",
+            "timestamp": 1578278520,
+            "txt_content": "Akkariin 发表于 2020-1-5 02:20\n给你改好了，根据我里面的注释按照你的实际情况修改一下就行了。\n牛批大佬！恬不知耻的最后一个问题……能不能设置地图只渲染显示最大缩小级别的地图，也就是不进行细致渲染显示，只显示最大范围"
+        },
+        {
+            "author": "Geomancy",
+            "timestamp": 1578291720,
+            "txt_content": "小白流泪~~~~"
+        },
+        {
+            "author": "Reon_Aqest",
+            "timestamp": 1580132760,
+            "txt_content": "大佬能讲一下cave模式关闭的方法吗。。"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1580161140,
+            "txt_content": "18502788409 发表于 2020-1-27 21:46\n大佬能讲一下cave模式关闭的方法吗。。\n请参考我给楼下那位回复的内容，下载那个 worlds.txt 你看看就知道了"
+        },
+        {
+            "author": "浅笑hhh",
+            "timestamp": 1580469240,
+            "txt_content": "111111111111"
+        },
+        {
+            "author": "Ohnkyta",
+            "timestamp": 1581848400,
+            "txt_content": "硬盘不够放图是硬伤啊"
+        },
+        {
+            "author": "落幕ovo",
+            "timestamp": 1581964320,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "3448737105",
+            "timestamp": 1581991920,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Blank°",
+            "timestamp": 1582296660,
+            "txt_content": "老哥呐，问个问题，我Dynmap一直在跑，硬盘都快跑慢20G了，这可怎么办"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1582317660,
+            "txt_content": "Blank° 发表于 2020-2-21 22:51\n老哥呐，问个问题，我Dynmap一直在跑，硬盘都快跑慢20G了，这可怎么办\n降低图像分辨率，修改图像格式（参考帖子 #3），限制最大可缩放等级"
+        },
+        {
+            "author": "Blank°",
+            "timestamp": 1582353000,
+            "txt_content": "Akkariin 发表于 2020-2-22 04:41\n降低图像分辨率，修改图像格式（参考帖子 #3），限制最大可缩放等级\n一开始渲染地图，然后渲染完还在一直跑，这个是这样子停？"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1582399500,
+            "txt_content": "Blank° 发表于 2020-2-22 14:30\n一开始渲染地图，然后渲染完还在一直跑，这个是这样子停？\n并不是渲染完之后它就停掉的，当服务器里的一些方块发生变化时它还会继续渲染修改过的区块"
+        },
+        {
+            "author": "柒殇Qi_Shang",
+            "timestamp": 1582506120,
+            "txt_content": "去试试。。"
+        },
+        {
+            "author": "liuhaojie.",
+            "timestamp": 1582946040,
+            "txt_content": "楼主大大那个是关地图上的聊天气泡？"
+        },
+        {
+            "author": "uwhdau",
+            "timestamp": 1582950720,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "1357637651",
+            "timestamp": 1582962000,
+            "txt_content": "感谢分享，去试试"
+        },
+        {
+            "author": "nidb",
+            "timestamp": 1584329640,
+            "txt_content": "大佬好，我是论坛内dynmap转载贴的楼主，最近想弄一个dynmap中文网，请问教程页面可否参考这个帖子的内容？\n另外主配置文件已经部分汉化，插件开发者的意图是叫我把翻译的整合到官方包中，我就是怕渣翻译丢人，还在思考，所以楼主能不能把部分汉化的安利一下新人？（https://dynmap.cn/downloads 可以下载）\n最后感谢大佬这么认真的教程！都是很有用的设置"
+        },
+        {
+            "author": "nidb",
+            "timestamp": 1584329700,
+            "txt_content": "Ohnkyta 发表于 2020-2-16 18:20\n硬盘不够放图是硬伤啊\n弄个数据库啊，MySQL（钱包疼）"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1584441120,
+            "txt_content": "nidb 发表于 2020-3-16 11:34\n大佬好，我是论坛内dynmap转载贴的楼主，最近想弄一个dynmap中文网，请问教程页面可否参考这个帖子的内容？ ...\n可以转载，注明本帖地址即可，感谢支持 :)"
+        },
+        {
+            "author": "nidb",
+            "timestamp": 1584444660,
+            "txt_content": "Akkariin 发表于 2020-3-17 18:32\n可以转载，注明本帖地址即可，感谢支持 :)\n谢谢大佬qwq"
+        },
+        {
+            "author": "nidb",
+            "timestamp": 1584523620,
+            "txt_content": "by the way 我觉得一刀切网页聊天，不如开启登录系统"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1584709740,
+            "txt_content": "nidb 发表于 2020-3-18 17:27\nby the way 我觉得一刀切网页聊天，不如开启登录系统\n那个登录系统不大行，所以我自己开发了一套网页聊天+登录认证系统，可以戳我签名档看效果"
+        },
+        {
+            "author": "nidb",
+            "timestamp": 1584712740,
+            "txt_content": "Akkariin 发表于 2020-3-20 21:09\n那个登录系统不大行，所以我自己开发了一套网页聊天+登录认证系统，可以戳我签名档看效果 ...\n(大佬操作)\n另外有点不明白parallelrendercnt，我都改成40多了占用率才4%（迷"
+        },
+        {
+            "author": "小小周尼玛",
+            "timestamp": 1584872220,
+            "txt_content": "请问您的卫星地图用的是什么图片格式？我是用jpg感到不适很清晰，png又有点大？不知道jpg-100的效果如何？"
+        },
+        {
+            "author": "Akkariin",
+            "timestamp": 1584872640,
+            "txt_content": "小小周尼玛 发表于 2020-3-22 18:17\n请问您的卫星地图用的是什么图片格式？我是用jpg感到不适很清晰，png又有点大？不知道jpg-100的效果如何？ ...\n我用png，然后硬盘占用爆炸，dynmap 文件夹足足45GB"
+        },
+        {
+            "author": "meng_chen_xi_",
+            "timestamp": 1585561320,
+            "txt_content": "整挺好"
+        },
+        {
+            "author": "Preliterate",
+            "timestamp": 1587278880,
+            "txt_content": " 本帖最后由 Preliterate 于 2020-4-21 12:18 编辑 \n\n匠魂的方块显示不出来。。。"
+        }
+    ]
+}

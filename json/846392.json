@@ -1,0 +1,79 @@
+{
+    "title": "[1.12.2] CraftTweaker进阶教程",
+    "author": "TRAYER",
+    "replyCount": 14,
+    "timestamp": 1550579520,
+    "txt_content": " 本帖最后由 TRAYER 于 2019-2-21 22:11 编辑 \n\n一时兴起的产物，写的怎么样就随他吧。也不知道什么时候会写完，可能坑了也说不定。\n\n这篇文章并不会讲述有关于CraftTweaker的基础知识，所以请确保你有一定ZenScript的基础再来阅读此教程。同时也建议有能够阅读 https://crafttweaker.readthedocs.io/en/latest/ 的英语能力。\n\n一、简化：\n很多时候，脚本编写时会有极大量的重复操作，比如说用ContentTweaker注册一整套石油化工所需要的流体，或者是把所有TiC矿石的冶炼给删除，这样的重复操作肯定会令人厌烦，所以这一部分主要讲怎么让你的代码去完成你没有讲出来的部分。\n1、函数：\n最简单，最直接的方法就是使用一个函数来打包你所需要的所有操作，比如说，我想要同时删除IE、TE磨粉的配方的话，以铁矿石为例，正常的写法如下：\n\nmods.immersiveengineering.Crusher.removeRecipesForInput(<minecraft:iron_ore>);\nmods.thermalexpansion.Pulverizer.removeRecipe(<minecraft:iron_ore>);复制代码\n\n单独删除一个矿石可能不是很难，但是如果要删除十几，甚至几十种不同矿石在许多机器中的配方，同时再把你自己科技线的配方添加进去的话，代码量是可想而知的。\n所以，第一种解决方案就是使用函数。CraftTweaker支持自定义函数来打包一些操作，或者实现更复杂的代码逻辑。使用函数的写法如下：\n\nimport crafttweaker.item.IItemStack;\nfunction processOre (input as IItemStack){\nmods.immersiveengineering.Crusher.removeRecipesForInput(input);\nmods.thermalexpansion.Pulverizer.removeRecipe(input);\n}\n\nprocessOre(<minecraft:iron_ore>);复制代码\n\n这样做，就可以把这两大行代码用一个processOre代替，简化了大量的操作，如果有更多的机器会牵扯进来，那么只需要修改processOre的内容就可以了，这是第二个好处。\n\n2、跨脚本访问：\n但很明显，上面的代码是有缺憾的，processOre这个函数只能在这个脚本内使用，如果你有按照mod分包的习惯，那么对于每一个mod都要声明一次函数也是很麻烦的，所以接下来要讲的就是如何在一个脚本内使用另一个脚本的函数方法。\n假设你的processOre函数在wrapped.zs这个脚本内，那么在别的脚本中调用processOre就只需要写下：\nscripts.wrapped.processOre(<minecraft:iron_ore>);复制代码\n你也可以使用import来进一步简化操作。\n\n3、数组和关联性数组：\n有些时候你可能连processOre都懒得写，比如说注册一大堆合成中间物品，或者是把一大堆物品加入某个矿辞里面，这个时候又要怎么做呢？先考虑第一种情况：\n当你传入的参数里只有一个东西的时候，你可以使用数组来把这些东西全部都塞进去：\nval register_array = [\"ice_cube\", \"frozen_earth_clot\", \"wood_bark\", \"bitumen\"] as string[]复制代码\n然后，遍历整个数组来注册你的所有物品：\nfor strItem in register_array{\nvar dummy = VanillaFactory.createItem(strItem );\ndummy.maxStackSize = 64;\ndummy.register();\n}复制代码\n这是数组的使用方法。\n但如果你有更多的东西要做，比如说注册物品，并指定物品的堆叠数的话，这时候就需要使用关联性数组了：\nvar register_array = {\n        \"ice_cube\" : 16,\n        \"frozen_earth_clot\" : 32,\n        \"wood_bark\" : 8,\n        \"wood_fibre\" : 16,\n        \"bitumen\": 32,\n        \"bitumen_sand\" : 64,\n        \"ice_bucket\" : 1\n} as int[string];\n\nfor key, value in register_array{\n        var dummy = VanillaFactory.createItem(key);\n        dummy.maxStackSize = value;\n        dummy.register();\n}复制代码\n这是关联性数组的使用方法。\n\n4、全局访问：\n现在的你已经懒出境界了，甚至连把物品的名字敲出来都嫌麻烦，但这不会成为阻挡你实现功能的问题。CT提供了一系列可以全局访问的变量，其中最重要的是game和 oreDict这两个。前者包含了所有群系、方块、实体、物品、流体和药水的信息，而后者包含了矿物辞典的信息。\n再拿回之前的矿物处理来说事，大部分矿物都有它自己的辞典的entry，而且大部分都以\"ore\"作为开头，那么我们可以遍历所有辞典，并找到其中名字含有ore的entry再进行操作（当然，它不是完全严谨的，如果有ore不在开头的entry的话就会出错）。\n代码如下（处理矿物仍用processOre函数）\nfor odentry in oreDict.entries{\nif odentry.name has \"ore\"{\nfor entryitem in odentry.items{\nprocessOre(entryitem);\n}\n}\n}复制代码\n\n如何使用较为高级的方法来简化脚本编写，大概就是这样了。\n\n\n二、CT和mod之间的东西：\n1、使用preprocessor的方式：\n使用预处理头，可以检测某个mod是否被加载。比如说：\n#modloaded tconstruct\nrecipes.addShaped(<tconstruct:wooden_hopper>, [[<ore:charcoal>,<ore:charcoal>,<ore:charcoal>],[null,null,null],[<ore:charcoal>,<ore:charcoal>,<ore:charcoal>]]);复制代码\n假设这是一个独立的脚本，那么这个脚本的内容（即给TiC的木制漏斗添加配方的这一句addShaped）只有在TiC被加载之后才会被加载。\n这非常简单，但是也有它的不简便的地方。首先，#modloaded作用范围是文件内的，这意味着你没法用这个东西来做出一些更加复杂的逻辑，比如说，根据mod变化而变化的科技线什么的。虽然某种意义上也是可以的。\n2、使用全局变量的方式：\nCraftTweaker现在可以获取所有mod的信息，这些都存储在loadedMods这个全局变量中。\nloadedMods是一个IMod的数组，包含了此整合包所有的信息。你可以通过遍历这个东西来获取所有mod的信息，同时你也可以检测这个数组中是否含有某个成员来检测某个mod是否被加载。仍然拿TiC做例子，检测mod是否加载并执行一段代码变成了这样：\nif (loadedMods.contains(\"tconstruct\"){\nrecipes.addShaped(<tconstruct:wooden_hopper>, [[<ore:charcoal>,<ore:charcoal>,<ore:charcoal>],[null,null,null],[<ore:charcoal>,<ore:charcoal>,<ore:charcoal>]]);\n}复制代码\n这个代码稍微有些麻烦，不过很显而易见的好处是，它是动态的。换句话说，我可以在一个矿物处理用的函数中根据不同的情况判断某些语句是否被加载，达到真的可以让科技线随着mod的改变而改变的地步。\n当然，loadedMods当中含有的信息还有更多，比如说获取一个mod添加的所有物品等，可以拿来和ItemStage来做配合啥的。\n下一次可能会讲合成相关的，或者是事件什么的？我暂时想不出来。\n本人最近忙于实验室生活，可能暂时只能做一条懒狗了，27号上学之后说不定有时间（",
+    "replies": [
+        {
+            "author": "Not102",
+            "timestamp": 1550580120,
+            "txt_content": "这就是大佬 雾？"
+        },
+        {
+            "author": "youyihj",
+            "timestamp": 1550581500,
+            "txt_content": " 本帖最后由 友谊——hj 于 2019-2-19 21:08 编辑 \n\n我大静态变量和全局变量呢？话说，注册新物品你最好写下需要contenttweaker支持。顺便介绍下它的用法？\n不过能说下CrT的进阶用法挺好的，国内的魔改基本就是非常简单的recipes.remove和recipes.addShaped就没了"
+        },
+        {
+            "author": "TRAYER",
+            "timestamp": 1550582040,
+            "txt_content": "友谊——hj 发表于 2019-2-19 21:05\n我大静态变量和全局变量呢？话说，注册新物品你最好写下需要contenttweaker支持。顺便介绍下它的用法？\n不 ...\n静态和全局是会慢慢讲的，而且也讲到了\nCoT是为了associative array服务的，换成其他的东西也是一样的\n如果什么东西都要我手把手教，我选择甩你一篇中文文档"
+        },
+        {
+            "author": "Yesterday17",
+            "timestamp": 1550583660,
+            "txt_content": "我还是建议var xxx as type = value的声明方法\n\n而不是var xxx = value as type（"
+        },
+        {
+            "author": "youyihj",
+            "timestamp": 1550584320,
+            "txt_content": " 本帖最后由 友谊——hj 于 2019-2-19 22:02 编辑 \nTRAYER 发表于 2019-2-19 21:14\n静态和全局是会慢慢讲的，而且也讲到了\nCoT是为了associative array服务的，换成其他的东西也是一样的\n如 ...\n\n我也是看英文wiki的……\n当时我还用Zenscript写了一个十六进制转十进制的函数……\n我只是建议你的教程可以改改，你教程中说的东西我都是知道的。我在MC百科也有写了一个进阶版的CrT教程，和你的内容有一些重叠又有一些差别(不过还是没说那两变量)\n不过你的教程还是得点赞。国内进阶魔改教程基本没有。"
+        },
+        {
+            "author": "mcbbs2050",
+            "timestamp": 1556364180,
+            "txt_content": "来点实用的吧，大佬，直接举几个例子。\n示例一下怎么样删掉某个附魔、怎么样删掉地牢箱子的奖励品。\n新版太难，玩不转。。。\n"
+        },
+        {
+            "author": "葬之刻",
+            "timestamp": 1558327200,
+            "txt_content": "大佬,能说一下怎么知道一个类的全部meber吗\nno such static member in mods.thaumcraft.ArcaneWorkbench: all\n我想输出神秘6奥术合成台的全部合成配方,但是wiki上没有这种方法"
+        },
+        {
+            "author": "eternitk",
+            "timestamp": 1564478280,
+            "txt_content": "\n请问如何移除所有需要使用某个物品的合成配方,  比如删除所有需要使用苹果的合成配方"
+        },
+        {
+            "author": "Ruang_Feng",
+            "timestamp": 1568377560,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "HHH123123",
+            "timestamp": 1582672860,
+            "txt_content": "我想知道怎么查找合成表 JEI 应该不支持索检添加的核查表把"
+        },
+        {
+            "author": "名曲南渠",
+            "timestamp": 1583771700,
+            "txt_content": "我想问一下 如何移除神秘的 配方"
+        },
+        {
+            "author": "AS885",
+            "timestamp": 1584411960,
+            "txt_content": "名曲南渠 发表于 2020-3-10 00:35\n我想问一下 如何移除神秘的 配方\nrecipes.removeByMod(ModID);\n这个可以删除一个mod的所有配方\nrecipes.remove( <物品ID>, true);\n移除输出为某个物品的全部合成"
+        },
+        {
+            "author": "理解我一下",
+            "timestamp": 1588650840,
+            "txt_content": "6好好好好好好好好好好好好好好"
+        },
+        {
+            "author": "McprojectEX",
+            "timestamp": 1588745220,
+            "txt_content": "教我怎么弄，行吧"
+        }
+    ]
+}

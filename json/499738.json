@@ -1,0 +1,139 @@
+{
+    "title": "【CBL·K_bai】更高级的安检门——\"/stats\"指令进阶教程",
+    "author": "kongbaiyo",
+    "replyCount": 26,
+    "timestamp": 1441538100,
+    "txt_content": " 本帖最后由 kongbaiyo 于 2015-9-6 19:23 编辑 \n\n======================前言======================\n\n\n/stats这个指令 在MC的所有指令中算是比较难懂的一个了上一个帖子我讲过之后，有很多少年发现了一些问题\n我也发现我讲的不是很透彻\n于是我又做了一个例子，思考了很久 想把这个指令讲透彻\n上一个教程的链接：http://www.mcbbs.net/thread-399876-1-1.html\n推荐先看上一个！\n \"更高级的安检门” 演示看视频~\n[bili=2873533]1[/bili]\n\n======================stats本质======================\n\n接下来我就来说说/stats命令的本质\nstats命令的本质可以理解成\"重定向\"\n也就是把命令执行结果重定向至一个计分板 这在上个教程里我也说过\nstats创建了命令执行结果与计分板的链接\n\n而这种链接是怎么实现的？执行命令的实体/方块如何知道\n它的执行结果要往哪一个计分板输出呢？\n而这个信息就是存储在方块/实体的NBT中的\n\n来自英文wiki:\n\n CommandStats: Information identifying scoreboard parameters to modify relative to the last command run.\nSuccessCountName: Player name to store success of the last command. Can be a player selector but may only have one resulting target.SuccessCountObjective: Objective's name to store the success of the last command.AffectedBlocksName: Player name to store how many blocks were modified in the last command. Can be a player selector but may only have one resulting target.AffectedBlocksObjective: Objective's name to store how many blocks were modified in the last command.AffectedEntitiesName: Player name to store how many entities were altered in the last command. Can be a player selector but may only have one resulting target.AffectedEntitiesObjective: Objective's name to store how many entities were altered in the last command.AffectedItemsName: Player name to store how many items were altered in the last command. Can be a player selector but may only have one resulting target.AffectedItemsObjective: Objective's name to store how many items were altered in the last command.QueryResultName: Player name to store the query result of the last command. Can be a player selector but may only have one resulting target.QueryResultObjective: Objective's name to store the query result of the last command.\n\n\n\n这便是用过stats指令的方块/实体会拥有的NBT值\n\n也就是说 stats是通过看一个方块/实体的有关stats的NBT值\n来决定它向哪个玩家/实体的计分板输出信息\n\n也就是说/stats指令的格式中(以实体为例)\n/stats entity <玩家名> set <模式> <玩家名2> <计分板变量名>\n<玩家名2> 所指的实体\n是以被使用/stats的实体为中心的<玩家名2>\n\n所以 /stats的工作方式是这样的(以实体为例)\n实体执行命令->得到输出结果->将输出结果赋予以实体为中心<玩家名2>的计分板变量\n\n这便是对\"重定向\"的理解\n\n\n举个例子吧\n把所有玩家执行命令的成功次数 重定向至他们自己的test变量里\n/stats entity @a set SuccessCount @p test\n注意@a和@p的使用\n\n这下 更高级安检门的 原理就迎刃而解了\n\n======================具体流程======================\n\n\n第一步是建立安检门 也就是在安检门处放一个装备架\ntestforItem变量用于检测铁锭物品\ntestforDoor用于比对铁锭周围的方块是否是安检门的样子\ncreateDoor用于判断要生成的安检门的方向是什么\n#检测铁锭\n/scoreboard players set @e[type=Item] testforItem 1 {Item:{id:\"minecraft:iron_ingot\",Damage:0s,Count:1b}}\n#创建链接\n/stats entity @e[type=Item,score_testforItem_min=1] set AffectedBlocks @e[type=Item,score_testforItem_min=1,c=1] testforDoor\n#初始化计分板\n/scoreboard players set @e[type=Item,score_testforItem_min=1] testforDoor 0\n#探测并标记\n/execute @e[type=Item,score_testforItem_min=1] ~ ~ ~ /testforblocks 897 55 16 895 59 16 ~-1 ~-1 ~\n/scoreboard players set @e[type=Item,score_testforItem_min=1,score_testforDoor_min=1] createDoor 1\n/execute @e[type=Item,score_testforItem_min=1] ~ ~ ~ /testforblocks 896 55 12 896 59 10 ~ ~-1 ~-1\n/scoreboard players set @e[type=Item,score_testforItem_min=1,score_testforDoor_min=1] createDoor 2\n#生成装备架\n/execute @e[type=Item,score_testforItem_min=1,score_createDoor_min=2,score_createDoor=2] ~ ~ ~ /clone 894 55 12 894 59 10 ~ ~-1 ~-1\n/execute @e[type=Item,score_testforItem_min=1,score_createDoor_min=1,score_createDoor=1] ~ ~ ~ /clone 897 55 18 895 59 18 ~-1 ~-1 ~\n(把安检门复制到铁锭物品处)\n/execute @e[type=Item,score_testforItem_min=1,score_createDoor_min=1] ~ ~ ~ /summon ItemFrame ~ ~ ~ {CustomName:\"doorFrame\"}\n(在物品处生成一个物品展示框 用于生成位于方块中心的装备架 青皮帖子里有讲)\n/execute @e[type=ItemFrame,name=doorFrame] ~ ~ ~ /kill @e[type=Item,score_testforItem_min=1,score_createDoor_min=1,r=0]\n/execute @e[type=ItemFrame,name=doorFrame] ~ ~ ~0.46875 /summon ArmorStand ~ ~ ~ {CustomName:\"door\",NoGravity:1}\n/kill @e[type=ItemFrame,name=doorFrame]\n\n接下来就是在上一篇教程中也写过的 检测玩家背包中物品数量\nplayerIngotCount变量用于记录玩家背包中铁锭数量\n#检测玩家状态\n/execute @e[type=ArmorStand,name=door] ~ ~ ~ /stats entity @a[r=10] set AffectedItems @p playerIngotCount\n(建立链接)\n/execute @e[type=ArmorStand,name=door] ~ ~ ~ /scoreboard players set @a[r=10] playerIngotCount 0\n(初始化计分板)\n/execute @e[type=ArmorStand,name=door] ~ ~ ~ /execute @a[r=10] ~ ~ ~ /clear @p minecraft:iron_ingot 0 0\n(让玩家执行命令)\n\n然后检测安检门周围有无手里有两个铁锭以上的玩家 同样用到stats\ndoorStatus表示门开或关的状态\n#检测装备架状态\n/stats entity @e[type=ArmorStand,name=door] set SuccessCount @e[type=ArmorStand,name=door,c=1] doorStatus\n(建立链接)\n/scoreboard players set @e[type=ArmorStand,name=door] doorStatus 0\n(初始化计分板)\n/execute @e[type=ArmorStand,name=door] ~ ~ ~ /testfor @a[r=10,score_playerIngotCount_min=2]\n(让盔甲架执行命令)\n\n最后开关门\n#开关门\n/stats entity @e[type=ArmorStand,name=door] clear SuccessCount\n/execute @e[type=ArmorStand,name=door,score_doorStatus_min=1] ~ ~ ~ /fill ~ ~ ~ ~ ~1 ~ wool\n/execute @e[type=ArmorStand,name=door,score_doorStatus=0] ~ ~ ~ /fill ~ ~ ~ ~ ~1 ~ air\n\n\n将近三十条命令完成这个小作品\n\n======================结语======================\n\n/stats这个指令很冷门 主要就是因为它比较难理解\n希望我讲了两回之后 各位能更好的利用这个命令XD\n\n下载地址:http://pan.baidu.com/s/1bnvzYI7\n文件名:[CBL·K_bai] 教程 [20150906].zip \n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "plasma",
+            "timestamp": 1441538940,
+            "txt_content": "很棒的红石教程！"
+        },
+        {
+            "author": "simon3000",
+            "timestamp": 1441539360,
+            "txt_content": "这就是为什么人们需要电脑mod"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441540140,
+            "txt_content": "可是这有什么用呢，在单人没人会做这种无聊的东西，熊孩子表示直接拆了你的门。再说如果可以做这肯定是腐竹用的，因为需要命令方块，因此没有人会做这个东西，腐竹一般不会做这种东西，随便做一个家就够了，反正自己是创造甚至不做房子等等情况。"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1441540500,
+            "txt_content": "2545320709 发表于 2015-9-6 19:49\n可是这有什么用呢，在单人没人会做这种无聊的东西，熊孩子表示直接拆了你的门。再说如果可以做这肯定是腐竹 ...\n1.冒险模式地图\n2.本意不是生存或者服务器实用 而是作为教程的实例\n3.你肯定没玩过命令方块= ="
+        },
+        {
+            "author": "GrowlR",
+            "timestamp": 1441540620,
+            "txt_content": "嗯，这个有什么用呢？"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1441541340,
+            "txt_content": "GrowlR 发表于 2015-9-6 19:57\n嗯，这个有什么用呢？\n撞壁 或者某些地图可能用到"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1441542480,
+            "txt_content": "2545320709 发表于 2015-9-6 19:49\n可是这有什么用呢，在单人没人会做这种无聊的东西，熊孩子表示直接拆了你的门。再说如果可以做这肯定是腐竹 ...\n人家这是举的栗子 你不能理解吗？"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1441542540,
+            "txt_content": "lzs1234 发表于 2015-9-6 20:30\n其实我觉得stats最大的用处在于不需要穷举了...\n用testfor就要探测64次，用stats连到计分板就有了scoremin ...\n为何是64?"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1441542600,
+            "txt_content": "其实我觉得stats最大的用处在于不需要穷举了...\n用testfor就要探测64次，用stats连到计分板就有了scoremin和score"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441550940,
+            "txt_content": "kongbaiyo 发表于 2015-9-6 19:55\n1.冒险模式地图\n2.本意不是生存或者服务器实用 而是作为教程的实例\n3.你肯定没玩过命令方块= = ...\n你跟我说我没玩过命令方块，不玩命令方块我算什么MC中高手，我是个MC中高手连命令方块都不懂吗？？？？？？"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441551060,
+            "txt_content": "kongbaiyo 发表于 2015-9-6 19:55\n1.冒险模式地图\n2.本意不是生存或者服务器实用 而是作为教程的实例\n3.你肯定没玩过命令方块= = ...\n呵呵呵呵呵呵呵，你这句话就是说生存模式不能用罗"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1441583640,
+            "txt_content": "2545320709 发表于 2015-9-6 22:51\n呵呵呵呵呵呵呵，你这句话就是说生存模式不能用罗\n没人让你在生存里做"
+        },
+        {
+            "author": "chyx",
+            "timestamp": 1441583700,
+            "txt_content": "还以为是有人把坟挖了\n原来新写一篇\n不过反正早知道了233"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1441637520,
+            "txt_content": "chyx 发表于 2015-9-7 07:55\n还以为是有人把坟挖了\n原来新写一篇\n不过反正早知道了233\n233\n之前写的不好很愧疚233"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1441637880,
+            "txt_content": "2545320709 发表于 2015-9-6 22:49\n你跟我说我没玩过命令方块，不玩命令方块我算什么MC中高手，我是个MC中高手连命令方块都不懂吗？？？？？ ...\n那你一定没看清楚标题 这是教程233\n\n而且你说生存模式不能用 妄图用生存模式不能用来说我的装置不好\n但是 我从这一个看出你玩命令方块玩的不精\n因为你要是真的看懂我的指令的话 就不会质疑我 “生存模式不能用”了\n看得懂的人都知道可以用0 0"
+        },
+        {
+            "author": "shine495",
+            "timestamp": 1441689600,
+            "txt_content": "唔~ 技术贴一定要顶 嚯嚯"
+        },
+        {
+            "author": "1425113841",
+            "timestamp": 1441690800,
+            "txt_content": "2545320709 发表于 2015-9-6 22:49\n你跟我说我没玩过命令方块，不玩命令方块我算什么MC中高手，我是个MC中高手连命令方块都不懂吗？？？？？ ...\n吓死我了=。=\n你是吐槽狗手吧"
+        },
+        {
+            "author": "1425113841",
+            "timestamp": 1441690860,
+            "txt_content": "2545320709 发表于 2015-9-6 19:49\n可是这有什么用呢，在单人没人会做这种无聊的东西，熊孩子表示直接拆了你的门。再说如果可以做这肯定是腐竹 ...\n你厉害  好怕怕   用/stats做个来看看"
+        },
+        {
+            "author": "1425113841",
+            "timestamp": 1441691040,
+            "txt_content": "2545320709 发表于 2015-9-6 22:51\n呵呵呵呵呵呵呵，你这句话就是说生存模式不能用罗\n可以用啦  哈哈\n改创造找个地方做一个\n再改生存    还是可以正常继续玩  呵呵"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441708320,
+            "txt_content": "1425113841 发表于 2015-9-8 13:41\n你厉害  好怕怕   用/stats做个来看看\n然而会命令方块不代表会全部。"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441708440,
+            "txt_content": "1425113841 发表于 2015-9-8 13:44\n可以用啦  哈哈\n改创造找个地方做一个\n再改生存    还是可以正常继续玩  呵呵 ...\n然而你看一下楼主说的那几句话里面"
+        },
+        {
+            "author": "2545320709",
+            "timestamp": 1441708500,
+            "txt_content": "kongbaiyo 发表于 2015-9-7 22:58\n那你一定没看清楚标题 这是教程233\n\n而且你说生存模式不能用 妄图用生存模式不能用来说我的装置不好\n哈哈哈哈哈，我喜欢抓住别人的一些细节水贴，你刚才就是这个细节给我水了一贴，冒险模式用，啊哈。"
+        },
+        {
+            "author": "握地师兄",
+            "timestamp": 1441868760,
+            "txt_content": " 本帖最后由 握地师兄 于 2015-9-10 15:09 编辑 \nkongbaiyo 发表于 2015-9-7 22:52\n233\n之前写的不好很愧疚233\n问下stats在哪里输出命令，看的不太懂233嗷！回顾了一下之前的那个帖子一下子懂了233\n话说CBL组员录视频不说话是规矩吗233"
+        },
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1441973280,
+            "txt_content": "握地师兄 发表于 2015-9-10 15:06\n问下stats在哪里输出命令，看的不太懂233嗷！回顾了一下之前的那个帖子一下子懂了233\n话说CBL组 ...\n不是= = 没麦= =\n而且妈妈在 我怕233"
+        },
+        {
+            "author": "Neubulaeko",
+            "timestamp": 1441983000,
+            "txt_content": "2545320709 发表于 2015-9-6 19:49\n可是这有什么用呢，在单人没人会做这种无聊的东西，熊孩子表示直接拆了你的门。再说如果可以做这肯定是腐竹 ...\n学校交给你的东西也没有用啊，你退学好了啊OwO【……这种人别理了】"
+        },
+        {
+            "author": "happy0o0",
+            "timestamp": 1524747600,
+            "txt_content": "挖坟，请问怎么能把tps的查询结果重定向出来？"
+        }
+    ]
+}

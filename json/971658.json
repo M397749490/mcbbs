@@ -1,0 +1,24 @@
+{
+    "title": "编辑器输入@符号会可能加倍",
+    "author": "Zapic",
+    "replyCount": 3,
+    "timestamp": 1582885260,
+    "txt_content": " 本帖最后由 Zapic 于 2020-2-28 19:38 编辑 \n\n其实...\n刚刚我在策划怎么发锭...\n然后就发现了这个Bug了.\n\n#1 问题重现\n由于习惯问题,编辑帖子时会来回切换纯文本模式和正常模式.\n然后来回几次之后,刚刚想At人来领锭,后来直接蹦出来5个@.\nexm?\n然后我怀疑是我的脚本问题,直接把脚本关掉了.\n然并卵.\n然后我怀疑是我的浏览器问题,换成了IE.\n然并卵.\n然后我怀疑是我键盘的问题,换了块键盘.\n然并卵.\n然后我怀疑是我家闹鬼了,找了位热心世予.\n世予: 我早就踩过这个坑了.\n\n然后我就来这里发帖了.\n然后,这是演示图:\nIE11 on Windows 7:\n\n\n\n\nasdasdasdadsd.gif (43.17 KB, 下载次数: 0)\n\n下载附件\n\n2020-2-28 18:13 上传\n\n\n\n\n\n\nChrome 80 on Windows 7:\n\n\n\n\nrqrq2rq2.gif (126.69 KB, 下载次数: 0)\n\n下载附件\n\n2020-2-28 18:13 上传\n\n\n\n\n\n\n然后...\n(别然后了!你找死啊!)\n咳咳.\n然...呸.\n那么欢迎测试.\n\n#2 导致问题的原因\n我拿着DevTools删了半天监听器都没删干净,还在查,欢迎一起为论坛做贡献(\n哈!\n查到了,不愧是我.\n哈↑哈↑哈↑哈↑\n咳咳.\n\n先从点击切换编辑器的按钮查起,就先查到了switchEditor方法.\n然后查看源代码,发现如下内容:function switchEditor(mode) {\n    //省略30行\n    $(editorid + '_mode').value = mode;\n    newEditor(mode, parsedtext);\n    setEditorStyle();\n    editwin.focus();\n    setCaretAtEnd();\n}复制代码\n前几行都在控制顶栏的行为,与输入框没有关系,直接从下面查起:\n然后先查newEditor方法:function newEditor(mode, initialtext) {\n    //省略40行\n    setEditorEvents();\n    initEditor();\n}复制代码\n前几行都在控制编辑框的显示行为和内容保存,直接看到setEditorEvents方法:function setEditorEvents() {\n    if (BROWSER.firefox || BROWSER.opera) {\n        editdoc.addEventListener('mouseup', function(e) {\n            mouseUp(e)\n        }, true);\n        editdoc.addEventListener('keyup', function(e) {\n            keyUp(e)\n        }, true);\n        editwin.addEventListener('keydown', function(e) {\n            keyDown(e)\n        }, true);\n    } else if (editdoc.attachEvent) {\n        try {\n            editdoc.attachEvent('onmouseup', mouseUp);\n            editdoc.attachEvent('onkeyup', keyUp);\n            editdoc.attachEvent('onkeydown', keyDown);\n        } catch (e) {}\n    }\n}复制代码再一路追查keyDown方法:function keyDown(event) {\n    ctlent(event);\n    for (i in EXTRAFUNC['keydown']) {\n        EXTRAEVENT = event;\n        try {\n            eval(EXTRAFUNC['keydown'][i] + '()');\n        } catch (e) {}\n    }\n}复制代码\n然后追查EXTRAFUNC['keydown']内含的元素,发现只有一个\"extrafunc_atMenu\"方法,我们越来越接近真相了:function extrafunc_atMenu() {    if (BROWSER.opera) {\n        return;\n    }\n    if (wysiwyg && EXTRAEVENT.shiftKey && EXTRAEVENT.keyCode == 50 && postaction && (postaction == 'newthread' || postaction == 'reply' || postaction == 'edit')) {\n        keyMenu('@', atMenu);\n        ctlent_enable[13] = 0;\n        doane(EXTRAEVENT);\n        atkeypress = 1;\n    }\n    if ($('at_menu') && $('at_menu').style.display == '' && (EXTRAEVENT.keyCode == 38 || EXTRAEVENT.keyCode == 40 || EXTRAEVENT.keyCode == 13)) {\n        doane(EXTRAEVENT);\n    }\n}复制代码\n果然,这里是实现@弹出菜单的方法.\n然后追查到底了,问题也水落石出了.\n在调用setEditorEvents方法时,没有移除旧的监听器,导致编辑器上有多个监听器,而且是来回切换一次就多一个,导致一次按键触发多次extrafunc_atMenu方法,进而导致@符号超级加倍.\n那问题很好解决啊,调用setEditorEvents时,把编辑器上旧的监听器移除掉,再进行接下来的操作就可以了.\n结果发现睿智Discuz添加监听器时用的是匿名函数,没法移除(\n既然他们睿智操作那我们也可以睿智操作,让setEditorEvents方法只能使用一次,用过就自毁:var __setEditorEvents = setEditorEvents;\nsetEditorEvents= function(){\n    __setEditorEvents();\n    setEditorEvents=function(){};\n}复制代码\n不愧是我(\n\n#3 迫 害 宝 座\n@gamerteam 出来修Bug啦!泥潭已经一个月没有更新啦!\n\n\n\n\n\n\n\n",
+    "replies": [
+        {
+            "author": "何了个兔",
+            "timestamp": 1582888740,
+            "txt_content": "赶紧蹲一波大佬发锭"
+        },
+        {
+            "author": "莉莉霍瓦特",
+            "timestamp": 1582939800,
+            "txt_content": "说得好，但是你的建议没有打动我，让我为你转身\n\n引据经典"
+        },
+        {
+            "author": "Zapic",
+            "timestamp": 1582940040,
+            "txt_content": "莉莉霍瓦特 发表于 2020-2-29 09:30\n引据经典不修\n反正到时候dz都要升级编辑器了\n原 话 咕 咕"
+        }
+    ]
+}

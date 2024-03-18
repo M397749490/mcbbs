@@ -1,0 +1,24 @@
+{
+    "title": "求解VPS如何弄PE服",
+    "author": "hejunyi2000",
+    "replyCount": 3,
+    "timestamp": 1432736460,
+    "txt_content": "  哎哪些教程完全看不懂=。=",
+    "replies": [
+        {
+            "author": "果酱布丁",
+            "timestamp": 1432736460,
+            "txt_content": "www.pocketmine.net可以下载服务端\n下载完允运行即可"
+        },
+        {
+            "author": "Steven^",
+            "timestamp": 1432814580,
+            "txt_content": "关于Vultr\n这是一家出道不久的VPS服务商，号称DigitalOcean杀手，当然有其强项：\n首先就是比DO便宜，同样价格的plan，配置比DO高。而且可以自己上传ISO安装系统（这是下面要说的折腾ZFS的基础条件）。VNC控制台很好用，DO那个远程控制台从国内根本连不上。机房选择很多，不但有从美东到美西，还有欧洲和日本，虽然DO在这些国家也有，但是选择相对少一些。另外，除了和DO一样的小硬盘的SSD方案以外，Vultr还有大 容量传统硬盘方案，拿来做存储很不错。\n目前碰到的唯一比较大的问题是它为了反SPAM，把外发的25端口给封了，导致VPS不能外发邮件。这个问题被用户们喷死了。官方提供的解决方案只有这个《使用exim通过GMAIL的SSL SMTP发送邮件》，只能说是一个权宜之计，一般用用还可以，就是配置略麻烦，而且这个文档只以Debian为例，别的系统还是需要自己折腾的。本文后面将介绍在FreeBSD上解决的方案。\n总体来说这还是个不错的选择，所以还是推荐一下，有兴趣的可以戳这个小尾巴。\n当然，别的选择也不少，比如DO：戳这个小尾巴。\n安装使用ZFS的FreeBSD\nVultr提供了FreeBSD 10/x64的Image，但是据说稳定性不行，而且不带ZFS（因为除了boot和swap以外只有一个分区），我本来想自己调整一下分区加上ZFS，结果可耻滴失败了。还好Vultr支持通过自己的ISO安装系统。\n方法是登录Vultr后台，找到MyISOs，输入FreeBSD安装盘ISO的URL（64位bootonly版即可），然后点Upload，服务端之间传输很快的。\n然后切到Deploy页面新建一个VPS，配置根据你自己需要，但是使用ZFS的话一般是需要大内存的，我是用的1G，其实不是很够，一般来说至少要4G，越大越好，当然大了价格就贵了。记得在操作系统一项中选择Custom ISO，然后选择刚才传的ISO文件，这样创建好的VPS会从ISO启动。\n创建好VPS以后切到MyServers页面，打开刚才新建的VPS的Manage，如果VPS未启动则启动之，启动后点View Console，在控制台里安装FreeBSD，记得给硬盘分一下区，系统分区给4G足够了（当然安装组件只能是最小化，不要安装source/ports什么的，这些都可以在安装完成以后再补），扣掉boot和swap，其它都分给ZFS——不设挂载点，给一个label名，比如tank。网络配置可以使用DHCP，可以在安装完后再改为固定——当然，DHCP实际上取到的地址就是系统分配给你的固定地址，所以不改固定也无所谓。\n安装完成后记得到VPS的Manage中找到Custom ISO，把安装盘卸掉再重启VPS。\n现在就可以通过控制台或SSH连上新的系统开始管理ZFS吧，当然要以root用户身份操作。\n首先就是创建一个zpool:\nzpool create tank /dev/gpt/tank\n其中的/dev/gpt/tank里的tank就是安装时给分区的那个label。\n然后先创建一个ports用的ZFS：\ncd /usr\nmv ports ports_old\nzfs create -o mountpoint=/usr/ports -o compression=on tank/ports\nmv ports_old/* ports/\nrmdir ports_old\n因为Ports里都是源码，这样可以节约很多空间。如果需要用到source也可以如法炮制。\n好像其它也没什么可说的了，自己想怎么玩ZFS，就可以开始怎么玩了。\n关于SMTP外发问题的解决\n在系统装好几天以后，我发现一个问题：一直没有收到FreeBSD的自检邮件，我装过这么多FreeBSD，配置上应该是没有问题的啊，跑去看了一下日志，发现一大堆的超时错误，手工试发了几封测试邮件，却显示发送成功——到本机MTA是没有问题的，只是MTA发不出去……\n放狗搜了半天无果，偶然用telnet连外部smtp测试时发现连不通，检查了一下我的PF防火墙设置也没有错，最后才想到去看Vultr的FAQ，果然是25端口的出口被封。\n不得不说Vultr这种反垃圾邮件的手段太简单粗暴了。\n但是没办法，邮件是不能不用的，总不能每天登上去看看前一天的自检报告吧。本来想给Sendmail弄个sock代理去别的VPS转发，但是研究半天发现还是用SSL SMTP让GMAIL转发最方便。\n当然，出于安全考虑，不能用自己的GMAIL邮箱帐号来干这事，所以特地注册了一个专用帐号来转发。这点很重要。当然这样带来一个问题就是：必须经常手工登录这个帐号，否则只有程序操作这个帐号的话，google会认为你在干坏事，时不时禁止发送一下。\n不过没能研究出来Sendmail怎么走SSL SMTP转发，所以按FreeBSD的官方文档建议，把Sendmail关了，装了一个ssmtp来做这事。\n但是官方文档说的内容略有点OUT，所以根据实际的情况，我自己总结了一下：\n注意：以下操作需要root用户权限，请谨慎操作，别出差错。\n第一步当然是彻底关闭Sendmail，修改 /etc/rc.conf ：\n[plain] view plaincopy\nsendmail_enable=\"NO\"  \nsendmail_submit_enable=\"NO\"  \nsendmail_outbound_enable=\"NO\"  \nsendmail_msp_queue_enable=\"NO\"  \n然后干掉Sendmail进程：\nkillall sendmail\n然后安装ssmtp：\ncd /usr/ports/mail/ssmtp/\nmake install replace\n其中的 make replace 会自动修改 /etc/mail/mailer.conf 把默认用的邮件系统从sendmail改成ssmtp。\n之后是配置ssmtp：\ncd /usr/local/etc/ssmtp\ncp revaliases.sample revaliases\ncp ssmtp.conf.sample ssmtp.conf\n然后修改 ssmtp.conf ：\n[plain] view plaincopy\nroot=your_root@youremail.com  # 所有发给userid小于1000的系统用户（包括root）的邮件都会被暗送到这个邮箱，省得给每个系统用户配置邮箱  \nmailhub=smtp.gmail.com:465 # 转发MTA设置，端口号也可以用587  \nrewriteDomain=your.domain.com # 给本地用户邮箱地址自动加上这个域名，比如root的邮箱就是root@your.domain.com，没有这个的话发件人就会是 root@  \nhostname=your.domain.com # 本地服务器名，在邮件头里给这个发件服务器的名字，没有的话就只会有IP，当然一般人不会去看邮件头的  \nFromLineOverride=YES # 因为通过gmail转发后默认的发件人是那个gmail帐号，这项设置为yes就可以记录一下具体是本地哪个用户发出的  \nUseTLS=YES # gmail 465/587是使用安全SMTP的，必须启用TLS  \nAuthUser=your@gmail.com # 转发用的GMAIL帐号和密码  \nAuthPass=your_gmail_password  \n如此即可。\n建议：不但要在域名注册商那里把域名解析到VPS的IP上，还要在Vultr的VPS Manage里配置这个域名给VPS，以确保反向解析正确，以减少被GMAIL或收件方误判为垃圾邮件的可能。\n因为ssmtp仅是一个MTA，没有接收和存储邮件的功能，所以发往本地用户的邮件都会丢失，而且ssmtp也不支持.forward向外转发，也不会读取aliases文件配置的别名，所以这样的配置只能实现外发邮件，比如发送给xxx@gmail.com，但不能发邮件给本地用户t。当然系统用户是个例外，如前面配置文件的注释里所说，可以通过root=选项实现暗送到指定邮箱，但是非系统用户就不行了。而且这样还有一个问题就是：这样的邮件的收件人是用户名，而不是一个有效的邮件地址，比较容易被判为垃圾邮件。\n至于revaliases是用于配置发件人别名的，比如你用root用户外发邮件时，按照上面的配置，默认显示的发件人邮箱是：root@your.domain.com ，但是如果没有配置收件服务器，这个地址是无法收到回复邮件的，所以可能需要给它一个实际的邮箱地址，比如： myroot@gmail.com 。不过一般情况下这个不配也可以，因为默认的回复邮箱并不是这个，而是那个用于转发的GMAIL，所以对方如果直接转发的话，还是可以发的。\n终极解决方案来自于这里：\n因为ssmtp会读取mail.rc的配置，所以可以这里配置收件人别名：\n[plain] view plaincopy\nalias root root<myroot@gmail.com>  \n这样当你往root用户发邮件时，显示的收件人邮箱就是myroot@gmail.com，而不是root了。而且通过这种方法也可以给系统中其它用户发邮件，只要给每个用户名配置一个别名即可。\nFreeBSD官方文档中说需要创建一个ssmtp用户并修改权限什么的虽然做一下也可以，但是必要性不大，因为最新版的ssmtp会创建一个 ssmtp 组来运行ssmtp。\n测试一下：\necho \"test\" | mail -s \"hello\" test@youremail.com # 或者把收件人换成root等本地用户\n你应该很快就可以在test@youremail.com里收到这封测试邮件。"
+        },
+        {
+            "author": "hejunyi2000",
+            "timestamp": 1432892640,
+            "txt_content": "Steven^ 发表于 2015-5-28 20:03\n关于Vultr\n这是一家出道不久的VPS服务商，号称DigitalOcean杀手，当然有其强项：\n首先就是比DO便宜，同样价 ...\n什麼鬼 看不懂"
+        }
+    ]
+}

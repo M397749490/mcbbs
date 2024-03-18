@@ -1,0 +1,44 @@
+{
+    "title": "关于服务器插件线程的问题",
+    "author": "Hineven",
+    "replyCount": 7,
+    "timestamp": 1420780320,
+    "txt_content": " 本帖最后由 胡晨晓 于 2015-1-9 13:13 编辑 \n\n这是一个内之类，想做到小游戏倒计时那样的效果\n部分代码：\nclass StartingThread implements Runnable {\n\n                Thread thread = new Thread(this);\n                boolean canStart = false;\n                Arena handleArena = null;\n\n                public StartingThread(Arena arena) {\n                        handleArena = arena;\n                        // thread.run();\n                }\n\n                @Override\n                public void run() {\n                        int seconds = 60;\n                        handleArena.message(Message.startingIn1Min);\n                        while (canStart && seconds > 0) {\n                                if(seconds == 30)\n                                        handleArena.message(ChatColor.RED + \"30\"\n                                                        + ChatColor.YELLOW\n                                                        + \" seconds until the game start!\");\n                                if (seconds <= 10)\n                                        handleArena.message(ChatColor.RED + \"\" + seconds\n                                                        + ChatColor.YELLOW\n                                                        + \" seconds until the game start!\");\n                                seconds--;\n                                try {\n                                        Thread.sleep(1000);\n                                } catch (InterruptedException e) {\n                                        e.printStackTrace();\n                                }\n                        }\n                        if (canStart) {\n                                handleArena.message(ChatColor.RED + \"Game started!\");\n                                handleArena.startGame();\n                        } else\n                                handleArena.message(ChatColor.RED + \"Start celled\");\n                }\n\n                synchronized public void setCanStart(boolean canStart) {\n                        this.canStart = canStart;\n                }\n\n                public void start() {\n                        thread.run();\n                }\n\n        }\n        @SuppressWarnings(\"deprecation\")\n        static public void endRound(Arena arena) {\n                arena.setStatus(ArenaStatus.Resetting);\n                arena.paintAllSigns();\n                int pn = arena.getPlayerCount();\n                for (int i = 0; i < pn; i++)\n                        arena.getPlayer(i).getPlayer().teleport(arena.getReturnLocation());\n                arena.clearAllPlayersInventory();\n                arena.clear();\n                arena.getGroundHandler().reset();\n                arena.setStatus(ArenaStatus.WaitForPlayer);\n                arena.paintAllSigns();\n        }\n\n        Speelf plugin;\n\n        Arena handleArena = null;\n\n        StartingThread insideThread = null;\n\n        public GameRuleHandler(Speelf speelf, Arena a) {\n                plugin = speelf;\n                handleArena = a;\n        }\n\n        public void endRound() {\n                handleArena.setStatus(ArenaStatus.Resetting);\n                handleArena.paintAllSigns();\n                for (PlayerData pd:handleArena.getPlayers())\n                        pd.getPlayer()\n                        .teleport(handleArena.getReturnLocation());\n                handleArena.clearAllPlayersInventory();\n                handleArena.clear();\n                handleArena.getGroundHandler().reset();\n                handleArena.setStatus(ArenaStatus.WaitForPlayer);\n                handleArena.paintAllSigns();\n        }\n\n        synchronized public void playerJoined(Player p) {\n                handleArena.message(ChatColor.RED + \"[\" + handleArena.getPlayerCount()\n                                + \"/\" + handleArena.getMaxPlayer() + \"] \" + ChatColor.YELLOW\n                                + p.getName() + ChatColor.YELLOW + \" joined the game.\");\n                p.getInventory().clear();\n                if (insideThread == null) {\n                        insideThread = new StartingThread(handleArena);\n                }\n                if (handleArena.getPlayerCount() >= 2) {\n                        insideThread.setCanStart(true);\n                        insideThread.run();\n                }\n                try {\n                        insideThread.thread.join();\n                } catch (InterruptedException e) {\n                        e.printStackTrace();\n                }\n                insideThread = null;\n        }\n\n        synchronized public void playerLeft(Player p) {\n                handleArena.message(ChatColor.RED + \"[\" + handleArena.getPlayerCount()\n                                + \"/\" + handleArena.getMaxPlayer() + \"] \" + ChatColor.YELLOW\n                                + p.getName() + ChatColor.YELLOW + \" left the game.\");\n                p.getInventory().clear();\n                if (insideThread != null && handleArena.getPlayerCount() < 2) {\n                        insideThread.setCanStart(false);\n                }\n        }//。。。。。\n复制代码为何不是异步的？\n求求大神解答！！\n\n",
+    "replies": [
+        {
+            "author": "iSteven",
+            "timestamp": 1420803360,
+            "txt_content": "StartThread st = new StartThread();Thread t = new Thread(st);t.start();"
+        },
+        {
+            "author": "iSteven",
+            "timestamp": 1420803480,
+            "txt_content": "这样会调用里面的run()方法"
+        },
+        {
+            "author": "Hineven",
+            "timestamp": 1420887960,
+            "txt_content": "iSteven 发表于 2015-1-9 19:38\n这样会调用里面的run()方法\n在构造函数里已有了！！\n这个是运行了的，但是没有异步！\n堵塞了服务器！"
+        },
+        {
+            "author": "Hineven",
+            "timestamp": 1420888260,
+            "txt_content": "胡晨晓 发表于 2015-1-10 19:06\n在构造函数里已有了！！\n这个是运行了的，但是没有异步！\n堵塞了服务器！\n发现问题了！\n手残加了个join（）！！！"
+        },
+        {
+            "author": "iSteven",
+            "timestamp": 1420894620,
+            "txt_content": " 本帖最后由 iSteven 于 2015-1-10 21:01 编辑 \n\n构造函数调用run没有任何作用。要想异步，你继承的是接口Runnable，不能像Thread那样直接创建实例，必须初始化Thread()。你这样还是没有异步的"
+        },
+        {
+            "author": "Hineven",
+            "timestamp": 1421040420,
+            "txt_content": "iSteven 发表于 2015-1-10 20:57\n构造函数调用run没有任何作用。要想异步，你继承的是接口Runnable，不能像Thread那样直接创建实例，必须初 ...\n谢谢！已经解决了！\n其实是可以在构造里Thread（this）的\n但是start（）方法里用的是insideThread。run（）而不是start（）。\n两种都可以"
+        },
+        {
+            "author": "jiongjionger",
+            "timestamp": 1421042520,
+            "txt_content": "直接用官方API里面的async方法，异步执行，不然sleep会阻塞"
+        }
+    ]
+}

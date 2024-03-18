@@ -1,0 +1,224 @@
+{
+    "title": "Aikar: 调整JVM —— 非常有效的服务器启动参数",
+    "author": "幻境雲達達",
+    "replyCount": 43,
+    "timestamp": 1558483980,
+    "txt_content": " 本帖最后由 幻境雲達達 于 2021-2-4 21:24 编辑 \n\n\n\n Aikar: 调整JVM —— 非常有效的服务器启动参数\n原文地址: https://aikar.co/category/minecraft/\n\n  介绍\n经过数周的学习JVM，参数和测试各种搭配，我总结出了一套高效的MineCraft垃圾收集系统。我已经在我的服务器上测试过这些，并且已经使用很多年了。然后我向大家宣布了我的研究，直到今天，许多服务器已经使用我建议的参数很多年了，并且帮助我改进了垃圾收集行为。这些参数是大量研究的结果，并且在各种规模的服务器，各种类型的服务器中反复证明了自己是有效的！我强烈建议使用这些参数来启动您的服务器，这些参数有助于你的服务器良好运行，不会出现大的垃圾回收高峰，CPU占用率可能过高，但是您的服务器TPS将会变得整体稳定。如果这些参数帮助到你了，请考虑捐助我。\n\n  要使用的Java启动参数\n使用这些参数仅仅需要更改 Xmx 和 Xms 。这些参数应该适用于任何大小的内存，即使是500MB也同样适用。\njava -Xms6G -Xmx6G -XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:MaxGCPauseMillis=100 -XX:+DisableExplicitGC -XX:TargetSurvivorRatio=90 -XX:G1NewSizePercent=50 -XX:G1MaxNewSizePercent=80 -XX:G1MixedGCLiveThresholdPercent=35 -XX:+AlwaysPreTouch -XX:+ParallelRefProcEnabled -Dusing.aikars.flags=mcflags.emc.gs -jar paperclip.jar复制代码\n  推荐使用的服务器核心\n如果你还没有使用Spigot的改进版Paperspigot,你真的需要换掉了！Paperspigot是一个比Spigot速度更快的版本，具有巨大的性能提升。它还有Bug和漏洞修复系统，许多新动能以及大量新的API供开发人员使用，具有更好的体验。Paperspigot是Spigot的替代品，每个Bukkit/Spigot插件的工作方式都相同，换用Paperspigot对你来说没有任何坏处！\n\n【 下载Paperspigot | Paperspigot文档 | PaperspigotDiscord |  “你为什么应该切换到Paperspigot”】Paperspigot是唯一一个能够以高性能运行MineCraft1.13服务器的\n\n  推荐内存\n我建议使用10GB内存，无论你有多少玩家！如果你买不起10GB内存，你也要尽可能争取，但也要确保给你的系统留一些内存，G1GC在内存高的服务器上运行效果更好。超过10GB内存可能会有点多余，但应该没问题，实际上很少有服务器真正需要10GB内存以上。如果运行MC的内存为10GB或者更少，则不应该调整这些参数。\n\n  更旧一代内存需求\n如果您你的玩家数量很多且使用超过10GB的内存，并且看到旧一代延迟峰值，您可能需要调整以下内容：\n-XX:G1MaxNewSizePercent=60-XX:G1NewSizePercent=40\n\n  参数详细说明\n1. -Xms 和 -Xmx 相同，为什么？你不应该让 Xmx 完全占用你机器的全部内存，你的服务器会使用整个 Xmx 的内存。然后，你应该确保除了Xmx之外，你的机器还有剩余内存，来运行服务器系统以及非MC服务器的东西。如果Xmx低于Xmx，你有未使用的内存！未使用的内存就代表浪费了内存。G1的内存越多，运行效果就越好。G1自适应地选择给每个区域多少内存来优化，如果您的内存超过了达到最佳暂停时间所需的内存，那么g1只会将多余的内存推到旧一代中，而不会对您产生影响。改善GC行为的基本思想是确保对象尽快清除，随着G1的内存越多，你就能更好的保证将对象尽快清除。G1的运行方式与以前的垃圾收集器不同，能够更有效地处理更大的堆，它不会使用它不需要的内存，整个运行方式不同，并且没有太大的堆积，这是行业内广泛认可的，在G1下确保 -Xms 和 -Xmx 相同！\n2. UnlockExperimentalVMOptions :下面的一些选项会用到。\n3. TargetSurvivorRatio: \n我觉得你一定会看到这里，好消息！他实际上是一个很好地参数，此参数控制提升前可以使用多少生存空间，如果空间过满，就会推向旧一代，原因是能够处理内存分配峰值。然而，大多数情况下MC的分配率相当稳定，并且当它稳定时可以安全地提高这个值以避免出现问题。\n4. G1NewSize Percent: \n这是一个非常重要的参数，在CMS和其他Generations中，调整新的GC会产生固定大小的新GC，通常使用 -xmn 来设置。有了G1，就变好了！你现在可以为新一代制定整体所需范围的百分比，通过这些设置，我们告诉G1不要使用默认的5%用于新一代，而是至少给它50%！这样MineCraft具有极高的内存分配率，在一个有30个玩家的服务器上每秒最少800兆字节！这在，意味着MC真的需要更多的关注新一代，以便能够支持这种分配率，如果你的新Gen太小，你将每秒运行Gen1-2次，这样真的很糟糕，你会感觉到很多卡顿，TPS也会很低，服务器无法保证GC的使用量。\n5. G1MixedGCLiveThresholdPercent: \n控制何时在新的GC集合中包含混合GC，以保证旧GC集合的整洁，而不执行常规的旧GC集合。当你的内存低于这个百分比的时候，旧的GC不会包含混合GC，混合GC不像完整的那么沉重，所以对老的GC集合进行小的增量清理可以减少内存使用量。\n6. AlwaysPreTouch: \nAlwaysPreTouch 获取内存并在进程启动时保留，确保它是连续的，从而提高其效率。 提高了操作系统内存访问速度。\n7. +DisableExplicitGC: \n许多插件自认为他们知道如何控制内存，并尝试调用垃圾收集。 执行此操作的插件会触发完整的垃圾回收，从而引起极高的延迟峰值。 此参数禁止插件尝试执行此操作，从而保护您免受其错误代码的影响。\n8.MaxGCPauseMillis=100: \n此参数控制在为新一代指定内存使用的最小和最大范围。这是您希望服务器暂停收集多长时间的“目标”。 100等于2个刻度，目标是最多丢失2个刻度。 这样会导致短暂的TPS下降，但是Spigot和Paper都可以立即弥补这一下降，这意味着它对您的TPS没有任何有意义的影响。 低于100ms的延迟玩家基本感觉不到。\n9.+ParallelRefProcEnabled: \n优化GC过程中使用多个线程进行。\n\n  使用大内存分页\n对于大内存分页来说，保证 Xms 和 Xmx 相同更重要！大内存分页需要为其指定所有内存，否则最终可能无效果。 操作系统不会使用此内存，因此请使用它。另外此参数只支持Java8，不能在Java7上使用。\n -XX:+UseLargePagesInMetaspace复制代码\n",
+    "replies": [
+        {
+            "author": "森林蝙蝠",
+            "timestamp": 1558485360,
+            "txt_content": "这是spigot的东西，未必适用于forge/sponge和catserver。"
+        },
+        {
+            "author": "linbo10",
+            "timestamp": 1558500420,
+            "txt_content": "请问一下面板服可以不可以修改？使用"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1558502880,
+            "txt_content": "linbo10 发表于 2019-5-22 12:47\n请问一下面板服可以不可以修改？使用\n部分面板有更改参数功能"
+        },
+        {
+            "author": "Freez！流年",
+            "timestamp": 1558534800,
+            "txt_content": "我修改启动参数后tps为-0.01 -0.03 -0.08 真的。。。。\n核心版本为1.14.1的paperclip-37"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1558559280,
+            "txt_content": "Freez！流年 发表于 2019-5-22 22:20\n我修改启动参数后tps为-0.01 -0.03 -0.08 真的。。。。\n核心版本为1.14.1的paperclip-37 ...\n？？？？？不会吧233\n\n怎么会这样哦"
+        },
+        {
+            "author": "Freez！流年",
+            "timestamp": 1558561560,
+            "txt_content": "XJue_DaDa 发表于 2019-5-23 05:08\n？？？？？不会吧233\n\n怎么会这样哦\n就感觉有点奇怪。。。内存我给的6G-6G"
+        },
+        {
+            "author": "寂",
+            "timestamp": 1558675020,
+            "txt_content": "我觉得，这篇文章既然是面对腐竹的，来教他们调整他的服务器的教程，\n直接翻译的详细说明未免有些太硬核了，专业名词对于不专业的腐竹可能难以理解。\n建议按照自己的理解，写成通俗易懂的白话解释，再把原文翻译折叠起来，或许更好一些。"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1558675080,
+            "txt_content": "1582952890 发表于 2019-5-24 13:17\n我觉得，这篇文章既然是面对腐竹来调整他的服务器的教程，\n直接翻译的详细说明未免有些太硬核了，专业名词 ...\n对于我来说难度真的大。。理解不了。。\n\n只能这样硬翻译。。"
+        },
+        {
+            "author": "ysy960108",
+            "timestamp": 1558877280,
+            "txt_content": "森林蝙蝠 发表于 2019-5-22 08:36\n这是spigot的东西，未必适用于forge/sponge和catserver。\nSpigot，Sponge之类的服务端都是Java应用，任何Java应用都可以用到JVM优化。"
+        },
+        {
+            "author": "omysho",
+            "timestamp": 1561228800,
+            "txt_content": "有些翻译问题，估计是楼主对 JVM 不是很熟悉：\n\nNew Generation -> 新生代（实际上应该是 Young Generation，原作者也写错了）\nOld Generation -> 老生代\n\n这两个都是 JVM 术语，指的是 JVM 内存结构的区域，具体可以看下图：\n\n\n\n可以看到，实际上原作者也搞错了，其实并没有什么 New Generation，而应该是 Young Generation 。\n\n顺便解释一下 G1NewSize Percent 这个设置的意义：\n\n在 G1 垃圾回收算法中，上面的 Young Generation 的大小是通过算法动态调整的，这个参数指定的是 Young Generation 的最小百分比。\n默认值是 5%，那为什么要调高这个值呢？JVM 把内存分了很多部分，当 Young Generation 里面的一个块（比如 Eden）分配满了之后，会触发一次 Minor GC 进行垃圾回收，然后把没有回收掉的内存放到下一个内存区域。垃圾回收会重新调整内存，于是机器就会卡顿。而对于 MC 来说，动态变化的东西很多，很多对象的内存都不会持续很长时间，因此有很多内存都是处于 Young Generation 的。如果 Young Generation 的内存过小，那么就会频繁触发 GC，导致卡顿。因此，这里直接给 Young Generation 一半的空间，减少其 GC 频率。"
+        },
+        {
+            "author": "幻境雲達達",
+            "timestamp": 1561250280,
+            "txt_content": "omysho 发表于 2019-6-23 02:40\n有些翻译问题，估计是楼主对 JVM 不是很熟悉：\n\nNew Generation -> 新生代（实际上应该是 Young Generation ...\n感谢，这方面确实不懂，强行翻译出来自己都觉得丢人。"
+        },
+        {
+            "author": "26790top",
+            "timestamp": 1561593060,
+            "txt_content": "感谢分享,码住码住"
+        },
+        {
+            "author": "索隆嘎嘎嘎",
+            "timestamp": 1561594080,
+            "txt_content": "感谢分享"
+        },
+        {
+            "author": "Xiao_FD",
+            "timestamp": 1561734780,
+            "txt_content": "呃呃呃呃呃呃呃呃呃呃呃呃 不懂"
+        },
+        {
+            "author": "addc123",
+            "timestamp": 1562131440,
+            "txt_content": "我想请问一下对于多模组服务器这种对服务器cpu要求本来就很高的，占用也一直很满可以使用这种优化形式来进行么，不行的话有没有其他的更好的办法，谢谢楼主大大"
+        },
+        {
+            "author": "wodewode",
+            "timestamp": 1562486940,
+            "txt_content": "用ParNewGC和这个一起更舒服"
+        },
+        {
+            "author": "2313043769",
+            "timestamp": 1562558100,
+            "txt_content": "CMD一下就消失了"
+        },
+        {
+            "author": "简简爱",
+            "timestamp": 1563534840,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "贺兰兰",
+            "timestamp": 1564712700,
+            "txt_content": "哒哒牛逼233333很不错的教程，表示以后开服参数都用这个\n另外大内存分页那个可能会有腐竹听不懂是啥吧，大内存分页的意思应该是指大的虚拟内存"
+        },
+        {
+            "author": "kilito午夜",
+            "timestamp": 1573319760,
+            "txt_content": "好难懂 这些专业名词"
+        },
+        {
+            "author": "小小周尼玛",
+            "timestamp": 1577760000,
+            "txt_content": "请问Linux可以直接用这个参数吗"
+        },
+        {
+            "author": "Minecraft小橙",
+            "timestamp": 1579466400,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "零落Y_",
+            "timestamp": 1581074280,
+            "txt_content": "使用上面参数后\n我服务器cpu利用率100%  内存利用率100%然后........服务器没了"
+        },
+        {
+            "author": "稳定c",
+            "timestamp": 1581107280,
+            "txt_content": "你这个代码。。。我服务器直接炸了。。。。\n阿里云的2H4G，，居然开不起来。。"
+        },
+        {
+            "author": "Lonely丶独独",
+            "timestamp": 1581345360,
+            "txt_content": "感谢分享！"
+        },
+        {
+            "author": "lfm0719",
+            "timestamp": 1581586440,
+            "txt_content": "2313043769 发表于 2019-7-8 11:55\nCMD一下就消失了\n在脚本最后加入pause可以看到报错是什么"
+        },
+        {
+            "author": "lfm0719",
+            "timestamp": 1581586560,
+            "txt_content": "请问我用64GB的内存，24线程cpu，最佳参数有没有变化？"
+        },
+        {
+            "author": "fengmowanxiang",
+            "timestamp": 1581893760,
+            "txt_content": "使用率100% 真的没问题吗"
+        },
+        {
+            "author": "武者、年",
+            "timestamp": 1582442160,
+            "txt_content": "非常有用！！鞋鞋"
+        },
+        {
+            "author": "武曲",
+            "timestamp": 1583033040,
+            "txt_content": "各位腐竹注意了！java -Xms6G -Xmx6G 这个地方一定要改成自己服务器的使用内存范围内，最好是留出一点非服务器使用的空间；要不然服务器会直接崩溃！，实测4G使用内存使用Xms3G -Xmx3G的话会崩，建议在2G以下，就是2048M。"
+        },
+        {
+            "author": "Rhythm",
+            "timestamp": 1584071280,
+            "txt_content": "这种参数显然是不适用于官服和forge的\n会频繁触发gc导致tps大幅度下降"
+        },
+        {
+            "author": "1430704465",
+            "timestamp": 1584363960,
+            "txt_content": "Freez！流年 发表于 2019-5-23 05:46\n就感觉有点奇怪。。。内存我给的6G-6G\nCPU倒着跑了？！"
+        },
+        {
+            "author": "猥琐的小王",
+            "timestamp": 1585665360,
+            "txt_content": "what ** this ????"
+        },
+        {
+            "author": "抱枕丶蓝晨",
+            "timestamp": 1585701540,
+            "txt_content": "感谢楼主的java参数"
+        },
+        {
+            "author": "虚伪的悲催",
+            "timestamp": 1586021880,
+            "txt_content": "\n\n\n\n\n}7XGCZD~BQXE_GXEP[I]368.png (13.86 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-5 01:38 上传\n\n\n\n\n\n我可能是少打了什么东西\n"
+        },
+        {
+            "author": "晴天娃娃_",
+            "timestamp": 1586498100,
+            "txt_content": "请问cpu方面如何优化，我这边内存方面占用不到8/1，主要是cpu一核有难8核围观"
+        },
+        {
+            "author": "GS_LemonAngel",
+            "timestamp": 1586878920,
+            "txt_content": "我vps16G 内存分配12G\n不知道为什么一开内存占用就100%。。"
+        },
+        {
+            "author": "随随缘",
+            "timestamp": 1595340300,
+            "txt_content": "cat有用嘛"
+        },
+        {
+            "author": "CrazyPeanut",
+            "timestamp": 1595612340,
+            "txt_content": "-XX:ParallelGCThreads\n大佬 我看到其他人帖子里面提到这个参数 但你帖子里面没有\n是为什么呢 这个东西到底有用没"
+        },
+        {
+            "author": "洲爸比",
+            "timestamp": 1604902500,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "wunaimzy",
+            "timestamp": 1606408320,
+            "txt_content": "谢谢楼主教程"
+        },
+        {
+            "author": "不正经的取经人",
+            "timestamp": 1606459920,
+            "txt_content": "支持支持"
+        },
+        {
+            "author": "阿莎蕊雅同学",
+            "timestamp": 1609618740,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽\n"
+        }
+    ]
+}

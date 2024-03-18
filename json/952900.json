@@ -1,0 +1,39 @@
+{
+    "title": "1.7.10的Forge工作环境无法构建修复方法",
+    "author": "天宫时雨",
+    "replyCount": 6,
+    "timestamp": 1580911500,
+    "txt_content": "前几天在某MC Modder群里面，看到有人问，为什么1.7.10无法构建了。恰好手上也有个MOD需要制作1.7.10的版本，自己一试，确实没办法构建了。\n\n于是查看Log，发现是有一部分库需要http://repo1.maven.org/作为源，但是它无法访问，我通过浏览器访问URL发现，这个源返回了501 HTTPS Required要求强制使用Https协议，也就是说，我们通过一个Http到Https的代理就可以了。\n\n发现这个解决方案之后，雨落就写了个小的代理Demo。它判断链接是否为Https，如果不是Https，就返回一个Http的Header——Location，来跳转到Https。在此开放一个测试代理链接，这是一个HTTP代理，地址为http2https.rain.cx:23333（这不是网站，不能用浏览器打开！）。\n\n食用方法，首先我们需要选择性代理，所以需要一个叫做Proxifier的软件，在其中添加HTTP代理，服务器为http2https.rain.cx:23333。然后编辑代理规则。添加一个新的代理规则，把目标主机改成repo1.maven.org和repo.maven.apache.org两个地址，目标端口填80（这是主要的）。鉴于网上关于Proxifier的教程很多，这边就不再赘述具体的操作了。然后让Proxifier保持运行，最后再尝试构建，就可以成功构建了！\n\n原文地址：https://blog.rain.cx/code/java/minecraft-dev/setup-forge-1710-workspace/",
+    "replies": [
+        {
+            "author": "火车撞鸟",
+            "timestamp": 1580962560,
+            "txt_content": " 本帖最后由 火车撞鸟 于 2020-2-6 12:48 编辑 \n\n实际上大可不必这么麻烦。\n在 Gradle 的某次提交已经把访问 Maven Central 的协议由 http 改为了 https ，并在 Gradle 2.1 中应用：\nhttps://docs.gradle.org/2.1/release-notes.html#use-of-https-for-mavencentral()-and-jcenter()-dependency-repositories\n但是由于 Forge 1.7.10 mdk 提供的 Gradle 版本还是 2.0，所以只需要在「./gradle/wrapper/gradle-wrapper.properties」中把「distributionUrl」中的版本改成比 2.1 高就行了（也不能过高，高版本的 Gradle 和低版本的 ForgeGradle 不兼容）"
+        },
+        {
+            "author": "天宫时雨",
+            "timestamp": 1580968740,
+            "txt_content": "火车撞鸟 发表于 2020-2-6 12:16\n实际上大可不必这么麻烦。\n在 Gradle 的某次提交已经把访问 Maven Central 的协议由 http 改为了 https ， ...\n感谢，学习了"
+        },
+        {
+            "author": "豆焰",
+            "timestamp": 1581046200,
+            "txt_content": " 本帖最后由 豆焰_DY 于 2020-2-7 13:31 编辑 \n\n食用方法：不需要Proxifier的软件，直接修改hosts文件添加https://repo1.maven.org http://repo1.maven.org复制代码（失败）\n"
+        },
+        {
+            "author": "goalsetting",
+            "timestamp": 1582632720,
+            "txt_content": "火车撞鸟 发表于 2020-2-6 12:16\n实际上大可不必这么麻烦。\n在 Gradle 的某次提交已经把访问 Maven Central 的协议由 http 改为了 https ， ...\n为啥我改为2.1后出现报错\nException in thread \"main\" javax.net.ssl.SSLException: Received fatal alert: protocol_version\n        at sun.security.ssl.Alerts.getSSLException(Alerts.java:208)\n        at sun.security.ssl.Alerts.getSSLException(Alerts.java:154)\n        at sun.security.ssl.SSLSocketImpl.recvAlert(SSLSocketImpl.java:1979)\n        at sun.security.ssl.SSLSocketImpl.readRecord(SSLSocketImpl.java:1086)\n        at sun.security.ssl.SSLSocketImpl.performInitialHandshake(SSLSocketImpl.java:1332)\n        at sun.security.ssl.SSLSocketImpl.startHandshake(SSLSocketImpl.java:1359)\n        at sun.security.ssl.SSLSocketImpl.startHandshake(SSLSocketImpl.java:1343)\n        at sun.net.www.protocol.https.HttpsClient.afterConnect(HttpsClient.java:563)\n        at sun.net.www.protocol.https.AbstractDelegateHttpsURLConnection.connect(AbstractDelegateHttpsURLConnection.java:185)\n        at sun.net.www.protocol.http.HttpURLConnection.getInputStream(HttpURLConnection.java:1301)\n        at sun.net.www.protocol.https.HttpsURLConnectionImpl.getInputStream(HttpsURLConnectionImpl.java:254)\n        at org.gradle.wrapper.Download.downloadInternal(Download.java:56)\n        at org.gradle.wrapper.Download.download(Download.java:42)\n        at org.gradle.wrapper.Install$1.call(Install.java:57)\n        at org.gradle.wrapper.Install$1.call(Install.java:44)\n        at org.gradle.wrapper.ExclusiveFileAccessManager.access(ExclusiveFileAccessManager.java:65)\n        at org.gradle.wrapper.Install.createDist(Install.java:44)\n        at org.gradle.wrapper.WrapperExecutor.execute(WrapperExecutor.java:126)\n        at org.gradle.wrapper.GradleWrapperMain.main(GradleWrapperMain.java:56)复制代码"
+        },
+        {
+            "author": "goalsetting",
+            "timestamp": 1582678860,
+            "txt_content": "把http改为https后依然报错。我在浏览器输入https地址 502报错\n* What went wrong:\nA problem occurred configuring root project 'forge-1.7.10-10.13.4.1558-1.7.10-src'.\n> Could not resolve all dependencies for configuration ':classpath'.\n   > Could not resolve net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT.\n     Required by:\n         :forge-1.7.10-10.13.4.1558-1.7.10-src:unspecified\n      > Unable to load Maven meta-data from https://repo1.maven.org/maven2/net/minecraftforge/gradle/ForgeGradle/1.2-SNAPSHOT/maven-metadata.xml.\n         > Could not GET 'https://repo1.maven.org/maven2/net/minecraftforge/gradle/ForgeGradle/1.2-SNAPSHOT/maven-metadata.xml'.\n            > peer not authenticated\n      > Unable to load Maven meta-data from https://files.minecraftforge.net/maven/net/minecraftforge/gradle/ForgeGradle/1.2-SNAPSHOT/maven-metadata.xml.\n         > Could not GET 'https://files.minecraftforge.net/maven/net/minecraftforge/gradle/ForgeGradle/1.2-SNAPSHOT/maven-metadata.xml'.\n            > peer not authenticated\n\n* Try:\nRun with --stacktrace option to get the stack trace. Run with --info or --debug option to get more log output.复制代码"
+        },
+        {
+            "author": "火车撞鸟",
+            "timestamp": 1582696920,
+            "txt_content": "goalsetting 发表于 2020-2-25 20:12\n为啥我改为2.1后出现报错\n可能是你的代理服务器挂了？"
+        }
+    ]
+}

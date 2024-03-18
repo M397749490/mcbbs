@@ -1,0 +1,29 @@
+{
+    "title": "1.12 catserver插件开发的几个问题",
+    "author": "aa0307bb",
+    "replyCount": 4,
+    "timestamp": 1593628320,
+    "txt_content": "问题有点多而杂（且古怪？）如果不能全部答上来也没关系OTZ\n\n\n①对于任意事件，getHandlerList()与getHandlers的返回值有什么用？\ngetHandlers\npublic HandlerList getHandlers()\n指定者:\ngetHandlers 在类中 Event\ngetHandlerList\npublic static HandlerList getHandlerList()②在写代码的时候时常见到这两个函数isAsynchronous()与runTaskTimerAsynchronously()\nisAsynchronous\npublic final boolean isAsynchronous()\n任何自定义事件应该不与其他事件同步,必须使用特定的构造器.这是对使用异步事件的一些警告(注意事项)：\n这个事件永远不会触发内部代码触发的同步事件.尝试这么做的结果会得到IllegalStateException.\n不过，异步事件处理器可能触发同步或异步事件.\n事件可能在多个时间任何优先级被触发.\n任何新注册或未注册的处理器将在一个事件开始执行后被忽略.\n这个事件的处理器可能阻塞一段时间.\n一些实现可能会有选择地声明一个事件是异步的.这一行为应被明确定义.\n异步调用不会计算在插件定时系统中.runTaskTimerAsynchronously(Plugin, long, long) - 类 中的方法org.bukkit.scheduler.BukkitRunnable\n让Bukkit任务调度器在指定的tick后开始异步的以指定的间隔不断执行任务.runTaskTimerAsynchronously()使用异步的线程的目的就是为了免得把任务推给主线程处理使得服务器卡顿？\nisAsynchronous()检测是否为异步有什么作用？\n\n\n\n③如果想监听PlayerInteractEvent，经测试，监听器类的名字似乎可以是PlayerInteractListener以外的名字（比如就叫PlayerInteractListenerssssss）…\n源代码是怎样发现我的PlayerInteractListenerssssss类的包路径以及如何调用它的……",
+    "replies": [
+        {
+            "author": "l89669",
+            "timestamp": 1593629220,
+            "txt_content": "1给事件管理器调度用的，照抄其他事件类的代码就行\n2需要学一下Java的多线程模型\n3需要调用Bukkit提供的方法进行注册（插件主类里的方法好像不用注册但是还得写注解）"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1593629400,
+            "txt_content": "getHandlerList()用于反注册监听器用\n\nXXXEvent.getHandlerList().unregister(plugin);复制代码\n\ngetHandlers()做的事情与getHandlerList()大体一致，区别只是getHandlerList()是静态方法\n\nrunTaskTimerAsynchronously是在异步线程计算。MC的大部分计算位于主线程，主线程每次（每tick）执行时间需要限制在50ms内，若插入了大量运算，则会导致主线程单次时长大于50ms，造成tps下降\n异步任务位于主线程外，可以最大限度避免此影响\n\n异步任务不可以调用任何bukkit api，否则会有线程安全问题。isAsynchronous用以判断当前线程是否为异步，是的话需要采取措施避免线程安全问题\n\n例子：我签名的地牢插件\n\nroguelike地牢的地图规划（分层设计，房间分配，战利品分配等）可以采用异步线程进行（不需要bukkit api）\n计算完成后，异步任务将会创建一个同步任务，用于将地牢map逐步放置到主世界\n\n\n关于你的第二点，没搞清楚你指什么。。请上代码"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1593659820,
+            "txt_content": "https://www.mcbbs.net/forum.php?mod=viewthread&tid=1068558\n\n我写的，关于事件监听的注册\n说白了就是扫注解，方法是遍历得到的\n和你名字无关"
+        },
+        {
+            "author": "吕易天",
+            "timestamp": 1594101120,
+            "txt_content": "1.里面存着事件处理器列表，callEvent的时候就是遍历这个列表然后一个一个调用\n2.1.是的，异步操作就是为了防止主线程被堵塞，但是用异步的话很多api就都用不了了，2.有用就对了，具体怎么用看你自己\n3.监听器类的名字你可以随便取，中文都可以，你Bukkit.getPluginManager().registerEvents了，所以它把你的监听器类的实例和里面所有的EventHandler存入了一个列表，调用的时候就靠这个列表来调用"
+        }
+    ]
+}

@@ -1,0 +1,34 @@
+{
+    "title": "[SC]如何玩♂多线程——(2)线程基础中",
+    "author": "弱鸡绿毛怪",
+    "replyCount": 5,
+    "timestamp": 1506847740,
+    "txt_content": " 本帖最后由 MagicLocyDragon 于 2018-3-24 15:46 编辑 \n\n第二章——线程基础(中)\n\n第一部分——线程的一些方法1.1 线程类下常用的方法thread.start(); —— 开启线程，不讲了thread.isAlive() —— 返回true如果线程正在运行，反则falsethread.setDaemon(boolean on) —— 把一个线程设置为守护线程，什么是守护线程呢？顾名思义，比如垃圾回收线程，它就是一个守护线程。当所有非守护线程结束了，守护线程也就会结束，但是如果非守护线程永远不会结束，守护线程也永远不会结束。记住，setDaemon方法必须在start方法前面设置，否则会抛出IllegalThreadStateExceptionthread.join() —— 这个方法如果执行了就会堵塞执行这个方法的线程，并等待thread执行完成，执行这个方法的线程才能够继续执行。\nthread.join(毫秒) —— 和上面一样，但是如果等待时间超过这个毫秒了就不会继续等待了\nthread.sleep() ——这个应该不用多说了大家都清楚thread.setPriority() —— 设置线程的优先级thread.yield() —— 顾名思义，把当前线程CPU使用的时间暂时让给别的线程，让重要的线程先执行，这个方法一般执行于不是很重要的线程thread.getState() —— 获取当前线程的状态状态分以下几种:Thread.State.NEW —— 线程位于新建状态，还没有执行thread.start()方法Thread.State.RUNNABLE —— 线程正在执行Thread.State.BLOCKED —— 线程被堵塞Thread.State.WAITING —— 线程正在等待Thread.State.TIMED_WAITING —— 线程正在进行一个有期限的等待Thread.State.TERMINATED —— 线程消亡\n1.2不推荐使用的几个方法:第一个: thread.stop();为什么不能使用呢？(不建议)因为实在是太暴力了我们举这样一个例子public class Main extends Thread{\nstatic Test t;\n@Override\npublic void run() {\n    while (true) {\n    int i = t.getFirst();\n    int i2 = t.getSecond();\n    t.setFirstAndSecond(i+1, i2+1);\n    }\n}\npublic static void main(String args[]) {\n    t = new Test();\n    Main m = new Main();\n    m.start();\n    try {\n        Thread.sleep(100);\n    } catch (InterruptedException e) {\n        e.printStackTrace();\n    }\n    m.stop();\n    System.out.println(t.getFirst()+\", \"+t.getSecond());\n}\nstatic class Test {\n    int first = 5;\n    int second = 5;\n    public int getFirst() {\n        return this.first;\n    }\n    public int getSecond() {\n        return this.second;\n    }\n    public synchronized void setFirstAndSecond(int first, int second) {\n        this.first = first;\n        try {\n            Thread.sleep(10); //模拟耗时操作\n        } catch (InterruptedException e) {\n            e.printStackTrace();\n        }\n        this.second = second;\n    }\n}\n}\n\n我们看一下输出:\n有时候是这样的:\n\n\n\n\n1.png (675 Bytes, 下载次数: 1)\n\n下载附件\n\n2017-10-1 16:28 上传\n\n\n\n\n\n也有很小的几率是这样:\n\n\n\n\n2.png (1011 Bytes, 下载次数: 2)\n\n下载附件\n\n2017-10-1 16:29 上传\n\n\n\n\n\n这就是为什么不能用stop的原因了，非常容易导致数据的不稳定性和写错，并且会立刻释放所有拥有的锁那要正确打断线程该怎么办呢？:我们推荐在线程里创建一个无限循环，用一个boolean来判断，如果为true或者false就break出去\n第二个:suspend()和resume()方法为什么呢？因为suspend方法是立刻挂起线程，并且不会释放任和锁，所以如果别人线程访问锁的话都会获取不到锁。\n第二部分——初步了解synchronized关键字synchronized可谓是线程里面非常重要的东西了，如果没有锁我们举这样一个梨子:public class Main extends Thread{\nstatic int i = 0;\n@Override\npublic void run() {\n    while (true) {\n    if (i == 100) {\n        break;\n    }\n    i++;\n    try {\n        Thread.sleep(100);\n    } catch (InterruptedException e) {\n        // TODO Auto-generated catch block\n        e.printStackTrace();\n    }\n    System.out.println(i);\n    }\n}\npublic static void main(String args[]) {\n    Main m2 = new Main();\n    Main m = new Main();\n    m.start();\n    m2.start();\n    try {\n        m.join();\n        m2.join();\n    } catch (InterruptedException e) {\n        // TODO Auto-generated catch block\n        e.printStackTrace();\n}\n}\n}\n\n执行这段代码后大家可以很神奇地看到执行的结果:2\n2\n4\n4\n6\n6\n8\n9\n10\n10\n12\n12\n14\n15\n16\n16\n18\n18\n20\n20\n22\n23\n24\n24\n26\n27\n28\n28\n30\n30\n32\n33\n34\n34\n36\n36\n38\n38\n40\n41\n42\n43\n44\n44\n46\n46\n48\n49\n50\n51\n52\n53\n54\n54\n56\n56\n58\n58\n60\n60\n62\n62\n64\n65\n66\n67\n68\n68\n70\n70\n72\n72\n74\n75\n76\n77\n78\n78\n80\n81\n82\n82\n84\n84\n86\n86\n88\n88\n90\n91\n92\n92\n94\n95\n96\n96\n98\n98\n100\n100\n\n\n可以看到，这中间有重复输出的，也有少了数字的，解决这一问题很简单，我们只需要这样:public class Main extends Thread{\nstatic Object lock = new Object();\nstatic int i = 0;\n@Override\npublic void run() {\n    while (true) {\n    synchronized (lock) {\n    if (i == 100) {\n        break;\n    }\n    i++;\n    try {\n        Thread.sleep(100);\n    } catch (InterruptedException e) {\n        // TODO Auto-generated catch block\n        e.printStackTrace();\n    }\n    System.out.println(i);\n    }\n    }\n}\npublic static void main(String args[]) {\n    Main m2 = new Main();\n    Main m = new Main();\n    m.start();\n    m2.start();\n    try {\n        m.join();\n        m2.join();\n    } catch (InterruptedException e) {\n        // TODO Auto-generated catch block\n        e.printStackTrace();\n}\n}\n}\n那么输出就很正常了:1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n44\n45\n46\n47\n48\n49\n50\n51\n52\n53\n54\n55\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88\n89\n90\n91\n92\n93\n94\n95\n96\n97\n98\n99\n100关于更多我想下次再讲，毕竟写了这么多字了\n另外我发现个好玩的东西:public static void main(String args[]) {\n    Integer i = 100;\n    Integer i2 = 100;\n    System.out.println(i == i2);\n    Integer i3 = 1000;\n    Integer i4 = 1000;\n    System.out.println(i3 == i4);\n}\n有人猜得到为什么这个代码输出:truefalse吗，下次我会说一下的23333\n\n\n[groupid=1533]SpicyChicken[/groupid]",
+    "replies": [
+        {
+            "author": "sjx",
+            "timestamp": 1506850140,
+            "txt_content": "IntegerCache是吗？"
+        },
+        {
+            "author": "弱鸡绿毛怪",
+            "timestamp": 1506853140,
+            "txt_content": "sjx 发表于 2017-10-1 17:29\nIntegerCache是吗？\n23333答对\n老哥牛逼"
+        },
+        {
+            "author": "萌仓鼠",
+            "timestamp": 1506853500,
+            "txt_content": "我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，我是来水经验的，"
+        },
+        {
+            "author": "耗子",
+            "timestamp": 1506875640,
+            "txt_content": "synchronized和Lock是两个不同的概念"
+        },
+        {
+            "author": "233453123",
+            "timestamp": 1506916080,
+            "txt_content": "顶一顶，刚学JAVA。"
+        }
+    ]
+}

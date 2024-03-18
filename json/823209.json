@@ -1,0 +1,504 @@
+{
+    "title": "[管理][PoS]Spark —— Spark性能分析器[1.8-1.15]",
+    "author": "GiNYAi",
+    "replyCount": 99,
+    "timestamp": 1538910300,
+    "txt_content": " 本帖最后由 GiNYAi 于 2020-2-19 18:39 编辑 \n\n\nSpark是一个基于sk89q的WarmRoast profiler的分析插件.\n下载 ? Wiki ? Issues\nBukkit/Sponge/BungeeCord/Velocity应该使用spark.jar,而纯Forge/Fabric应该使用spark-forge.jar/spark-fabric.jar\n\n它能做什么?\nspark由若干个部分组成，接下来会分别介绍每个部分。\nCPU侧写(进程分析)内存检查(堆分析与GC监视)服务器健康报告\nCPU侧写(进程分析)\n这是spark最主要的部分,一个基于WarmRoast的轻量的CPU分析与Web视图.\n采样器记录每个行为消耗运算时间的统计数据,这些统计数据可以用来分析出服务器的某个部分，或者某个插件存在的潜在的性能问题.\n数据记录之后,可以在浏览器中显示一个函数调用关系图,来帮助分析.\n一个像spark中所包含这个一样的分析器并,不能\"如同魔法般地\"修复卡顿--他只是一个帮助分析性能问题原因的工具.Tick监视器(监视服务器tick)\n这个模块可以监视游戏服务器处理\"ticks\"的速度,它可以观察趋势并且分辨出与其他系统事件(垃圾回收,游戏行为,等)相关的性能问题的本质.内存检查(堆分析与GC 监视)\n这部分可以生成系统内存使用快照,包含潜在地存在问题的类,其占据空间的大小,与其相关的对象实例数量的信息.\n与其他具有相似功能的分析器不同,它并不大上完整的替代内存分析工具,它指提供一个简单的概览.\nspark同样包含提取完整的Hprof快照的功能,这些快照可以使用传统的内存分析工具分析.服务器健康报告\n提供关于服务器当前\"健康\"状态的信息,可以使用游戏内命令查看.输出的信息包含:\n    ·服务器TPS(ticks per second 每秒tick的数量)的信息,比/tps命令显示的要准确的多.\n    ·服务器进程的CPU占用,以及整个系统的CPU占用.\n    ·内存使用\n    ·硬盘使用\n\nspark vs WarmRoast\nWarmRoast 功能\n这些功能来自上游的\"WarmRoast\"项目.\n视图是完全建立在Web上的,不需要任何特殊的软件,只需要一个Web浏览器!输出是按照方法调用的栈的形式组织,使得输出很容易理解节点可以展开或者折叠来显示时间信息与更多子节点.可以一眼看出一个方法占全部CPU使用的比例.可以看到每个方法占CPU时间在父方法中的百分比可以调整的取样频率.对目标程序(服务器)几乎没有任何消耗或副作用\n\n\nspark 功能\nWarmRoast出色的工具,但是他有几个缺陷.\n某些人几乎无法使用它, 因为要使用它, 你需要能够直接使用SSH(或者等价的方式)连接你的服务器.(面板服无法使用)设置与开始比较笨拙 - 首先你需要连接到你要测试的机器上.然后你需要记下你服务器进程的PID,或者在当前运行的VM列表中找出你要测试的服务器(同时运行多个服务器的时候这并不轻松). - 然后让分析器运行一小段时间,再浏览应用为你呈现的网页.与其他开发者或者管理员分享分析数据并不容易.你需要在你的服务器上安装JDK.\n\n\n我尝试在spark中处理这些缺点\n分析由游戏内或者控制台命令控制.你并不需要直接访问服务器机器 - 只需要向平常一样安装插件就可以了.数据会被上传到一个像\"pastebin\"一样的网站来查看,这样就不需要一个临时的web服务器,你可以简单的把你的分析数据与其他人分享!它并不需要安装特殊的Java组件或者提供JDK路径\n\n\nSpark与其他分析工具相比的优点\nMCP (Mod Coder Pack) 反混淆映射可以通过浏览器直接应用到方法名上\n这对于Bukkit映射,和Sponge/Forge (Searge) 映射同样有效\n不需要任何特殊的软件来查看输出,只需要一个Web浏览器.\n\nSpark vs 真实采样\nSpark(WarmRoast)分析器使用采样技术.一个采样分析器通过定期观察目标程序调用栈来确定特定行为的频率.实践中,采样分析器经常能够提供更清晰的信息,因为他们并不中断目标程序,因此并不会有那么多的副作用.\n采样分析器通常数值上不如其他分析方法(例如的性能分析器)精确,但是可以让目标程序几乎满速运行.\n结果的数据并不是确切的,但是是统计近似的.输出的准确性会随着采样时间的长度增加, 或者采样更频繁而增加.\nSpark vs \"Minecraft Timings\"\nAikar's timings 系统 (Spigot 与 Sponge 内置) 与 spark/WarmRoast接近, 实际上它同样分析服务器的CPU活动.\nTimings通常会比Spark更精确,但是(可以说?!)用途更小,因为每个扫描区域需要人为定义.\n例如,Timings可能会发现插件X的某个监听器消耗了大量时间处理PlayerMoveEvent,但是他不会告诉你这个处理中的哪个部分是缓慢的.而spark/WarmRoast则 会 显示这些信息,指出导致性能问题的方法调用.\n安装\n只需把文件 spark.jar 放到你的服务器的plugins/mods文件夹下,然后重启服务器.\n命令\n所有的命令都需要spark权限.\n你需要在BungeeCord,Velocity和Forge客户端上使用/sparkb,/sparkv,/sparkc作为替代.\n\n/spark sampler\n开启一个新的CPU侧写操作。\n参数\n--info\n如果当前有正在运行的侧写，输出其信息.\n--stop\n结束当前正在运行的侧写操作，上传结果数据，并返回视图的链接.\n--cancel\n结束当前正在运行的侧写操作，放弃所有记录的数据，而不会上传.\n--timeout <timeout>\n指定侧写自动停止的时间，单位为秒.如果未指定，侧写会即刻开始，并且一直运行只到手动停止\n--thread <thread name>\n指定需要侧写的线程的名字d.如果未指定，将只会侧写主服务器线程\"server thread\".你可以使用*来表示希望侧写所有的线程\n--regex\n通过正则表达式来指定需要侧写的线程.Specifies that the set of threads defined should be interpreted as regex patterns.\n--combine-all\n指定 所有线程应当被合成到一个节点中.\n--not-combined\n指定 同一个池中的线程不应当被合成到一个节点中.\n--interval <interval>\n设定采样的间隔,单位为毫秒.更低的的值会提升结果的准确性,但是可能会导致服务器缓慢.如果未指定,默认的间隔是10毫秒.\n--only-ticks-over <tick length millis>\n设定只包括一个tick消耗了超过指定时间的数据才会被记录\n--include-line-numbers\n指定 方法调用的行数是应当被记录并且包含在输出中.\n\n\n/spark tps\n输出服务器的tps(ticks per second)的信息.\n\n/spark healthreport\n为服务器生成一个健康报告\n参数\n--memory\n设定是否包含JVM内存的额外信息\n\n\n/spark tickmonitoring\n开启/关闭 tick监视系统\n参数\n--threshold <percentage increase>\n设定报告的阈值,单位是超出平均tick时间的百分比\n--without-gc\n设定 不再显示GC提示\n\n\n/spark heapsummary\n建立一个新的内存（堆）dump 总结，上传结果数据，返回一个视图的链接。\n参数\n--run-gc-before\n设定 在记录数据之前，Spark应该建议系统执行一次垃圾回收\n\n\n/spark heapdump\n创建一个新的堆Dump(.hprof 快照)文件，并且保存到硬盘.\n参数\n--run-gc-before\n设定 在记录数据之前，Spark应该建议 系统执行一次垃圾回收\n--include-non-live\n设定是否包含 ”已经死亡“ 的对象。（无法被其他对象访问的对象）\n--xz\n使用LZMA2 (.xz)压缩堆Dump。（比Gzip慢，但是有更好的压缩率）\n--lzma\n使用LZMA (.lzma)压缩堆Dump。（比起这个更喜欢使用xz）\n--gzip\n使用gzip (.gz)压缩堆Dump。（比LZMA2快，但是压缩率更差）\n\n\n/spark activity\nPrints information about recent activity performed by the plugin.\n\nLicense\nspark is a fork of WarmRoast, which is licensed under the GNU General Public License.\nTherefore, spark is also licensed under the GNU General Public License.\n协议\nSpark是 WarmRoast 的一个分支,  WarmRoast是licensed under the GNU General Public License.\n因此,Spark也是GNU General Public License 协议.\n\n本文翻译自https://github.com/lucko/spark/blob/master/README.md\n\n[groupid=1680]Power of Spongie[/groupid]",
+    "replies": [
+        {
+            "author": "117779284",
+            "timestamp": 1538914680,
+            "txt_content": "完全不懂。但看起来比较内涵·"
+        },
+        {
+            "author": "中华博",
+            "timestamp": 1540043520,
+            "txt_content": "timings on"
+        },
+        {
+            "author": "神の手",
+            "timestamp": 1540113240,
+            "txt_content": "期待进一步的扫盲使用教程 降低使用门槛"
+        },
+        {
+            "author": "夕离丶",
+            "timestamp": 1540114080,
+            "txt_content": "测试了一下u端1.7.10是可使用的。/spark之类的指令可以输出其他的就不知道了\n\n\n\n\n%4I[662NYL)3IN$OSP@]KGY.png (31.82 KB, 下载次数: 148)\n\n下载附件\n\n2018-10-21 17:28 上传\n\n\n\n\n\n"
+        },
+        {
+            "author": "qiangshuiya",
+            "timestamp": 1541465820,
+            "txt_content": "赞一个，下载来试试看分析"
+        },
+        {
+            "author": "LoganA",
+            "timestamp": 1541480760,
+            "txt_content": "有用 顶一个"
+        },
+        {
+            "author": "a2980711338",
+            "timestamp": 1541493360,
+            "txt_content": "有点牛逼 这个我就收下了 感谢大大"
+        },
+        {
+            "author": "a2980711338",
+            "timestamp": 1541493660,
+            "txt_content": "有点牛逼 这个我就收下了 感谢大大"
+        },
+        {
+            "author": "meifanguo",
+            "timestamp": 1543040760,
+            "txt_content": "强大的插件可怕"
+        },
+        {
+            "author": "Setyo",
+            "timestamp": 1543142100,
+            "txt_content": "太有用了"
+        },
+        {
+            "author": "1723624171",
+            "timestamp": 1543222080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "aszxgggg",
+            "timestamp": 1543584480,
+            "txt_content": "以后可能会用到"
+        },
+        {
+            "author": "5258315",
+            "timestamp": 1544325420,
+            "txt_content": "感谢大佬这么吊的插件！！！！！！！"
+        },
+        {
+            "author": "wuxiaodong123",
+            "timestamp": 1544327880,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "2816998414",
+            "timestamp": 1544593380,
+            "txt_content": "感谢楼主分享"
+        },
+        {
+            "author": "脑白鑫",
+            "timestamp": 1544620560,
+            "txt_content": "oh yeah 。等到这天。"
+        },
+        {
+            "author": "Feng_Qing_Yun",
+            "timestamp": 1546420200,
+            "txt_content": "mcbbs有你更精彩"
+        },
+        {
+            "author": "qq294002918",
+            "timestamp": 1547048520,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "qq294002918",
+            "timestamp": 1547048700,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "Klyklyk",
+            "timestamp": 1547685060,
+            "txt_content": "支持支持 作者大佬666"
+        },
+        {
+            "author": "366397",
+            "timestamp": 1547961420,
+            "txt_content": "感觉加了，服务器会更好"
+        },
+        {
+            "author": "心心念念111",
+            "timestamp": 1547965800,
+            "txt_content": "\n有用 顶一个"
+        },
+        {
+            "author": "1314520qb",
+            "timestamp": 1547967720,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "timeset1800",
+            "timestamp": 1548126960,
+            "txt_content": "比较有用233"
+        },
+        {
+            "author": "Feng_Qing_Yun",
+            "timestamp": 1548128640,
+            "txt_content": "这插件真的棒"
+        },
+        {
+            "author": "Feng_Qing_Yun",
+            "timestamp": 1548128700,
+            "txt_content": "这插件真的棒"
+        },
+        {
+            "author": "2411169590",
+            "timestamp": 1548170940,
+            "txt_content": "好厉害！谢谢楼主！！"
+        },
+        {
+            "author": "毒啊、、",
+            "timestamp": 1548242340,
+            "txt_content": "nbnbnb，不过有没有冲突"
+        },
+        {
+            "author": "samlau15",
+            "timestamp": 1548431760,
+            "txt_content": "谢谢楼主无私分享"
+        },
+        {
+            "author": "FDespair",
+            "timestamp": 1548671460,
+            "txt_content": "666666666666666666666666666666666666666666"
+        },
+        {
+            "author": "2411169590",
+            "timestamp": 1548679860,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "The_Wind_red",
+            "timestamp": 1548728340,
+            "txt_content": "\nMCBBS有你更精彩~"
+        },
+        {
+            "author": "princess3518",
+            "timestamp": 1548734400,
+            "txt_content": "支持一下qwq"
+        },
+        {
+            "author": "3086001494",
+            "timestamp": 1548807900,
+            "txt_content": "门槛有点高 表示不会"
+        },
+        {
+            "author": "rickdong",
+            "timestamp": 1550139300,
+            "txt_content": "我服性能还算不错哦"
+        },
+        {
+            "author": "Jimmy_kmi",
+            "timestamp": 1550285400,
+            "txt_content": "表示在这里下载完留个名"
+        },
+        {
+            "author": "1289901426",
+            "timestamp": 1550292720,
+            "txt_content": "好复杂= ="
+        },
+        {
+            "author": "LHYKGR",
+            "timestamp": 1550660640,
+            "txt_content": "其实我是来水任务的"
+        },
+        {
+            "author": "syax1018",
+            "timestamp": 1550662200,
+            "txt_content": "非常好的一个差价~"
+        },
+        {
+            "author": "Wrsat",
+            "timestamp": 1550686440,
+            "txt_content": "哇塞大佬好厉害呀~！"
+        },
+        {
+            "author": "293711",
+            "timestamp": 1550717460,
+            "txt_content": "不错的插件"
+        },
+        {
+            "author": "293711",
+            "timestamp": 1550717580,
+            "txt_content": "不错的插件"
+        },
+        {
+            "author": "LHYKGR",
+            "timestamp": 1550729940,
+            "txt_content": "其实我是来完成任务的"
+        },
+        {
+            "author": "j237130777",
+            "timestamp": 1550793900,
+            "txt_content": "66666666666666666666666"
+        },
+        {
+            "author": "Minecraft_652",
+            "timestamp": 1551186720,
+            "txt_content": "哇666666666666666666"
+        },
+        {
+            "author": "ldw0711",
+            "timestamp": 1551188700,
+            "txt_content": "装到服务器里看一下卡服的罪魁祸首是哪个插件...... 看看能不能替换一下"
+        },
+        {
+            "author": "pig大大",
+            "timestamp": 1551623460,
+            "txt_content": "不明觉厉"
+        },
+        {
+            "author": "Vergeef",
+            "timestamp": 1552138260,
+            "txt_content": "有用     顶一个"
+        },
+        {
+            "author": "820428817",
+            "timestamp": 1552793460,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "820428817",
+            "timestamp": 1552793460,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "qweasdk",
+            "timestamp": 1552793520,
+            "txt_content": "没看明白这个插件干嘛的"
+        },
+        {
+            "author": "CXCX_8820",
+            "timestamp": 1553004960,
+            "txt_content": "MC专用跑分工具的感觉吗"
+        },
+        {
+            "author": "自宫",
+            "timestamp": 1553437080,
+            "txt_content": "六六六六六六六六六六六六六六六六六六六六六六六六"
+        },
+        {
+            "author": "1345936209",
+            "timestamp": 1553533620,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "q3205977915",
+            "timestamp": 1553803800,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "我是某某zxc",
+            "timestamp": 1553901660,
+            "txt_content": "sssssssssssssssss"
+        },
+        {
+            "author": "greenapple",
+            "timestamp": 1553951880,
+            "txt_content": "6666666666666666666666"
+        },
+        {
+            "author": "greenapple",
+            "timestamp": 1553951880,
+            "txt_content": "6666666666666666666666"
+        },
+        {
+            "author": "李小逵",
+            "timestamp": 1554031140,
+            "txt_content": "sdfsfesdfesffwad"
+        },
+        {
+            "author": "李小逵",
+            "timestamp": 1554031200,
+            "txt_content": "MCBBS有你更精彩"
+        },
+        {
+            "author": "jrx233",
+            "timestamp": 1554462900,
+            "txt_content": "看起来挺好"
+        },
+        {
+            "author": "jianlongx",
+            "timestamp": 1555125420,
+            "txt_content": "谢谢大大这么nb的插件"
+        },
+        {
+            "author": "wenxuan233",
+            "timestamp": 1555924920,
+            "txt_content": "这个插件有点牛逼我看不懂"
+        },
+        {
+            "author": "2096961506",
+            "timestamp": 1556523720,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "dj688",
+            "timestamp": 1556632380,
+            "txt_content": "23333333333"
+        },
+        {
+            "author": "1677343686",
+            "timestamp": 1556785800,
+            "txt_content": "大佬牛逼啊(来自对插件一窍不通的萌新)"
+        },
+        {
+            "author": "784945636",
+            "timestamp": 1556836560,
+            "txt_content": "神乎其技，不服不行！"
+        },
+        {
+            "author": "qwe1664828807",
+            "timestamp": 1556846580,
+            "txt_content": "完成任务"
+        },
+        {
+            "author": "acerjzs",
+            "timestamp": 1556878500,
+            "txt_content": "有点复杂，但是功能很不错"
+        },
+        {
+            "author": "情谊丿张张",
+            "timestamp": 1556952960,
+            "txt_content": "很好的插件，支持一下"
+        },
+        {
+            "author": "markliang",
+            "timestamp": 1556984880,
+            "txt_content": "不是，我觉得今天中头奖了，看了这么多有用的插件"
+        },
+        {
+            "author": "柿子shizi",
+            "timestamp": 1557006600,
+            "txt_content": "能不能更新到1.13啊，求1.13版本"
+        },
+        {
+            "author": "qaz1357077767",
+            "timestamp": 1557604260,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "枫岚大大",
+            "timestamp": 1557624720,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "jiang808",
+            "timestamp": 1557629940,
+            "txt_content": "感谢大佬分享"
+        },
+        {
+            "author": "kdcshenzeyuan",
+            "timestamp": 1557969240,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "lxh6811903",
+            "timestamp": 1558066200,
+            "txt_content": "厉害啊不错"
+        },
+        {
+            "author": "yuen27787231",
+            "timestamp": 1558120020,
+            "txt_content": "這個跟ess的timings很相似喔 功能是一樣?"
+        },
+        {
+            "author": "hs20021015",
+            "timestamp": 1558169400,
+            "txt_content": "来了来了！！"
+        },
+        {
+            "author": "老衲爱尼姑",
+            "timestamp": 1558251240,
+            "txt_content": "6666666666"
+        },
+        {
+            "author": "H.Hetao",
+            "timestamp": 1558449000,
+            "txt_content": "非常实用，感谢作者！"
+        },
+        {
+            "author": "情谊丿张张",
+            "timestamp": 1558458420,
+            "txt_content": "很好的插件，支持"
+        },
+        {
+            "author": "Cjj2001",
+            "timestamp": 1558861020,
+            "txt_content": "下载下来给服务器试一下"
+        },
+        {
+            "author": "春夏",
+            "timestamp": 1559223480,
+            "txt_content": "收下，谢谢分享！"
+        },
+        {
+            "author": "Luvnstriow_",
+            "timestamp": 1559437080,
+            "txt_content": "看起来超实用"
+        },
+        {
+            "author": "社会我稽稽",
+            "timestamp": 1560391980,
+            "txt_content": "666666666666666666666666666666666666"
+        },
+        {
+            "author": "qq704597876",
+            "timestamp": 1560831720,
+            "txt_content": "感谢分享感谢分享"
+        },
+        {
+            "author": "弥天大弥天",
+            "timestamp": 1560832620,
+            "txt_content": "唔 请问向下支持1.7.10吗"
+        },
+        {
+            "author": "真的倒霉",
+            "timestamp": 1561123260,
+            "txt_content": "我居然看不懂....."
+        },
+        {
+            "author": "wysljjzzh",
+            "timestamp": 1561383960,
+            "txt_content": "所以，这是开服用的东西？我连服务器怎么弄都不知道………………"
+        },
+        {
+            "author": "123456xyf",
+            "timestamp": 1561431900,
+            "txt_content": "6666666666666666666"
+        },
+        {
+            "author": "a65w46a",
+            "timestamp": 1561436340,
+            "txt_content": "不会用啊"
+        },
+        {
+            "author": "2295111714",
+            "timestamp": 1561547520,
+            "txt_content": "wow谢谢楼主分享"
+        },
+        {
+            "author": "w1839992361",
+            "timestamp": 1562159460,
+            "txt_content": "看上去不知道怎么用 但感觉很厉害支持"
+        },
+        {
+            "author": "12YYT",
+            "timestamp": 1562223960,
+            "txt_content": "好东西6666666"
+        },
+        {
+            "author": "qq2170084126",
+            "timestamp": 1562328120,
+            "txt_content": "说实话 没看懂.............."
+        },
+        {
+            "author": "cyc1115",
+            "timestamp": 1562368200,
+            "txt_content": "6666666666666"
+        },
+        {
+            "author": "z13145555",
+            "timestamp": 1562376000,
+            "txt_content": "很棒的插件我拿走了"
+        },
+        {
+            "author": "9644677749",
+            "timestamp": 1562396580,
+            "txt_content": "下载不了.."
+        }
+    ]
+}

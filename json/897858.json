@@ -1,0 +1,104 @@
+{
+    "title": "[Tutorial][Bukkit][CPS]可能是最简单的Scoreboard教程",
+    "author": "602723113",
+    "replyCount": 19,
+    "timestamp": 1584538200,
+    "txt_content": " 本帖最后由 602723113 于 2020-3-22 16:17 编辑 \n\n目录:\n导读Scoreboard的基本概念使用Scoreboard进行展示数据给玩家制作无闪计分板如何使用Minecraft自带的Team\n\n导读\n好久没有更新教程了，woc昨天就发过教程（锡兰梗\n本教程使用的 PaperSpigot1.15.2-R0.1-SNAPSHOT 核心 在阅读之前请确保你具有Java基础的知识(别问，问就挨打)\nTo 读者: 本教程适合所有年龄向的人，因为我们是面向剪切板编程\n\nScoreboard的基本概念\n在教程开始前我们来了解一下Scoreboard  \n记分板（Scoreboard）系统是一套通过命令操纵的复杂游戏机制。主要为地图作者与服务器运营者准备，记分板可用多种形式追踪、设置并列出玩家及实体的分数。记分项（Objective）由名称（name）、显示名称（display name）、准则（criteria）以及每位玩家（及实体UUID）所对应的整数数据组成。分数的范围为-2,147,483,648至2,147,483,647没有小数。准则(criteria)显示位置(DisplaySlot)\n\n若读者有制作CB的经验，那么上方的基本概念可以跳过\n在有了上方对记分板的基本概念后，我们来查询一下Bukkit API中对Scoreboard的包装\n1.12.2版本 | 1.13+版本Spigot最新版本我吹爆中文BukkitAPI\n可以在上方的Javadoc的查询知道，在Bukkit当中，所有关于Scoreboard的操作都被放到 org.bukkit.scoreboard 包下了，之后我们就来看一下，要怎么正确的使用一个记分板吧\n\n在阅读教程之前我强烈建议先看一看中文MinecraftWiki再来阅读本文\n\n使用Scoreboard进行展示数据给玩家\n接下来我们就来看看如何进行操作 首先我们需要的是ScoreboardManager这个接口的对象，怎么获取呢？我可以通过下方代码实现\nScoreboardManager manager = Bukkit.getScoreboardManager();复制代码在Bukkit这个静态类中，BukkitAPI已经帮我们造好了轮子，我们可以直接使用 接下来我们就需要得到一个叫 Scoreboard 接口的对象，我们可以通过manager里的方法来进行获得\nScoreboard scoreboard = manager.getNewScoreboard();复制代码为什么要用 getNewScoreboard() 呢？\n因为这样我们只会新建出一个Scoreboard，这个Scoreboard是不会受原版指令的限制的Scoreboard\n之后我们需要新建一个计分项，也就是Objective，接下来看我的操作\nObjective objective = scoreboard.registerNewObjective(\"内部名字\", \"dummy\", \"§a我是展示名~~\");复制代码首先我们看上面的三个参数，name，criteria，displayName，那么对应过来的就是计分项的内部名字和准则与展示名\n内部名字: 用于scoreboard.getObjective()时填入, 可直接获取Objective准则: 此 Objective 的准则，表示只能通过插件修改分数展示名: 也就是计分板头上的那个标题，比如下图的 Scoreboard 就是展示名\n\n\n\n\n\nscoreboard.png (857 Bytes, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:40 上传\n\n\n\n\n\n为什么要写 dummy 呢？\n因为 dummy 型的准则更适合于插件开发, 并且它不会被玩家死亡或击杀变动\n之后我们给Objective设置显示的位置\nobjective.setDisplaySlot(DisplaySlot.SIDEBAR);复制代码我们来解释一下这个显示位置的问题： DisplaySlot这个枚举列举了所有Objective可以存在的地方\nPLAYER_LIST （玩家Tab里）SIDEBAR（侧边栏）BELOW_NAME （玩家头上NameTag的下面）\n那么接下来我们就要往 Objective 里添加Score了\nScore score = objective.getScore(\"内容\");\nscore.setScore(12345);复制代码之后我们就可以给玩家设置上我们的Scoreboard （如果没有做这一步，并且事先也未给玩家设置Scoreboard的话，会导致无法显示与使用!）\nPlayer player = 我也不知道这个player要从哪引用;\nplayer.setScoreboard(scoreboard);复制代码完整代码\nScoreboardManager manager = Bukkit.getScoreboardManager();\n// 建立新Scoreboard\nScoreboard scoreboard = manager.getNewScoreboard();\n// 注册新的记分项\nObjective objective = scoreboard.registerNewObjective(\"内部名字\", \"dummy\", \"§a我是展示名~~\");\n// 设置记分项展示位置\nobjective.setDisplaySlot(DisplaySlot.SIDEBAR);\n// 给记分项增加 内容与对应的分数\nScore score = objective.getScore(\"内容\");\nscore.setScore(12345);\n// 设置计分板\nPlayer player = 我也不知道这个player要从哪引用;\nplayer.setScoreboard(scoreboard);复制代码具体效果: \n\n\n\n\n\n我是展示名.png (542 Bytes, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:41 上传\n\n\n\n\n\n\n制作无闪计分板\n问题引入： 那么在经过了上面的实例之后我相信，大部分人都已经学会了如何简易的给玩家设置计分板，但是当我们在做一些动态的计分板的时候，会出现闪烁的问题，那么这是怎么出现的呢？ 就拿我们刚才的代码来说，如果我们想更改计分板的内容，我们只能通过\nscoreboard.resetScores(\"内容\");复制代码这样的方式才能删除一个Score，那么就有人说了\n诶呀为什么不直接clear或者reset呢？ 我也想啊，只可惜Minecraft的计分板就是这么设计的，所以我们如果想更换内容就得先 resetScores() 之后再 objective.getScore() 才能进行更换然后这时候又有人说了，那我重新的getNewScoreboard不就好了吗？ 诶呀，你自己看看我们上面所写的代码，我们还要注册个新的Objective，之后设置一大堆东西，然后才能开始设置Score，这里面的实现早已就产生了上百的ms，所以这个方**导致闪烁的问题然后这个时候lz就说了，诶呀为什么不用resetScores填入内容之后，再getScore来设置呢？ 诶呀，这样的话其实还是会导致在 resetScores 的时候出现部分闪屏的内容，属于假无闪！，具体思路是： \n\n1. 首先我们在 objective.getScore 时顺便将内容存入一个作为cache的List中 在下一次我们想要修改时，遍历这个 cache 的List，之后resetScores 最后再使用 objective.getScore 添加数据\n\n那么这时候我们就会出现一个问题，既然我们不能用 resetScores，那么我们应当怎么写呢？ 这里我要感谢 (#6楼)[ 提示给我的方法，所以这里我对解决方案进行更改\n\n那么这里是我的解决方案: 我们通过使用Team的特性来写，Team这个东西其实是，在下面的一部分，但是为了做出无闪的效果，这里提前说一下思路就行\n\n在Team中有setPrefix和setSuffix的方法，通过这两个方法我们可以直接修改前后缀如果我们新建15个队伍，然后给每个队伍只addEntry(name)，我们为了做出name不显示的效果，我们可以使用颜色代码 §X 的形式做出不显示的效果来实现之后我们给每个队伍设置不同的prefix和suffix，这样就可以达到不通过resetScore来设置内容\n\n我们来看下面的实例\n实例：制作一个实时显示时间的计分板\n\nimport java.text.SimpleDateFormat;\nimport java.util.Date;\nimport java.util.List;\n\nimport org.bukkit.Bukkit;\nimport org.bukkit.ChatColor;\nimport org.bukkit.entity.Player;\nimport org.bukkit.plugin.Plugin;\nimport org.bukkit.scheduler.BukkitTask;\nimport org.bukkit.scoreboard.DisplaySlot;\nimport org.bukkit.scoreboard.Objective;\nimport org.bukkit.scoreboard.Scoreboard;\nimport org.bukkit.scoreboard.Team;\n\nimport com.google.common.collect.Lists;\n\npublic class MyScoreboard {\n\n        private Scoreboard scoreboard;\n        private Objective objective;\n        private String title;\n        private Player player;\n        private boolean isRun;\n        private SimpleDateFormat format = new SimpleDateFormat(\"yyyy-MM-dd\");\n        private SimpleDateFormat format2 = new SimpleDateFormat(\"HH:mm:ss\");\n        // 用作runnable的主类实例\n        private Plugin plugin;\n        /**\n         * 用于保存所有的Team\n         */\n        private List<Team> timers;\n        private BukkitTask task;\n\n        public MyScoreboard(Plugin plugin, Player player, String title) {\n                this.scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();\n                this.title = title;\n                this.objective = scoreboard.registerNewObjective(player.getName(), \"dummy\", this.title.replace(\"&\", \"§\"));\n                objective.setDisplaySlot(DisplaySlot.SIDEBAR);\n\n                this.player = player;\n                this.isRun = false;\n                this.plugin = plugin;\n                timers = Lists.newArrayList();\n        }\n\n        public void startShowing() {\n                // 判断是否已经在运行\n                if (isRun) {\n                        return;\n                }\n                if (player == null || !player.isOnline()) {\n                        return;\n                }\n                isRun = true;\n                player.setScoreboard(scoreboard);\n\n                // 用于保存前15位的内容\n                List<String> tempList = Lists.newArrayList();\n                for (int i = 0; i <= 15; i++) {\n                        tempList.add(\"§\" + ChatColor.values()[i].getChar());\n                }\n\n                for (int i = 0; i <= 15; i++) {\n                        // 注册Team时使用 数字的形式就行\n                        Team timer = scoreboard.registerNewTeam(\"\" + i);\n                        // addEntry只是作为一个标识符, 用于getScore时的识别\n                        timer.addEntry(tempList.get(i));\n                        // getScore 刚才的标识符\n                        objective.getScore(tempList.get(i)).setScore(i);\n\n                        timers.add(timer);\n                }\n\n                task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {\n                        if (!isRun) {\n                                return;\n                        }\n\n                        for (int i = 0; i < timers.size(); i++) {\n                                Team timer = timers.get(i); // 获取每个Team\n                                Date date = new Date();\n                                // 设置前缀\n                                timer.setPrefix(tempList.get(i) + format.format(date));\n                                // 设置后缀\n                                timer.setSuffix(tempList.get(i) + \" \" + format2.format(date));\n                        }\n                        \n                }, 0L, 20L);\n        }\n\n        public void turnOff() {\n                isRun = false;\n                task.cancel();\n        }\n}\n复制代码具体效果:\n\n\n\n\n\n5.gif (432.38 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:41 上传\n\n\n\n\n\n请不要在意时间，是星空的测试机的锅，我是早睡早起的四好青年\n\n如何使用Minecraft自带的Team\nTeam这个东西其实是比较适合Minecraft的（不然干嘛是Mojang自己做的），因为这个东西你可以设置很多内容，比如说\nCOLLISION_RULE（体积碰撞）：你可以设置相同队伍可以没有体积碰撞DEATH_MESSAGE_VISIBILITY（死亡信息可见性）：你可以设置相同队伍才可以看见玩家的死亡信息NAME_TAG_VISIBILITY（玩家头顶名字可见性）：你可以设置相同队伍才可以看见头顶名字CanSeeFriendlyInvisibles（是否可以看到自己队伍的人隐身）AllowFriendlyFire（是否可以友军开火）\n再也不需要EntityDamageByEntityEvent了!Color 队伍颜色Prefix 队伍前缀，可以直接设置到玩家的NameTag上Suffix 队伍后缀，可以直接设置到玩家的NameTag上\n\n版本变换：其实在1.13的版本之后Team就更改了一下，主要的就是更改了Prefix和Suffix字符还有DisplayName的长度的限制，因为1.13以后的版本，这些内容改用json来储存\n1.13以前 设置Prefix和Suffix只能在16个字符以内 而在1.13以后，设置Prefix和Suffix可以在64个字符以内了 并且DisplayName也从32个字符长度增长到128个字符\n此外对于Team就没有更多的API更新了\n\n那么接下来我们就来看看Team是如何使用的 首先我们需要建立一个新的Scoreboard\nScoreboard teamScoreboard = Bukkit.getScoreboardManager().getNewScoreboard();复制代码之后我们来新建两个队伍，红队和蓝队\nTeam redTeam = teamScoreboard.registerNewTeam(\"RED\");\nTeam blueTeam = teamScoreboard.registerNewTeam(\"BLUE\");复制代码在上面的代码我们要注意，RED和BLUE其实是队伍的内部名字，不做显示用\n之后我们来给它设置别的内容\n// 设置显示名\nredTeam.setDisplayName(\"红队\");\nblueTeam.setDisplayName(\"蓝队\");\n\n// 设置队伍颜色\nredTeam.setColor(ChatColor.RED);\nblueTeam.setColor(ChatColor.BLUE);\n\n// 对于自己的队伍进行NameTag显示, 而对其他队伍关闭 -> 制作出类似吃鸡队友的感觉\n// 这里的FOR_OTHER_TEAM表示的意思是只对其他队伍 关闭\nredTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\nblueTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\n\n// 对于自己的队伍开启防碰撞体积, 而对其他队伍开启体积碰撞\n// 这里的FOR_OWN_TEAM表示的意思是只对本队 关闭\nredTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\nblueTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\n\n// 设置同队可看见隐身\nredTeam.setCanSeeFriendlyInvisibles(true);\nblueTeam.setCanSeeFriendlyInvisibles(true);\n\n// 取消队伤\nredTeam.setAllowFriendlyFire(false);\nblueTeam.setAllowFriendlyFire(false);\n\n// 设置前缀\nredTeam.setPrefix(\"§c红队 - \");\nblueTeam.setPrefix(\"§8蓝队 - \");复制代码之后我们就建立了两个Team，之后我们得需要给他们增加玩家\nredTeam.addEntry(\"Zoyn\");\nblueTeam.addEntry(\"Alex\");复制代码我们在上方的代码中， 给红队添加了一名队员, Zoyn 给蓝队添加了一名队员, Alex\n\n这里要注意的是，给队伍增加队员不是调用 addPlayer(OfflinePlayer player) 这个已经弃用的方法，因为你放在Team里的可以不只是Player，所以我们只用放入玩家名就好  \n\n之后我们给这两个队员设置好Scoreboard（如果没有做这个操作，可能会导致不显示！）\nPlayer zoyn = ?\nPlayer alex = ?\nzoyn.setScoreboard(teamScoreboard);\nalex.setScoreboard(teamScoreboard);复制代码完整代码：\nScoreboard teamScoreboard = Bukkit.getScoreboardManager().getNewScoreboard();\nTeam redTeam = teamScoreboard.registerNewTeam(\"RED\");\nTeam blueTeam = teamScoreboard.registerNewTeam(\"BLUE\");\n\n// 设置显示名\nredTeam.setDisplayName(\"红队\");\nblueTeam.setDisplayName(\"蓝队\");\n\n// 设置队伍颜色\nredTeam.setColor(ChatColor.RED);\nblueTeam.setColor(ChatColor.BLUE);\n\n// 对于自己的队伍进行NameTag显示, 而对其他队伍关闭 -> 制作出类似吃鸡队友的感觉\n// 这里的FOR_OTHER_TEAM表示的意思是只对其他队伍 关闭\nredTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\nblueTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\n\n// 对于自己的队伍开启防碰撞体积, 而对其他队伍开启体积碰撞\n// 这里的FOR_OWN_TEAM表示的意思是只对本队 关闭\nredTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\nblueTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\n\n// 设置同队可看见隐身\nredTeam.setCanSeeFriendlyInvisibles(true);\nblueTeam.setCanSeeFriendlyInvisibles(true);\n\n// 取消队伤\nredTeam.setAllowFriendlyFire(false);\nblueTeam.setAllowFriendlyFire(false);\n\n// 设置前缀\nredTeam.setPrefix(\"§c红队-\");\nblueTeam.setPrefix(\"§9蓝队-\");\n\nredTeam.addEntry(\"Zoyn\");\nblueTeam.addEntry(\"Alex\");\n\nPlayer zoyn = ?\nPlayer alex = ?\nzoyn.setScoreboard(teamScoreboard);\nalex.setScoreboard(teamScoreboard);复制代码实际效果： \nZoyn视角\n\n\n\n\n\nfile_1584582395000.jpg (91.83 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:46 上传\n\n\n\n\n\n\nAlex视角\n\n\n\n\n\nalex.png (332.62 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:46 上传\n\n\n\n\n\n\n当他们两者在同一队伍时\n\n\n\n\n\nfile_1584582395000.jpg (101.92 KB, 下载次数: 0)\n\n下载附件\n\n2020-3-19 09:46 上传\n\n\n\n\n\n\n\n为了方便读者测试，我写了一个测试类来给读者测试\n使用方法：\n1.注册指令 teams （当然你也可以自己改） \n2.reload之后第一次输入请输入 /teams init 进行队伍初始化 \n3.在指令中的队伍名，只有 RED 和 BLUE \n\n实例：一个使用Scoreboard#Team的内容来写一个组队系统\nimport org.bukkit.Bukkit;\nimport org.bukkit.ChatColor;\nimport org.bukkit.command.Command;\nimport org.bukkit.command.CommandExecutor;\nimport org.bukkit.command.CommandSender;\nimport org.bukkit.entity.Player;\nimport org.bukkit.scoreboard.Scoreboard;\nimport org.bukkit.scoreboard.Team;\nimport org.bukkit.scoreboard.Team.Option;\nimport org.bukkit.scoreboard.Team.OptionStatus;\n\npublic class TeamCommand implements CommandExecutor {\n\n    private Scoreboard teamScoreboard;\n\n    @Override\n    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {\n        if (cmd.getName().equalsIgnoreCase(\"teams\")) {\n            if (args.length == 0) {\n                sender.sendMessage(\"/teams init 初始化\");\n                sender.sendMessage(\"/teams list 列出所有队伍\");\n                sender.sendMessage(\"/teams set <玩家名> <队伍名> 将玩家的队伍进行设置\");\n                sender.sendMessage(\"/teams prefix <队伍名> <前缀名> 将玩家的队伍进行前缀的设置\");\n                sender.sendMessage(\"/teams suffix <队伍名> <前缀名> 将玩家的队伍进行前缀的设置\");\n                return true;\n            }\n\n            if (args[0].equalsIgnoreCase(\"init\")) {\n                teamScoreboard = Bukkit.getScoreboardManager().getNewScoreboard();\n                Team redTeam = teamScoreboard.registerNewTeam(\"RED\");\n                Team blueTeam = teamScoreboard.registerNewTeam(\"BLUE\");\n\n                // 设置显示名\n                redTeam.setDisplayName(\"红队\");\n                blueTeam.setDisplayName(\"蓝队\");\n\n                // 设置队伍颜色\n                redTeam.setColor(ChatColor.RED);\n                blueTeam.setColor(ChatColor.BLUE);\n\n                // 对于自己的队伍进行NameTag显示, 而对其他队伍关闭 -> 制作出类似吃鸡队友的感觉\n                // 这里的FOR_OTHER_TEAM表示的意思是只对其他队伍 关闭\n                redTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\n                blueTeam.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.FOR_OTHER_TEAMS);\n\n                // 对于自己的队伍开启防碰撞体积, 而对其他队伍开启体积碰撞\n                // 这里的FOR_OWN_TEAM表示的意思是只对本队 关闭\n                redTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\n                blueTeam.setOption(Option.COLLISION_RULE, OptionStatus.FOR_OWN_TEAM);\n\n                // 由于只做演示, 所以这里的sender我直接强转得到\n                Player player = (Player) sender;\n                player.setScoreboard(teamScoreboard);\n                sender.sendMessage(\"§a操作成功!\");\n                return true;\n            }\n\n            if (args[0].equalsIgnoreCase(\"list\")) {\n                teamScoreboard.getTeams().forEach(team -> {\n                    sender.sendMessage(\"名字: \" + team.getName());\n                    sender.sendMessage(\"展示名: \" + team.getDisplayName());\n                    sender.sendMessage(\"已有队员: \");\n                    team.getEntries().forEach(player -> {\n                        sender.sendMessage(\" - \" + player);\n                    });\n                    sender.sendMessage(\"=====================\");\n                });\n                sender.sendMessage(\"§a操作成功!\");\n                return true;\n            }\n\n            if (args[0].equalsIgnoreCase(\"set\")) {\n                Player entry = Bukkit.getPlayer(args[1]);\n                if (entry == null || !entry.isOnline()) {\n                    sender.sendMessage(\"玩家不在线!\");\n                    return true;\n                }\n                Team playerTeam = teamScoreboard.getEntryTeam(entry.getName());\n                Team team = teamScoreboard.getTeam(args[2]);\n\n                if (playerTeam != null) {\n                    // 将玩家离开之前的队伍\n                    playerTeam.removeEntry(args[1]);\n                }\n\n                // 将玩家加入选定的队伍\n                team.addEntry(args[1]);\n\n                // 对选中的人设置计分板, 不然会导致无法显示的问题\n                entry.setScoreboard(teamScoreboard);\n                sender.sendMessage(\"§a操作成功!\");\n                return true;\n            }\n\n            if (args[0].equalsIgnoreCase(\"prefix\")) {\n                Team team = teamScoreboard.getTeam(args[1]);\n                team.setPrefix(ChatColor.translateAlternateColorCodes('&', args[2]));\n                sender.sendMessage(\"§a操作成功!\");\n                return true;\n            }\n\n            if (args[0].equalsIgnoreCase(\"suffix\")) {\n                Team team = teamScoreboard.getTeam(args[1]);\n                team.setSuffix(ChatColor.translateAlternateColorCodes('&', args[2]));\n                sender.sendMessage(\"§a操作成功!\");\n                return true;\n            }\n        }\n        return true;\n    }复制代码\n这就是BukkitAPI中对 org.bukkit.scoreboard 包的内的所有内容，如果你有相关问题可以回复，一起交流 \n—— 一个本科人\n\n\n\n[groupid=1701]Complex Studio[/groupid]",
+    "replies": [
+        {
+            "author": "dousha0v0",
+            "timestamp": 1584538320,
+            "txt_content": "沙发沙发"
+        },
+        {
+            "author": "HotPe_e",
+            "timestamp": 1584539100,
+            "txt_content": "支持莫老带来的 scoreboard 教程"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1584544200,
+            "txt_content": "支持莫老！\n我当时翻了pvpin实例\n但苦于实例不够丰富\n动态更新的程序设计还是没做的特别好\n这篇教程很棒！"
+        },
+        {
+            "author": "呜喵喵",
+            "timestamp": 1584546720,
+            "txt_content": "6666可以"
+        },
+        {
+            "author": "Karlatemp",
+            "timestamp": 1584558840,
+            "txt_content": "在？无闪为啥不用team set prefix/suffix"
+        },
+        {
+            "author": "我当时死了",
+            "timestamp": 1584778020,
+            "txt_content": "谢谢楼主分享"
+        },
+        {
+            "author": "q229196637",
+            "timestamp": 1584809580,
+            "txt_content": "楼主 您好，这里我遇到一下Team的问题，如果可以能不能加你QQ学习一下？或者我QQ也行 QQ:229196637"
+        },
+        {
+            "author": "果糖",
+            "timestamp": 1584847560,
+            "txt_content": "非常好用"
+        },
+        {
+            "author": "ren142716",
+            "timestamp": 1585021860,
+            "txt_content": "我懂了（完全不懂）"
+        },
+        {
+            "author": "SCP—Infinity",
+            "timestamp": 1585040640,
+            "txt_content": "666可以可以"
+        },
+        {
+            "author": "ZiXuan_love",
+            "timestamp": 1585057560,
+            "txt_content": "学到了，我爱喜欢了"
+        },
+        {
+            "author": "lll297773943",
+            "timestamp": 1585068180,
+            "txt_content": "好厉害呀"
+        },
+        {
+            "author": "我叫王小明",
+            "timestamp": 1585093740,
+            "txt_content": "卧槽，正愁买了没啥用"
+        },
+        {
+            "author": "walle1996",
+            "timestamp": 1585099140,
+            "txt_content": "\n支持莫老！\n动态更新的程序设计还是没做的特别好\n这篇教程很棒！"
+        },
+        {
+            "author": "congeal_plume",
+            "timestamp": 1590721500,
+            "txt_content": "没有权限的玩家可以自己调用记分板么  如果可以怎么调用 不行的话是用”Player player = 我也不知道这个player要从哪引用; player.setScoreboard(scoreboard);“这个打开么   这一串是什么意思没有太理解"
+        },
+        {
+            "author": "congeal_plume",
+            "timestamp": 1590721560,
+            "txt_content": "congeal_plume 发表于 2020-5-29 11:05\n没有权限的玩家可以自己调用记分板么  如果可以怎么调用 不行的话是用”Player player = 我也不知道这个pla ...\n我想做一个挖掘榜 死亡榜之类的  需求是玩家没有op就可以打开关闭与切换  不装插件可以达到这个目的么  还是需要插件呢"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1590747780,
+            "txt_content": "congeal_plume 发表于 2020-5-29 11:06\n我想做一个挖掘榜 死亡榜之类的  需求是玩家没有op就可以打开关闭与切换  不装插件可以达到这个目的么   ...\n这里是编程开发区，只讨论开发的问题，不讨论插件配置吧"
+        },
+        {
+            "author": "William_Shi",
+            "timestamp": 1590748140,
+            "txt_content": "congeal_plume 发表于 2020-5-29 11:05\n没有权限的玩家可以自己调用记分板么  如果可以怎么调用 不行的话是用”Player player = 我也不知道这个pla ...\n每一个玩家，有且仅有一个scoreboard显示\n每一个scoreboard都有包括各个显示槽位的objective\n这行代码就是设置玩家看到的scoreboard\n具体的权限问题应该由你自己在这段代码之前设计好逻辑"
+        },
+        {
+            "author": "天行",
+            "timestamp": 1594099080,
+            "txt_content": "很好的教程 ！！"
+        }
+    ]
+}

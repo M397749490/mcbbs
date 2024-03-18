@@ -1,0 +1,49 @@
+{
+    "title": "[CBL·pca]检测实体死前位置的新方法",
+    "author": "pca006132",
+    "replyCount": 8,
+    "timestamp": 1445163900,
+    "txt_content": " 本帖最后由 pca006132 于 2016-1-10 19:24 编辑 \n\n废话\n一直以来，检测实体的死前位置都是一件很麻烦的事情。常见的方法有：\n配对——就是每个实体给一个编号，然后把指定编号的盔甲架tp到那个实体那里\n这个方法虽然不太可能出错，因为那个盔甲架是肯定传送到指定的实体那里的，然而那个穷举数十分多。\n检测掉落物——这个方法就是给生物一个装备，可能是不能显示的。然后该生物死后，那装备就会掉下，检测那个装备就代表检测那个生物死前的位置。\n然而这个方法有极大的局限，比如说野生的生物，你需要更改他们的装备，就可能会令他们原本的装备失去。也不能够追踪其他实体种类。\n\n有一天，我突然想弄这个，想了想，其实我们要做的东西其实很简单。\n流程就是\n\n选择实体?选择最近的从未选择过(这1游戏刻)的盔甲架并把其tp过来\n(不停重复以上步骤直至所有实体都选择完)\n\n那么剩下的不就是代表的实体\"死了\"的盔甲架吗？\n虽然的确会有bug，比如一些会传送的实体，可能就不适合这个。还有当实体很靠近的时候可能会互相干扰，盔甲架可能到了旁边的实体也不一定，然而这其实根本就无关要紧，只要不是不能用就好了2333333333\n(起码这个比一大堆穷举/只能检测生物的位置对我来说方便点吧23333)\n—————分隔线—————\n思路、原理分析\n首先，我们用stats把指定实体和盔甲架的successcount储存到记分板，并且把其分数设置为0。\n然后，我们execute指定实体execute该实体最近还没被选择的盔甲架tp到最近还没被选择过的指定实体\n比如execute @e[type=!Player,score_time=1,score_time_min=1] ~ ~ ~ execute @e[c=1,type=ArmorStand,score_stats=0] ~ ~ ~ tp @e[c=1] @e[c=1,score_time=1,score_time_min=1,score_stats=0]\n由于tp了之后，该实体和用以标记的盔甲架的successcount分数都会为1(execute的成功)，所以之后就不会选择到它们\n\n之后，我们就可以对stats分数为0的盔甲架为所欲为♂ (因为stats为0的盔甲架就代表了它是剩下的一个，没有任何配搭，代表它所标记的实体死了)\n\n#其实这里有个假设的，我刚才忘记说明了2333333我是假设每个实体最近的盔甲架为其上1gt的位置，所以这东西是根据这个假设来运作的\n如果那个实际情况违背了这个假设(比如会瞬移的实体)，这样子这个系统就会出很大的bug\n—————分隔线—————\n例子\n例子下载: http://pan.baidu.com/s/1o6N86Ps\n\n这个例子是标记僵尸的，然而其他的实体也是能够标记的，只要不是末影人这类会传送的。\n命令: \nscoreboard players add @e[type=Zombie] time 0\nexecute @e[score_time=0,score_time_min=0] ~ ~ ~ summon ArmorStand ~ ~ ~ {CustomName:\"Marker\",Invisible:1b,NoGravity:1b,Invulnerable:1b}\nscoreboard players set @e[score_time=0,score_time_min=0] time 1\nscoreboard players set @e[type=!Player] stats 0\nexecute @e[type=!Player] ~ ~ ~ stats entity @e[c=1,r=0,type=!Player] set SuccessCount @e[c=1,r=0,type=!Player] stats\nscoreboard players set @e[type=!Player] stats 0\nexecute @e[type=!Player,score_time=1,score_time_min=1] ~ ~ ~ execute @e[c=1,type=ArmorStand,score_stats=0] ~ ~ ~ tp @e[c=1] @e[c=1,score_time=1,score_time_min=1,score_stats=0]\nscoreboard players set @e[score_stats=0,name=Marker] time -5\nexecute @e[score_time=-5,type=ArmorStand] ~ ~ ~ /particle fireworksSpark ~ ~ ~ 0 0 0 1 50\nkill @e[score_time=-5,type=ArmorStand]复制代码\n首先，前三个命令都是为了标记新诞生的僵尸，并且让他们生成盔甲架的。我们先把所有僵尸的time分数+0(不改变分数，然而如果没有分数就会把分数变为0)，然后让所有time分数为0的summon盔甲架，之后把他们的分数设置为1(让他们不会再生成盔甲架)。\n\n之后的3个命令就是为了设置僵尸和盔甲架的stats\n首先把stats分数设置为0(以免出现没有分数的情况)，然后设置stats(每只僵尸和盔甲架的successcount设置给自己的stats分数里)，最后把stats分数设置为0(因为上一个命令是成功的，所以他们的stats分数是1)\n\n然后，那一个命令就是整个系统的核心了，详见上一个部分的解释 (虽然也说得不详细)。\n\n最后的三个指令，就是用来对那个stats分数为0的实体执行操作的\n首先我们把stats分数为0的实体用time分数来标记，因为execute命令在他们身上执行了之后也是会让其分数变为1的\n之后我们就执行一些指令(比如在这里就是用particle指令来告诉玩家这个盔甲架的主人死了)\n最后就把那个没有主人的盔甲架杀死\n—————分隔线—————\nbug:\n1.不能指定末影人这类会瞬移的实体，因为他们传送来传送去，这系统根本就不知道哪个盔甲架代表哪只末影人，于是那些位置就可能乱起来\n2.不能跨世界指定，因为那盔甲架我并不能保证它能够过去那个世界(尤其是末地)\n3.实体之间距离很接近的话，那个stats有可能会混乱(由于那个stats储存的分数是给最近的非玩家实体，太靠近可能会给错人，其原因应该是MC的特性吧。。。)，于是那个盔甲架可能会传送到同一个实体那里。然而不用担心，等一会/实体之间的距离远了的话，这个bug就会自动消失。\n4.玩家千万千万别打要标记的实体。。。。。。。无论是创造模式还是生存等都千万别打。。。。原因还是未知，可能就是MC的特性\n\n—————分隔线—————\n感谢~\n感谢空白、乾坤、CBL诸位及新手群、TML的大家给我的鼓励与支持~\n其实呢，这个最重要的用途并不是检测实体死前位置，而是配对实体啊23333\n不知道有没有人发现呢:D\n感谢我的浴室，让我想到这个脑洞\n感谢所有朋友，催我赶工，不然的话可能就没有这东西了(毕竟懒癌已经晚期了)233333\n\n\n[groupid=546]Command Block Logic[/groupid]",
+    "replies": [
+        {
+            "author": "kongbaiyo",
+            "timestamp": 1445164200,
+            "txt_content": "非常强的算法！\n屎无前例的屌233\n\n方便了很多系统的制作√\n虽然看了好久才看懂233"
+        },
+        {
+            "author": "siiftun1857",
+            "timestamp": 1445164380,
+            "txt_content": "然而貌似实用性不大。。。"
+        },
+        {
+            "author": "840196733mw",
+            "timestamp": 1445164440,
+            "txt_content": "沙发，以及终于做出来了，不过为什么看不大懂，还不够新手群说的详细"
+        },
+        {
+            "author": "cyqsimon",
+            "timestamp": 1445164500,
+            "txt_content": "完了\n\n我已经彻底看不懂了\n\n想当年我还是研究这一块的一员呢"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1445168880,
+            "txt_content": "看懂了，然而你为什么要用僵尸举例子（不应该是!Player吗）\n而且这样干实体不会卡爆电脑吗（增加了一倍诶…）而且给末影人配对会出很大的bug（强行占有别人的AS）\n上面的朝 阳 区一定有一种被抛弃的赶脚2333333\n所以bug还是太多"
+        },
+        {
+            "author": "pca006132",
+            "timestamp": 1445169780,
+            "txt_content": "lzs1234 发表于 2015-10-18 19:48\n看懂了，然而你为什么要用僵尸举例子（不应该是!Player吗）\n而且这样干实体不会卡爆电脑吗（增加了一倍诶… ...\n首先，因为我不想排除玩家和盔甲架所以就使用了僵尸作例子(主要原因是懒)\n第二，不这样子的话是不可能锁定他的位置的，因为我们根本不知道他什么时候死\n第三，除了你穷举以外，所有方法基本上都是会在这情况下失效的了，毕竟都tm会瞬移了还说什么位置2333\nbug这东西嘛，说真的有两个都是Mojang的镬，毕竟这次选择器实在是太坑爹了，其实之前还发现了更多的，不过强行改好了而已"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1445172060,
+            "txt_content": "pca006132 发表于 2015-10-18 20:03\n首先，因为我不想排除玩家和盔甲架所以就使用了僵尸作例子(主要原因是懒)\n第二，不这样子的话是不可能锁 ...\n所以只要有一个末影人就会乱……"
+        },
+        {
+            "author": "lzs1234",
+            "timestamp": 1445172240,
+            "txt_content": "pca006132 发表于 2015-10-18 20:03\n首先，因为我不想排除玩家和盔甲架所以就使用了僵尸作例子(主要原因是懒)\n第二，不这样子的话是不可能锁 ...\n所以只要有一个末影人就会乱……"
+        }
+    ]
+}

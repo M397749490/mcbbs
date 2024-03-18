@@ -1,0 +1,34 @@
+{
+    "title": "EnumHelper 的前世今生",
+    "author": "土球球",
+    "replyCount": 5,
+    "timestamp": 1590931980,
+    "txt_content": "在 Minecraft Forge 的源代码中，EnumHelper 是一个历史十分悠久的类，最早甚至可以追溯到 2011 年。但是，在 Minecraft 1.13 及更高版本中，EnumHelper 的工作方式遇到了前所未有的挑战。本文便聊一聊 EnumHelper 的出现原因，在发展中遇到的挑战，以及在目前的 Forge 代码仓库中不复存在的原因。\n\n需求：为枚举类动态增加值\n\n虽然说对于所有枚举类，也就是 java.lang.Enum 的子类来说，语义上值的数量都是不会发生变化的。如果我们编写的是寻常的 Java 项目，那么我们只需要在枚举类的声明中多加一行，便可为枚举添加新的值。然而，我们面对的是 Minecraft Mod，那么 Mod 为某个枚举添加额外的值，便成为困难得多的需求了。\n\n我们只能使用一些相对 Dirty Hack 的方式动态增加值。为枚举类动态增加值通常需要做三件事：构造一个新的实例、向枚举清单中增加已有的实例、以及让已有的缓存失效。我们一件一件说。\n\n需求：构造一个新的实例\n\n由于 Java 自带的反射框架不能直接调用枚举类的构造方法，因此我们需要用到 JRE 内部的 ReflectionFactory 类（Java 8 及以下位于 sun.reflect 包，Java 9 及以**于 jdk.internal.reflect 包），具体代码如下：\n\nenum YourEnum { A0, A1, A2; }\n\nConstructor<?> ctor = YourEnum.class.getDeclaredConstructors()[0];\nReflectionFactory factory = ReflectionFactory.getReflectionFactory();\nYourEnum A3 = factory.newConstructorAccessor(ctor).newInstance(new Object[]{\"A3\", 3})复制代码\n需求：向枚举清单中增加已有的实例\n\n通常情况下，Java 编辑器会为枚举类创建一个名为 $VALUES 的静态字段，里面存放着一个数组，其中 values 静态方法被调用的时候会复制这个数组，由于这个数组是 private static final 的，因此我们不能直接设置，但我们可以使用常规的反射方法设置这个数组的值。\n\nenum YourEnum { A0, A1, A2; }\n\nField field = YourEnum.class.getDeclaredField(\"$VALUES\");\nfield.setAccessible(true);\n\nField modifiersField = Field.class.getDeclaredField(\"modifiers\");\nmodifiersField.setAccessible(true);\nmodifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);\n\nObject[] values = (Object[]) field.get(null);\nvalues = Arrays.copyof(values, values.length + 1);\nvalues[values.length - 1] = A3;\nfield.set(null, values);复制代码\n需求：让已有的缓存失效\n\nJava 在 Class 类中放了两个和枚举有关的缓存，它们通常被命名为 enumConstants 和 enumConstantDirectory 两个字段。我们还需要把这两个字段的值设置成 null。\n\nfor (String name : new String[]{\"enumConstants\", \"enumConstantDirectory\"}) {\n    for (Field field : Class.class.getDeclaredFields()) {\n        if (name.equals(field.getName())) {\n            field.setAccessible(true);\n            field.set(YourEnum.class, null);\n            break;\n        }\n    }\n}复制代码\n问题：这些字段真的叫这些名字吗？\n\n刚刚我们提到过，通常而言这些字段的名字是固定的，但原则总会有例外：\n\nOpenJ9 VM 中，在 Class 类下用于缓存的字段名是 enumVars：#5712Eclipse JDT 在编译 Java 源代码时，会使用 ENUM$VALUES 而非 $VALUES：#502\n\n甚至我们还会遇到 ENUM$VALUES 和 $VALUES 之外的值：Mojang 会将 Minecraft 源代码混淆，而枚举类的这一字段也会跟着混淆，因此我们能够拿到的字段，大概率只会有 a 或者 field_xxxxxx_a 这样的名字。\n\nForge 在这里的解决方案是采用动态查找这一手段：查找类型和理论上的 $VALUES 值相同的字段并修改值。\n\n问题：修改一个 static final 的字段值\n\n虽然 Java 允许我们使用反射的方式修改 static final 的字段值，但 JIT 很可能会在修改前内联这一值，使得对于该值的修改无效。这实际牵连到了很多相关的问题，而绝非动态增加枚举值本身，因此在 #4656 掀起了一场旷日持久的争论。\n\n最后的解决方案是把枚举类的相应字段的 final 修饰符通过调整字节码的方式去掉。当然，内联字段这一行为本身便是运行时优化的一种，这种行为无疑直接把这一优化去掉了，因此是否真的应当维持这种做法，其实还有待商榷。\n\n问题：使用了 JRE 内部的 API 调用构造方法\n\n刚刚的解决方案使用了 JRE 内部的 sun.reflect.ReflectionFactory 类，而在 Java 9 及更高版本，该类被迁移到了 jdk.internal.reflect 包下，而且被锁在了 java.base 模块内，无法正常访问，这使得该方法不再行得通，也是 Minecraft 1.12 及更低版本的 Forge 难以迁移到 Java 9 及更高版本的原因之一。\n\nForge 在 Minecraft 1.13 及更高版本直接另起炉灶，通过字节码生成的方式在枚举类内部新添加代码直接调用相应的构造方法，从而绕过了 Java 反射的相关限制。相关代码位于 RuntimeEnumExtender 类下。\n\n当然，EnumHelper 也完成了它的使命，在高版本被正式移除了。\n\n终极解决方案：能不能怂恿 Mojang 不用枚举？\n\n别笑，Mojang 真的这么做了。\n\n从 Minecraft 1.13 开始，Mojang 为一些之前是枚举的类增加了额外的接口，这包括我们耳熟能详的 ArmorMaterial、ToolMaterial（在高版本名称被调整为 ItemTier）等。\n\n我们以 ArmorMaterial 为例。Minecraft 为 ArmorMaterial 实现了 IArmorMaterial 接口，并在自己的相关代码中大量使用 IArmorMaterial 接口而不是 ArmorMaterial 枚举类本身，从而使得 Mod 可以实现自己的 IArmorMaterial 而不必囿于枚举类的限制。\n\n但是毕竟：\n\nMojang 这一代游戏开发者的想象力，不足以想象 Mod 开发者的未来。\n—— 沃·兹基硕德\n所以其实还是有很多枚举需要动态添加值，如果遇到这种情况，Mod 开发者也只能利用他们选择的权利，使用上面提到的这些 Dirty Hack 了。",
+    "replies": [
+        {
+            "author": "William_Shi",
+            "timestamp": 1590933180,
+            "txt_content": "主要是如果强行reflection factory改enum的话\nswitch编译出来的内部类会出问题\n因为编译完之后switch会产生缓存，不使用特殊方法改不了\n\n没想到forge提供了那么666的轮子\n从未写过mod\n但是还是感到了forge的美好\nbk连classloader都那么laji"
+        },
+        {
+            "author": "金坷居士",
+            "timestamp": 1591171560,
+            "txt_content": "出接口真的是棒，接口和枚举不冲突"
+        },
+        {
+            "author": "RememberXNL",
+            "timestamp": 1591185720,
+            "txt_content": "牛牛牛牛牛"
+        },
+        {
+            "author": "Mohist-Communit",
+            "timestamp": 1591526640,
+            "txt_content": "所以，我们应该如何使用RuntimeEnumExtender，有没有什么例子"
+        },
+        {
+            "author": "many先生",
+            "timestamp": 1596524280,
+            "txt_content": "很棒，顶顶"
+        }
+    ]
+}

@@ -1,0 +1,144 @@
+{
+    "title": "[PCD] 跟着海螺学正则",
+    "author": "海螺螺",
+    "replyCount": 27,
+    "timestamp": 1541253120,
+    "txt_content": " 本帖最后由 754503921 于 2018-11-12 13:17 编辑 \n\n海螺的字符串&正则表达式教程\n\n起因\n\n这类似的问题真是太多了，因此专门出一个教程来讲正则表达式，毕竟正则表达式用于文本信息提取非常奈斯。\n\n目录：\n普通的字符串概念普通正则表达式高级的正则表达式Java 的正则语法表两个正则使用实例\n\n这篇教程中的所有代码，如果未特别说明，均以 MIT License 开源\nMIT License\n\nCopyright (c) 2018 IzzelAliz\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n[afd]izzel[/afd]\n\n\n\n\n基本概念\nCS专业的、OI/ACMer不用看\n串串香\n\n一些关于字符串的术语以下术语会用于这篇教程中：\nΣ：字母表集合，在这篇教程中为能打在这个帖子中的任何字符，除了 ε ，因为要用它表示空串\n字符串：来着 Σ 的0或N个字符的有限序列，也称串\n! 在这篇教程中，如果字符串含有空格，会用 \"\" 包围，否则字符串不含有空格\n空串：含有0个字符的字符串，也会用 ε 表示\n子串：字符串掐头去尾（0或N个字符）得到的新字符串\n> abcbabc 的子串有 abcbabc abcb babc ba ε\n> 也就是说在 Java 里，某串A的子串B 可以让 A.contains(B) = true\n子序列：字符串随机取出字符（0或N个）得到的新字符串\n> abcbabc 的子序列有 abcbabc abab ca ε\n真子串：除了自身以外的子串\n真子序列：除了自身以外的子序列\n\n一些关于语言的术语同上，而且这些术语会用的很多：\n字符串的连接：两个串的连接为第一个串后紧跟着第二个串的串\n假设 A 是字符串 \"hailuo \" ，B 是字符串 \"is \" ，C 是字符串 handsome，那么 A B C 的连接表示 ABC，也就是 \"hailuo is handsome\"\n字符串的或：两个串的或为 为第一个串或第二个串的串\n假设同上，A C 的或表示为 A|C，也就是 \"hailuo \" 字符串 或者 handsome 字符串\n字符串的Kleene闭包：为0或N个某个串的连接\n假设 A 为字符串 ab，A* 为一个启发式寻路算法为 ε ab abab ababababab ....\n(字符串)：和 字符串 是一样的\n\n字符串操作的优先级在描述一个字符串时，你可能已经遇到了这类似的问题：\n> aac|dbb 是指 {aac,dbb} 还是 {aacbb, aadbb} 呢\n> abcd* 是指 {ε, abcd, abcdabcd, ....} 还是 {abc, abcd, abcdddd, ...} 呢\n为了解决这些问题，我们可以加括号：\n> (aac)|(dbb) 指 {aac,dbb}，而 aa(c|d)bb 指 {aacbb, aadbb}\n> (abcd)* 指 {ε, abcd, abcdabcd, ....}，而 abc((d)*) 指 {abc, abcd, abcdddd, ...}\n但是，大量使用括号显然不美观，所以定义以下操作的优先级：\n(a) > a* > ab > a|b也就是说，最上面的两个问题的答案分别为 {aac,dbb} 和 {abc, abcd, abcdddd, ...}\n\n\n理解以上内容后，你就有足够的基础理解正则表达式了。\n为了防止你的理解不够深刻，你可以思考一下以下几个问题：\n\n1. 列出 abcd 的子串、真子串、子序列、真子序列\n2. (a|b)* 描述的是什么串\n3. a((a|(b*))((b)b|(cc)*)|dd) 可以去掉哪些括号并不影响其表达的字符串\n\n答案1.\n子串 {ε, a, b, c, d, ab, bc, cd, abc, bcd, abcd}\n真子串 {ε, a, b, c, d, ab, bc, cd, abc, bcd}\n子序列 {ε, a, b, c, d, ab, ac, ad, bc, bd, cd, abc, abd, acd, bcd, abcd}\n真子序列 {ε, a, b, c, d, ab, ac, ad, bc, bd, cd, abc, abd, acd, bcd}\n2. 任意 a b 组成的任意长度的字符串\n{ε, a, b, aa, bb, ab, ba, aaa, bbb, aab, aba, babbababbab, ...}\n3. a((a|b*)(bb|(cc)*)|dd)\n\n\n\n普通的正则表达式\n希望你认真阅读了上一章。\n正则表达式，可用于匹配给出的字符串是否满足要求，也可以用于从字符串中提取需要的信息。\n\n初代的正则表达式只有4种语法：\n连接 ab或 a|b0个或多个 a*(a) 等于 a\n和上一章介绍的优先级是相同的。\n本章从一个例子开始：\n\n匹配浮点数（floating point number）先来看看定义，我们可以这么表示一个小数：\n123.456×2[ruby=789]     [/ruby]整数.零数×2^指数Java 的浮点数可以表示为以下格式：\n0000.00000E0000包含一个整数，一个可选的 . 以及一个零数，一个可选的 E 以及指数\n我们将会尝试用正则表达式匹配这个浮点数字符串。\n由于正则表达式一眼望上去不是很直观（做了上一章的第三道题的应该能理解为何），我们先用一种其他的方式表达正则表达式：\n\n正则定义\n用以下的方式表达一个正则表达式：\nn1 -> r1n2 -> r2n3 -> r3....其中 ni 表示一个名字，为了和正则区分开来名字使用斜体。每个 ri 都指一个正则表达式，并可以引用 j < i 的 nj 来代替之前定义的正则。\n\n\n如前所述，浮点数包含整数：\ndigit -> 0|1|2|3|4|5|6|7|8|9sign -> + | - | εnumber -> digit digit *以及一个可选的零数：\noptional_fraction -> .number | ε以及一个可选的指数：\noptional_exponent -> ( e | E ) sign number | ε浮点数就可以表示为：\nfloatingPointNumber -> sign number optional_fraction optional_exponent而将名称替换回正则表达式后，最终结果为：\n(+|-|)((0|1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*)(.((0|1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*)|)((e|E)(+|-|)((0|1|2|3|4|5|6|7|8|9)(0|1|2|3|4|5|6|7|8|9)*)|)\n这个正则表达式只使用了上面的四种语法，这也是你正式写出的第一个正则表达式（如果你之前没写过的话），尽管它又长又丑，但是它可以匹配各种能在 Java 中编译通过?的浮点数。\n\n拓展正则表达式语法考虑\ndigit -> 0|1|2|3|4|5|6|7|8|9太麻烦了，我们添加一种语法：[abc] 表示 a|b|c 即提供的字符中的任意一个，并且还提供了语法 [a-b] 表示从 a 到 b 的连续的字符，如 [a-z] 表示所有小写字母，[a-zA-Z] 表示所有字母。\n因此上面的定义可以更换为\ndigit -> [0-9]\n考虑\nnumber -> digit digit *太麻烦了，我们添加一种语法：a+ 表示 1或N个a，因此上面的定义可以更换为\nnumber -> digit +\n考虑\nsign -> + | - | εoptional_fraction -> .number | εoptional_exponent -> ( e | E ) sign number | ε它们都使用了 xxxx | ε 表达可选的字符串，太麻烦了，我们添加一种语法 a? 表达0或1个a，因此上面的定义可以更换为：\nsign -> [+-]?optional_fraction -> ( .number )?optional_exponent -> ( [eE] sign number )?因此，浮点数的正则表达式可以化简为：\n[+-]?[0-9]+(.[0-9]+)?([Ee][+-]?[0-9]+)?\n这是你写的第二个正则表达式，它短了许多，功能与上面第一个一模一样。但是，这还不是最短的。\n\n转义与元字符你可能注意到了上面出现了3次 [0-9] ，并且你以后可能还会用无数次 [0-9] 来匹配数字，为了防止这种情况发生，元字符出现了。\n元字符比较多，但是有几个最好记住（标红），鉴于网上一搜就能知道元字符有哪些，但是这里还是会提供一份。\n\n同时，既然有了元字符以及上面新加的新语法，类似 . + - \\ ^ $ 的符号都有了特殊的意义，在作为字符使用时应在前面加上 \\\n\n代码说明.匹配除换行符以外的任意字符\\w匹配字母或数字或下划线或汉字\\s匹配任意的空白符\\d匹配数字\\b匹配单词的开始或结束^匹配字符串的开始$匹配字符串的结束\\W匹配任意不是字母，数字，下划线，汉字的字符\\S匹配任意不是空白符的字符\\D匹配任意非数字的字符\\B匹配不是单词开头或结束的位置\\a报警字符(打印它的效果是电脑嘀一声)\\b通常是单词分界位置，但如果在字符类里使用代表退格\\t制表符，Tab\\r回车\\v竖向制表符\\f换页符\\n换行符\\eEscape\\0nnASCII代码中八进制代码为nn的字符\\xnnASCII代码中十六进制代码为nn的字符\\unnnnUnicode代码中十六进制代码为nnnn的字符\\cNASCII控制字符。比如\\cC代表Ctrl+C\\A字符串开头(类似^，但不受处理多行选项的影响)\\Z字符串结尾或行尾(不受处理多行选项的影响)\\z字符串结尾(类似$，但不受处理多行选项的影响)\\G当前搜索的开头\\p{name}Unicode中命名为name的字符类，例如\\p{IsGreek}\n也就是说，浮点数的正则可以写作：（注意小数点及正负号的转义）\n[\\+\\-]?\\d+(\\.\\d+)?([Ee][\\+\\-]?\\d+)?\n\n其他的语法重复：\na{m,n} 表示重复m到n遍的aa{n} 表示重复n遍的a\n字符类：\n对于类似 [abc] 的语法（叫字符类），还有更多用途：\n[^a-f] 匹配除了 abcdef 的任意字符[a-d[m-p]] 取 a-z和m-p的并集，即 [a-dm-p][a-z&&[def]] 取 a-z和def的交集，即 [def][a-z&&[^bc]] 除了 bc 以外的 a-z，即 [ad-z] （补集）[a-z&&[^m-p]] 除了 m-p 以外的 a-z，即[a-lq-z] （补集）\n\n到此，你已经掌握了正则表达式中的大部分的内容了，如果不需要更高级的用途，你可以在此停止了。\n当然，在此提供一些题目供思考练习\n\n0. 设计匹配 Minecraft 中物品 lore 的正则表达式\n1. 本章例中，浮点数匹配仍有一些问题，比如无法辨别 0001.2 这类非法浮点数，并且对 abc123.5e6def 仍能匹配成功，请尝试完善这个正则表达式，并尝试化简。\n2. 设计匹配 ipv4 ip地址的正则定义，再转化为正则表达式\n*3. 在正则定义中，我提到了 j < i ，思考 j <= i 以及任意 j 的情况\n\n答案1. ^[\\+\\-]?(0|0?[1-9][0-9]*)(\\.\\d+)?([Ee][\\+\\-]?0?[1-9]+)?$\n2. \n25x -> 25[0-5]\n2xx -> 2[0-4]\\d\nany -> [01]?\\d\\d?\nnumber -> 2xx | 25x | any\nip -> number . number . number . number\n\n((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\n3. j <= i 时有递归引用，尽管可以用于描述一个字符串，但并不一定能构造出对应的正则表达式\n任意 j 时可粗略称为上下文无关文法，请自行选择结合搜索引擎了解\n\n\n\n更复杂的正则表达式\n欢迎你，求知的人啊！\n\n组在之前，我们介绍了括号操作符，用于改变优先级。括号不止这点用处。\n括号可用于分组，我们再次拿出这个匹配浮点数的正则表达式作为例子：\n[\\+\\-]?\\d+(\\.\\d+)?([Ee][\\+\\-]?\\d+)?在此例中，共有2个括号对，我们称之为两个组：(\\.\\d+) 和 ([Ee][\\+\\-]?\\d+)，分别为组 1 组 2；同时，整个正则表达式作为默认的组 0。\n当然，按照组数一个一个数实在是太麻烦了，好在我们可以给组命名：\n(?<name>regex) 为一个名为 name 的组。\n(?:regex) 为一个无名且不进行计数的组。\n组有何用呢？接下来你就能看到了。\n\n后向引用 Backreference后向引用可用于匹配之前出现过的文本，使用组作为标记。\n其中，我们可以使用 \\1 \\2 \\n 代表数字组匹配的字符串，也可以使用 \\k<name> 匹配之前 name 组匹配的字符串。\n举个例子，假如我们只想匹配整数和零数相同的小数，我们可以写：\n(\\d+)\\.\\1其中后面的 \\1 为前一个组 (\\d+) 匹配的数字，所以这个正则表达式可以匹配 123.123，却不匹配 123.124。\n当然，既然可以给组命名，那么也就可以这么写：\n(?<number>\\d+)\\.\\k<number>这个正则表达式作用和上面相同。\n\n零宽度匹配 zero-width零宽度匹配，也有人叫它零宽断言。\n零宽度是指，这个匹配组并不会消耗字符：假如说你想匹配1.某个前方或后方满足特殊要求的字符串，但是2.前方或者后方的字符可能还需要用于其他的匹配，普通的匹配会吃掉这些字符用于1.满足要求的字符，而导致用于2.还需要匹配的部分匹配失败。也就是说，零宽匹配中的正则表达式仅用于要求测试，不影响其他匹配。读不懂这段话没关系，可以结合后例。\n\n零宽肯定先行断言：reg1(?=reg2) 断言 reg1 匹配的字符串后方出现匹配 reg2 的字符串\n零宽否定先行断言：reg1(?!reg2) 断言 reg1 匹配的字符串后方不出现匹配 reg2 的字符串\n零宽肯定后行断言：(?<=reg2)reg1 断言 reg1 匹配的字符串前方出现匹配 reg2 的字符串\n零宽否定后行断言：(?<!reg2)reg1 断言reg1 匹配的字符串前方不出现匹配 reg2 的字符串\n\n这里的先行后行是指，在匹配的回溯过程中，当找到 reg1 的内容后，如果向文本前方（正向）查找断言，则为先行（lookahead）；若找到 reg1 后，需要向文本后方（倒着）查找断言，则为后行（lookbehind）。方便记忆的方法就是，先行 reg1 放前，后行 reg1 放后。\n\n接着举几个例子：\n> aaa(?=bbb)bbb，可以匹配 aaabbb，此例说明何为零宽：不占用后续匹配的字符串\n> abc(?=def)，不能匹配任何东西，因为整个正则表达式需要满足仅含有 abc 三个字符（断言是不会消耗字符的），但是断言又要求 abc 后跟随着 def\n> abc(?=def).*def(?=ghi).*，匹配文段中跟随者def的abc，并且在不远的后面出现了跟随着ghi的def，所以这个例子可以匹配 abcdefxxxxxxdefghi，也可以匹配 abcdefghi 。\n> abc(?=def).*def(?=ghi)，无法匹配 abcdefghi ，原因参见第二个例子。\n\n贪婪、懒惰与占有在之前我们讲到重复时，如果你自己做过测试，那么你会发现，a.*b 会匹配 ababab 中的 ababab 而不是 ab；也就是说，默认的重复语**尝试匹配最长的那个字符串。假如我们想匹配更短一些的呢？\n\n贪婪量词：regex，表示能匹配 regex 的最长字符串，比如 a* 匹配 aaaaa 会匹配 aaaaa\n懒惰量词：regex?，表示能匹配 regex 的最短字符串，比如 a*? 匹配 aaaaa 会匹配 ε\n占有量词：regex+，表示能不回溯地匹配 regex 的最长字符串，比如 a*+ 匹配 aaaaa 会匹配 aaaaa\n\n这样简略的介绍可能没人能理解什么是占有量词，并且对其他两种没有一个直观的认识，那么来看例子：\n字符串模板为 abbbabbcbbabbc\n> 贪婪的正则表达式为 [abc]*c ，会匹配 abbbabbcbbabbc （尽可能匹配长）\n> 懒惰的正则表达式为 [abc]*?c ，会匹配 abbbabbc 和 bbabbc （尽可能匹配短）\n> 占有的正则表达式为 [abc]*+c ，什么也不会匹配。\n为什么呢？\n占有模式下，[abc]*+ 这一部分，可以完全匹配整个字符串，而占有模式下不进行回溯，也就是说 [abc]*+ 会用掉所有字符，而使最后一个 c 没有任何字符匹配，因此匹配失败。\n而贪婪模式下，尽管 [abc]* 可以匹配整个字符串（abbbabbcbbabbc），但是因为还有一个 c 没有匹配，因此回溯向前查找，最终 [abc]* 匹配的是 abbbabbcbbabb 。\n\n独立的非非捕获性的组(?>regex)，表示一旦这个组匹配成功后，不再对这个组进行回溯。\n例子：\na(bc|b)c 可以匹配 abcc 和 abc，因为在处理第一个或操作bc|b，正则引擎记住了要在这里回溯，因此会对bcc和bc都进行匹配。\na(?>bc|b)c 可以匹配 abcc，但不会匹配 abc，因为第一遍匹配 abc 时，a(?>bc|b) 这一部分已经匹配了 abc，因此不在这里回溯，而最后的一个 c 当然就匹配失败了。\n\n非转义匹配\\Q 表示非转义字符串的开始，\\E 表示非转义字符串的结束。\n比如 \\Q[\\+\\-]?\\d+(\\.\\d+)?([Ee][\\+\\-]?\\d+)?\\E 会匹配 [\\+\\-]?\\d+(\\.\\d+)?([Ee][\\+\\-]?\\d+)? 这个字符串。\n\n本章有一定难度，请对提供的所有例子都进行思考，了解\"为什么会这样匹配\"。\n本章到此结束。\n按照惯例，提供一些题目进行思考练习。\n\n1. \\b(?<first>\\w+)\\b\\s+(\\b\\k<first>\\b\\s*)+ 是干什么用的\n2. ^((?!RegularExpression).)*$ 是干什么用的\n\n答案1. 匹配连续出现两次以上相同单词的字符串，比如 \"mc mc mc\"\n2. 匹配一行不包含 RegularExpression 这个单词的字符串\n\n\n\n正则表达式语法大全（Java）\n以下为 Java 支持的所有正则表达式语法，其他语言基本都支持（except JavaScript）\n\n来自 https://docs.oracle.com/javase/8 ... /regex/Pattern.html\n\n构造匹配的东西字符x字符 x\\\\\\\\0n八进制字符 0n (0 <= n <= 7)\\0nn八进制字符 0nn (0 <= n <= 7)\\0mnn八进制字符 0mnn (0 <= m <= 3, 0 <= n <= 7)\\xhh十六进制字符 0xhh\\uhhhh十六进制字符 0xhhhh\\x{h...h}十六进制字符 0xh...h (Character.MIN_CODE_POINT  <= 0xh...h <=  Character.MAX_CODE_POINT)\\N{name}Unicode 中 'name' 代表的字符\\ttab ('\\u0009')\\n换行 ('\\u000A')\\r回车 ('\\u000D')\\f换页符 ('\\u000C')\\a警报符 ('\\u0007')\\eEscape ('\\u001B')\\cx控制字符 Ctrl+x字符类[abc]a, b, 或 c[^abc]任意字符除了 a, b, or c[a-zA-Z]a 到 z 或 A 到 Z （包含 azAZ）[a-d[m-p]]a 到 d, 或 m 到 p: [a-dm-p][a-z&&[def]]d, e, 或 f[a-z&&[^bc]]a 到 z, 除了 b 和 c: [ad-z][a-z&&[^m-p]]a 到 z, 并且不是 m 到 p: [a-lq-z]预定义字符类.任意字符（有可能有可能不匹配行终结符）\\d数字: [0-9]\\D不是数字: [^0-9]\\h看后面: [ \\t\\xA0\\u1680\\u180e\\u2000-\\u200a\\u202f\\u205f\\u3000]\\H不是那个的: [^\\h]\\s空白字符: [ \\t\\n\\x0B\\f\\r]\\S不是空白字符: [^\\s]\\v看后面: [\\n\\x0B\\f\\r\\x85\\u2028\\u2029]\\V不是那个的: [^\\v]\\w文字字符: [a-zA-Z_0-9]\\W非文字字符: [^\\w]POSIX 字符类 (仅 US-ASCII)\\p{Lower}小写字母: [a-z]\\p{Upper}大写字母:[A-Z]\\p{ASCII}所有 ASCII:[\\x00-\\x7F]\\p{Alpha}字母:[\\p{Lower}\\p{Upper}]\\p{Digit}数字: [0-9]\\p{Alnum}字母数字:[\\p{Alpha}\\p{Digit}]\\p{Punct}标点符号: 包含 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~\\p{Graph}看得到的字符: [\\p{Alnum}\\p{Punct}]\\p{Print}可以打印的字符: [\\p{Graph}\\x20]\\p{Blank}空格或者 tab: [ \\t]\\p{Cntrl}控制字符: [\\x00-\\x1F\\x7F]\\p{XDigit}十六进制数字: [0-9a-fA-F]\\p{Space}空格: [ \\t\\n\\x0B\\f\\r]java.lang.Character 类 (基础 java 字符类型)\\p{javaLowerCase}等于 java.lang.Character.isLowerCase()\\p{javaUpperCase}等于 java.lang.Character.isUpperCase()\\p{javaWhitespace}等于 java.lang.Character.isWhitespace()\\p{javaMirrored}等于 java.lang.Character.isMirrored()Unicode 相关的类\\p{IsLatin}拉丁字符 (script)\\p{InGreek}希腊字符 (block)\\p{Lu}大写字母 (category)\\p{IsAlphabetic}字母表字符 (binary property)\\p{Sc}美元符\\P{InGreek}除了希腊字符 (negation)[\\p{L}&&[^\\p{Lu}]]除了大写字母 (subtraction)边界匹配字符^一行开始$一行结束\\b一个英文单词的开始/结束\\b{g}不知道啥意思 A Unicode extended grapheme cluster boundary\\B不是单词开始结束\\A输入开始\\G上个匹配结尾\\Z除了这个 terminator 以外的输入结束，如果有\\z输入结束换行符匹配\\RUnicode 换行符 \\u000D\\u000A|[\\u000A\\u000B\\u000C\\u000D\\u0085\\u2028\\u2029]Unicode Extended Grapheme matcher 不知道\\XAny Unicode extended grapheme cluster贪婪量词X?X, 0或1个X*X, 0或更多次X+X, 1或更多次X{n}X, n次X{n,}X, 至少n次X{n,m}X, n到m次懒惰量词X??X, 0或1个X*?X, 0或更多次X+?X, 1或更多次X{n}?X, n次X{n,}?X, 至少n次X{n,m}?X, n到m次占有量词X?+X, 0或1个X*+X, 0或更多次X++X, 1或更多次X{n}+X, n次X{n,}+X, 至少n次X{n,m}+X, n到m次逻辑操作符XYX 后跟着 YX|YX 或者 Y(X)X, 作为一个捕获组后向引用\\n第n个捕获组捕获的内容\\k<name>name组捕获的内容转义\\转义下一个字符\\Q转义直到 \\E 的所有字符\\E停止 \\Q 开始的转义特殊构造(?<name>X)X, 命名的捕获组(?:X)X, 非捕获组(?idmsuxU-idmsuxU) 开启关闭 i d m s u x U 匹配标签(?idmsux-idmsux:X)  X, 在开启或关闭 i d m s u x 的标签(?=X)X, 零宽肯定先行断言(?!X)X, 零宽否定先行断言(?<=X)X, 零宽肯定后行断言(?<!X)X, 零宽否定后行断言(?>X)X, 独立非捕获组\n\n\n\n\n\n正则操作\nNotepad++ / Sublime Text 中搜索替换比如把 markdown 的图片链接转换为 bbs 的\n\n点击 replace 后变成了\n\n如图，可以使用组\n\nJava 中全文搜索\npackage io.izzel.strtutor;\n\nimport java.util.regex.Matcher;\nimport java.util.regex.Pattern;\n\npublic class Main {\n\n    public static void main(String[] args) {\n        // 正则表达式\n        Pattern pattern = Pattern.compile(\"\\\\b(?<first>\\\\w+)\\\\b\\\\s+(\\\\b\\\\k<first>\\\\b\\\\s*)+\");\n        // 输入的内容\n        Matcher input = pattern.matcher(\"A b c c b a b f f d.\");\n        while (input.find()) {\n            // 默认第 0 组，还记得前面讲的怎么分组吗\n            System.out.println(input.group());\n            // 叫 first 的组\n            System.out.println(input.group(\"first\"));\n            // 第二个组\n            System.out.println(input.group(2));\n        }\n    }\n\n}\n\n更多 Java 相关的 API 比如 String#replaceAll String#split String#matches 以及 Pattern Matcher 的高级用法请结合搜索引擎了解。\n\n[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "langyo",
+            "timestamp": 1541268840,
+            "txt_content": "别人拿正则解析网页写编译器，你倒好，拿正则……分析物品 lore……\n\n"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1541269320,
+            "txt_content": "langyo 发表于 2018-11-4 02:14\n别人拿正则解析网页写编译器，你倒好，拿正则……分析物品 lore……\n\n ...\n正则写编译器的我还真没见过网页。。一般用着别人的库搞，jsoup啥的比正则性能高多少还好用\n\n物品lore是个引子，全文基本与之无关\n\n"
+        },
+        {
+            "author": "langyo",
+            "timestamp": 1541272140,
+            "txt_content": "754503921 发表于 2018-11-4 02:22\n正则写编译器的我还真没见过网页。。一般用着别人的库搞，jsoup啥的比正则性能高多少还好用\n\n物品lore是 ...\n正则写编译器的例子其实很多，只是你我没去注意这种事……\n\n其实我说的也不准确，与其说是拿正则写编译器，不如说是拿正则构造自动机，再以这个自动机进行词法与语法分析……"
+        },
+        {
+            "author": "白羊羊",
+            "timestamp": 1541287200,
+            "txt_content": "关键是那些RPG插件支持正则表达式吗"
+        },
+        {
+            "author": "。—。",
+            "timestamp": 1541298720,
+            "txt_content": "原本正则表达式涉及到的内容不会超过所有可打印的ASCII字符，如果需要引入其它学科知识类比解释就需要读者同时拥有相同等级的储备，现在想看懂一个教程的代价已经这么高了么……"
+        },
+        {
+            "author": "gooding300",
+            "timestamp": 1541379120,
+            "txt_content": "请问如果要做到在单个group中匹配出“aa+两个字母”或“bb+两个字母”，应当如何写正则表达式"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1541391480,
+            "txt_content": " 本帖最后由 754503921 于 2018-11-5 12:34 编辑 \ngooding300 发表于 2018-11-5 08:52\n请问如果要做到在单个group中匹配出“aa+两个字母”或“bb+两个字母”，应当如何写正则表达式 ...\n(aa\\p{Alpha}{2}|bb\\p{Alpha}{2})"
+        },
+        {
+            "author": "海螺螺",
+            "timestamp": 1541602620,
+            "txt_content": "例子们\n\n带颜色的物品lore\nhttp://www.mcbbs.net/thread-828434-1-1.html"
+        },
+        {
+            "author": "1723624171",
+            "timestamp": 1541996760,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "非道",
+            "timestamp": 1542427800,
+            "txt_content": "支持海螺！~"
+        },
+        {
+            "author": "18569830789",
+            "timestamp": 1542736080,
+            "txt_content": "正则这个语言太**了，所以简单的我一般都直接java代码解决"
+        },
+        {
+            "author": "白心心",
+            "timestamp": 1543815360,
+            "txt_content": "PCD牛逼 海螺牛逼 残叶冲鸭"
+        },
+        {
+            "author": "lovezwl",
+            "timestamp": 1544237340,
+            "txt_content": "所以这是个程序猿帖子"
+        },
+        {
+            "author": "jewelboy1986",
+            "timestamp": 1544251680,
+            "txt_content": "感谢大佬的分享!感谢大佬的分享!"
+        },
+        {
+            "author": "schorsch",
+            "timestamp": 1544530740,
+            "txt_content": "http://tool.oschina.net/regex?optionGlobl=global#\n\n基本上写好 喜欢用在线工具测试下"
+        },
+        {
+            "author": "幸运EX",
+            "timestamp": 1544846580,
+            "txt_content": "感谢分享   "
+        },
+        {
+            "author": "心怀若谷",
+            "timestamp": 1544867760,
+            "txt_content": "支持支持 ！！ 这个是高手"
+        },
+        {
+            "author": "maohai",
+            "timestamp": 1547208720,
+            "txt_content": "。。。。。。。。。。。。。。。。。。"
+        },
+        {
+            "author": "3123492328",
+            "timestamp": 1547342340,
+            "txt_content": "连续两次见到你了"
+        },
+        {
+            "author": "上官旭阳",
+            "timestamp": 1547704860,
+            "txt_content": "6666666666,我一直以为正则好难的哈哈哈哈"
+        },
+        {
+            "author": "wsyxhdx",
+            "timestamp": 1547717400,
+            "txt_content": "正则可还行，有点意思"
+        },
+        {
+            "author": "呵呵啊哈额",
+            "timestamp": 1548140280,
+            "txt_content": "MCBBS有你更精彩~"
+        },
+        {
+            "author": "随便吧土豆",
+            "timestamp": 1548344880,
+            "txt_content": "正则用多了就熟了，越用越上瘾"
+        },
+        {
+            "author": "真二柱子",
+            "timestamp": 1586177160,
+            "txt_content": "看不懂啊ava\n时不时来个新东西\n不知道什么意思要百度\n百度半天还是懵\n感觉灰灰讲的清楚"
+        },
+        {
+            "author": "295701153",
+            "timestamp": 1586223420,
+            "txt_content": "非常好的教程，xx3收藏着"
+        },
+        {
+            "author": "真二柱子",
+            "timestamp": 1586260800,
+            "txt_content": "这玩意看了我要学到明年了............."
+        },
+        {
+            "author": "1848975724",
+            "timestamp": 1589976360,
+            "txt_content": "感谢楼主分享0.0"
+        }
+    ]
+}

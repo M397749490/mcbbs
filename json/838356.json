@@ -1,0 +1,84 @@
+{
+    "title": "命令方块趣味玩法：天地双响二踢脚",
+    "author": "机智的橙汁",
+    "replyCount": 15,
+    "timestamp": 1547902680,
+    "txt_content": " 本帖最后由 机智的橙汁 于 2019-1-20 01:10 编辑 \n\n\n命令方块趣味玩法：天地双响二踢脚\n 游戏版本：Java版1.13及以上作者：橙汁\n\n\n自我介绍\n\n    大家好，我是论坛新人橙汁，首次发帖，如有不足，请各位多多指教，希望大家多多支持，谢谢。我是一个很随缘佛系的新手玩家，平时比较喜欢红石与命令方块。\n\n效果介绍\n    新的一年就要到来了，在这里给大家拜个早年，祝大家在新的一年里万事如意。说到过年，我就想起了小时候玩的一种鞭炮，叫做“二踢脚”，也就是双响爆竹了。真的是很怀念那段无忧无虑的童年时光。本帖就来展示如何使用命令方块制作“二踢脚”吧。\n\n    效果是这样的：点燃一个TNT，当其引爆后会向天空飞射出第二个TNT，升空数米，并最终在空中爆炸。\n    实际生活中“二踢脚”的原理是这样的：纸筒内分两层安放火药，下层火药将爆竹送上天空，上层火药在升空后爆响。\n    但游戏中飞射升空的TNT并不是利用第一个TNT的爆炸冲击升空的，而是通过命令方块的召唤实体命令实现的。\n\n    具体效果请见下图\n（借物表：建筑 / 红尘客栈 - 龙族蝎子）\n\n\n\n思路介绍\n\n    看了具体的展示效果，我们开始进入实现过程的讲解部分吧。第一部分讲一下设计思路，第二部分再来讲述如何应用到游戏中。\n\n    首先，用C语言风格的伪代码将总体设计思路列举出来。核心部分是这四个同步进行的循环，注意是同步进行的。\n    总体设计思路就是，检测TNT点燃，等待它爆炸后召唤出升天TNT，之后再把一切恢复为初始状态即可。\n    设计时困难的地方在于这四个循环是同步进行的，各循环之间很可能出现互相激活的状态，导致无限循环。因此需要设置延时。\n\n\n伪代码设计思路请见下图\n\n\n命令介绍\n    刚刚可能看的有点头晕眼花了，不过不要紧，待会儿进入游戏的实践阶段有了具体的事物就可能比较清楚了。\n\n以下是实现整个效果的命令方块全体成员的合影\n\n接下来是分步讲解\n\n（一）初始化部分\n\n①添加计分板项目\n\n\n\n【方块01】\nscoreboard objectives add scoreA dummy复制代码类型：脉冲  不受制约  红石控制\n解释：添加计分板项目“分数A”。\n\n【方块02】\nscoreboard objectives add scoreB dummy复制代码类型：连锁  不受制约  保持开启\n解释：添加计分板项目“分数B”。\n\n【方块03】\nscoreboard objectives add delay dummy复制代码类型：连锁  不受制约  保持开启\n解释：添加计分板项目“延时计数”。\n\n【方块04】\nscoreboard objectives add delayTime dummy复制代码类型：连锁  不受制约  保持开启\n解释：添加计分板项目“延时总数”。\n\n注意：填写好四个命令方块的指令，使用红石激活01命令方块。\n\n②设置初始分数\n\n\n\n【方块05】\nscoreboard players set @p scoreA 0复制代码类型：脉冲  不受制约  红石控制\n解释：设置“分数A”为0。\n\n【方块06】\nscoreboard players set @p scoreB 0复制代码类型：连锁  不受制约  保持开启\n解释：设置“分数B”为0。\n\n【方块07】\nscoreboard players set @p delay 0复制代码类型：连锁  不受制约  保持开启\n解释：设置“延时计数”为0。\n\n【方块08】\nscoreboard players set @p delayTime 45复制代码类型：连锁  不受制约  保持开启\n解释：设置“延时总数”为45，具体数值可以根据自己的需求调整。\n\n\n注意：填写好四个命令方块的指令，使用红石激活05命令方块。\n\n（二）循环检测部分\n\n①循环一\n\n\n\n【方块09】\nexecute if score @p scoreA = @p scoreB复制代码类型：循环  不受制约  保持开启\n解释：检测是否“分数A”等于“分数B”。\n\n【方块10】\nexecute if entity @e[type=tnt] run scoreboard players set @p scoreA 1复制代码类型：连锁  条件制约  保持开启\n解释：如果检测到了点燃的TNT，就将 “分数A”设为1。\n\n【方块11】\nexecute at @e[type=tnt,limit=1,sort=nearest] run summon armor_stand ~ ~9 ~ {NoGravity:1,Invisible:1}复制代码类型：连锁  条件制约  保持开启\n解释：在最近的引燃TNT上方9格处生成一个隐形的、不受重力影响的盔甲架（标记位置）。\n\n②循环二\n\n\n\n【方块12】\nexecute if score @p scoreA > @p scoreB复制代码类型：循环  不受制约  保持开启\n解释：检测是否“分数A”大于“分数B”。\n\n【方块13】\nexecute unless entity @e[type=tnt] run scoreboard players set @p scoreB 2复制代码类型：连锁  条件制约  保持开启\n解释：如果没有检测到点燃的TNT，就将“分数B”设为2。\n\n【方块14】\nexecute at @e[type=armor_stand,limit=1,sort=nearest] run summon tnt ~ ~-7 ~ {Fuse:37,Motion:[0.0,2.4,0.0]}复制代码类型：连锁  条件制约  保持开启\n解释：在最近的盔甲架下方7格处生成一个爆炸延时为37、向上加速度为2.4的引燃TNT。\n\n【方块15】\nscoreboard players set @p scoreA 0复制代码类型：连锁  条件制约  保持开启\n解释：将“分数A”设置为0。\n\n\n③循环三.\n\n\n\n【方块16】\nexecute if score @p scoreA < @p scoreB复制代码类型：循环  不受制约  保持开启\n解释：检测是否“分数A”小于“分数B”。\n\n【方块17】\nexecute if score @p delay < @p delayTime run scoreboard players add @p delay 1复制代码类型：连锁  条件制约  保持开启\n解释：如果“延时计数”小于“延时总数”，则\n“延时计数”+1。\n\n④循环四\n\n\n\n【方块18】\nexecute if score @p delay >= @p delayTime复制代码类型：循环  不受制约  保持开启\n解释：检测“延时计数”是否大于等于“延时总数”。\n\n【方块19】\nscoreboard players set @p scoreB 0复制代码类型：连锁  条件制约  保持开启\n解释：将“分数B”设为0，恢复初始状态。\n\n【方块20】\nscoreboard players set @p delay 0复制代码类型：连锁  条件制约  保持开启\n解释：将“延时计数”设置为0。\n\n【方块21】\nkill @e[type=armor_stand,limit=1,sort=nearest]复制代码类型：连锁  条件制约  保持开启\n解释：清除最近的一个盔甲架。\n\n注意事项\n    完成以上内容就可以享受燃放“二踢脚”的乐趣了！不过，请注意以下几点内容：\n    ①由于对于盔甲架的处理命令没有加限制，因此，请注意使用时是否有其他盔甲架；\n    ②TNT属于易燃易爆物品，请在游戏时配合水来封印其地形破坏的威力，以免造成存档毁图等困扰；\n    ③为了美观，可以在聊天框输入指令用来屏蔽命令方块输出的结果。/gamerule CommandBlockOutput false复制代码\n\n其他资源\n\n    如果各位有疑问的话，可以看一下视频介绍或者下载地图存档，链接在下方，请自取。\n    视频介绍：https://www.bilibili.com/video/av41092019\n    地图存档：https://pan.baidu.com/s/1bp71ixT\n    https://www.bilibili.com/video/av41092019\n    \n    最后，祝大家游戏愉快。论坛新人首次发帖，如有不足请各位多多指教，谢谢。\n\n\n\n\n\n\n\n\n\n命令方块二踢脚（1.13+）.rar\n\n\n2019-1-20 01:10 上传\n点击文件名下载附件\n\n\n\n\n356.71 KB, 下载次数: 5\n\n\n存档\n\n\n",
+    "replies": [
+        {
+            "author": "langyo",
+            "timestamp": 1547905620,
+            "txt_content": "此图片来自QQ空间\n未经允许不可引用\n\n请补充图片"
+        },
+        {
+            "author": "机智的橙汁",
+            "timestamp": 1547906460,
+            "txt_content": "langyo 发表于 2019-1-19 21:47\n请补充图片\n我在这里是电脑可以看到图片手机看不到，请问有合适的存放图片的网站吗？"
+        },
+        {
+            "author": "机智的橙汁",
+            "timestamp": 1547917980,
+            "txt_content": "langyo 发表于 2019-1-19 21:47\n请补充图片\n感谢提醒，目前已经换了图片服务器，已全部补充完毕。"
+        },
+        {
+            "author": "亡者de瞳孔",
+            "timestamp": 1547974260,
+            "txt_content": "前来顶帖！！"
+        },
+        {
+            "author": "2210490559",
+            "timestamp": 1548050880,
+            "txt_content": "过年了玩点新花样"
+        },
+        {
+            "author": "玄素",
+            "timestamp": 1548164520,
+            "txt_content": "大概看了一下，想法不错，思路也理得还蛮清楚，但是做法稍显复杂了。\ntnt有这么一个叫Fuse的nbt，你也用了，这个nbt的作用是标记这个tnt还有多久炸掉。这个nbt在点燃后是自减的，减到0时tnt就炸了。那么我们有没有什么办法直接通过这个nbt来作为标记以取代文中延时的机制呢？显然是可以做到的。\n思路也很简单，检测Fuse:1s的tnt就完了嘛，因为下一刻它就不存在了，正好用来作为表征。唯一要注意的是需要用tag区分被summon出来的tnt。execute as @e[type=tnt,nbt={Fuse:1s},tag=!summoned] at @s run summon tnt ~ ~ ~ {Motion:[0.0,2.0,0.0],Fuse:10s,Tags:[\"summoned\"]}复制代码是不是看起来简洁多了.."
+        },
+        {
+            "author": "机智的橙汁",
+            "timestamp": 1548238800,
+            "txt_content": "玄素 发表于 2019-1-22 21:42\n大概看了一下，想法不错，思路也理得还蛮清楚，但是做法稍显复杂了。\ntnt有这么一个叫Fuse的nbt，你也用了 ...\n感谢建议"
+        },
+        {
+            "author": "uuu2011",
+            "timestamp": 1548250440,
+            "txt_content": "哈哈哈年三十在服里放二踢脚吧"
+        },
+        {
+            "author": "呵呵啊哈额",
+            "timestamp": 1548750420,
+            "txt_content": "大佬大佬，我不怎么会命令方块"
+        },
+        {
+            "author": "浮尔魔司Ya",
+            "timestamp": 1548815520,
+            "txt_content": "教练我想学，这种操作强的一批"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1548832920,
+            "txt_content": " 本帖最后由 Teenager_Yang 于 2019-1-30 15:37 编辑 \n\n其实如果要实现相同的效果的话，\n只要高频下面这一条就可以了：execute as @e[type=minecraft:tnt,tag=!233,nbt={Fuse:1s}] at @s run summon minecraft:tnt ~ ~ ~ {Tags:[\"233\"],Fuse:37s,Motion:[0.0,2.4,0.0]}复制代码\n\n突然发现玄素 dalao 的想法和我是一样的……"
+        },
+        {
+            "author": "UltraZ",
+            "timestamp": 1548833460,
+            "txt_content": "想试下用纯红石炮来搞一个"
+        },
+        {
+            "author": "(=°ω°)丿",
+            "timestamp": 1548834060,
+            "txt_content": "玄素 发表于 2019-1-22 21:42\n大概看了一下，想法不错，思路也理得还蛮清楚，但是做法稍显复杂了。\ntnt有这么一个叫Fuse的nbt，你也用了 ...\n不过相比之下，貌似 LZ 的做法可以获得更多的人气和金粒，\n看上去也更加地高大上……\n这是优点！！"
+        },
+        {
+            "author": "莫玄MX",
+            "timestamp": 1548933900,
+            "txt_content": "搬个板凳来看看"
+        },
+        {
+            "author": "runckey",
+            "timestamp": 1549247040,
+            "txt_content": "怎么好多图片看不了啊"
+        }
+    ]
+}

@@ -1,0 +1,49 @@
+{
+    "title": "【已解决】如何避免药水效果在退出后消失",
+    "author": "K-B",
+    "replyCount": 8,
+    "timestamp": 1557996000,
+    "txt_content": " 本帖最后由 K-B 于 2019-5-19 16:33 编辑 \n((EntityLivingBase) entity).addPotionEffect(new PotionEffect(MobEffects.BLINDNESS, 200, (int)(3*Math.random())));复制代码这是我目前加药水效果的方式。在退出世界重新进入后，不管时间归不归零效果都会消失。也尝试过把MobEffects.Effect换成Potion.getPotionByID(id), 并没有什么帮助。",
+    "replies": [
+        {
+            "author": "言灵乀Poison",
+            "timestamp": 1558002000,
+            "txt_content": " 本帖最后由 言灵乀Poison 于 2019-5-16 20:56 编辑 \n\n这个时间 最多也就三秒钟吧，进入服务器的\"加载地形中\"就已经能超过3秒药水效果消失了。把时间加长一点\n看错了 这个是十秒钟"
+        },
+        {
+            "author": "K-B",
+            "timestamp": 1558007280,
+            "txt_content": "言灵乀Poison 发表于 2019-5-16 18:20\n这个时间 最多也就三秒钟吧，进入服务器的\"加载地形中\"就已经能超过3秒药水效果消失了。把时间加长一点 ...((EntityLivingBase) entity).addPotionEffect(new PotionEffect(MobEffects.JUMP_BOOST, 24000, (count), (true), (true)));复制代码\n\n这是我写的另一个药水效果，一样会消失。\n更神奇的是这样写出来的效果在读秒归零了以后依然存在。"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558025640,
+            "txt_content": "楼主你应该把出现这一行代码的地方所有的代码都贴出来的。这一行代码看上去没有任何问题。\n\n一定要猜一下的话，我认为是这个效果刷在了逻辑客户端而不是逻辑服务器上，换言之缺了 if(!world.isRemote) 检查。"
+        },
+        {
+            "author": "K-B",
+            "timestamp": 1558064880,
+            "txt_content": "u.s.knowledge 发表于 2019-5-17 00:54\n楼主你应该把出现这一行代码的地方所有的代码都贴出来的。这一行代码看上去没有任何问题。\n\n一定要猜一下的 ...public class rewriteSpeed extends rewrite.ModElement {\n\n        public rewriteSpeed(rewrite instance) {\n                super(instance);\n        }\n\n        static int count;\n        {count = 1;}\n\n        public static void executeProcedure(java.util.HashMap<String, Object> dependencies) {\n                if (dependencies.get(\"entity\") == null) {\n                        System.err.println(\"Failed to load dependency entity for procedure rewriteSpeed!\");\n                }\n                Entity entity = (Entity) dependencies.get(\"entity\");\n\n                if (entity instanceof EntityLivingBase) {\n                        ((EntityLivingBase) entity).addPotionEffect(new PotionEffect(MobEffects.SPEED, 24000, (count), (true), (true)));\n                        ((EntityLivingBase) entity).addPotionEffect(new PotionEffect(MobEffects.JUMP_BOOST, 24000, (count), (true), (true)));\n                        ((EntityLivingBase) entity).addPotionEffect(new PotionEffect(MobEffects.NAUSEA, (int) 200, (int)(3*Math.random())));\n                }\n                count++;                \n        }\n\n}复制代码\n\n刚刚查了一下，大概明白world.isRemote是干嘛的了。但是具体要加在哪里呢？"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558162260,
+            "txt_content": "K-B 发表于 2019-5-17 11:48\n刚刚查了一下，大概明白world.isRemote是干嘛的了。但是具体要加在哪里呢？\n ...if (!entity.world.isRemote && entity instanceof EntityLivingBase)复制代码\n\n以及这个方法为什么是静态的？"
+        },
+        {
+            "author": "K-B",
+            "timestamp": 1558179120,
+            "txt_content": " 本帖最后由 K-B 于 2019-5-18 19:35 编辑 \nu.s.knowledge 发表于 2019-5-18 14:51\n以及这个方法为什么是静态的？\n静态的是因为这个方法是通过另一个类里面GUI里的按钮触发的，我直接写成了\nif（条件）{\n    类名.executeProcedure($_dependencies)}\n\n加了 ！world.isRemote 以后GUI的按钮点了没反应了，world.isRemote一直是false...明明我没连接服务器的。是因为静态方法的关系吗？\n\n这是那个GUI类的代码\nif (button.id == 0) {\n                                {\n                                        java.util.HashMap<String, Object> $_dependencies = new java.util.HashMap<>();\n                                        $_dependencies.put(\"entity\", entity);\n                                        rewriteSpeed.executeProcedure($_dependencies);\n                                }\n                        }复制代码\n"
+        },
+        {
+            "author": "3TUSK",
+            "timestamp": 1558198860,
+            "txt_content": "K-B 发表于 2019-5-18 19:32\n静态的是因为这个方法是通过另一个类里面GUI里的按钮触发的，我直接写成了\nif（条件）{\n    类名.executeP ...\n这神奇的变量命名风格…… 不，这不是重点。\n重点是你这个效果居然是点客户端按钮触发的。自然地，在客户端上 !world.isRemote 肯定是 false。你需要通过某个发送到服务器的数据包来实现这个效果。"
+        },
+        {
+            "author": "K-B",
+            "timestamp": 1558254720,
+            "txt_content": " 本帖最后由 K-B 于 2019-5-19 16:35 编辑 \nu.s.knowledge 发表于 2019-5-19 01:01\n这神奇的变量命名风格…… 不，这不是重点。\n重点是你这个效果居然是点客户端按钮触发的。自然地，在客户 ...\n十分感谢！不过想了想我还是用sendChatMessage(\"/effect\")吧（捂脸）似乎对我来说好理解一点。\n"
+        }
+    ]
+}

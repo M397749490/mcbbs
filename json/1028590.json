@@ -1,0 +1,24 @@
+{
+    "title": "【攻击防御心得】[PCD]大型服务器防御压测及Nullping的实用技巧&心得",
+    "author": "尼克尼",
+    "replyCount": 3,
+    "timestamp": 1587748440,
+    "txt_content": " 本帖最后由 尼克尼 于 2020-4-26 11:29 编辑 \n前言：\n本文是我自己的服务器经过多次防御实战以及各大网站技术总结出来的，如有雷同纯属巧合，也欢迎各位大触指出我方案的漏洞和缺点。\n\n什么是压测攻击[SYN-Flood]:\nSYN Flood（半开放攻击）是一种拒绝服务（DDoS）攻击，其目的是通过消耗所有可用的服务器资源使服务器不可用于合法流量。通过重复发送初始连接请求（SYN）数据包，攻击者能够压倒目标服务器机器上的所有可用端口，导致目标设备根本不响应合法流量。\nSYN Flood攻击如何工作？通过利用TCP连接的握手过程，SYN Flood攻击工作。在正常情况下，TCP连接显示三个不同的进程以进行连接。1.首先，客户端向服务器发送SYN数据包，以便启动连接。2.服务器响应该初始包与SYN / ACK包，以确认通信。3.最后，客户端返回ACK数据包以确认从服务器接收到的数据包。完成这个数据包发送和接收序列后，TCP连接打开并能发送和接收数据。\nSYN洪水可以以三种不同的方式发生：\n直接攻击：IP地址不被欺骗的SYN Flood被称为直接攻击。在这次攻击中，攻击者根本不掩盖其IP地址。由于攻击者使用具有真实IP地址的单个源设备来创建攻击，因此攻击者极易受到发现和缓解的影响。为了在目标机器上创建半开状态，黑客可以防止其机器响应服务器的SYN-ACK数据包。这通常是通过阻止除SYN数据包之外的传出数据包的防火墙规则来实现的，或者在到达恶意用户机器之前过滤任何传入的SYN-ACK数据包。实际上，这种方法很少使用（如果有的话），因为减轻是非常简单的 – 只是阻止每个恶意系统的IP地址。\n欺骗性攻击：恶意用户也可以欺骗他们发送的每个SYN数据包上的IP地址，以抑制缓解工作，使其身份更难发现。虽然数据包可能被欺骗，但这些数据包可能会被追溯到其来源。很难做这种侦探工作，但并不是不可能的，特别是如果互联网服务提供商（ISP）愿意帮助的话。\n分布式攻击（DDoS）：如果使用僵尸网络创建攻击，则将攻击溯源到源的可能性很低。对于增加的混淆级别，攻击者可能会使每个分布式设备也欺骗发送数据包的IP地址。如果攻击者正在使用诸如未来僵尸网络的僵尸网络，他们通常不会关心被感染设备的IP掩蔽\n如何防御:现在中国比较流行使用代理集群[指通过每日更新的代理IP网站API请求IP列表，伪装后使用一台电脑就可以达到上千台虚拟主机向服务器发送请求包，从而导致服务器瘫痪。虽然各种软防插件有很多，也能基本成功阻止攻击者的虚拟IP访问，但是同时也阻止了正常玩家访问服务器。因为服务器根本无法判断这个IP是正常玩家还是攻击者的虚拟IP[于是像人体内的白细胞一样，受到细菌/病毒的攻击时 好坏细胞都通杀。]那如何才能阻止攻击的同时保证玩家又能正常玩耍呢？\n防御方式:使用可以判断代理IP的软防插件+服务器主机系统防火墙限制每秒连接IP数量以及单IP每秒最大访问。可判断代理的Bungeecord插件:像主流的No-VPN，AntiBotDeluxe等等插件都是通过网站在线检测访问IP是否为代理才放行。我这里也有搬运AntiBotDeluxe插件:https://www.mcbbs.net/thread-1017750-1-1.html推荐你使用linux系统开服，毕竟windows防火墙还是不能跟iptables比。什么？你不想使用linux系统来开服：可以在各大高防云服务器服务商购买一个云服务器架设linux[300左右RMB吧你就成功拥有一个硬防100G+云流量清洗的前端机器了]然后在linux系统上架设HAproxy[一个代理软件]指向为自己真实Bungeecord服务器的IP以及端口，Bungeecord配置YML的proxy_protocl选项要改为true。架设成功后就可以通过你云服务器的IP直接访问服务器[此方法不仅可以有效隐藏服务器本机真实IP还可以隐藏端口，什么垃圾SRV解析再也不需要了呢~][仅适用与架设有Bungeecord的服务器]缺点&解决方式：玩家是通过请求前端服务器——后端服务器的方式来访问服务器，这样两台服务器的延迟不能高，带宽也得够，不然你的ping就好像在玩外服游戏一样高。[内网最好][你是壕的话大可以架设两台服务器在同一个机房使用内网互相访问][当然你也可以采用一台服务器开一个虚拟机VM来架设Linux前端服务器，网络配置好就行]\n\nLinux IPtables配置[仅测试Centos6系统，Centos7之后不再有IPtables]:1:限制syn的请求速度：这个方式需要调节一个合理的速度值，不然会影响正常用户的请求#添加一条新的策略iptables -N syn-flood  #将tcp连接的请求交给新的策略处理iptables -A INPUT -p tcp --syn -j syn-flood   #--limit-burst 10表示数据包最多超出limit设置的数量10个，这10个将会延迟处理iptables -A syn-flood -m limit --limit 50/s -j RETURN#表示上方超出的数据包直接丢弃，这样就实现了对数据包的限速问题。iptables -A syn-flood -j DROP\n2:限制单个ip的最大syn连接数：\niptables –A INPUT –i eth0 –p tcp --syn -m connlimit --connlimit-above 15 -j DROP 3:利用recent模块抵御DDOS攻击：\n单个IP最多连接3个会话 iptables -I INPUT -p tcp -dport 22 -m connlimit --connlimit-above 3 -j DROP\n只要是新的连接请求，就把它加入到SSH列表中iptables -I INPUT -p tcp --dport 22 -m state --state NEW -m recent --set --name SSH5分钟内你的尝试次数达到3次，就拒绝提供SSH列表中的这个IP服务。被限制5分钟后即可恢复访问。Iptables -I INPUT -p tcp --dport 22 -m state NEW -m recent --update --seconds 300 --hitcount 3 --name SSH -j DROP\n4:防止单个ip访问量过大\niptables -I INPUT -p tcp --dport 80 -m connlimit --connlimit-above 30 -j DROP\n5:防止ping攻击\n限制被ping的速率iptables  -A  INPUT  -p  icmp  --icmp-type  echo-request  -m  limit  --limit 1/m -j ACCEPT禁止被pingiptables -A INPUT -p icmp --icmp-type 8 -s 0/0 -j DROP\n6:使用SYN-COOKIE模块使服务器受到攻击玩家不掉线，缓存过多的请求：咕咕咕，看这篇文章反响怎么样我会考虑更新的噢~如果你已经成功钻研懂并配置成功的话，那么你受到攻击时应该是这样子的:\n\n\n\n\nQQ截图20200414052100.png (311.86 KB, 下载次数: 0)\n\n下载附件\n\n2020-4-25 01:08 上传\n\n\n\n\n\n以上为我的防御小技巧和心得，你可以参考，也可以结合我的理论思考别的防御方式，毕竟文字是死的人是活的嘛。关于Windows系统防火墙如何配置我有空会在本贴更新。[groupid=1330]PluginsCDTribe[/groupid]",
+    "replies": [
+        {
+            "author": "纸月亮",
+            "timestamp": 1587777420,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "尼克尼",
+            "timestamp": 1587802740,
+            "txt_content": "纸月亮 发表于 2020-4-25 10:17\n看起来挺不错嘛\n感谢资瓷嗷~"
+        },
+        {
+            "author": "dalaobbs",
+            "timestamp": 1591927800,
+            "txt_content": "讲的很不错哦，希望还能补充吧"
+        }
+    ]
+}

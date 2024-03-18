@@ -1,0 +1,99 @@
+{
+    "title": "[已解决]如何实现流畅的实体跟随玩家",
+    "author": "南柯郡守",
+    "replyCount": 18,
+    "timestamp": 1588783380,
+    "txt_content": " 本帖最后由 南柯郡守 于 2020-8-24 11:42 编辑 \n\n害 又是我 问题很多的我\n\n通过查看API可以找到一个setLeashHolder(Entity)\n然而这个方法是直接生成一根栓绳然后持有者是后面的Entity\n\n所以如果要自己写跟随AI的话\n\n有没有什么比较高效的实现方法\n\nhttps://www.mcbbs.net/thread-921817-1-1.html  \n\n这个贴子的实现方法是玩家走过的生成一片看不见的EffectCloud \n然后把实体传送到最近的一个EffectCloud\n\n这是一种实现方法 但是问题在于效率及实用性\n\n如果是两个玩家交叉走过 那么后面的实体是不是会被带跑偏呢\n\n不知道各位有什么见解",
+    "replies": [
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588787640,
+            "txt_content": "NMS下有一个PathfinderGoalFollowEntity，那个应该是你需要的\n\n比如NMS下的EntityParrot\n\n  protected void initPathfinder() {\n    this.goalSit = new PathfinderGoalSit(this);\n    this.goalSelector.a(0, new PathfinderGoalPanic(this, 1.25D));\n    this.goalSelector.a(0, new PathfinderGoalFloat(this));\n    this.goalSelector.a(1, new PathfinderGoalLookAtPlayer(this, (Class)EntityHuman.class, 8.0F));\n    this.goalSelector.a(2, this.goalSit);\n    this.goalSelector.a(2, new PathfinderGoalFollowOwner(this, 1.0D, 5.0F, 1.0F, true));\n    this.goalSelector.a(2, new PathfinderGoalRandomFly(this, 1.0D));\n    this.goalSelector.a(3, new PathfinderGoalPerch(this));\n    this.goalSelector.a(3, new PathfinderGoalFollowEntity(this, 1.0D, 3.0F, 7.0F));\n  }复制代码\n\ngoalSelector.a就是添加AI，第一个数字代表优先级，越低的值优先级越高，第二个就是具体的task\n\n具体做法，新建PathfinderGoalFollowEntity对象，用NMS修改\nprivate EntityInsentient c;复制代码\n将这部分指向Player\n之后goalSelector.a添加此task"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588787820,
+            "txt_content": "建议调用NMS的时候对照forge的代码一块看比较清楚，forge的都反混淆了\n\n比如\n这是NMS\npublic class PathfinderGoalFollowEntity extends PathfinderGoal {\n  private final EntityInsentient a;\n  private final Predicate<EntityInsentient> b;\n  private EntityInsentient c;\n  private final double d;\n  private final NavigationAbstract e;\n  private int f;\n  private final float g;\n  private float h;\n  private final float i;复制代码\n\n这是forge\npublic class FollowMobGoal extends Goal {\n   private final MobEntity entity;\n   private final Predicate<MobEntity> followPredicate;\n   private MobEntity followingEntity;\n   private final double speedModifier;\n   private final PathNavigator navigation;\n   private int timeToRecalcPath;\n   private final float stopDistance;\n   private float oldWaterCost;\n   private final float areaSize;\n复制代码\n\n所以EntityInsentient c对应MobEntity followingEntity"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588842600,
+            "txt_content": "疾风暗影 发表于 2020-5-7 01:57\n建议调用NMS的时候对照forge的代码一块看比较清楚，forge的都反混淆了\n\n比如\n但是我在添加task的时候报错\nCaused by: java.lang.NoSuchMethodError: net.minecraft.entity.ai.EntityAITasks.addTask(ILnet/minecraft/entity/ai/EntityAIBase;)V\nEntityCreature cre = (EntityCreature)(Object)((CraftHorse)cow).getHandle();\nDartFllow fllow = new DartFllow((World)(Object)((CraftWorld)cow.getWorld()).getHandle());\nfllow.tasks.addTask(3, new EntityAIFollow(cre, 1.0D, 3.0F, 7.0F));复制代码\nimport net.minecraft.entity.ai.EntityAITasks;\nimport net.minecraft.world.World;\n\npublic class DartFllow {\n        public EntityAITasks tasks;\n        public DartFllow(World worldIn) {\n                tasks= new EntityAITasks(null);\n        }\n}复制代码\n\n\n以上是部分代码\n\n用的1.12.2"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588860300,
+            "txt_content": "南柯郡守 发表于 2020-5-7 17:10\n但是我在添加task的时候报错\nnet.minecraft.entity.ai.EntityAITasks\n这是forge的反混淆名\n\n记住你写的是bukkit插件，要用bukkit的nms名"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588914060,
+            "txt_content": "疾风暗影 发表于 2020-5-7 22:05\nnet.minecraft.entity.ai.EntityAITasks\n这是forge的反混淆名\n害 折腾了一天还没没做出来\n\n就连让实体移动到指定坐标都不行\n\n有没有实例代码给我看抄一份"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588918740,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-5-8 14:23 编辑 \n南柯郡守 发表于 2020-5-8 13:01\n害 折腾了一天还没没做出来\n\n就连让实体移动到指定坐标都不行\n下面是我写的1.15的例子，GPL3预警\n注意nms每个mc版本都会变，其他版本请自行反混淆\n\n    public static void spawnParrot(Player p) {\n        Entity e = p.getWorld().spawnEntity(p.getLocation(), EntityType.PARROT);\n        net.minecraft.server.v1_15_R1.EntityParrot parrot = ((CraftParrot) e).getHandle();\n        PathfinderGoalSelector pgs = parrot.goalSelector;\n        try {\n            Class clazz = PathfinderGoalSelector.class;\n            Field field = clazz.getDeclaredField(\"d\");\n            field.setAccessible(true);\n            Set<PathfinderGoalWrapped> set = (Set<PathfinderGoalWrapped>) field.get(pgs);\n            set.clear();\n            \n        } catch(IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException ex) {\n            \n        }\n        parrot.goalSelector.a(0, new PathfinderGoalMoveTowardsPlayer(parrot, 5, ((CraftPlayer)p).getHandle(), 10));\n    }\n    \n    \n    public static class PathfinderGoalMoveTowardsPlayer extends PathfinderGoal {\n        private final EntityCreature a;\n        private EntityLiving b;\n        private double c;\n        private double d;\n        private double e;\n        private final double f;\n        private final float g;\n\n        public PathfinderGoalMoveTowardsPlayer(EntityCreature var0, double var1, EntityLiving var2, float var3) {\n          this.a = var0;\n          this.f = var1;\n          this.g = var3;\n          this.b = var2;\n          a(EnumSet.of(PathfinderGoal.Type.MOVE));\n        }\n\n        @Override\n        public boolean a() {\n          if (this.b == null)\n            return false; \n          if (this.b.h(this.a) > (this.g * this.g))\n            return false; \n          Vec3D var0 = this.b.getPositionVector();\n          if (var0 == null)\n            return false; \n          this.c = var0.x;\n          this.d = var0.y;\n          this.e = var0.z;\n          return true;\n        }\n\n        @Override\n        public boolean b() {\n          return (!this.a.getNavigation().m() && this.b.isAlive() && this.b.h(this.a) < (this.g * this.g));\n        }\n\n        @Override\n        public void d() {\n          \n        }\n\n        @Override\n        public void c() {\n          this.a.getNavigation().a(this.c, this.d, this.e, this.f);\n        }\n      }\n复制代码\n\n这是创建跟踪鹦鹉的，其他生物你自己照着反混淆表改\n后面我再详细写个帖子讲讲生物AI的nms\n\n抄时注意开源协议"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588921560,
+            "txt_content": "疾风暗影 发表于 2020-5-8 14:19\n下面是我写的1.15的例子，GPL3预警\n注意nms每个mc版本都会变，其他版本请自行反混淆EntityCow coew = ((CraftCow)cow).getHandle();\ncoew.goalSelector.a(0, new PathfinderGoalMoveTowardsTarget(coew, 1, 10));\ncoew.setGoalTarget((EntityLiving)((CraftPlayer)sender).getHandle());复制代码\n\n请教一下为什么这样做行不通呢"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588951380,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-5-8 23:25 编辑 \n南柯郡守 发表于 2020-5-8 15:06\n请教一下为什么这样做行不通呢\n\n请先反混淆搞清每个类的作用\n\n\nPathfinderGoalMoveTowardsTarget是攻击目标的ai\n然而牛的targetgoal一直在改变\n\n其次你没有把牛的ai清空，其他同优先级的ai也能清掉牛的targetgoal"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588955160,
+            "txt_content": "疾风暗影 发表于 2020-5-8 23:23\n请先反混淆搞清每个类的作用PathfinderGoalSelector pfd = coew.goalSelector;//.a(0, new PathfinderGoalMoveTowardsTarget(coew, 1, 10));\n                        try {\n                    Class<PathfinderGoalSelector> clazz = PathfinderGoalSelector.class;\n                    Field field = clazz.getDeclaredField(\"b\");\n                    field.setAccessible(true);\n                    Set<PathfinderGoal> set = (Set<PathfinderGoal>) field.get(pfd);\n                    set.clear();\n                } catch(IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException ex) {\n                    \n                }\n                        coew.goalSelector.a(0, new PathfinderGoalFollowEntity(coew,0.1d,1f,15f));\n                        dedde=(EntityLiving)((CraftPlayer)sender).getHandle();\n                        Bukkit.getScheduler().runTaskTimerAsynchronously(this, new Runnable() {\n                                @Override\n                                public void run() {\n                                        coew.setGoalTarget(dedde);\n                                }\n                                \n                        }, 2, 2);复制代码\n\n为啥我用这个方法清空牛的AI成功了 但是后面加了FollowEntity还给了target \n但这牛还是个傻子呢"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588955580,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-5-9 00:41 编辑 \n南柯郡守 发表于 2020-5-9 00:26\n为啥我用这个方法清空牛的AI成功了 但是后面加了FollowEntity还给了target \n但这牛还是个傻子呢 ...\n我上面说了PathfinderGoalMoveTowardsTarget是攻击型生物的ai\n对于攻击生物，mc会每一tick调用PathfinderGoalMoveTowardsTarget#a获取位置\n被动型生物的targetgoal无效，设了也没用\n\n此外你这里用runTaskTimerAsynchronously不怕把主线程崩掉吗？"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588956300,
+            "txt_content": "我7楼的例子里有一个PathfinderGoalMoveTowardsPlayer类，你可以参考它的写法\n这个类不需要要求ai承载方的targetgoal，而是构造的时候指定实体"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588957620,
+            "txt_content": "疾风暗影 发表于 2020-5-9 00:45\n我7楼的例子里有一个PathfinderGoalMoveTowardsPlayer类，你可以参考它的写法\n这个类不需要要求ai承载方的t ...\n我这里把AI换成了PathfinderGoalFollowEntity\n但是PathfinderGoalFollowEntity好像也会一直重置target\n\n我就想着直接清空AI然后利用寻路系统直接指定坐标\n我尝试coew.getNavigation().a(0d, 70d, 10d, 0.1d);复制代码\n但是也不管用\n我去翻了下源码 \n  public boolean a(double paramDouble1, double paramDouble2, double paramDouble3, double paramDouble4)\n  {\n    return a(a(paramDouble1, paramDouble2, paramDouble3), paramDouble4);\n  }复制代码\n对应\n  public boolean tryMoveToXYZ(double x, double y, double z, double speedIn)\n  {\n    return setPath(getPathToXYZ(x, y, z), speedIn);\n  }复制代码\n\n一直返回false  也不知道是为什么 想请教一下"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588957920,
+            "txt_content": " 本帖最后由 疾风暗影 于 2020-5-9 01:14 编辑 \n南柯郡守 发表于 2020-5-9 01:07\n我这里把AI换成了PathfinderGoalFollowEntity\n但是PathfinderGoalFollowEntity好像也会一直重置target\n1. PathfinderGoalFollowEntity只用于鹦鹉尾随攻击性生物\n2. PathfinderGoalFollowEntity的跟随目标是构造函数传入的EntityInsentient，EntityPlayer没有实现EntityInsentient\n\n3. 你没有展示你如何构造PathfinderGoalFollowEntity的，如果你构造PathfinderGoalFollowEntity的时候把动物本身当第一个参数传入的话，也就是动物自己指向自己，shouldMove会一直返回false导致实体不动\n\n4. 我上面给了一个PathfinderGoalMoveTowardsPlayer的例子，想实现ai跟随那个是最好的方法，不要试图想简单调用nms自带的Pathfinder"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588958400,
+            "txt_content": "疾风暗影 发表于 2020-5-9 01:12\n1. PathfinderGoalFollowEntity只用于鹦鹉尾随攻击性生物\n2. PathfinderGoalFollowEntity的跟随目标是构造 ...\n那我明白了 就是最早先说的教程里的shouldExecute等等方法extends pathfinder 然后只需要判断是否继续执行 其他的交给bukkit是吧"
+        },
+        {
+            "author": "天辉胡萝卜",
+            "timestamp": 1588958880,
+            "txt_content": "南柯郡守 发表于 2020-5-9 01:20\n那我明白了 就是最早先说的教程里的shouldExecute等等方法extends pathfinder 然后只需要判断是否继续执 ...\n并不是。。。移动的坐标也需要在pathfinder里面指定，不只是判断shouldMove\n\n直接在外面调用navigation无效因为同一tick的后续动作会覆盖掉你预设的\n\n下面的例子，EntityLiving var2是构造期间传入的，也就是你要追踪的目标，可以是玩家或者其他实体\npublic boolean a() 判断是否需要进行移动及设定移动坐标，关键语句是\nVec3D var0 = this.b.getPositionVector(); //获取位置\nthis.c = var0.x;\nthis.d = var0.y;\nthis.e = var0.z; //设定移动目的地复制代码\npublic boolean b()是判断是否需要移动\npublic void d()是重置ai，留空\npublic void c()是实际进行移动\n\n最后是具体实现\n\n    public static class PathfinderGoalMoveTowardsPlayer extends PathfinderGoal {\n        private final EntityCreature a;\n        private EntityLiving b;\n        private double c;\n        private double d;\n        private double e;\n        private final double f;\n        private final float g;\n        public PathfinderGoalMoveTowardsPlayer(EntityCreature var0, double var1, EntityLiving var2, float var3) {\n          this.a = var0;\n          this.f = var1;\n          this.g = var3;\n          this.b = var2;\n          a(EnumSet.of(PathfinderGoal.Type.MOVE));\n        }\n        @Override\n        public boolean a() {\n          if (this.b == null)\n            return false; \n          if (this.b.h(this.a) > (this.g * this.g))\n            return false; \n          Vec3D var0 = this.b.getPositionVector();\n          if (var0 == null)\n            return false; \n          this.c = var0.x;\n          this.d = var0.y;\n          this.e = var0.z;\n          return true;\n        }\n        @Override\n        public boolean b() {\n          return (!this.a.getNavigation().m() && this.b.isAlive() && this.b.h(this.a) < (this.g * this.g));\n        }\n        @Override\n        public void d() {\n          \n        }\n        @Override\n        public void c() {\n          this.a.getNavigation().a(this.c, this.d, this.e, this.f);\n        }\n      }\n复制代码\n"
+        },
+        {
+            "author": "南柯郡守",
+            "timestamp": 1588960320,
+            "txt_content": "疾风暗影 发表于 2020-5-9 01:28\n并不是。。。移动的坐标也需要在pathfinder里面指定，不只是判断shouldMove\n\n直接在外面调用navigation无 ...\n感谢大佬！我总算是听明白了\n\n我去研究研究"
+        },
+        {
+            "author": "MC_longxi",
+            "timestamp": 1589016300,
+            "txt_content": "我都看不懂代码难受"
+        },
+        {
+            "author": "xwjqq",
+            "timestamp": 1589018460,
+            "txt_content": "有没有小白教程，看不懂"
+        }
+    ]
+}

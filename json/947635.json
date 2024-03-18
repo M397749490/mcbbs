@@ -1,0 +1,49 @@
+{
+    "title": "关于玩家切换物品栏",
+    "author": "猿汐",
+    "replyCount": 8,
+    "timestamp": 1580216760,
+    "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽",
+    "replies": [
+        {
+            "author": "粘兽",
+            "timestamp": 1580217900,
+            "txt_content": "你现在是判断什么进行取消的呢？\n手持物品？"
+        },
+        {
+            "author": "猿汐",
+            "timestamp": 1580218080,
+            "txt_content": "提示: 作者被禁止或删除 内容自动屏蔽"
+        },
+        {
+            "author": "粘兽",
+            "timestamp": 1580218200,
+            "txt_content": "猿汐 发表于 2020-1-28 21:28\n手持的物品，那个物品是特定的，只有那个物品可以切换GUI\n那你可以在使用物品之后给把玩家放到一个list中\n然后在PlayerChangedMainHandEvent中进行取消\n\n但我还是推荐你判断容器的title或holder"
+        },
+        {
+            "author": "夏雨吖",
+            "timestamp": 1580348400,
+            "txt_content": " 本帖最后由 M8_mve 于 2020-1-30 09:43 编辑 \n\n自己实现一下player里面的openInventory和openContainer，在openCon里给玩家打开自己实现的Container，然后可以判断在nmsEntityPlayer里的activeContainer是不是你实现的Container      这里有一个我写过的，当作例子8哈哈哈哈    随便乱写的啦\n\n\n\n\npublic class PlayerInventoryHandle implements Listener\n{\n        public static InventoryView openInv(Player player, Inventory inventory, ShopInteract interact)\n        {\n                CraftPlayer craft = (CraftPlayer) player;\n                EntityPlayer entity = craft.getHandle();\n                InventoryType type = inventory.getType();\n                Container formerContainer = entity.activeContainer;\n                IInventory iinventory = inventory instanceof CraftInventory ? ((CraftInventory)inventory).getInventory() : new InventoryWrapper(inventory);\n                switch (type)\n                {\n                        case PLAYER:\n                        case CHEST:\n                        case ENDER_CHEST:\n                                openCon(entity, iinventory, interact);\n                                break;\n                        case DISPENSER:\n                                openCustomInv(inventory, entity, \"minecraft:dispenser\", interact);\n                                break;\n                        case DROPPER:\n                                openCustomInv(inventory, entity, \"minecraft:dropper\", interact);\n                                break;\n                        case FURNACE:\n                                openCustomInv(inventory, entity, \"minecraft:furnace\", interact);\n                                break;\n                        case WORKBENCH:\n                                openCustomInv(inventory, entity, \"minecraft:crafting_table\", interact);\n                                break;\n                        case BREWING:\n                                openCustomInv(inventory, entity, \"minecraft:brewing_stand\", interact);\n                                break;\n                        case ENCHANTING:\n                                openCustomInv(inventory, entity, \"minecraft:enchanting_table\", interact);\n                                break;\n                        case HOPPER:\n                                openCustomInv(inventory, entity, \"minecraft:hopper\", interact);\n                                break;\n                        case BEACON:\n                                openCustomInv(inventory, entity, \"minecraft:beacon\", interact);\n                                break;\n                        case ANVIL:\n                                openCustomInv(inventory, entity, \"minecraft:anvil\", interact);\n                                break;\n                        case SHULKER_BOX:\n                                openCustomInv(inventory, entity, \"minecraft:shulker_box\", interact);\n                                break;\n                        case CREATIVE:\n                        case CRAFTING:\n                        case MERCHANT:\n                                throw new IllegalArgumentException(\"Can't open a \" + type + \" inventory!\");\n                }\n                if (entity.activeContainer == formerContainer)\n                {\n                        return null;\n                }\n                else\n                {\n                        entity.activeContainer.checkReachable = false;\n                        return entity.activeContainer.getBukkitView();\n                }\n        }\n\n        private static void openCon(EntityPlayer entity, IInventory iinventory, ShopInteract view)\n        {\n                Container container = new ShopContainerChest(entity.inventory, iinventory, entity, view);\n                container = CraftEventFactory.callInventoryOpenEvent(entity, container);\n                if (container == null)\n                {\n                        iinventory.closeContainer(entity);\n                }\n                else\n                {\n                        if (entity.activeContainer != entity.defaultContainer)\n                        {\n                                entity.closeInventory(InventoryCloseEvent.Reason.OPEN_NEW);\n                        }\n                        int containerCounter = entity.nextContainerCounter();\n                        entity.activeContainer = container;\n                        entity.playerConnection.sendPacket(new PacketPlayOutOpenWindow(containerCounter, \"minecraft:container\", iinventory.getScoreboardDisplayName(), iinventory.getSize()));\n                        entity.activeContainer.windowId = containerCounter;\n                        entity.activeContainer.addSlotListener(entity);\n                }\n        }\n\n        private static void openCustomInv(Inventory inventory, EntityPlayer player, String windowType, ShopInteract view)\n        {\n                if (player.playerConnection != null)\n                {\n                        Container container = new ShopContainerCraft(inventory, player, player.nextContainerCounter(), view);\n                        container = CraftEventFactory.callInventoryOpenEvent(player, container);\n                        if (container != null)\n                        {\n                                String title = container.getBukkitView().getTitle();\n                                int size = container.getBukkitView().getTopInventory().getSize();\n                                if (windowType.equals(\"minecraft:crafting_table\") || windowType.equals(\"minecraft:anvil\") || windowType.equals(\"minecraft:enchanting_table\"))\n                                {\n                                        size = 0;\n                                }\n\n                                player.playerConnection.sendPacket(new PacketPlayOutOpenWindow(container.windowId, windowType, new ChatComponentText(title), size));\n                                player.activeContainer = container;\n                                player.activeContainer.addSlotListener(player);\n                        }\n                }\n        }\n}\n复制代码\n\n在openCon里我用了自己的ShopContainerChest\n\n"
+        },
+        {
+            "author": "569689640qqq",
+            "timestamp": 1580353800,
+            "txt_content": "厉害了我的歌66666"
+        },
+        {
+            "author": "秋韵",
+            "timestamp": 1580450100,
+            "txt_content": "PlayerItemHeldEvent\n我判定玩家换格子都是用这个\ne.setCancelled(true)就得了\n会使得玩家换不了格子\n提供个思路\n打开背包前把玩家名存到某个容器里面(比喻，如List<String>)\n打开背包后再把玩家名从之前贮存它的地方删去\n然后这期间有一点时间空隙\n你在判断假如玩家名处于那个贮存的地方就设置换格子事件取消\n\n讲完了，我认为是这样，如果你觉得不对就是我理解错了"
+        },
+        {
+            "author": "棱海",
+            "timestamp": 1580486340,
+            "txt_content": "秋韵 发表于 2020-1-31 13:55\nPlayerItemHeldEvent\n我判定玩家换格子都是用这个\ne.setCancelled(true)就得了\n感谢大佬科普，我最近也是碰到这个问题，思路很清晰，一点没错。\n物品打开->加入HashMap？->判断这期间玩家是否切换了格子->切换了就closeInventory->HashMap删除\n没切换就根据需要写。nice啊大佬"
+        },
+        {
+            "author": "秋韵",
+            "timestamp": 1580487240,
+            "txt_content": "棱海 发表于 2020-1-31 23:59\n感谢大佬科普，我最近也是碰到这个问题，思路很清晰，一点没错。\n物品打开->加入HashMap？->判断这期间玩 ...\n是啊\n不过用map干嘛\nlist不香吗\n方便一点\n只要判断玩家在不在这个list就好了"
+        }
+    ]
+}

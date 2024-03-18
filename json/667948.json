@@ -1,0 +1,29 @@
+{
+    "title": "【经验】记一次BUG排查",
+    "author": "jnworld",
+    "replyCount": 4,
+    "timestamp": 1485523680,
+    "txt_content": "我不知道这个版允不允许发经验类。。。  如果不行的话请果断删帖我没有意见\n\n\n事件是这样的：\n\n服务端版本 1.8.8\n\n众所周知  4.0版本的领地插件BUG多的要死，最不能接受的是有时候玩家可以无视权限突破领地的保护\n那我还要你这个垃00圾干啥？\n于是我更换了领地2.6版本\n\n一想到低版本没有生物保护，于是我去外站找了一个协助保护动物的插件\n链接如下\nhttps://dev.bukkit.org/projects/resprotect\n\n哇这个小家伙它只支持到1.7版本哦~\n但我不死心   仔qiang细xing阅fan读yi了英文说明后装上去试了试\n嗯，果然无效╮(╯▽╰)╭\n\n如插件说明中写了：\nbutcher = Animal Protection.哦。。。这个应该是动物保护的权限节点吧。\n\n于是我游戏内:\n/res set butcher false\n\n然后【领地插件】提示我没有权限\nexcuse me???\n我是op权限哎？？？\n于是我使用\n/resadmin set butcher false\n结果成功了！动物也确实可以被正常保护了\n\n那么说明这个resprotect插件提供的支持其实是有效的，但我又不可能让玩家去使用resadmin命令\n于是我就想，到底是什么原因造成了即使是OP权限也无法操作这个权限节点呢？\n我忽然想到了提示我权限不足的是【领地插件】\n于是我去领地的config，看到以下字眼\n\n    # This gives permission to change certain flags to all groups, unless specifically denied to the group.\n    FlagPermission:\n        move: true\n        build: true\n        place: true\n        destroy: true.....\n以及\n\n    # These are default flags applied to all residences from any user group.\n    ResidenceDefault:\n        build: false\n        use: false\n        container: false\n        pvp: false\n        tnt: false\n        creeper: false\n        flow: false\n        piston: false\n        ignite: false\n        firespread: false\n    # These are default flags applied to the residence creator of any group.\n    CreatorDefault:\n        build: true\n        move: true\n        use: true\n        ignite: true\n        container: true....\n也就是说领地插件其实为每一个权限节点提供了一个独立的控制选项\n通过配置config.yml可以实现\n1.玩家对特定权限节点的操作权限\n2.领地默认是否允许该权限（行为）    如在ResidenceDefault:   中build:false 则说明领地被建立后就不允许任何人对领地内的方块进行操作\n3.那么领地主人呢？  CreatorDefault里面就指定了主人默认拥有的权限，比如build   \n也就是说\n1.Flagpermission中 build:true 说明玩家可以对领地的build权限进行true或者false的设定\n2.领地的build权限默认是禁止的\n3.领地主人拥有build权限\n\n于是我在这些项目里面添加了\n\n如FlagPermission里\nbutcher: true     (允许玩家编辑butcher权限)\nResidenceDefault 中\nbutcher:false    (玩家默认没有butcher权限)\nCreatorDefault中\nbutcher:true    (主人拥有butcher权限)\n\n到此，第一个问题就解决了。\n\n小总结：\n大哥你发帖（resprotect）能不能带上一份人类看得懂的使用说明啊！！\n说真的，这种不认真研究就绝对搞不懂的东西，已经可以难倒99%的服主和技术了。\n想解决这种问题，只能说：请多给自己一点时间，你总有一天能搞定。\n\n如果问题到这里就圆满结束然后就一片太平了的话\n\n\n那真是太便宜我了\n\n这一步在正式服务器测试仅仅30分钟就出现了一个相当严重的问题\n所有怪物的攻击AI全都消失了！\n\n解决这个问题已经是几天之后了。\n由于可以确定生物AI消失的原因肯定是领地插件以及这个坑爹的resprotect插件\n我很快就定位到了是resprotect插件疑似解除了怪物的AI\n\n请允许我做一个相当悲伤的表情                      \n错了。。。\n\n\n\n我觉得无论是版主还是看官看到这里都想删我帖子了，因为这根本和编程没有一丁点关系嘛\n接下来就有了。。。。。。。。。。。。\n\n我把这个resprotect的源码\n从头到尾\n看了一遍\n\n（当然不重要的地方我一扫而过了233）\n\n然后我看到了一个十分十分可疑的class\n......public class EntityTargetListener\n  implements Listener\n{\n  @EventHandler(priority=EventPriority.NORMAL)\n  public void onEntityTarget(EntityTargetEvent event)\n  {\n    if (event.isCancelled()) {\n      return;\n    }\n\n    if (event.getTarget() == null) {\n      return;\n    }\n\n    if (event.getTarget().getLocation() == null) {\n      return;\n    }\n\n    FlagPermissions perms = Residence.getPermsByLoc(event.getTarget().getLocation());\n\n    if ((perms != null) && \n      (perms.has(\"safezone\", true)))\n      event.setCancelled(true);\n  }\n}\n实体。。。。目标？？？\n咦？？excuse me？？\n\n于是我顺着线索打开了这个resprotect插件的配置文件（卧槽大哥你TM居然还有配置文件啊！！！！你很棒棒哦！！）\n\n看到以下字眼\nEnableSnowChangeEvents: false\nPreventAllSnowForming: false\nEnableLightningDetection: false\nEnableChatListener: false\nEnableTargetListener: false\nEnableForgeHooks: false\nEnableMoCreaturesHooks: false\n里面有这个 targetlistener\n于是我仔细看了看这个EntityTargetListener 类的代码\n\n\n尼玛\n这难道是传说中的\n全局取消生物AI吗！！！！！！\n\n\n于是把配置中的EnableTargetListener 改成false\n问题解决\n : Fa Q\n\n\n\n总记\n造成一个BUG的可能性真的很多很多\n如果你遇到的问题还有温柔的报错给你指引线索的话那真是极好的\n怕的是这种非人类能理解的坑爹BUG\n应对这种问题的唯二方法：\n1.用时间堆出线索指引你完成修复\n2.被这种坑爹BUG蹂躏到服从为止",
+    "replies": [
+        {
+            "author": "Z_Dreams_",
+            "timestamp": 1485606900,
+            "txt_content": "说实话……我有的时候排查这种BUG的时候也差不多这样的步骤\n最后基本都能成功\n一步步推理是一个技术的基本要求"
+        },
+        {
+            "author": "jnworld",
+            "timestamp": 1485612660,
+            "txt_content": "xuan_lv2333 发表于 2017-1-28 20:35\n说实话……我有的时候排查这种BUG的时候也差不多这样的步骤\n最后基本都能成功\n一步步推理是一个技术的基本 ...\n就这种其实没太大技术含量的操作能pass掉中国99%的服主"
+        },
+        {
+            "author": "RE_OVO",
+            "timestamp": 1486264140,
+            "txt_content": "这个。我只能说重置版的领地我用的很好，老版本的领地已经停更，上次我用还把我数据给丢了。\n我一直用重置版领地，没问题，功能也很强大。"
+        },
+        {
+            "author": "jnworld",
+            "timestamp": 1486269600,
+            "txt_content": "jebme 发表于 2017-2-5 11:09\n这个。我只能说重置版的领地我用的很好，老版本的领地已经停更，上次我用还把我数据给丢了。\n我一直用重置 ...\n很多大服务器都回滚了2.6版本233"
+        }
+    ]
+}
